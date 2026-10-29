@@ -202,7 +202,16 @@
     "uploadLogo": "Logo hochladen",
     "removeLogo": "Entfernen",
     "logoTooLarge": "Das Logo ist größer als 2 MB.",
-    "logoFailed": "Das Logo konnte nicht hochgeladen werden (PNG, JPEG, WebP oder SVG)."
+    "logoFailed": "Das Logo konnte nicht hochgeladen werden (PNG, JPEG, WebP oder SVG).",
+    "agents": "KI-Agenten (MCP)",
+    "agentsHint": "Agenten wie Claude verbinden sich per OAuth und können dann Workshops lesen und ändern: Ablauf, Notizen, Material, Packliste und Bibliothek. Trennen beendet den Zugriff sofort.",
+    "agentsOff": "Auf dem Server nicht aktiviert. Mit SP_MCP_OAUTH=1 (siehe docs/mcp.md) kann sich Claude verbinden.",
+    "agentsNone": "Kein Agent verbunden.",
+    "agentsSince": "verbunden am {{date}} von {{user}}",
+    "agentsLastUsed": "zuletzt genutzt {{date}}",
+    "disconnect": "Trennen",
+    "agentsDisconnectConfirm": "{{name}} trennen? Der Zugriff endet sofort und muss neu freigegeben werden.",
+    "agentsError": "Verbindungen konnten nicht geladen oder geändert werden ({{error}}). Bitte erneut versuchen; bis dahin bleiben sie unverändert."
   },
   "categories": {
     "input": "Input",

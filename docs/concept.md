@@ -110,7 +110,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 1. **Planning core** – done (2026-10-29).
 2. **Planning comfort** – done (2026-10-29): layout and settings, categories and colours, editing title, time and duration on the card (any common way of writing a length or time), description switch, groups, library, packing-list additions, logo on printouts, duplicating a workshop with moved dates.
 3. **Sharing** – in progress: section 8.
-4. **Claude connector (MCP)** – high priority after sharing: Claude reads and edits workshops (draft an agenda from a brief, adjust timings, fill the packing list), with OAuth as in Zendo and the CRM.
+4. **Claude connector (MCP)** – done (2026-10-29): Claude reads and edits workshops (draft an agenda from a brief, adjust timings, group and park items, fill the packing list, use the library), over stdio locally and over `/mcp` with OAuth as in Zendo; see [mcp.md](mcp.md).
 5. **Import of the owner's sample sessions** into the hosted instance once the feature baseline stands (private material, never in this repository).
 
 **Backlog** (no order):
@@ -123,6 +123,14 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project; Markdown export (e.g. for the photo protocol).
 
 ## 10. Decisions
+
+**2026-10-29, MCP**
+
+- The agent acts as the owner (every workshop, notes included); files, sharing and deleting workshops stay in the app. No read-only scopes for now.
+- Guests (co-facilitators, clients) never get MCP access: only owners (`SP_OWNERS`) can approve a connection or manage agents; there is no guest-scoped token.
+- Tools take ids or titles (days also dates or numbers) and answer with computed times and warnings, so the agent can judge whether the day still works without reading the whole workshop again.
+- Every write is a batch of the app's own operations: the same validation, the same transaction, and the open windows see it live through the hub. The stdio server is a separate process and has no hub: there the page is reloaded.
+- OAuth is a copy of Zendo's (`server/oauth.ts`): same flow, same token lifecycle; approval is tied to the owner list (`SP_OWNERS`) instead of a separate allow-list.
 
 **2026-10-29, phones**
 
@@ -170,6 +178,7 @@ The same app, not a reduced one; what differs follows the device, consistently:
 - **API**: `GET /api/workshops`, `POST /api/workshops`, `GET|DELETE /api/workshops/:id`, `POST /api/workshops/:id/ops` (a batch of operations, applied in one transaction), `GET /api/workshops/:id/events` (server-sent events), attachments under `/api/workshops/:id/attachments` and `/api/attachments/:id`.
 - **Order** by a fractional position per day / parking lot; renumbered when two positions get too close.
 - **Guard** as in Zendo: changes only with the app's header, from its own host and origin; hosted, the owner's e-mail header must be present and listed (`SP_OWNERS`).
+- **MCP** (`/mcp`, outside `/api`, only with `SP_MCP_OAUTH=1` or `SP_MCP_TOKEN`): MCP over Streamable HTTP for AI agents, authenticated with `Authorization: Bearer` (an OAuth access token or the static token). `server/oauth.ts` serves the OAuth discovery and `/oauth/*` endpoints (clients and token hashes in `oauth_clients` / `oauth_tokens`, migration 0004); `GET/DELETE /api/mcp/connections` (owner only) backs Settings → AI agents. The tools (`server/mcp.ts`) wrap `server/ops.ts`, which turns an agent's request into a batch of operations, validates it like the browser's, applies it through `Repo.applyOps` and publishes it on the hub. The same tools run over stdio (`npm run mcp`). See [mcp.md](mcp.md).
 - **One container**, data in `/data` (`sessions.db`, `files/`, daily `VACUUM INTO` copies in `backups/`).
 - **Server setup** in a private setup repository, never here (reverse-proxy block, compose file, redirect URI of the login, deploy entry).
 - **Privacy**: this repository is public. Workshop data, files and `.env` stay in the gitignored `data/` folder; a pre-commit guard as in Zendo.

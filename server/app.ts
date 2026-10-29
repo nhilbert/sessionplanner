@@ -27,6 +27,10 @@ export interface AppOptions extends GuardOptions {
   pingSeconds?: number
   /** The login's allow-list for this app (read-only): offered as people to share with. */
   guestsFile?: string
+  /** MCP endpoint for AI agents (server/mcp.ts), mounted at /mcp; it checks its own bearer token. */
+  mcp?: Hono
+  /** OAuth for the MCP endpoint (server/oauth.ts): discovery and /oauth/* at the root, connection admin under /api/mcp. */
+  oauth?: { routes: Hono; admin: Hono }
 }
 
 // The built UI loads only its own files; nothing a user typed can run as script.
@@ -43,7 +47,7 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   }
 }
 
-export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile, mcp, oauth }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const filePath = (id: string) => path.join(filesDir, id)
   /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
@@ -265,7 +269,16 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   })
   app.delete('/api/library/:id', (c) => (repo.deleteLibraryEntry(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
 
+  // ---- AI agents (owner only): connections approved over OAuth, each can be disconnected ------------------
+  if (oauth) {
+    app.use('/api/mcp/*', ownerOnly)
+    app.route('/api/mcp', oauth.admin)
+  }
+
   app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404))
+  // Outside /api: authenticated with a bearer token (MCP) or by OAuth itself, not with the app's header.
+  if (mcp) app.route('/mcp', mcp)
+  if (oauth) app.route('/', oauth.routes)
 
   if (staticDir) {
     app.use('/*', serveStatic({ root: staticDir }))

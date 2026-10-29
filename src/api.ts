@@ -14,6 +14,14 @@ export class ApiError extends Error {
 
 export const LOGIN_REQUIRED = 'sp:login-required'
 
+export interface AgentConnection {
+  id: string
+  name: string
+  user: string
+  createdAt: string
+  lastUsedAt: string | null
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('x-sp', '1')
@@ -56,6 +64,9 @@ export const api = {
   },
   deleteLogo: () => call<Settings>('/api/settings/logo', { method: 'DELETE' }),
   logoUrl: (settings: Settings) => (settings.logo ? `/api/settings/logo?v=${encodeURIComponent(settings.logo.updatedAt)}` : null),
+  /** AI agents connected over OAuth to /mcp (docs/mcp.md); 404 when OAuth is off on the server. */
+  agentConnections: () => call<{ connections: AgentConnection[] }>('/api/mcp/connections'),
+  disconnectAgent: (id: string) => call<{ ok: boolean }>(`/api/mcp/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listLibrary: () => call<LibraryEntry[]>('/api/library'),
   saveLibraryEntry: (entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>, id?: string) =>
     call<LibraryEntry>(id ? `/api/library/${id}` : '/api/library', { method: id ? 'PUT' : 'POST', body: JSON.stringify(entry) }),

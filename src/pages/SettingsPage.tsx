@@ -7,6 +7,7 @@ import { categoryName, useSettings } from '@/store/useSettings'
 import { changeLocale } from '@/i18n'
 import { Button, IconButton, PageHeader, SectionLabel, Segmented } from '@/components/ui'
 import Swatches from '@/components/Swatches'
+import AgentConnections from '@/components/AgentConnections'
 import { TextField, TimeField } from '@/planner/fields'
 
 const MAX_LOGO = 2 * 1024 * 1024
@@ -75,7 +76,7 @@ export default function SettingsPage() {
           </Button>
         </section>
 
-        <section className="card p-5">
+        <section className="card mb-6 p-5">
           <SectionLabel>{t('settings.logo')}</SectionLabel>
           <p className="mb-3 text-[13px] text-ink-3">{t('settings.logoHint')}</p>
           {logoUrl && (
@@ -111,6 +112,8 @@ export default function SettingsPage() {
             }}
           />
         </section>
+
+        <AgentConnections />
           </>
         )}
       </div>

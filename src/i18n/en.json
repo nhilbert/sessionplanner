@@ -202,7 +202,16 @@
     "uploadLogo": "Upload logo",
     "removeLogo": "Remove",
     "logoTooLarge": "The logo is larger than 2 MB.",
-    "logoFailed": "The logo could not be uploaded (PNG, JPEG, WebP or SVG)."
+    "logoFailed": "The logo could not be uploaded (PNG, JPEG, WebP or SVG).",
+    "agents": "AI agents (MCP)",
+    "agentsHint": "Agents such as Claude connect through OAuth and can then read and change your workshops: agendas, notes, material, packing lists and the library. Disconnecting one stops its access at once.",
+    "agentsOff": "Not enabled on the server. Set SP_MCP_OAUTH=1 (see docs/mcp.md) to let Claude connect.",
+    "agentsNone": "No agent connected.",
+    "agentsSince": "connected {{date}} by {{user}}",
+    "agentsLastUsed": "last used {{date}}",
+    "disconnect": "Disconnect",
+    "agentsDisconnectConfirm": "Disconnect {{name}}? It loses access immediately and has to be approved again.",
+    "agentsError": "Could not load or change the connections ({{error}}). Try again; until then they stay as they were."
   },
   "categories": {
     "input": "Input",
