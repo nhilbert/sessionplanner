@@ -5,10 +5,14 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - **Timeline per day**, each step as tall as it is long. Drag steps to reorder them, move them between days or into the parking lot (*Themenspeicher*); drag the lower edge (or press `+`/`−`) to change the length. Times follow live while you drag.
 - **Fixed start times** (lunch at 12:30): the rest flows around them. Gaps, overlaps and steps that no longer fit before the next fixed time or the target end are shown at once, with available against planned minutes per stretch and a warning for long stretches without a break.
 - **Four kinds of items**: block, break, marker (zero length, e.g. "Participants arrive") and note (a cue in the flow of the agenda).
+- **Edit on the card**: click the title, start time or length to change it right there; short descriptions can be hidden.
+- **Groups**: a heading over several steps (a topic or sub-session) with time range and subtotal, collapsible, moved as a whole.
+- **Categories** (Input, Exercise, Discussion …) with quiet colours, editable in the settings, overridable per step.
+- **Library** shared by all workshops: save a step or a group, drag it into any agenda as a copy.
 - Per step: short description, goal, method, lead, notes, material and files.
-- **Packing list** from all material (largest quantity of any single step, not the sum), tick off, mark "at the venue", override quantities.
+- **Packing list** from all material (largest quantity of any single step, not the sum), tick off, mark "at the venue", override quantities, add material right there.
 - **Files** (up to 25 MB) attached to the workshop and linked to steps.
-- **Print views**: facilitation plan (A4 landscape), client agenda, packing list.
+- **Print views** with your logo: facilitation plan (A4 landscape), client agenda, packing list.
 - **Live updates** between open windows and devices; undo/redo (`Ctrl+Z`, `Ctrl+Shift+Z`).
 - German and English, light and dark.
 

@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Session Planner", "otherLanguage": "English" },
+  "app": {
+    "name": "Session Planner"
+  },
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",
@@ -35,7 +37,7 @@
   },
   "planner": {
     "parking": "Themenspeicher",
-    "parkingHint": "Nicht Teil der Agenda. Zieh Punkte hierher, um sie für später aufzuheben.",
+    "parkingHint": "Nicht Teil der Agenda. Zieh Punkte hierher, um sie aufzuheben, und zurück, wenn du sie brauchst.",
     "addDay": "Tag hinzufügen",
     "deleteDay": "Tag löschen",
     "deleteDayConfirm": "Diesen Tag löschen? Seine Punkte kommen in den Themenspeicher.",
@@ -50,10 +52,6 @@
     "stretch": "{{d}} ohne Pause",
     "segment": "{{from}}–{{to}}: {{planned}} von {{available}}",
     "openSegment": "ab {{from}}: {{planned}}",
-    "zoom": "Zoom",
-    "zoomS": "S",
-    "zoomM": "M",
-    "zoomL": "L",
     "packing": "Packliste",
     "files": "Dateien",
     "print": "Drucken",
@@ -69,9 +67,21 @@
     "late": "passt nicht vor {{time}}",
     "emptyDay": "Punkte hinzufügen oder hierher ziehen",
     "syncError": "Eine Änderung konnte nicht gespeichert werden. Der Workshop wurde neu vom Server geladen.",
-    "keys": "Klick auf einen Punkt zum Bearbeiten · ziehen zum Verschieben · untere Kante ziehen oder +/− für die Länge · Strg+Z rückgängig"
+    "keys": "Klick auf einen Punkt für Details, auf Titel, Uhrzeit oder Dauer zum direkten Ändern · ziehen zum Verschieben · Shift+Klick für mehrere · Strg+Z rückgängig",
+    "date": "Datum",
+    "parkingEmpty": "Nichts geparkt",
+    "hideDescription": "Kurzbeschreibungen ausblenden",
+    "showDescription": "Kurzbeschreibungen zeigen",
+    "selected_one": "{{count}} ausgewählt",
+    "selected_other": "{{count}} ausgewählt",
+    "clearSelection": "Auswahl aufheben"
   },
-  "kinds": { "block": "Einheit", "break": "Pause", "marker": "Markierung", "note": "Notiz" },
+  "kinds": {
+    "block": "Einheit",
+    "break": "Pause",
+    "marker": "Markierung",
+    "note": "Notiz"
+  },
   "item": {
     "kind": "Art",
     "title": "Titel",
@@ -99,7 +109,12 @@
     "newBlock": "Neue Einheit",
     "newBreak": "Pause",
     "newMarker": "Markierung",
-    "newNote": "Notiz"
+    "newNote": "Notiz",
+    "category": "Kategorie",
+    "noCategory": "Keine Kategorie",
+    "color": "Farbe",
+    "colorHint": "statt der Kategorie",
+    "saveToLibrary": "In Bibliothek speichern"
   },
   "workshop": {
     "details": "Workshop-Details",
@@ -118,7 +133,11 @@
     "venue": "vor Ort",
     "usedIn_one": "{{count}} Punkt",
     "usedIn_other": "{{count}} Punkte",
-    "suggested": "Vorschlag {{n}}"
+    "suggested": "Vorschlag {{n}}",
+    "general": "Workshop allgemein",
+    "addPlaceholder": "Material hinzufügen …",
+    "for": "Für",
+    "add": "Hinzufügen"
   },
   "files": {
     "empty": "Noch keine Dateien.",
@@ -142,5 +161,81 @@
     "plan": "Moderationsplan",
     "packing": "Packliste",
     "qty": "Anz."
+  },
+  "nav": {
+    "workshops": "Workshops",
+    "library": "Bibliothek",
+    "settings": "Einstellungen",
+    "collapse": "Einklappen",
+    "expand": "Ausklappen"
+  },
+  "settings": {
+    "language": "Sprache",
+    "languageHint": "auf diesem Gerät",
+    "days": "Neue Tage",
+    "daysHint": "Beginn und Ziel-Ende neuer Workshops und hinzugefügter Tage.",
+    "categories": "Kategorien",
+    "categoriesHint": "Arten von Einheiten mit einer ruhigen Farbe; pro Punkt wählbar, die Farbe lässt sich im Einzelfall ändern.",
+    "addCategory": "Kategorie hinzufügen",
+    "newCategory": "Neue Kategorie",
+    "removeCategory": "Kategorie entfernen",
+    "logo": "Logo",
+    "logoHint": "Erscheint oben auf jedem Ausdruck. PNG, JPEG, WebP oder SVG, bis 2 MB.",
+    "uploadLogo": "Logo hochladen",
+    "removeLogo": "Entfernen",
+    "logoTooLarge": "Das Logo ist größer als 2 MB.",
+    "logoFailed": "Das Logo konnte nicht hochgeladen werden (PNG, JPEG, WebP oder SVG)."
+  },
+  "categories": {
+    "input": "Input",
+    "exercise": "Übung",
+    "discussion": "Diskussion",
+    "reflection": "Reflexion",
+    "energizer": "Energizer",
+    "organisation": "Organisatorisches"
+  },
+  "colors": {
+    "none": "Farbe der Kategorie",
+    "slate": "Schiefer",
+    "sage": "Salbei",
+    "ochre": "Ocker",
+    "plum": "Pflaume",
+    "clay": "Ton",
+    "moss": "Moos",
+    "dusk": "Dämmerung",
+    "sand": "Sand",
+    "neutral": "Grau"
+  },
+  "group": {
+    "expand": "Gruppe aufklappen",
+    "collapse": "Gruppe zuklappen",
+    "untitled": "Gruppe ohne Titel",
+    "title": "Titel der Gruppe",
+    "menu": "Aktionen der Gruppe",
+    "saveToLibrary": "In Bibliothek speichern",
+    "ungroup": "Gruppe auflösen",
+    "delete": "Gruppe mit Punkten löschen",
+    "empty": "Punkte hierher ziehen",
+    "new": "Gruppe",
+    "newTitle": "Neue Gruppe",
+    "make": "Gruppieren",
+    "deleteConfirm": "„{{title}}“ mit allen Punkten löschen?"
+  },
+  "toolbox": {
+    "open": "Seitenleiste öffnen",
+    "close": "Seitenleiste schließen"
+  },
+  "library": {
+    "saved": "„{{title}}“ in der Bibliothek gespeichert",
+    "search": "Suchen",
+    "subtitle": "Punkte und Gruppen zum Wiederverwenden in jedem Workshop. Beim Einfügen entsteht eine Kopie.",
+    "empty": "Die Bibliothek ist leer",
+    "emptyHint": "Speichere einen Punkt (Details) oder eine Gruppe (ihr ⋯-Menü) in der Bibliothek und zieh ihn dann in jeden Workshop.",
+    "dragHint": "In die Agenda ziehen oder + zum Parken.",
+    "manage": "Bibliothek verwalten",
+    "items_one": "{{count}} Punkt",
+    "items_other": "{{count}} Punkte",
+    "toParking": "In den Themenspeicher",
+    "deleteConfirm": "„{{title}}“ aus der Bibliothek löschen? Workshops behalten ihre Kopien."
   }
 }

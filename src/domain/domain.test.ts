@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { placeAt } from './order.ts'
+import { entriesIn, itemsIn, placeAt } from './order.ts'
 import { packingList } from './packing.ts'
 import { applyOps, inverseOps, type Op } from './ops.ts'
 import type { Item, WorkshopState } from './types.ts'
@@ -9,6 +9,7 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
   workshopId: 'w',
   dayId: 'd1',
   position: 1,
+  groupId: null,
   kind: 'block',
   title: id,
   description: '',
@@ -20,6 +21,8 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
   notes: '',
   materials: [],
   attachmentIds: [],
+  categoryId: null,
+  color: null,
   ...over,
 })
 
@@ -66,8 +69,9 @@ describe('packingList', () => {
 
 describe('ops', () => {
   const state: WorkshopState = {
-    workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', packing: {}, archived: false, createdAt: '', updatedAt: '' },
+    workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', packing: {}, materials: [], archived: false, createdAt: '', updatedAt: '' },
     days: [{ id: 'd1', workshopId: 'w', position: 1, date: '2026-11-10', startMin: 540, endMin: 1020 }],
+    groups: [],
     items: [item('a'), item('b', { position: 2 })],
     attachments: [],
   }
@@ -93,5 +97,14 @@ describe('ops', () => {
     const after = applyOps(state, [{ op: 'set', entity: 'item', id: 'zzz', fields: { duration: 5 } }])
     expect(after.items).toEqual(state.items)
     expect(inverseOps(state, [{ op: 'delete', entity: 'item', id: 'zzz' }])).toEqual([])
+  })
+})
+
+describe('entriesIn / itemsIn', () => {
+  it('orders groups and ungrouped items together and expands groups in order', () => {
+    const groups = [{ id: 'g', workshopId: 'w', dayId: 'd1', position: 2, title: 'G' }]
+    const items = [item('a', { position: 1 }), item('m2', { groupId: 'g', position: 2 }), item('m1', { groupId: 'g', position: 1 }), item('z', { position: 3 }), item('orphan', { groupId: 'gone', position: 2.5 })]
+    expect(entriesIn({ groups, items }, 'd1').map((e) => e.id)).toEqual(['a', 'g', 'orphan', 'z'])
+    expect(itemsIn({ groups, items }, 'd1').map((i) => i.id)).toEqual(['a', 'm1', 'm2', 'orphan', 'z'])
   })
 })

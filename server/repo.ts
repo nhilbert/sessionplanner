@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import type { Attachment, Day, Item, Workshop, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
+import { type Attachment, type Day, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { BadRequest } from './validate.ts'
 
@@ -13,6 +13,7 @@ const WORKSHOP_COLS: Columns = {
   goal: ['goal', 'text'],
   notes: ['notes', 'text'],
   packing: ['packing', 'json'],
+  materials: ['materials', 'json'],
   archived: ['archived', 'bool'],
 }
 const DAY_COLS: Columns = {
@@ -21,9 +22,15 @@ const DAY_COLS: Columns = {
   startMin: ['start_min', 'num'],
   endMin: ['end_min', 'num'],
 }
+const GROUP_COLS: Columns = {
+  dayId: ['day_id', 'text'],
+  position: ['position', 'num'],
+  title: ['title', 'text'],
+}
 const ITEM_COLS: Columns = {
   dayId: ['day_id', 'text'],
   position: ['position', 'num'],
+  groupId: ['group_id', 'text'],
   kind: ['kind', 'text'],
   title: ['title', 'text'],
   description: ['description', 'text'],
@@ -35,6 +42,8 @@ const ITEM_COLS: Columns = {
   notes: ['notes', 'text'],
   materials: ['materials', 'json'],
   attachmentIds: ['attachment_ids', 'json'],
+  categoryId: ['category_id', 'text'],
+  color: ['color', 'text'],
 }
 
 const encode = (value: unknown, codec: Codec): SQLInputValue => {
@@ -55,6 +64,7 @@ const toWorkshop = (r: Row): Workshop => ({
   notes: r.notes as string,
   timezone: r.timezone as string,
   packing: JSON.parse(r.packing as string),
+  materials: JSON.parse(r.materials as string),
   archived: r.archived === 1,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
@@ -69,11 +79,20 @@ const toDay = (r: Row): Day => ({
   endMin: (r.end_min as number | null) ?? null,
 })
 
+const toGroup = (r: Row): Group => ({
+  id: r.id as string,
+  workshopId: r.workshop_id as string,
+  dayId: (r.day_id as string | null) ?? null,
+  position: r.position as number,
+  title: r.title as string,
+})
+
 const toItem = (r: Row): Item => ({
   id: r.id as string,
   workshopId: r.workshop_id as string,
   dayId: (r.day_id as string | null) ?? null,
   position: r.position as number,
+  groupId: (r.group_id as string | null) ?? null,
   kind: r.kind as Item['kind'],
   title: r.title as string,
   description: r.description as string,
@@ -85,6 +104,8 @@ const toItem = (r: Row): Item => ({
   notes: r.notes as string,
   materials: JSON.parse(r.materials as string),
   attachmentIds: JSON.parse(r.attachment_ids as string),
+  categoryId: (r.category_id as string | null) ?? null,
+  color: (r.color as Item['color']) ?? null,
 })
 
 const toAttachment = (r: Row): Attachment => ({
@@ -95,6 +116,16 @@ const toAttachment = (r: Row): Attachment => ({
   size: r.size as number,
   createdAt: r.created_at as string,
 })
+
+const toLibraryEntry = (r: Row): LibraryEntry =>
+  ({
+    id: r.id as string,
+    kind: r.kind as LibraryEntry['kind'],
+    title: r.title as string,
+    data: JSON.parse(r.data as string),
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+  }) as LibraryEntry
 
 const now = () => new Date().toISOString()
 
@@ -139,7 +170,7 @@ export class Repo {
     }))
   }
 
-  /** A new workshop with one day (09:00–17:00) on `date`, or today. */
+  /** A new workshop with one day (times from the settings) on `date`, or today. */
   createWorkshop(input: { title?: string; client?: string; date?: string }): WorkshopState {
     const id = newId()
     const t = now()
@@ -148,8 +179,8 @@ export class Repo {
         .prepare('INSERT INTO workshops (id, title, client, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
         .run(id, input.title ?? '', input.client ?? '', t, t)
       this.db
-        .prepare('INSERT INTO days (id, workshop_id, position, date, start_min, end_min) VALUES (?, ?, 1, ?, 540, 1020)')
-        .run(newId(), id, input.date ?? t.slice(0, 10))
+        .prepare('INSERT INTO days (id, workshop_id, position, date, start_min, end_min) VALUES (?, ?, 1, ?, ?, ?)')
+        .run(newId(), id, input.date ?? t.slice(0, 10), this.getSettings().dayStart, this.getSettings().dayEnd)
     })
     return this.loadWorkshop(id)!
   }
@@ -160,6 +191,7 @@ export class Repo {
     return {
       workshop: toWorkshop(w),
       days: (this.db.prepare('SELECT * FROM days WHERE workshop_id = ? ORDER BY position').all(id) as Row[]).map(toDay),
+      groups: (this.db.prepare('SELECT * FROM groups WHERE workshop_id = ? ORDER BY position').all(id) as Row[]).map(toGroup),
       items: (this.db.prepare('SELECT * FROM items WHERE workshop_id = ? ORDER BY position').all(id) as Row[]).map(toItem),
       attachments: (this.db.prepare('SELECT * FROM attachments WHERE workshop_id = ? ORDER BY created_at').all(id) as Row[]).map(toAttachment),
     }
@@ -173,7 +205,7 @@ export class Repo {
     return files
   }
 
-  private owner(table: 'days' | 'items', id: string): string | undefined {
+  private owner(table: 'days' | 'groups' | 'items', id: string): string | undefined {
     return (this.db.prepare(`SELECT workshop_id FROM ${table} WHERE id = ?`).get(id) as Row | undefined)?.workshop_id as string | undefined
   }
 
@@ -181,6 +213,12 @@ export class Repo {
   private validDay(workshopId: string, dayId: string | null): string | null {
     if (dayId === null) return null
     return this.owner('days', dayId) === workshopId ? dayId : null
+  }
+
+  /** A group id that may hold items of this workshop: null when it is gone (the item becomes ungrouped). */
+  private validGroup(workshopId: string, groupId: string | null): string | null {
+    if (groupId === null) return null
+    return this.owner('groups', groupId) === workshopId ? groupId : null
   }
 
   private update(table: string, cols: Columns, id: string, fields: Record<string, unknown>): void {
@@ -213,16 +251,26 @@ export class Repo {
           this.update('workshops', WORKSHOP_COLS, o.id, o.fields)
           stored.push(o)
         } else if (o.op === 'set' || o.op === 'delete') {
-          const table = o.entity === 'day' ? 'days' : 'items'
+          const table = o.entity === 'day' ? 'days' : o.entity === 'group' ? 'groups' : 'items'
           const owner = this.owner(table, o.id)
           if (owner === undefined) continue
           if (owner !== workshopId) throw new BadRequest('record of another workshop')
           if (o.op === 'delete') {
             if (o.entity === 'day') {
-              const parked = this.db.prepare('SELECT id FROM items WHERE day_id = ?').all(o.id) as Row[]
-              for (const r of parked) {
+              for (const r of this.db.prepare('SELECT id FROM groups WHERE day_id = ?').all(o.id) as Row[]) {
+                this.update('groups', GROUP_COLS, r.id as string, { dayId: null })
+                stored.push({ op: 'set', entity: 'group', id: r.id as string, fields: { dayId: null } })
+              }
+              for (const r of this.db.prepare('SELECT id FROM items WHERE day_id = ?').all(o.id) as Row[]) {
                 this.update('items', ITEM_COLS, r.id as string, { dayId: null })
                 stored.push({ op: 'set', entity: 'item', id: r.id as string, fields: { dayId: null } })
+              }
+            }
+            if (o.entity === 'group') {
+              // Members left in a deleted group stay where they are, ungrouped.
+              for (const r of this.db.prepare('SELECT id FROM items WHERE group_id = ?').all(o.id) as Row[]) {
+                this.update('items', ITEM_COLS, r.id as string, { groupId: null })
+                stored.push({ op: 'set', entity: 'item', id: r.id as string, fields: { groupId: null } })
               }
             }
             this.db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(o.id)
@@ -230,21 +278,31 @@ export class Repo {
           } else if (o.entity === 'day') {
             this.update('days', DAY_COLS, o.id, o.fields)
             stored.push(o)
+          } else if (o.entity === 'group') {
+            const fields = { ...o.fields }
+            if ('dayId' in fields) fields.dayId = this.validDay(workshopId, fields.dayId ?? null)
+            this.update('groups', GROUP_COLS, o.id, fields)
+            stored.push({ ...o, fields })
           } else {
             const fields = { ...o.fields }
             if ('dayId' in fields) fields.dayId = this.validDay(workshopId, fields.dayId ?? null)
+            if ('groupId' in fields) fields.groupId = this.validGroup(workshopId, fields.groupId ?? null)
             this.update('items', ITEM_COLS, o.id, fields)
             stored.push({ ...o, fields })
           }
         } else {
-          const existing = this.owner(o.entity === 'day' ? 'days' : 'items', o.record.id)
+          const existing = this.owner(o.entity === 'day' ? 'days' : o.entity === 'group' ? 'groups' : 'items', o.record.id)
           if (existing !== undefined && existing !== workshopId) throw new BadRequest('record of another workshop')
           if (o.entity === 'day') {
             const record = { ...o.record, workshopId }
             this.insert('days', DAY_COLS, record)
             stored.push({ ...o, record })
-          } else {
+          } else if (o.entity === 'group') {
             const record = { ...o.record, workshopId, dayId: this.validDay(workshopId, o.record.dayId) }
+            this.insert('groups', GROUP_COLS, record)
+            stored.push({ ...o, record })
+          } else {
+            const record = { ...o.record, workshopId, dayId: this.validDay(workshopId, o.record.dayId), groupId: this.validGroup(workshopId, o.record.groupId) }
             this.insert('items', ITEM_COLS, record)
             stored.push({ ...o, record })
           }
@@ -284,5 +342,32 @@ export class Repo {
       this.db.prepare('DELETE FROM attachments WHERE id = ?').run(id)
       return { workshopId: att.workshopId, ops }
     })
+  }
+
+  getSettings(): Settings {
+    const r = this.db.prepare("SELECT value FROM settings WHERE key = 'settings'").get() as Row | undefined
+    return r ? { ...DEFAULT_SETTINGS, ...JSON.parse(r.value as string) } : DEFAULT_SETTINGS
+  }
+
+  saveSettings(settings: Settings): Settings {
+    this.db.prepare("INSERT INTO settings (key, value) VALUES ('settings', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(settings))
+    return settings
+  }
+
+  listLibrary(): LibraryEntry[] {
+    return (this.db.prepare('SELECT * FROM library ORDER BY title COLLATE NOCASE').all() as Row[]).map(toLibraryEntry)
+  }
+
+  saveLibraryEntry(id: string | null, entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>): LibraryEntry | null {
+    const t = now()
+    if (id === null) {
+      id = newId()
+      this.db.prepare('INSERT INTO library (id, kind, title, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, entry.kind, entry.title, JSON.stringify(entry.data), t, t)
+    } else if (!this.db.prepare('UPDATE library SET kind = ?, title = ?, data = ?, updated_at = ? WHERE id = ?').run(entry.kind, entry.title, JSON.stringify(entry.data), t, id).changes) return null
+    return toLibraryEntry(this.db.prepare('SELECT * FROM library WHERE id = ?').get(id) as Row)
+  }
+
+  deleteLibraryEntry(id: string): boolean {
+    return this.db.prepare('DELETE FROM library WHERE id = ?').run(id).changes > 0
   }
 }

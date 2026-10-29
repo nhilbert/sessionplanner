@@ -1,4 +1,4 @@
-# Session Planner – Concept (draft 3, 2026-10-29)
+# Session Planner – Concept (draft 4, 2026-10-29)
 
 Plan the agenda of a workshop by moving its steps around until the time works, keep the facilitator's notes, material and files with each step, and later share the plan with co-facilitators and clients by link. A third app next to Zendo and the Revenue Tracker, on the same server (`sessions.` subdomain), built the same way as Zendo.
 
@@ -18,7 +18,10 @@ Decisions of 2026-10-29 are in section 10; the stages are in section 9.
 | **Workshop** | title, client, location, goal, notes, time zone (Europe/Berlin), archived | Has one or more days and one parking lot. |
 | **Day** | date, start time, target end time (optional) | Ordered by position. Times are minutes after midnight in the workshop's time zone. |
 | **Agenda item** | kind, title, short description, duration, fixed start (optional), goal, method, lead, notes, material, attachments | In a day (ordered) or in the parking lot. Start and end are *computed*, never typed (section 4). |
-| **Material** | list on an item: label, quantity, optional link | Rolls up into the workshop's packing list (section 5). |
+| **Material** | list on an item (or on the workshop as a whole): label, quantity, optional link | Rolls up into the workshop's packing list (section 5). |
+| **Group** | title | A heading over consecutive items of a day or the parking lot. Groups and ungrouped items share the day's order; members have their own order inside the group. |
+| **Category** | name, colour | Shared by all workshops (settings); an item has one, and may override its colour. |
+| **Library entry** | an item's content, or a group with its items | Shared by all workshops; inserting makes a copy. No files. |
 | **Attachment** | a file of the workshop (slides, handout, worksheet) | Belongs to the workshop; linked to any number of items. |
 
 Item **kinds**:
@@ -34,7 +37,7 @@ Goal, method and lead make the printed plan look like a German facilitation plan
 
 ## 3. Interactive planning
 
-The agenda is a vertical timeline per day, each item as high as it is long; several days stand side by side, the parking lot next to them; on a phone they stack.
+The agenda is a vertical timeline per day, each item as high as it is long; several days stand side by side; on a phone they stack. The parking lot, library, packing list, files and details share a foldable sidebar on the right (full screen on a phone).
 
 - **Drag to reorder** within a day, **between days**, and **to and from the parking lot**. While dragging, all times recompute live, so you see the effect before you drop.
 - **Drag the lower edge to change the duration**, snapping to 5 minutes. From the keyboard: select an item, then `+`/`−` changes it by 5 minutes.
@@ -105,12 +108,24 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 ## 9. Stages
 
 1. **Planning core (minimal)** – workshops (create, edit, archive, delete); days; items of all four kinds with goal, method, lead, notes, material; timeline with drag within and between days and to the parking lot, resize, `+`/`−`; fixed starts, gaps, overlaps, segments and day totals; undo/redo; live updates between windows; packing list; attachments; the three print views; German and English. Owner only, behind the login.
-2. **Planning comfort** – phases (group items, subtotals, collapse, drag as a whole); multi-select (move, shorten by a percentage); day variants (snapshot before a rework, go back); duplicate a workshop with shifted dates; minimum duration and "optional" per item with fit suggestions for a stretch that is over.
+2. **Planning comfort** – done: layout and settings, categories and colours, editing on the card, description switch, groups, library, packing-list additions, logo on printouts. Still open: moving several selected items at once and shortening them by a percentage; day variants (snapshot before a rework, go back); duplicate a workshop with shifted dates; minimum duration and "optional" per item with fit suggestions for a stretch that is over; asking before saving the same item to the library twice.
 3. **Sharing** – section 8.
 4. **Live mode** on laptop or phone (no projector): now line, the running item with countdown and notes, next item, buffer to the next fixed start, +5/−5 minutes, skip, re-forecast of the rest of the day, screen kept awake; afterwards planned against actual time and a reflection note.
-5. **Later, if needed** – breakout groups in parallel; templates and a method library with real durations; categories and a balance view; a Claude connector (MCP) as in Zendo and the CRM; link to the CRM project; Markdown export (e.g. for the photo protocol).
+5. **Later, if needed** – breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; a Claude connector (MCP) as in Zendo and the CRM; link to the CRM project; Markdown export (e.g. for the photo protocol).
 
 ## 10. Decisions
+
+**2026-10-29, after trying stage 1**
+
+- Layout like Zendo and the Revenue Tracker: navigation on the left (foldable), settings page (language, categories, logo, default day times). Most workshops are one day, some two: one day gets a single wide, centred column, two share the width, more scroll sideways.
+- The parking lot (*Themenspeicher*) moves into a foldable sidebar on the right, next to the library, packing list, files and workshop details; item details open there too (as in SessionLab's right sidebar).
+- Colour coding by method categories (Input, Übung, Diskussion, Reflexion, Energizer, Organisatorisches – editable), per item overridable, and subtle: a thin bar and the faintest tint.
+- Title, start time and duration are edited right on the card; short descriptions can be hidden.
+- Groups: a heading over consecutive items (topic or sub-session) with time range and subtotal; collapsible, dragged as a whole; made from a Shift-click selection or by dragging items under a new heading.
+- Library shared by all workshops for items and groups; inserting makes a copy (later library edits do not change workshops). Files stay with each workshop.
+- Material can be added in the packing list, for the workshop in general or for an item.
+- Only the owner's logo on the printouts.
+
 
 **2026-10-29**
 

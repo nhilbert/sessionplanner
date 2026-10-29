@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Printer } from 'lucide-react'
 import { api } from '@/api'
 import type { Item, WorkshopState } from '@/domain/types'
-import { agendaOrder, itemsIn, sortedDays } from '@/domain/order'
+import { agendaOrder, type Entry, entriesIn, itemsIn, sortedDays } from '@/domain/order'
 import { packingList } from '@/domain/packing'
 import { durationOf, formatDuration, formatTime, scheduleDay } from '@/domain/time'
 import { formatDate } from '@/i18n'
 import { Button, cx } from '@/components/ui'
+import { useSettings } from '@/store/useSettings'
 
 type Variant = 'plan' | 'agenda' | 'packing'
 
@@ -18,11 +19,14 @@ export default function PrintPage() {
   const { t } = useTranslation()
   const [data, setData] = useState<WorkshopState | null>(null)
   const [failed, setFailed] = useState(false)
+  const { settings, loaded, load } = useSettings()
+  const logo = api.logoUrl(settings)
   const v: Variant = variant === 'agenda' || variant === 'packing' ? variant : 'plan'
 
   useEffect(() => {
     api.loadWorkshop(id).then(setData, () => setFailed(true))
-  }, [id])
+    if (!loaded) void load()
+  }, [id, loaded, load])
   useEffect(() => {
     if (data) document.title = `${data.workshop.title || t('workshops.untitled')} – ${t(`print.${v}`)}`
   }, [data, v, t])
@@ -43,11 +47,14 @@ export default function PrintPage() {
           {t('print.print')}
         </Button>
       </div>
-      <header className="mb-5 border-b border-black/20 pb-3">
-        <div className="text-[11px] uppercase tracking-[0.12em] text-black/50">{t(`print.${v}`)}</div>
-        <h1 className="text-[22px] font-semibold leading-tight">{w.title || t('workshops.untitled')}</h1>
-        <div className="text-black/70">{[w.client, w.location, dates].filter(Boolean).join(' · ')}</div>
-        {v !== 'packing' && w.goal && <p className="mt-2 whitespace-pre-wrap">{w.goal}</p>}
+      <header className="mb-5 flex items-start justify-between gap-6 border-b border-black/20 pb-3">
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-black/50">{t(`print.${v}`)}</div>
+          <h1 className="text-[22px] font-semibold leading-tight">{w.title || t('workshops.untitled')}</h1>
+          <div className="text-black/70">{[w.client, w.location, dates].filter(Boolean).join(' · ')}</div>
+          {v !== 'packing' && w.goal && <p className="mt-2 whitespace-pre-wrap">{w.goal}</p>}
+        </div>
+        {logo && <img src={logo} alt="" className="max-h-14 max-w-[200px] shrink-0 object-contain" />}
       </header>
       {v === 'packing' ? <PackingTable data={data} /> : days.map((d, i) => <DayTable key={d.id} data={data} dayIndex={i} variant={v} />)}
     </div>
@@ -57,8 +64,11 @@ export default function PrintPage() {
 function DayTable({ data, dayIndex, variant }: { data: WorkshopState; dayIndex: number; variant: 'plan' | 'agenda' }) {
   const { t } = useTranslation()
   const day = sortedDays(data.days)[dayIndex]
-  const items = itemsIn(data.items, day.id).filter((i) => variant === 'plan' || i.kind !== 'note')
-  const schedule = scheduleDay(day.startMin, day.endMin, itemsIn(data.items, day.id))
+  const schedule = scheduleDay(day.startMin, day.endMin, itemsIn(data, day.id))
+  const columns = variant === 'plan' ? 8 : 2
+  // Groups print as a heading row with their time range, followed by their items.
+  type Row = { kind: 'group'; group: Extract<Entry, { type: 'group' }> } | { kind: 'item'; item: Item }
+  const rows = entriesIn(data, day.id).flatMap((e): Row[] => (e.type === 'item' ? [{ kind: 'item', item: e.item }] : [{ kind: 'group', group: e }, ...e.items.map((item): Row => ({ kind: 'item', item }))]))
   const files = (item: Item) => item.attachmentIds.map((a) => data.attachments.find((x) => x.id === a)?.name).filter(Boolean)
   const th = 'border-b border-black/30 px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-wide text-black/60'
   const td = 'border-b border-black/10 px-2 py-1.5 align-top'
@@ -90,7 +100,20 @@ function DayTable({ data, dayIndex, variant }: { data: WorkshopState; dayIndex: 
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => {
+          {rows.map((row) => {
+            if (row.kind === 'group') {
+              const slots = row.group.items.map((i) => schedule.slots[i.id])
+              return (
+                <tr key={row.group.id} className="break-after-avoid">
+                  <td className={cx(td, 'tnum whitespace-nowrap pt-3 text-black/60')}>{slots.length ? `${formatTime(slots[0].start)}–${formatTime(Math.max(...slots.map((x) => x.end)))}` : ''}</td>
+                  <td className={cx(td, 'pt-3 text-[12px] font-semibold uppercase tracking-wide')} colSpan={columns - 1}>
+                    {row.group.group.title}
+                  </td>
+                </tr>
+              )
+            }
+            const item = row.item
+            if (variant === 'agenda' && item.kind === 'note') return null
             const slot = schedule.slots[item.id]
             const minutes = durationOf(item)
             if (item.kind === 'note')
@@ -142,7 +165,7 @@ function DayTable({ data, dayIndex, variant }: { data: WorkshopState; dayIndex: 
 
 function PackingTable({ data }: { data: WorkshopState }) {
   const { t } = useTranslation()
-  const lines = packingList(agendaOrder(data.days, data.items), data.workshop.packing)
+  const lines = packingList(agendaOrder(data.days, data), data.workshop.packing, data.workshop.materials)
   const td = 'border-b border-black/10 px-2 py-1.5'
   return (
     <table className="w-full max-w-[640px] border-collapse">

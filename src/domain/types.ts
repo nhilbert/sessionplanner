@@ -5,6 +5,37 @@ export type ItemKind = 'block' | 'break' | 'marker' | 'note'
 /** Kinds that take no time on the timeline (docs/concept.md, section 2). */
 export const ZERO_KINDS: readonly ItemKind[] = ['marker', 'note']
 
+/** Muted palette keys (src/index.css, --c-*); stored as keys so light and dark mode each get their shade. */
+export const PALETTE = ['slate', 'sage', 'ochre', 'plum', 'clay', 'moss', 'dusk', 'sand', 'neutral'] as const
+export type PaletteKey = (typeof PALETTE)[number]
+
+/** A method category with its colour. An empty name shows the translated default (categories.<id>). */
+export interface Category {
+  id: string
+  name: string
+  color: PaletteKey
+}
+
+export const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'input', name: '', color: 'slate' },
+  { id: 'exercise', name: '', color: 'sage' },
+  { id: 'discussion', name: '', color: 'ochre' },
+  { id: 'reflection', name: '', color: 'plum' },
+  { id: 'energizer', name: '', color: 'clay' },
+  { id: 'organisation', name: '', color: 'neutral' },
+]
+
+export interface Settings {
+  categories: Category[]
+  /** Start and target end of new days, minutes after midnight. */
+  dayStart: number
+  dayEnd: number | null
+  /** Set by the server when a logo is uploaded (GET /api/settings/logo). */
+  logo: { mime: string; updatedAt: string } | null
+}
+
+export const DEFAULT_SETTINGS: Settings = { categories: DEFAULT_CATEGORIES, dayStart: 540, dayEnd: 1020, logo: null }
+
 export interface Material {
   id: string
   label: string
@@ -28,6 +59,8 @@ export interface Workshop {
   notes: string
   timezone: string
   packing: Record<string, PackingState>
+  /** Material for the workshop as a whole, not tied to an item (added in the packing list). */
+  materials: Material[]
   archived: boolean
   createdAt: string
   updatedAt: string
@@ -44,12 +77,25 @@ export interface Day {
   endMin: number | null
 }
 
-export interface Item {
+/** A heading over consecutive items (a topic or sub-session). */
+export interface Group {
   id: string
   workshopId: string
   /** null = parking lot */
   dayId: string | null
+  /** Shared with the ungrouped items of the same day. */
   position: number
+  title: string
+}
+
+export interface Item {
+  id: string
+  workshopId: string
+  /** null = parking lot; members of a group have their group's day. */
+  dayId: string | null
+  /** Among the day's groups and ungrouped items, or within the group when groupId is set. */
+  position: number
+  groupId: string | null
   kind: ItemKind
   title: string
   description: string
@@ -63,6 +109,9 @@ export interface Item {
   notes: string
   materials: Material[]
   attachmentIds: string[]
+  categoryId: string | null
+  /** Overrides the category's colour. */
+  color: PaletteKey | null
 }
 
 export interface Attachment {
@@ -78,6 +127,7 @@ export interface Attachment {
 export interface WorkshopState {
   workshop: Workshop
   days: Day[]
+  groups: Group[]
   items: Item[]
   attachments: Attachment[]
 }
@@ -93,3 +143,10 @@ export interface WorkshopSummary {
   itemCount: number
   updatedAt: string
 }
+
+/** The content of an item without its place in a workshop (library entries, copies). */
+export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'categoryId' | 'color'>
+
+export type LibraryEntry =
+  | { id: string; kind: 'item'; title: string; data: ItemContent; createdAt: string; updatedAt: string }
+  | { id: string; kind: 'group'; title: string; data: { items: ItemContent[] }; createdAt: string; updatedAt: string }

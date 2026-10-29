@@ -6,6 +6,7 @@ node_modules
 dist
 data
 backups
+private-*
 .env
 .env.*
 !.env.example

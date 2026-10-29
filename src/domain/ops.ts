@@ -1,4 +1,4 @@
-import type { Day, Item, Workshop, WorkshopState } from './types.ts'
+import type { Day, Group, Item, Workshop, WorkshopState } from './types.ts'
 
 /**
  * Changes travel as small operations (docs/concept.md, section 7): set some fields of a record, create a
@@ -6,11 +6,13 @@ import type { Day, Item, Workshop, WorkshopState } from './types.ts'
  * them on to every other open window. Per field, the later change wins.
  */
 
-export const WORKSHOP_FIELDS = ['title', 'client', 'location', 'goal', 'notes', 'packing', 'archived'] as const
+export const WORKSHOP_FIELDS = ['title', 'client', 'location', 'goal', 'notes', 'packing', 'materials', 'archived'] as const
 export const DAY_FIELDS = ['position', 'date', 'startMin', 'endMin'] as const
+export const GROUP_FIELDS = ['dayId', 'position', 'title'] as const
 export const ITEM_FIELDS = [
   'dayId',
   'position',
+  'groupId',
   'kind',
   'title',
   'description',
@@ -22,19 +24,24 @@ export const ITEM_FIELDS = [
   'notes',
   'materials',
   'attachmentIds',
+  'categoryId',
+  'color',
 ] as const
 
 export type WorkshopFields = Pick<Workshop, (typeof WORKSHOP_FIELDS)[number]>
 export type DayFields = Pick<Day, (typeof DAY_FIELDS)[number]>
+export type GroupFields = Pick<Group, (typeof GROUP_FIELDS)[number]>
 export type ItemFields = Pick<Item, (typeof ITEM_FIELDS)[number]>
 
 export type Op =
   | { op: 'set'; entity: 'workshop'; id: string; fields: Partial<WorkshopFields> }
   | { op: 'set'; entity: 'day'; id: string; fields: Partial<DayFields> }
+  | { op: 'set'; entity: 'group'; id: string; fields: Partial<GroupFields> }
   | { op: 'set'; entity: 'item'; id: string; fields: Partial<ItemFields> }
   | { op: 'create'; entity: 'day'; record: Day }
+  | { op: 'create'; entity: 'group'; record: Group }
   | { op: 'create'; entity: 'item'; record: Item }
-  | { op: 'delete'; entity: 'day' | 'item'; id: string }
+  | { op: 'delete'; entity: 'day' | 'group' | 'item'; id: string }
 
 /** Pushed to open windows (GET /api/workshops/:id/events). */
 export type ServerEvent =
@@ -51,20 +58,23 @@ const pick = <T extends object, K extends keyof T>(record: T, keys: K[]): Pick<T
 
 /** Applies operations to a state; unknown ids are skipped (someone else deleted the record meanwhile). */
 export function applyOps(state: WorkshopState, ops: Op[]): WorkshopState {
-  let { workshop, days, items } = state
+  let { workshop, days, groups, items } = state
   for (const o of ops) {
     if (o.op === 'set') {
       if (o.entity === 'workshop') {
         if (o.id === workshop.id) workshop = { ...workshop, ...o.fields }
       } else if (o.entity === 'day') days = days.map((d) => (d.id === o.id ? { ...d, ...o.fields } : d))
+      else if (o.entity === 'group') groups = groups.map((g) => (g.id === o.id ? { ...g, ...o.fields } : g))
       else items = items.map((i) => (i.id === o.id ? { ...i, ...o.fields } : i))
     } else if (o.op === 'create') {
       if (o.entity === 'day') days = [...days.filter((d) => d.id !== o.record.id), o.record]
+      else if (o.entity === 'group') groups = [...groups.filter((g) => g.id !== o.record.id), o.record]
       else items = [...items.filter((i) => i.id !== o.record.id), o.record]
     } else if (o.entity === 'day') days = days.filter((d) => d.id !== o.id)
+    else if (o.entity === 'group') groups = groups.filter((g) => g.id !== o.id)
     else items = items.filter((i) => i.id !== o.id)
   }
-  return { ...state, workshop, days, items }
+  return { ...state, workshop, days, groups, items }
 }
 
 /** Operations that undo `ops` when applied after them. */
@@ -86,6 +96,10 @@ function inverseOf(state: WorkshopState, o: Op): Op | null {
       const day = state.days.find((d) => d.id === o.id)
       return day ? { op: 'create', entity: 'day', record: day } : null
     }
+    if (o.entity === 'group') {
+      const group = state.groups.find((g) => g.id === o.id)
+      return group ? { op: 'create', entity: 'group', record: group } : null
+    }
     const item = state.items.find((i) => i.id === o.id)
     return item ? { op: 'create', entity: 'item', record: item } : null
   }
@@ -93,6 +107,10 @@ function inverseOf(state: WorkshopState, o: Op): Op | null {
   if (o.entity === 'day') {
     const day = state.days.find((d) => d.id === o.id)
     return day ? { op: 'set', entity: 'day', id: o.id, fields: pick(day, Object.keys(o.fields) as (keyof DayFields)[]) } : null
+  }
+  if (o.entity === 'group') {
+    const group = state.groups.find((g) => g.id === o.id)
+    return group ? { op: 'set', entity: 'group', id: o.id, fields: pick(group, Object.keys(o.fields) as (keyof GroupFields)[]) } : null
   }
   const item = state.items.find((i) => i.id === o.id)
   return item ? { op: 'set', entity: 'item', id: o.id, fields: pick(item, Object.keys(o.fields) as (keyof ItemFields)[]) } : null

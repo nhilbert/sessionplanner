@@ -1,9 +1,13 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive, Copy, Minus, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Archive, BookmarkPlus, Copy, Minus, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, Material, WorkshopState } from '@/domain/types'
 import { newId, type ItemFields, type Op } from '@/domain/ops'
-import { itemsIn, placeAt } from '@/domain/order'
+import { entriesIn, membersOf, placeAt, positionAtEnd } from '@/domain/order'
+import { contentOf } from '@/domain/copy'
+import { categoryName, useSettings } from '@/store/useSettings'
+import { useLibrary } from '@/store/useLibrary'
+import Swatches from '@/components/Swatches'
 import { SNAP } from '@/domain/time'
 import { api } from '@/api'
 import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/components/ui'
@@ -19,6 +23,7 @@ export default function ItemPanel({
   onAttachment,
   onClose,
   onSelect,
+  onSaved,
   computedStart,
 }: {
   item: Item
@@ -29,8 +34,12 @@ export default function ItemPanel({
   onAttachment: (a: Attachment) => void
   onClose: () => void
   onSelect: (id: string) => void
+  /** Saved to the library: a short confirmation. */
+  onSaved: (title: string) => void
 }) {
   const { t } = useTranslation()
+  const categories = useSettings((s) => s.settings.categories)
+  const saveToLibrary = useLibrary((s) => s.save)
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
 
@@ -42,29 +51,30 @@ export default function ItemPanel({
   }
 
   const duplicate = () => {
-    const siblings = itemsIn(data.items, item.dayId)
+    const grouped = item.groupId !== null && data.groups.some((g) => g.id === item.groupId)
+    const siblings = grouped ? membersOf(data.items, item.groupId!) : entriesIn(data, item.dayId)
     const index = siblings.findIndex((s) => s.id === item.id) + 1
     const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })) }
     const placed = placeAt(siblings, copy.id, index)
-    const ops: Op[] = placed.filter((p) => p.id !== copy.id).map((p) => ({ op: 'set', entity: 'item', id: p.id, fields: { position: p.position } }))
+    const isGroup = (id: string) => data.groups.some((g) => g.id === id)
+    const ops: Op[] = placed
+      .filter((p) => p.id !== copy.id)
+      .map((p): Op => (isGroup(p.id) ? { op: 'set', entity: 'group', id: p.id, fields: { position: p.position } } : { op: 'set', entity: 'item', id: p.id, fields: { position: p.position } }))
     ops.push({ op: 'create', entity: 'item', record: { ...copy, position: placed.find((p) => p.id === copy.id)!.position } })
     change(ops)
     onSelect(copy.id)
   }
 
-  const toParking = () => {
-    const parked = itemsIn(data.items, null)
-    set({ dayId: null, position: parked.length ? parked[parked.length - 1].position + 1 : 1 })
+  const toParking = () => set({ dayId: null, groupId: null, position: positionAtEnd(entriesIn(data, null)) })
+
+  const save = async () => {
+    await saveToLibrary({ kind: 'item', title: item.title || t(`kinds.${item.kind}`), data: contentOf(item) })
+    onSaved(item.title)
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <Segmented<ItemKind> size="sm" value={item.kind} onChange={setKind} options={KINDS.map((k) => ({ value: k, label: t(`kinds.${k}`) }))} />
-        <IconButton label={t('common.close')} onClick={onClose}>
-          <X size={16} />
-        </IconButton>
-      </div>
+      <Segmented<ItemKind> size="sm" value={item.kind} onChange={setKind} options={KINDS.map((k) => ({ value: k, label: t(`kinds.${k}`) }))} />
 
       <TextField
         value={item.title}
@@ -110,6 +120,24 @@ export default function ItemPanel({
         </Field>
       </div>
 
+      {item.kind !== 'note' && (
+        <div className="space-y-2">
+          <Field label={t('item.category')}>
+            <select className="field h-8 text-[13px]" value={item.categoryId ?? ''} onChange={(e) => set({ categoryId: e.target.value || null })}>
+              <option value="">{t('item.noCategory')}</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {categoryName(c, t)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t('item.color')} hint={t('item.colorHint')}>
+            <Swatches value={item.color} allowNone onChange={(color) => set({ color })} />
+          </Field>
+        </div>
+      )}
+
       {item.kind === 'block' && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label={t('item.goal')} className="sm:col-span-2">
@@ -138,6 +166,12 @@ export default function ItemPanel({
           <Copy size={13} />
           {t('item.duplicate')}
         </Button>
+        {item.kind !== 'note' && (
+          <Button size="sm" onClick={() => void save()}>
+            <BookmarkPlus size={13} />
+            {t('item.saveToLibrary')}
+          </Button>
+        )}
         {item.dayId !== null && (
           <Button size="sm" onClick={toParking}>
             <Archive size={13} />

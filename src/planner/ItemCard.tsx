@@ -1,13 +1,14 @@
-import { type PointerEvent as ReactPointerEvent, useRef } from 'react'
+import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, type SyntheticEvent, useEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import { Flag, NotebookPen, Package, Paperclip, Pin, StickyNote } from 'lucide-react'
-import type { Item } from '@/domain/types'
-import { durationOf, formatDuration, formatTime, snap, SNAP, type Slot } from '@/domain/time'
+import type { Item, PaletteKey } from '@/domain/types'
+import type { ItemFields } from '@/domain/ops'
+import { durationOf, formatDuration, formatTime, parseTime, snap, SNAP, type Slot } from '@/domain/time'
 import { cx } from '@/components/ui'
 
-export const MIN_CARD = 44
+export const MIN_CARD = 40
 
 export interface CardProps {
   item: Item
@@ -16,10 +17,14 @@ export interface CardProps {
   segmentEnd?: number | null
   /** Pixels per minute; undefined = compact (parking lot, drag overlay). */
   ppm?: number
+  color?: PaletteKey | null
+  showDescription?: boolean
   selected?: boolean
   /** Duration shown while the lower edge is being dragged. */
   duration?: number
-  onSelect?: () => void
+  onSelect?: (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => void
+  /** Edits made right on the card (title, start time, duration). */
+  onEdit?: (fields: Partial<ItemFields>) => void
   onResize?: (minutes: number | null) => void
   onResizeEnd?: (minutes: number) => void
 }
@@ -39,12 +44,125 @@ export function SortableItem(props: CardProps) {
   )
 }
 
-export function ItemCard({ item, slot, segmentEnd, ppm, selected, duration, onSelect, onResize, onResizeEnd }: CardProps) {
+/** Keeps a click or drag inside an inline editor from starting a drag or opening the details. */
+const shield = {
+  onPointerDown: (e: SyntheticEvent) => e.stopPropagation(),
+  onMouseDown: (e: SyntheticEvent) => e.stopPropagation(),
+  onTouchStart: (e: SyntheticEvent) => e.stopPropagation(),
+  onClick: (e: SyntheticEvent) => e.stopPropagation(),
+  onKeyDown: (e: KeyboardEvent) => e.stopPropagation(),
+}
+
+/** Text that turns into an input on click; Enter or leaving saves, Escape cancels. */
+export function Inline({
+  value,
+  display,
+  parse,
+  onSave,
+  className,
+  inputClassName,
+  label,
+  disabled,
+}: {
+  value: string
+  display?: React.ReactNode
+  parse?: (v: string) => unknown | undefined
+  onSave?: (v: unknown) => void
+  className?: string
+  inputClassName?: string
+  label: string
+  disabled?: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(value)
+  const done = useRef(false)
+  useEffect(() => {
+    if (!editing) setText(value)
+  }, [value, editing])
+  if (!onSave || disabled) return <span className={className}>{display ?? value}</span>
+  if (!editing)
+    return (
+      <span
+        role="button"
+        tabIndex={-1}
+        title={label}
+        onClick={(e) => {
+          // Shift/Ctrl/Cmd-click selects the card instead; dragging from here works as from anywhere on the card.
+          if (e.shiftKey || e.metaKey || e.ctrlKey) return
+          e.stopPropagation()
+          done.current = false
+          setEditing(true)
+        }}
+        className={cx('cursor-text rounded px-0.5 hover:bg-ink/5', className)}
+      >
+        {display ?? value}
+      </span>
+    )
+  const finish = (save: boolean) => {
+    if (done.current) return
+    done.current = true
+    setEditing(false)
+    if (!save || text === value) return
+    const parsed = parse ? parse(text) : text
+    if (parsed !== undefined) onSave(parsed)
+  }
+  return (
+    <input
+      autoFocus
+      aria-label={label}
+      value={text}
+      {...shield}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') finish(true)
+        if (e.key === 'Escape') finish(false)
+      }}
+      className={cx('min-w-0 rounded border border-line-2 bg-surface px-1 py-0 outline-none', inputClassName)}
+    />
+  )
+}
+
+const parseStart = (v: string): number | null | undefined => {
+  const text = v.trim()
+  if (!text) return null // empty: the item flows again
+  const t = parseTime(/^\d{3,4}$/.test(text) ? `${text.slice(0, -2)}:${text.slice(-2)}` : text)
+  return t === null ? undefined : t
+}
+const parseMinutes = (v: string): number | undefined => {
+  const m = Math.round(Number(v.replace(/[^\d]/g, '')))
+  return m >= 1 && m <= 1440 ? m : undefined
+}
+
+export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, onSelect, onEdit, onResize, onResizeEnd }: CardProps) {
   const { t } = useTranslation()
   const minutes = duration ?? durationOf(item)
   const timed = slot !== undefined
   const late = slot?.late && segmentEnd !== undefined && segmentEnd !== null
   const ring = selected ? 'ring-2 ring-accent/60' : ''
+  const style = { '--cat': color ? `var(--c-${color})` : undefined } as React.CSSProperties
+  const select = (e: React.MouseEvent) => onSelect?.(e)
+  const title = (className?: string) => (
+    <Inline value={item.title} display={item.title || t(`kinds.${item.kind}`)} label={t('item.title')} onSave={onEdit && ((v) => onEdit({ title: v as string }))} className={className} inputClassName="w-full font-medium" />
+  )
+  const start = timed && (
+    <Inline
+      value={item.fixedStart !== null ? formatTime(item.fixedStart) : formatTime(slot.start)}
+      display={
+        <span className="inline-flex items-center gap-0.5">
+          {formatTime(slot.start)}
+          {item.fixedStart !== null && <Pin size={10} className="text-ink-3" />}
+        </span>
+      }
+      parse={parseStart}
+      label={t('item.fixedStart')}
+      onSave={onEdit && ((v) => onEdit({ fixedStart: v as number | null }))}
+      className="tnum shrink-0 text-ink-2"
+      inputClassName="tnum w-14"
+    />
+  )
 
   const notices = slot && (slot.gap > 0 || slot.overlap > 0) && (
     <div className={cx('mb-1 flex items-center gap-1 px-1 text-[11px] tnum', slot.overlap > 0 ? 'text-rose' : 'text-ink-3')}>
@@ -56,13 +174,12 @@ export function ItemCard({ item, slot, segmentEnd, ppm, selected, duration, onSe
 
   if (item.kind === 'marker')
     return (
-      <div className="pb-1">
+      <div className="pb-1" style={style}>
         {notices}
-        <div onClick={onSelect} className={cx('flex h-7 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] hover:bg-surface-2', ring)}>
-          {timed && <span className="tnum w-10 shrink-0 text-ink-2">{formatTime(slot.start)}</span>}
-          <Flag size={13} className="shrink-0 text-accent" />
-          <span className="truncate font-medium">{item.title}</span>
-          {item.fixedStart !== null && <Pin size={11} className="shrink-0 text-ink-3" />}
+        <div onClick={select} className={cx('flex h-7 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] hover:bg-surface-2', ring)}>
+          {start && <span className="w-12 shrink-0">{start}</span>}
+          <Flag size={13} className="shrink-0" style={{ color: color ? `var(--c-${color})` : 'var(--accent)' }} />
+          {title('min-w-0 truncate font-medium')}
           <span className="h-px min-w-4 flex-1 bg-line-2" />
         </div>
       </div>
@@ -70,64 +187,69 @@ export function ItemCard({ item, slot, segmentEnd, ppm, selected, duration, onSe
 
   if (item.kind === 'note')
     return (
-      <div className="pb-1">
+      <div className="pb-1" style={style}>
         {notices}
-        <div onClick={onSelect} className={cx('flex cursor-pointer gap-2 rounded-md bg-amber-soft/70 px-2 py-1.5 text-[13px] hover:bg-amber-soft', ring)}>
+        <div onClick={select} className={cx('flex cursor-pointer gap-2 rounded-md bg-amber-soft/60 px-2 py-1.5 text-[13px] hover:bg-amber-soft', ring)}>
           <StickyNote size={13} className="mt-0.5 shrink-0 text-amber" />
-          <div className="min-w-0">
-            {item.title && <div className="line-clamp-2 italic">{item.title}</div>}
-            {item.description && <div className="line-clamp-3 text-ink-2">{item.description}</div>}
-            {!item.title && !item.description && <div className="text-ink-3">{t('kinds.note')}</div>}
+          <div className="min-w-0 flex-1">
+            <div className="italic">{title('line-clamp-2')}</div>
+            {showDescription && item.description && <div className="line-clamp-3 text-ink-2">{item.description}</div>}
           </div>
         </div>
       </div>
     )
 
   const height = ppm ? Math.max(MIN_CARD, minutes * ppm) : undefined
-  const roomy = !height || height >= 64
+  const roomy = !height || height >= 60
   return (
-    <div className="pb-1">
+    <div className="pb-1" style={style}>
       {notices}
       <div
-        onClick={onSelect}
+        onClick={select}
         style={{ height }}
         className={cx(
-          'relative cursor-pointer overflow-hidden rounded-lg border px-2.5 py-1.5 text-[13px] transition-shadow hover:shadow-[var(--shadow)]',
-          item.kind === 'break' ? 'item-break' : 'item-block',
+          'relative flex cursor-pointer overflow-hidden rounded-lg border text-[13px] transition-shadow hover:shadow-[var(--shadow)]',
+          item.kind === 'break' ? 'item-break' : 'cat-tint',
           late && 'item-late',
           ring,
         )}
       >
-        <div className="flex items-baseline gap-2">
-          {timed && (
-            <span className="tnum shrink-0 text-[12px] text-ink-2">
-              {formatTime(slot.start)}–{formatTime(slot.start + minutes)}
-            </span>
-          )}
-          <span className={cx('min-w-0 flex-1 truncate font-medium', item.kind === 'break' && 'text-ink-2')}>{item.title || t(`kinds.${item.kind}`)}</span>
-          <span className="tnum shrink-0 text-[11px] text-ink-3">{formatDuration(minutes)}</span>
-        </div>
-        {roomy && item.description && <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-ink-2">{item.description}</div>}
-        {roomy && (
-          <div className="mt-1 flex items-center gap-2 text-ink-3">
-            {item.fixedStart !== null && <Pin size={11} />}
-            {item.notes && <NotebookPen size={11} />}
-            {item.materials.length > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[11px]">
-                <Package size={11} />
-                {item.materials.length}
-              </span>
-            )}
-            {item.attachmentIds.length > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[11px]">
-                <Paperclip size={11} />
-                {item.attachmentIds.length}
-              </span>
-            )}
-            {item.lead && <span className="truncate text-[11px]">{item.lead}</span>}
+        {color && <span className="cat-bar w-[3px] shrink-0" />}
+        <div className="min-w-0 flex-1 px-2.5 py-1.5">
+          <div className="flex items-baseline gap-2">
+            {start && <span className="shrink-0 text-[12px]">{start}</span>}
+            <span className={cx('min-w-0 flex-1 truncate font-medium', item.kind === 'break' && 'text-ink-2')}>{title()}</span>
+            <Inline
+              value={String(minutes)}
+              display={formatDuration(minutes)}
+              parse={parseMinutes}
+              label={t('item.duration')}
+              onSave={onEdit && ((v) => onEdit({ duration: v as number }))}
+              className="tnum shrink-0 text-[11px] text-ink-3"
+              inputClassName="tnum w-12 text-right text-[12px]"
+            />
           </div>
-        )}
-        {late && <div className="mt-0.5 truncate text-[11px] text-rose">{t('planner.late', { time: formatTime(segmentEnd!) })}</div>}
+          {roomy && showDescription && item.description && <div className="mt-0.5 line-clamp-3 whitespace-pre-line text-[12px] leading-snug text-ink-2">{item.description}</div>}
+          {roomy && (
+            <div className="mt-1 flex items-center gap-2 text-ink-3">
+              {item.notes && <NotebookPen size={11} />}
+              {item.materials.length > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[11px]">
+                  <Package size={11} />
+                  {item.materials.length}
+                </span>
+              )}
+              {item.attachmentIds.length > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[11px]">
+                  <Paperclip size={11} />
+                  {item.attachmentIds.length}
+                </span>
+              )}
+              {item.lead && <span className="truncate text-[11px]">{item.lead}</span>}
+            </div>
+          )}
+          {late && <div className="mt-0.5 truncate text-[11px] text-rose">{t('planner.late', { time: formatTime(segmentEnd!) })}</div>}
+        </div>
         {onResize && onResizeEnd && ppm && <ResizeHandle minutes={durationOf(item)} ppm={ppm} onResize={onResize} onResizeEnd={onResizeEnd} />}
       </div>
     </div>

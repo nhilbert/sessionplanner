@@ -6,7 +6,6 @@ import { api } from '@/api'
 import type { WorkshopSummary } from '@/domain/types'
 import { formatDate } from '@/i18n'
 import { Button, Chip, Empty, Field, Input, Modal, PageHeader } from '@/components/ui'
-import LanguageSwitch from '@/components/LanguageSwitch'
 
 export default function WorkshopsPage() {
   const { t } = useTranslation()
@@ -24,17 +23,15 @@ export default function WorkshopsPage() {
   const hasArchived = (list ?? []).some((w) => w.archived)
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">
+    <div className="h-full overflow-y-auto">
+    <div className="mx-auto max-w-3xl px-4 py-8 md:px-10 md:py-10">
       <PageHeader
         title={t('workshops.title')}
         right={
-          <>
-            <LanguageSwitch />
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              <Plus size={16} />
-              {t('workshops.new')}
-            </Button>
-          </>
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            {t('workshops.new')}
+          </Button>
         }
       />
       {failed && <p className="text-rose">{t('common.error')}</p>}
@@ -70,6 +67,7 @@ export default function WorkshopsPage() {
         </div>
       )}
       <NewWorkshop open={creating} onClose={() => setCreating(false)} onCreated={(id) => navigate(`/w/${id}`)} />
+    </div>
     </div>
   )
 }

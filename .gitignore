@@ -38,3 +38,6 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Private material (sample sessions, client documents): local demo and inspiration only, never committed
+private-*/

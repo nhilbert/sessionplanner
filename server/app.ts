@@ -8,9 +8,11 @@ import { newId } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { guard, type GuardOptions } from './guard.ts'
-import { BadRequest, validateNewWorkshop, validateOps } from './validate.ts'
+import { BadRequest, validateLibraryEntry, validateNewWorkshop, validateOps, validateSettings } from './validate.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
+export const MAX_LOGO = 2 * 1024 * 1024
+const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 
 export interface AppOptions extends GuardOptions {
   repo: Repo
@@ -124,6 +126,41 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     if (result.ops.length) hub.publish(result.workshopId, { type: 'ops', clientId: 'server', ops: result.ops })
     return c.json({ ok: true })
   })
+
+  // ---- settings and logo -------------------------------------------------------------------------
+  const logoPath = path.join(filesDir, 'logo')
+  app.get('/api/settings', (c) => c.json(repo.getSettings()))
+  app.put('/api/settings', async (c) => c.json(repo.saveSettings({ ...validateSettings(await c.req.json()), logo: repo.getSettings().logo })))
+
+  app.post('/api/settings/logo', bodyLimit({ maxSize: MAX_LOGO + 64 * 1024, onError: (c) => c.json({ error: 'too_large' }, 413) }), async (c) => {
+    const file = (await c.req.parseBody()).file
+    if (!(file instanceof File)) throw new BadRequest('file required')
+    if (!LOGO_TYPES.includes(file.type)) throw new BadRequest('png, jpeg, webp or svg only')
+    if (file.size > MAX_LOGO) return c.json({ error: 'too_large' }, 413)
+    await mkdir(filesDir, { recursive: true })
+    await writeFile(logoPath, Buffer.from(await file.arrayBuffer()))
+    return c.json(repo.saveSettings({ ...repo.getSettings(), logo: { mime: file.type, updatedAt: new Date().toISOString() } }))
+  })
+  app.get('/api/settings/logo', async (c) => {
+    const logo = repo.getSettings().logo
+    const data = logo && (await readFile(logoPath).catch(() => null))
+    if (!logo || !data) return c.json({ error: 'not_found' }, 404)
+    // Shown as <img>; opened on its own, an SVG still cannot run script in the app's origin.
+    return c.body(new Uint8Array(data), 200, { 'Content-Type': logo.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
+  })
+  app.delete('/api/settings/logo', async (c) => {
+    await rm(logoPath, { force: true })
+    return c.json(repo.saveSettings({ ...repo.getSettings(), logo: null }))
+  })
+
+  // ---- library -------------------------------------------------------------------------------------
+  app.get('/api/library', (c) => c.json(repo.listLibrary()))
+  app.post('/api/library', async (c) => c.json(repo.saveLibraryEntry(null, validateLibraryEntry(await c.req.json())), 201))
+  app.put('/api/library/:id', async (c) => {
+    const entry = repo.saveLibraryEntry(c.req.param('id'), validateLibraryEntry(await c.req.json()))
+    return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
+  })
+  app.delete('/api/library/:id', (c) => (repo.deleteLibraryEntry(c.req.param('id')) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
 
   app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404))
 

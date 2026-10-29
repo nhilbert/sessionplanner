@@ -31,6 +31,7 @@ const item = (id: string, workshopId: string, dayId: string | null, over: Partia
   workshopId,
   dayId,
   position: 1,
+  groupId: null,
   kind: 'block',
   title: id,
   description: '',
@@ -42,6 +43,8 @@ const item = (id: string, workshopId: string, dayId: string | null, over: Partia
   notes: '',
   materials: [],
   attachmentIds: [],
+  categoryId: null,
+  color: null,
   ...over,
 })
 
@@ -168,5 +171,85 @@ describe('attachments', () => {
     const att = await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()
     expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
     expect((await app.request(`${BASE}/api/attachments/${att.id}`)).status).toBe(404)
+  })
+})
+
+describe('groups', () => {
+  it('ungroups the members of a deleted group and parks groups of a deleted day', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const id = ws.workshop.id
+    const day = ws.days[0].id
+    await ops(app, id, {
+      clientId: 'c',
+      ops: [
+        { op: 'create', entity: 'group', record: { id: 'g', workshopId: id, dayId: day, position: 1, title: 'Rollen' } },
+        { op: 'create', entity: 'item', record: item('a', id, day, { groupId: 'g' }) },
+        { op: 'create', entity: 'item', record: item('b', id, day, { groupId: 'g', position: 2 }) },
+      ],
+    })
+    let state = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
+    expect(state.groups).toMatchObject([{ id: 'g', title: 'Rollen', dayId: day }])
+    expect(state.items.map((i) => i.groupId)).toEqual(['g', 'g'])
+
+    await ops(app, id, { clientId: 'c', ops: [{ op: 'delete', entity: 'day', id: day }] })
+    state = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
+    expect(state.groups[0].dayId).toBeNull()
+
+    const res = await ops(app, id, { clientId: 'c', ops: [{ op: 'delete', entity: 'group', id: 'g' }] })
+    expect((await res.json()).ops.filter((o: { fields?: { groupId: null } }) => o.fields?.groupId === null)).toHaveLength(2)
+    state = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
+    expect(state.items.map((i) => i.groupId)).toEqual([null, null])
+  })
+
+  it('does not let an item join a group of another workshop', async () => {
+    const { app } = setup()
+    const a = await create(app, 'A')
+    const b = await create(app, 'B')
+    await ops(app, a.workshop.id, { clientId: 'c', ops: [{ op: 'create', entity: 'group', record: { id: 'ga', workshopId: a.workshop.id, dayId: null, position: 1, title: '' } }] })
+    await ops(app, b.workshop.id, { clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item('x', b.workshop.id, null, { groupId: 'ga' }) }] })
+    const state = (await (await app.request(`${BASE}/api/workshops/${b.workshop.id}`)).json()) as WorkshopState
+    expect(state.items[0].groupId).toBeNull()
+  })
+})
+
+describe('settings and library', () => {
+  it('stores settings and uses the day times for new workshops', async () => {
+    const { app } = setup()
+    expect((await (await app.request(`${BASE}/api/settings`)).json()).categories.length).toBeGreaterThan(0)
+    const put = await app.request(`${BASE}/api/settings`, { method: 'PUT', headers: H, body: JSON.stringify({ categories: [{ id: 'input', name: 'Impuls', color: 'slate' }], dayStart: 510, dayEnd: 960 }) })
+    expect(put.status).toBe(200)
+    const ws = await create(app)
+    expect(ws.days[0]).toMatchObject({ startMin: 510, endMin: 960 })
+    const bad = await app.request(`${BASE}/api/settings`, { method: 'PUT', headers: H, body: JSON.stringify({ categories: [{ id: 'x', name: 'x', color: '#ff0000' }], dayStart: 0, dayEnd: null }) })
+    expect(bad.status).toBe(400)
+  })
+
+  it('accepts image logos only', async () => {
+    const { app } = setup()
+    const form = (name: string, type: string) => {
+      const f = new FormData()
+      f.append('file', new File(['x'], name, { type }))
+      return f
+    }
+    expect((await app.request(`${BASE}/api/settings/logo`, { method: 'POST', headers: { 'x-sp': '1' }, body: form('a.html', 'text/html') })).status).toBe(400)
+    expect((await app.request(`${BASE}/api/settings/logo`, { method: 'POST', headers: { 'x-sp': '1' }, body: form('a.png', 'image/png') })).status).toBe(200)
+    const logo = await app.request(`${BASE}/api/settings/logo`)
+    expect(logo.headers.get('content-type')).toBe('image/png')
+    expect((await (await app.request(`${BASE}/api/settings`)).json()).logo.mime).toBe('image/png')
+  })
+
+  it('saves, lists, updates and deletes library entries', async () => {
+    const { app } = setup()
+    const content = { kind: 'block', title: 'Fishbowl', description: '', duration: 60, goal: '', method: '', lead: '', notes: '', materials: [], categoryId: 'discussion', color: null }
+    const res = await app.request(`${BASE}/api/library`, { method: 'POST', headers: H, body: JSON.stringify({ kind: 'item', title: 'Fishbowl', data: content }) })
+    expect(res.status).toBe(201)
+    const entry = await res.json()
+    const group = { kind: 'group', title: 'Feedbackrunde', data: { items: [content, { ...content, title: 'Blitzlicht', duration: 10 }] } }
+    expect((await app.request(`${BASE}/api/library`, { method: 'POST', headers: H, body: JSON.stringify(group) })).status).toBe(201)
+    expect((await app.request(`${BASE}/api/library/${entry.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ kind: 'item', title: 'Fishbowl lang', data: { ...content, duration: 90 } }) })).status).toBe(200)
+    const list = await (await app.request(`${BASE}/api/library`)).json()
+    expect(list.map((e: { title: string }) => e.title)).toEqual(['Feedbackrunde', 'Fishbowl lang'])
+    expect((await app.request(`${BASE}/api/library/${entry.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
   })
 })

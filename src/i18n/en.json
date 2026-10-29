@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Session Planner", "otherLanguage": "Deutsch" },
+  "app": {
+    "name": "Session Planner"
+  },
   "common": {
     "cancel": "Cancel",
     "close": "Close",
@@ -35,7 +37,7 @@
   },
   "planner": {
     "parking": "Parking lot",
-    "parkingHint": "Not part of the agenda. Drag items here to keep them for later.",
+    "parkingHint": "Not part of the agenda. Drag items here to keep them for later, and back when you need them.",
     "addDay": "Add day",
     "deleteDay": "Delete day",
     "deleteDayConfirm": "Delete this day? Its items move to the parking lot.",
@@ -50,10 +52,6 @@
     "stretch": "{{d}} without a break",
     "segment": "{{from}}–{{to}}: {{planned}} of {{available}}",
     "openSegment": "from {{from}}: {{planned}}",
-    "zoom": "Zoom",
-    "zoomS": "S",
-    "zoomM": "M",
-    "zoomL": "L",
     "packing": "Packing list",
     "files": "Files",
     "print": "Print",
@@ -69,9 +67,21 @@
     "late": "does not fit before {{time}}",
     "emptyDay": "Add items or drag them here",
     "syncError": "A change could not be saved. The workshop was reloaded from the server.",
-    "keys": "Click an item to edit it · drag to move · drag the lower edge or press +/− to change the length · Ctrl+Z undo"
+    "keys": "Click an item for details, its title, time or length to edit it there · drag to move · Shift+click to select several · Ctrl+Z undo",
+    "date": "Date",
+    "parkingEmpty": "Nothing parked",
+    "hideDescription": "Hide short descriptions",
+    "showDescription": "Show short descriptions",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "clearSelection": "Clear selection"
   },
-  "kinds": { "block": "Block", "break": "Break", "marker": "Marker", "note": "Note" },
+  "kinds": {
+    "block": "Block",
+    "break": "Break",
+    "marker": "Marker",
+    "note": "Note"
+  },
   "item": {
     "kind": "Kind",
     "title": "Title",
@@ -99,7 +109,12 @@
     "newBlock": "New block",
     "newBreak": "Break",
     "newMarker": "Marker",
-    "newNote": "Note"
+    "newNote": "Note",
+    "category": "Category",
+    "noCategory": "No category",
+    "color": "Colour",
+    "colorHint": "overrides the category",
+    "saveToLibrary": "Save to library"
   },
   "workshop": {
     "details": "Workshop details",
@@ -118,7 +133,11 @@
     "venue": "at the venue",
     "usedIn_one": "{{count}} item",
     "usedIn_other": "{{count}} items",
-    "suggested": "suggested {{n}}"
+    "suggested": "suggested {{n}}",
+    "general": "Workshop in general",
+    "addPlaceholder": "Add material …",
+    "for": "For",
+    "add": "Add"
   },
   "files": {
     "empty": "No files yet.",
@@ -142,5 +161,81 @@
     "plan": "Facilitation plan",
     "packing": "Packing list",
     "qty": "Qty"
+  },
+  "nav": {
+    "workshops": "Workshops",
+    "library": "Library",
+    "settings": "Settings",
+    "collapse": "Collapse",
+    "expand": "Expand"
+  },
+  "settings": {
+    "language": "Language",
+    "languageHint": "on this device",
+    "days": "New days",
+    "daysHint": "Start and target end of new workshops and added days.",
+    "categories": "Categories",
+    "categoriesHint": "Kinds of steps with a quiet colour; set them per item, override the colour where needed.",
+    "addCategory": "Add category",
+    "newCategory": "New category",
+    "removeCategory": "Remove category",
+    "logo": "Logo",
+    "logoHint": "Shown at the top of every printout. PNG, JPEG, WebP or SVG, up to 2 MB.",
+    "uploadLogo": "Upload logo",
+    "removeLogo": "Remove",
+    "logoTooLarge": "The logo is larger than 2 MB.",
+    "logoFailed": "The logo could not be uploaded (PNG, JPEG, WebP or SVG)."
+  },
+  "categories": {
+    "input": "Input",
+    "exercise": "Exercise",
+    "discussion": "Discussion",
+    "reflection": "Reflection",
+    "energizer": "Energizer",
+    "organisation": "Organisational"
+  },
+  "colors": {
+    "none": "Category colour",
+    "slate": "Slate",
+    "sage": "Sage",
+    "ochre": "Ochre",
+    "plum": "Plum",
+    "clay": "Clay",
+    "moss": "Moss",
+    "dusk": "Dusk",
+    "sand": "Sand",
+    "neutral": "Grey"
+  },
+  "group": {
+    "expand": "Expand group",
+    "collapse": "Collapse group",
+    "untitled": "Untitled group",
+    "title": "Group title",
+    "menu": "Group actions",
+    "saveToLibrary": "Save to library",
+    "ungroup": "Ungroup",
+    "delete": "Delete group and items",
+    "empty": "Drag items here",
+    "new": "Group",
+    "newTitle": "New group",
+    "make": "Group",
+    "deleteConfirm": "Delete “{{title}}” with all its items?"
+  },
+  "toolbox": {
+    "open": "Open sidebar",
+    "close": "Close sidebar"
+  },
+  "library": {
+    "saved": "“{{title}}” saved to the library",
+    "search": "Search",
+    "subtitle": "Items and groups to reuse in any workshop. Inserting one makes a copy.",
+    "empty": "The library is empty",
+    "emptyHint": "Save an item (details) or a group (its ⋯ menu) to the library, then drag it into any workshop.",
+    "dragHint": "Drag into the agenda, or + to park.",
+    "manage": "Manage library",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items",
+    "toParking": "To the parking lot",
+    "deleteConfirm": "Delete “{{title}}” from the library? Workshops keep their copies."
   }
 }

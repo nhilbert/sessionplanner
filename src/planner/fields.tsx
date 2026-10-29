@@ -124,6 +124,7 @@ export function newItem(t: TFunction, workshopId: string, dayId: string | null, 
     workshopId,
     dayId,
     position,
+    groupId: null,
     kind,
     title: titles[kind],
     description: '',
@@ -135,6 +136,8 @@ export function newItem(t: TFunction, workshopId: string, dayId: string | null, 
     notes: '',
     materials: [],
     attachmentIds: [],
+    categoryId: null,
+    color: null,
   }
 }
 

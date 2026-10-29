@@ -2,7 +2,7 @@
 # Privacy guard for this public repository, used by pre-commit, commit-msg and pre-push.
 #
 # Refuses:
-#   - private files (data/, .env, databases)
+#   - private files (data/, private-*/ folders, .env, databases)
 #   - anything matching a line of .git/info/private-patterns (server addresses and host names, clients, people …).
 #     That file lives inside .git, so it is never committed or pushed; create it once per clone (README, Privacy).
 #   - e-mail addresses other than your own (git config user.email), example domains and noreply addresses,
@@ -15,7 +15,7 @@ set -euo pipefail
 ALLOWED_EMAIL='@(example\.(com|org|net)|users\.noreply\.github\.com)$|^noreply@(anthropic|github)\.com$'
 own=$(git config user.email || true)
 [[ -n $own ]] && ALLOWED_EMAIL+="|^$(sed 's/[.[\*^$()+?{|]/\\&/g' <<<"$own")\$"
-PRIVATE_FILES='^data/|(^|/)\.env$|\.db$|\.db-(journal|wal|shm)$|\.sqlite3?$'
+PRIVATE_FILES='^data/|(^|/)private-[^/]*/|(^|/)\.env$|\.db$|\.db-(journal|wal|shm)$|\.sqlite3?$'
 SECRETS='sk-ant-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|"refresh_token"|"access_token"'
 
 patterns_file=$(git rev-parse --git-path info/private-patterns)
