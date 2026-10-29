@@ -2,7 +2,7 @@ import { type ComponentProps, useEffect, useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { newId } from '@/domain/ops'
 import type { Item, ItemKind } from '@/domain/types'
-import { formatTime, parseTime } from '@/domain/time'
+import { formatDuration, formatTime, parseClock, parseDuration } from '@/domain/time'
 import { cx } from '@/components/ui'
 
 /**
@@ -76,7 +76,7 @@ export function TimeField({
   }, [shown])
   const commit = (cancel = false) => {
     const text = cancel ? shown : local.trim()
-    const v = parseTime(/^\d{3,4}$/.test(text) ? `${text.slice(0, -2)}:${text.slice(-2)}` : text)
+    const v = parseClock(text)
     if (v !== null && v !== value) onChange(v)
     else if (nullable && text === '' && value !== null) onChange(null)
     else setLocal(shown)
@@ -145,4 +145,42 @@ export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+/** A length typed in any common form ("90", "1:30", "1h30", "1,5 h"); shows "1 h 30 min" while not editing. */
+export function DurationField({ value, onChange, className, ...props }: { value: number; onChange: (v: number) => void; className?: string } & Omit<ComponentProps<'input'>, 'value' | 'onChange'>) {
+  const [local, setLocal] = useState(formatDuration(value))
+  const focused = useRef(false)
+  useEffect(() => {
+    if (!focused.current) setLocal(formatDuration(value))
+  }, [value])
+  const commit = () => {
+    const v = parseDuration(local)
+    if (v !== undefined && v !== value) onChange(v)
+    else setLocal(formatDuration(value))
+  }
+  return (
+    <input
+      {...props}
+      className={cx('field tnum h-8 px-2 text-center text-[13px]', className)}
+      value={local}
+      onFocus={(e) => {
+        focused.current = true
+        setLocal(String(value))
+        requestAnimationFrame(() => e.target.select())
+      }}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        focused.current = false
+        commit()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setLocal(String(value))
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
 }

@@ -253,3 +253,40 @@ describe('settings and library', () => {
     expect((await app.request(`${BASE}/api/library/${entry.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
   })
 })
+
+describe('duplicate', () => {
+  it('copies days (moved), groups, items and files, with fresh ids and an unticked packing list', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const id = ws.workshop.id
+    const day = ws.days[0].id
+    const form = new FormData()
+    form.append('file', new File(['handout'], 'handout.pdf', { type: 'application/pdf' }))
+    const att = await (await app.request(`${BASE}/api/workshops/${id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()
+    await ops(app, id, {
+      clientId: 'c',
+      ops: [
+        { op: 'create', entity: 'day', record: { id: 'd2', workshopId: id, position: 2, date: '2026-11-11', startMin: 540, endMin: 1020 } },
+        { op: 'create', entity: 'group', record: { id: 'g', workshopId: id, dayId: day, position: 1, title: 'Einstieg' } },
+        { op: 'create', entity: 'item', record: item('a', id, day, { groupId: 'g', attachmentIds: [att.id] }) },
+        { op: 'create', entity: 'item', record: item('b', id, 'd2') },
+        { op: 'set', entity: 'workshop', id, fields: { packing: { flipchart: { checked: true, qty: 3 } } } },
+      ],
+    })
+    const res = await app.request(`${BASE}/api/workshops/${id}/duplicate`, { method: 'POST', headers: H, body: JSON.stringify({ title: 'Teamtag 2', firstDate: '2027-03-01' }) })
+    expect(res.status).toBe(201)
+    const copy = (await res.json()) as WorkshopState
+    expect(copy.workshop.title).toBe('Teamtag 2')
+    expect(copy.days.map((d) => d.date)).toEqual(['2027-03-01', '2027-03-02'])
+    expect(copy.groups[0].title).toBe('Einstieg')
+    const a = copy.items.find((i) => i.title === 'a')!
+    expect(a.id).not.toBe('a')
+    expect(a.groupId).toBe(copy.groups[0].id)
+    expect(a.dayId).toBe(copy.days[0].id)
+    expect(copy.workshop.packing).toEqual({ flipchart: { checked: false, qty: 3 } })
+    expect(await (await app.request(`${BASE}/api/attachments/${a.attachmentIds[0]}`)).text()).toBe('handout')
+    // the original is untouched
+    const orig = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
+    expect(orig.items.map((i) => i.id).sort()).toEqual(['a', 'b'])
+  })
+})

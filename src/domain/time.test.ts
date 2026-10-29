@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration, formatTime, parseTime, scheduleDay, type TimedItem } from './time.ts'
+import { formatDuration, formatTime, parseClock, parseDuration, parseTime, scheduleDay, type TimedItem } from './time.ts'
 
 const block = (id: string, duration: number, fixedStart: number | null = null): TimedItem => ({ id, kind: 'block', duration, fixedStart })
 const brk = (id: string, duration: number, fixedStart: number | null = null): TimedItem => ({ id, kind: 'break', duration, fixedStart })
@@ -85,5 +85,16 @@ describe('formatting', () => {
     expect(formatDuration(90)).toBe('1 h 30 min')
     expect(formatDuration(120)).toBe('2 h')
     expect(formatDuration(-15)).toBe('−15 min')
+  })
+})
+
+describe('typed lengths and times', () => {
+  it('reads lengths in every common form', () => {
+    expect(['90', '90 min', '90min', '1:30', '1h30', '1 h 30 min', '1,5 h', '1.5h', '2h', '120 Minuten'].map(parseDuration)).toEqual([90, 90, 90, 90, 90, 90, 90, 90, 120, 120])
+    expect(['', 'abc', '0', '25 h', '-5'].map(parseDuration)).toEqual([undefined, undefined, undefined, undefined, undefined])
+  })
+  it('reads clock times in every common form', () => {
+    expect(['9', '930', '0930', '9:30', '9.30', '9h30', '14'].map(parseClock)).toEqual([540, 570, 570, 570, 570, 570, 840])
+    expect(['25', 'x', '9:75'].map(parseClock)).toEqual([null, null, null])
   })
 })

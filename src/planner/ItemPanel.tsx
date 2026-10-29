@@ -11,7 +11,7 @@ import Swatches from '@/components/Swatches'
 import { SNAP } from '@/domain/time'
 import { api } from '@/api'
 import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/components/ui'
-import { DEFAULT_DURATION, TextField, TimeField, formatSize } from './fields'
+import { DEFAULT_DURATION, DurationField, TextField, TimeField, formatSize } from './fields'
 import { uploadFiles } from './upload'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
@@ -95,17 +95,7 @@ export default function ItemPanel({
               <IconButton label="−5" onClick={() => set({ duration: Math.max(SNAP, item.duration - SNAP) })}>
                 <Minus size={14} />
               </IconButton>
-              <input
-                type="number"
-                min={SNAP}
-                step={SNAP}
-                value={item.duration}
-                onChange={(e) => {
-                  const v = Math.round(Number(e.target.value))
-                  if (v >= 1 && v <= 1440) set({ duration: v })
-                }}
-                className="field tnum h-8 w-[72px] px-2 text-center"
-              />
+              <DurationField value={item.duration} onChange={(duration) => set({ duration })} className="w-[104px]" aria-label={t('item.duration')} />
               <IconButton label="+5" onClick={() => set({ duration: Math.min(1440, item.duration + SNAP) })}>
                 <Plus size={14} />
               </IconButton>

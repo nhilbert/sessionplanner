@@ -126,3 +126,11 @@ export function validateLibraryEntry(body: unknown): { kind: 'item'; title: stri
   if (!parsed.success) throw new BadRequest(`invalid library entry: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
   return parsed.data
 }
+
+const duplicateBody = z.strictObject({ title: text(300), firstDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })
+
+export function validateDuplicate(body: unknown): z.infer<typeof duplicateBody> {
+  const parsed = duplicateBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest('invalid duplicate request')
+  return parsed.data
+}

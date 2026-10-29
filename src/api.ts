@@ -28,6 +28,7 @@ export const api = {
   listWorkshops: () => call<WorkshopSummary[]>('/api/workshops'),
   createWorkshop: (input: { title?: string; client?: string; date?: string }) => call<WorkshopState>('/api/workshops', { method: 'POST', body: JSON.stringify(input) }),
   loadWorkshop: (id: string) => call<WorkshopState>(`/api/workshops/${id}`),
+  duplicateWorkshop: (id: string, input: { title: string; firstDate?: string }) => call<WorkshopState>(`/api/workshops/${id}/duplicate`, { method: 'POST', body: JSON.stringify(input) }),
   deleteWorkshop: (id: string) => call<{ ok: true }>(`/api/workshops/${id}`, { method: 'DELETE' }),
   sendOps: (id: string, clientId: string, ops: Op[]) => call<{ ok: true; ops: Op[] }>(`/api/workshops/${id}/ops`, { method: 'POST', body: JSON.stringify({ clientId, ops }) }),
   upload: (id: string, file: File) => {

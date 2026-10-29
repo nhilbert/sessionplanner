@@ -105,15 +105,30 @@ How it is enforced:
 
 Heavier alternatives (guest accounts in Entra, own user accounts) are not worth it for a handful of guests; an e-mail magic link can be added later without changing the model.
 
-## 9. Stages
+## 9. Stages and backlog
 
-1. **Planning core (minimal)** – workshops (create, edit, archive, delete); days; items of all four kinds with goal, method, lead, notes, material; timeline with drag within and between days and to the parking lot, resize, `+`/`−`; fixed starts, gaps, overlaps, segments and day totals; undo/redo; live updates between windows; packing list; attachments; the three print views; German and English. Owner only, behind the login.
-2. **Planning comfort** – done: layout and settings, categories and colours, editing on the card, description switch, groups, library, packing-list additions, logo on printouts. Still open: moving several selected items at once and shortening them by a percentage; day variants (snapshot before a rework, go back); duplicate a workshop with shifted dates; minimum duration and "optional" per item with fit suggestions for a stretch that is over; asking before saving the same item to the library twice.
-3. **Sharing** – section 8.
-4. **Live mode** on laptop or phone (no projector): now line, the running item with countdown and notes, next item, buffer to the next fixed start, +5/−5 minutes, skip, re-forecast of the rest of the day, screen kept awake; afterwards planned against actual time and a reflection note.
-5. **Later, if needed** – breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; a Claude connector (MCP) as in Zendo and the CRM; link to the CRM project; Markdown export (e.g. for the photo protocol).
+1. **Planning core** – done (2026-10-29).
+2. **Planning comfort** – done (2026-10-29): layout and settings, categories and colours, editing title, time and duration on the card (any common way of writing a length or time), description switch, groups, library, packing-list additions, logo on printouts, duplicating a workshop with moved dates.
+3. **Sharing** – in progress: section 8.
+4. **Claude connector (MCP)** – high priority after sharing: Claude reads and edits workshops (draft an agenda from a brief, adjust timings, fill the packing list), with OAuth as in Zendo and the CRM.
+5. **Import of the owner's sample sessions** into the hosted instance once the feature baseline stands (private material, never in this repository).
+
+**Backlog** (no order):
+
+- Moving several selected items at once, and shortening them by a percentage.
+- Day variants: a snapshot before a rework, and going back to it.
+- Minimum duration and "optional" per item, with fit suggestions for a stretch that is over.
+- Asking before saving the same item to the library twice.
+- Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far.
+- Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project; Markdown export (e.g. for the photo protocol).
 
 ## 10. Decisions
+
+**2026-10-29, third round**
+
+- Duplicating a workshop belongs to the current scope; the other planning-comfort ideas and live mode go to the backlog.
+- Time and duration of every entry are typed directly, in any common form (90, 1:30, 1h30, 1,5 h).
+- Sharing next, then the Claude connector.
 
 **2026-10-29, after trying stage 1**
 

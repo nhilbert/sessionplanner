@@ -86,7 +86,7 @@
     "kind": "Art",
     "title": "Titel",
     "description": "Kurzbeschreibung",
-    "duration": "Dauer (min)",
+    "duration": "Dauer",
     "fixedStart": "Feste Startzeit",
     "fixedHint": "bleibt auf dieser Uhrzeit",
     "goal": "Ziel",
@@ -126,7 +126,11 @@
     "archive": "Archivieren",
     "unarchive": "Aus dem Archiv holen",
     "delete": "Workshop löschen",
-    "deleteConfirm": "„{{title}}“ mit allen Tagen, Punkten und Dateien löschen? Das lässt sich nicht rückgängig machen."
+    "deleteConfirm": "„{{title}}“ mit allen Tagen, Punkten und Dateien löschen? Das lässt sich nicht rückgängig machen.",
+    "duplicate": "Duplizieren",
+    "copyTitle": "{{title}} (Kopie)",
+    "daysFollow": "die weiteren Tage folgen",
+    "duplicateHint": "Kopiert Tage, Gruppen, Punkte, Material und Dateien. Die Packliste beginnt unabgehakt."
   },
   "packing": {
     "empty": "Noch kein Material. Ergänze Material an den Agendapunkten.",

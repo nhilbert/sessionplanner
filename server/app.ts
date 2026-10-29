@@ -1,14 +1,14 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { streamSSE } from 'hono/streaming'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { newId } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { guard, type GuardOptions } from './guard.ts'
-import { BadRequest, validateLibraryEntry, validateNewWorkshop, validateOps, validateSettings } from './validate.ts'
+import { BadRequest, validateDuplicate, validateLibraryEntry, validateNewWorkshop, validateOps, validateSettings } from './validate.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -58,6 +58,15 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     await Promise.all(files.map((f) => rm(filePath(f), { force: true })))
     hub.publish(id, { type: 'workshop-deleted' })
     return c.json({ ok: true })
+  })
+
+  app.post('/api/workshops/:id/duplicate', async (c) => {
+    const result = repo.duplicateWorkshop(c.req.param('id'), validateDuplicate(await c.req.json()))
+    if (!result) return c.json({ error: 'not_found' }, 404)
+    await mkdir(filesDir, { recursive: true })
+    // A file missing on disk stays listed but fails its download, as in the original.
+    await Promise.all(Object.entries(result.files).map(([from, to]) => copyFile(filePath(from), filePath(to)).catch(() => undefined)))
+    return c.json(result.state, 201)
   })
 
   app.post('/api/workshops/:id/ops', bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {

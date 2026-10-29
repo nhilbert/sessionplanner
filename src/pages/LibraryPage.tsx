@@ -7,7 +7,7 @@ import { useLibrary } from '@/store/useLibrary'
 import { categoryName, itemColor, useSettings } from '@/store/useSettings'
 import { Empty, Field, IconButton, PageHeader } from '@/components/ui'
 import Swatches from '@/components/Swatches'
-import { TextField } from '@/planner/fields'
+import { DurationField, TextField } from '@/planner/fields'
 
 /** The shared library: rename, adjust and delete entries; inserting happens in a workshop (library tab). */
 export default function LibraryPage() {
@@ -89,17 +89,7 @@ function Row({ entry, open, onToggle, onSave, onDelete }: { entry: LibraryEntry;
               <div className="flex flex-wrap items-end gap-4">
                 {(entry.data.kind === 'block' || entry.data.kind === 'break') && (
                   <Field label={t('item.duration')}>
-                    <input
-                      type="number"
-                      min={5}
-                      step={5}
-                      defaultValue={entry.data.duration}
-                      onBlur={(e) => {
-                        const v = Math.round(Number(e.target.value))
-                        if (v >= 1 && v <= 1440 && v !== entry.data.duration) setItem({ duration: v })
-                      }}
-                      className="field tnum h-8 w-20 text-center"
-                    />
+                    <DurationField value={entry.data.duration} onChange={(duration) => setItem({ duration })} className="w-[104px]" aria-label={t('item.duration')} />
                   </Field>
                 )}
                 <Field label={t('item.category')}>

@@ -86,7 +86,7 @@
     "kind": "Kind",
     "title": "Title",
     "description": "Short description",
-    "duration": "Duration (min)",
+    "duration": "Duration",
     "fixedStart": "Fixed start",
     "fixedHint": "stays at this time",
     "goal": "Goal",
@@ -126,7 +126,11 @@
     "archive": "Archive",
     "unarchive": "Restore from archive",
     "delete": "Delete workshop",
-    "deleteConfirm": "Delete “{{title}}” with all days, items and files? This cannot be undone."
+    "deleteConfirm": "Delete “{{title}}” with all days, items and files? This cannot be undone.",
+    "duplicate": "Duplicate",
+    "copyTitle": "{{title}} (copy)",
+    "daysFollow": "the other days follow",
+    "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked."
   },
   "packing": {
     "empty": "No material yet. Add material to the agenda items.",

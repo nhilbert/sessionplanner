@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Flag, NotebookPen, Package, Paperclip, Pin, StickyNote } from 'lucide-react'
 import type { Item, PaletteKey } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
-import { durationOf, formatDuration, formatTime, parseTime, snap, SNAP, type Slot } from '@/domain/time'
+import { durationOf, formatDuration, formatTime, parseClock, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
 import { cx } from '@/components/ui'
 
 export const MIN_CARD = 40
@@ -93,7 +93,7 @@ export function Inline({
           done.current = false
           setEditing(true)
         }}
-        className={cx('cursor-text rounded px-0.5 hover:bg-ink/5', className)}
+        className={cx('cursor-text rounded px-0.5 underline decoration-transparent decoration-dotted underline-offset-2 hover:bg-ink/5 hover:decoration-current', className)}
       >
         {display ?? value}
       </span>
@@ -125,16 +125,8 @@ export function Inline({
   )
 }
 
-const parseStart = (v: string): number | null | undefined => {
-  const text = v.trim()
-  if (!text) return null // empty: the item flows again
-  const t = parseTime(/^\d{3,4}$/.test(text) ? `${text.slice(0, -2)}:${text.slice(-2)}` : text)
-  return t === null ? undefined : t
-}
-const parseMinutes = (v: string): number | undefined => {
-  const m = Math.round(Number(v.replace(/[^\d]/g, '')))
-  return m >= 1 && m <= 1440 ? m : undefined
-}
+// Empty start: the item flows again; anything unreadable is ignored.
+const parseStart = (v: string): number | null | undefined => (v.trim() ? (parseClock(v) ?? undefined) : null)
 
 export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, onSelect, onEdit, onResize, onResizeEnd }: CardProps) {
   const { t } = useTranslation()
@@ -222,7 +214,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
             <Inline
               value={String(minutes)}
               display={formatDuration(minutes)}
-              parse={parseMinutes}
+              parse={parseDuration}
               label={t('item.duration')}
               onSave={onEdit && ((v) => onEdit({ duration: v as number }))}
               className="tnum shrink-0 text-[11px] text-ink-3"

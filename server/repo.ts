@@ -313,6 +313,46 @@ export class Repo {
     })
   }
 
+  /**
+   * A copy of a workshop under a new title, its days moved so the first one falls on `firstDate`. Groups,
+   * items, material and files come along (file contents are copied by the caller with the returned id map);
+   * ticks in the packing list are cleared.
+   */
+  duplicateWorkshop(id: string, input: { title: string; firstDate?: string }): { state: WorkshopState; files: Record<string, string> } | null {
+    const src = this.loadWorkshop(id)
+    if (!src) return null
+    const newWs = newId()
+    const t = now()
+    const days = [...src.days].sort((a, b) => a.position - b.position)
+    const shift = input.firstDate && days.length ? Math.round((Date.parse(input.firstDate) - Date.parse(days[0].date)) / 86_400_000) : 0
+    const moved = (date: string) => new Date(Date.parse(date) + shift * 86_400_000).toISOString().slice(0, 10)
+    const dayIds = new Map(days.map((d) => [d.id, newId()]))
+    const groupIds = new Map(src.groups.map((g) => [g.id, newId()]))
+    const files = Object.fromEntries(src.attachments.map((a) => [a.id, newId()]))
+    const packing = Object.fromEntries(Object.entries(src.workshop.packing).map(([k, v]) => [k, { ...v, checked: false }]))
+    const w = src.workshop
+    this.tx(() => {
+      this.db
+        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, packing, materials, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
+        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), t, t)
+      for (const d of days) this.insert('days', DAY_COLS, { ...d, id: dayIds.get(d.id)!, workshopId: newWs, date: moved(d.date) })
+      for (const g of src.groups) this.insert('groups', GROUP_COLS, { ...g, id: groupIds.get(g.id)!, workshopId: newWs, dayId: g.dayId ? (dayIds.get(g.dayId) ?? null) : null })
+      for (const a of src.attachments)
+        this.db.prepare('INSERT INTO attachments (id, workshop_id, name, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(files[a.id], newWs, a.name, a.mime, a.size, t)
+      for (const i of src.items)
+        this.insert('items', ITEM_COLS, {
+          ...i,
+          id: newId(),
+          workshopId: newWs,
+          dayId: i.dayId ? (dayIds.get(i.dayId) ?? null) : null,
+          groupId: i.groupId ? (groupIds.get(i.groupId) ?? null) : null,
+          materials: i.materials.map((m) => ({ ...m, id: newId() })),
+          attachmentIds: i.attachmentIds.filter((x) => files[x]).map((x) => files[x]),
+        })
+    })
+    return { state: this.loadWorkshop(newWs)!, files }
+  }
+
   addAttachment(workshopId: string, file: { id: string; name: string; mime: string; size: number }): Attachment | null {
     if (!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(workshopId)) return null
     const createdAt = now()

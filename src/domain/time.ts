@@ -139,3 +139,28 @@ export function parseTime(value: string): number | null {
   const min = Number(m[2])
   return h < 24 && min < 60 ? h * 60 + min : null
 }
+
+/**
+ * A length typed by hand: "90", "90 min", "1:30", "1h30", "1 h 30 min", "1,5 h", "2h". Undefined when it is
+ * not a length between 1 minute and 24 hours.
+ */
+export function parseDuration(value: string): number | undefined {
+  const text = value.trim().toLowerCase().replace(',', '.')
+  let m: RegExpExecArray | null
+  let minutes: number | undefined
+  if ((m = /^(\d+(?:\.\d+)?)\s*(m|min|mins|minuten|minutes)?$/.exec(text))) minutes = Number(m[1])
+  else if ((m = /^(\d+):(\d{1,2})$/.exec(text))) minutes = Number(m[1]) * 60 + Number(m[2])
+  else if ((m = /^(\d+(?:\.\d+)?)\s*(h|std|stunden|hours?)$/.exec(text))) minutes = Number(m[1]) * 60
+  else if ((m = /^(\d+)\s*(?:h|std)\s*(\d+)\s*(?:m|min)?$/.exec(text))) minutes = Number(m[1]) * 60 + Number(m[2])
+  if (minutes === undefined || !Number.isFinite(minutes)) return undefined
+  const rounded = Math.round(minutes)
+  return rounded >= 1 && rounded <= 1440 ? rounded : undefined
+}
+
+/** A clock time typed by hand: "9", "930", "0930", "9:30", "9.30", "9h30" → minutes after midnight; null for anything else. */
+export function parseClock(value: string): number | null {
+  const text = value.trim().toLowerCase().replace(/[.h]/, ':')
+  if (/^\d{1,2}$/.test(text)) return parseTime(`${text}:00`)
+  if (/^\d{3,4}$/.test(text)) return parseTime(`${text.slice(0, -2)}:${text.slice(-2)}`)
+  return parseTime(text)
+}

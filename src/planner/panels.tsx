@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Copy, ExternalLink, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { Attachment, PackingState, WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
 import { packingList } from '@/domain/packing'
 import { api } from '@/api'
-import { Button, Checkbox, cx, Field, IconButton } from '@/components/ui'
+import { Button, Checkbox, cx, Field, IconButton, Input, Modal } from '@/components/ui'
+import { sortedDays } from '@/domain/order'
 import { TextField, formatSize } from './fields'
 import { uploadFiles } from './upload'
 
@@ -31,6 +32,7 @@ export function WorkshopPanel({ data, change }: { data: WorkshopState; change: (
         <TextField multiline value={w.notes} onCommit={(notes) => set({ notes })} className="min-h-[160px]" />
       </Field>
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+        <DuplicateButton data={data} />
         <Button size="sm" onClick={() => set({ archived: !w.archived })}>
           {w.archived ? t('workshop.unarchive') : t('workshop.archive')}
         </Button>
@@ -213,5 +215,66 @@ export function FilesPanel({ data, onAttachment, onRemove }: { data: WorkshopSta
         ))}
       </ul>
     </div>
+  )
+}
+
+/** A copy of the workshop under a new title, its days moved to a new first date. */
+function DuplicateButton({ data }: { data: WorkshopState }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState('')
+  const [busy, setBusy] = useState(false)
+  const first = sortedDays(data.days)[0]?.date ?? ''
+  return (
+    <>
+      <Button
+        size="sm"
+        onClick={() => {
+          setTitle(t('workshop.copyTitle', { title: data.workshop.title || t('workshops.untitled') }))
+          setDate(first)
+          setOpen(true)
+        }}
+      >
+        <Copy size={13} />
+        {t('workshop.duplicate')}
+      </Button>
+      <Modal open={open} onClose={() => setOpen(false)}>
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            setBusy(true)
+            try {
+              const copy = await api.duplicateWorkshop(data.workshop.id, { title: title.trim(), firstDate: date || undefined })
+              setOpen(false)
+              navigate(`/w/${copy.workshop.id}`)
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <h2 className="text-lg font-medium">{t('workshop.duplicate')}</h2>
+          <Field label={t('workshop.title')}>
+            <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+          </Field>
+          {first && (
+            <Field label={t('workshops.firstDay')} hint={data.days.length > 1 ? t('workshop.daysFollow') : undefined}>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+          )}
+          <p className="text-[13px] text-ink-3">{t('workshop.duplicateHint')}</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="primary" type="submit" disabled={busy || !title.trim()}>
+              {t('workshop.duplicate')}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </>
   )
 }
