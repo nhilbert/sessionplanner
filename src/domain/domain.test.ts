@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { entriesIn, itemsIn, placeAt } from './order.ts'
 import { packingList } from './packing.ts'
-import { applyOps, inverseOps, type Op } from './ops.ts'
+import { adjustedOps, applyOps, inverseOps, type Op } from './ops.ts'
 import type { Item, WorkshopState } from './types.ts'
 
 const item = (id: string, over: Partial<Item> = {}): Item => ({
@@ -97,6 +97,26 @@ describe('ops', () => {
     const after = applyOps(state, [{ op: 'set', entity: 'item', id: 'zzz', fields: { duration: 5 } }])
     expect(after.items).toEqual(state.items)
     expect(inverseOps(state, [{ op: 'delete', entity: 'item', id: 'zzz' }])).toEqual([])
+  })
+})
+
+describe('adjustedOps', () => {
+  const sent: Op[] = [
+    { op: 'set', entity: 'item', id: 'a', fields: { dayId: 'd1', groupId: null, position: 2 } },
+    { op: 'create', entity: 'item', record: item('c', { position: 3 }) },
+  ]
+  it('ignores the order of keys, which the server rebuilds from its schema', () => {
+    const { id, workshopId, ...rest } = item('c', { position: 3 })
+    const echoed: Op[] = [
+      { op: 'set', entity: 'item', id: 'a', fields: { dayId: 'd1', position: 2, groupId: null } },
+      { op: 'create', entity: 'item', record: { ...rest, id, workshopId } },
+    ]
+    expect(adjustedOps(sent, echoed)).toEqual([])
+  })
+  it('returns what the server stored differently or added', () => {
+    const parked: Op = { op: 'set', entity: 'item', id: 'a', fields: { dayId: null, position: 2, groupId: null } }
+    const added: Op = { op: 'set', entity: 'item', id: 'x', fields: { dayId: null } }
+    expect(adjustedOps(sent, [parked, sent[1], added])).toEqual([parked, added])
   })
 })
 

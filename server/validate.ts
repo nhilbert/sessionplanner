@@ -8,6 +8,8 @@ const id = z.string().min(1).max(64)
 const text = (max: number) => z.string().max(max)
 const minutes = z.number().int().min(0).max(2 * 1440)
 const position = z.number().finite()
+// YYYY-MM-DD of a day that exists (no 2026-02-29, no 2026-99-99): a date that cannot be parsed would break shifting on duplicate.
+const isoDate = z.iso.date()
 // Links are rendered as <a href>: only web and mail addresses, never javascript: or data:.
 const link = z.union([z.literal(''), z.string().max(2000).regex(/^(https?:\/\/|mailto:)/i)])
 
@@ -28,7 +30,7 @@ const workshopFields = z.strictObject({
 
 const dayFields = z.strictObject({
   position,
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: isoDate,
   startMin: minutes,
   endMin: minutes.nullable(),
 })
@@ -94,7 +96,7 @@ export function validateOps(body: unknown): { clientId: string; ops: Op[] } {
 const newWorkshop = z.strictObject({
   title: text(300).optional(),
   client: text(300).optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: isoDate.optional(),
 })
 
 export function validateNewWorkshop(body: unknown): z.infer<typeof newWorkshop> {
@@ -127,7 +129,7 @@ export function validateLibraryEntry(body: unknown): { kind: 'item'; title: stri
   return parsed.data
 }
 
-const duplicateBody = z.strictObject({ title: text(300), firstDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })
+const duplicateBody = z.strictObject({ title: text(300), firstDate: isoDate.optional() })
 
 export function validateDuplicate(body: unknown): z.infer<typeof duplicateBody> {
   const parsed = duplicateBody.safeParse(body)
@@ -143,9 +145,9 @@ export function validateMember(body: unknown): z.infer<typeof memberBody> {
   return parsed.data
 }
 
-/** An e-mail as the login reports it, in lower case. */
+/** An e-mail as the login reports it, in lower case. `value` is the path parameter, which the router has decoded already. */
 export function validEmail(value: string): string {
-  const email = decodeURIComponent(value).trim().toLowerCase()
+  const email = value.trim().toLowerCase()
   if (!z.email().safeParse(email).success || email.length > 254) throw new BadRequest('invalid e-mail')
   return email
 }

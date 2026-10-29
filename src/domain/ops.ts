@@ -83,6 +83,27 @@ export function applyOps(state: WorkshopState, ops: Op[]): WorkshopState {
   return { ...state, workshop, days, groups, items }
 }
 
+/** JSON with object keys in sorted order: two objects with the same content give the same text whatever order they were built in. */
+export function stableJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
+  if (Array.isArray(value)) return `[${value.map((v) => stableJson(v)).join(',')}]`
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record)
+    .filter((k) => record[k] !== undefined)
+    .sort()
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableJson(record[k])}`).join(',')}}`
+}
+
+/**
+ * The operations the server stored differently from what was sent (an item parked because its day is gone,
+ * the members of a deleted day), to be applied in the sending window too. Key order is ignored: the server
+ * rebuilds every object in the order of its schema, which differs from the order the browser built it in.
+ */
+export function adjustedOps(sent: Op[], stored: Op[]): Op[] {
+  const seen = new Set(sent.map(stableJson))
+  return stored.filter((o) => !seen.has(stableJson(o)))
+}
+
 /** Operations that undo `ops` when applied after them. */
 export function inverseOps(state: WorkshopState, ops: Op[]): Op[] {
   const inverse: Op[] = []

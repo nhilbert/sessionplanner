@@ -335,8 +335,10 @@ export class Repo {
     const newWs = newId()
     const t = now()
     const days = [...src.days].sort((a, b) => a.position - b.position)
-    const shift = input.firstDate && days.length ? Math.round((Date.parse(input.firstDate) - Date.parse(days[0].date)) / 86_400_000) : 0
-    const moved = (date: string) => new Date(Date.parse(date) + shift * 86_400_000).toISOString().slice(0, 10)
+    // A stored date that never was one (older data, from before the API checked calendar dates) cannot be shifted: it stays as it is.
+    const parsed = (date: string) => Date.parse(date)
+    const shift = input.firstDate && days.length && Number.isFinite(parsed(days[0].date)) ? Math.round((parsed(input.firstDate) - parsed(days[0].date)) / 86_400_000) : 0
+    const moved = (date: string) => (shift && Number.isFinite(parsed(date)) ? new Date(parsed(date) + shift * 86_400_000).toISOString().slice(0, 10) : date)
     const dayIds = new Map(days.map((d) => [d.id, newId()]))
     const groupIds = new Map(src.groups.map((g) => [g.id, newId()]))
     const files = Object.fromEntries(src.attachments.map((a) => [a.id, newId()]))

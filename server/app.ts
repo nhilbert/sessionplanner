@@ -59,6 +59,9 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     await next()
     c.header('X-Content-Type-Options', 'nosniff')
     c.header('Referrer-Policy', 'same-origin')
+    // Every HTML page carries the app's policy, whichever handler produced it (the static handler serves / and
+    // /index.html itself). A response with a policy of its own (a downloaded HTML attachment: sandbox) keeps it.
+    if (c.res.headers.get('content-type')?.startsWith('text/html') && !c.res.headers.has('content-security-policy')) c.header('Content-Security-Policy', CSP)
   })
   app.get('/api/health', (c) => c.json({ ok: true }))
   app.use('/api/*', guard({ publicUrl, owners, ownerHeader }))
@@ -269,10 +272,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     // A file of an earlier build (an open tab after a deploy) must fail as such, not load the page as script.
     app.get('/assets/*', (c) => c.text('not found', 404))
     const index = path.join(staticDir, 'index.html')
-    app.get('*', async (c) => {
-      c.header('Content-Security-Policy', CSP)
-      return c.html(await readFile(index, 'utf8'))
-    })
+    app.get('*', async (c) => c.html(await readFile(index, 'utf8')))
   }
   return app
 }

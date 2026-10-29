@@ -2,18 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import type { DatabaseSync } from 'node:sqlite'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { createApp } from './app.ts'
-import type { ServerEvent } from '../src/domain/ops.ts'
+import { adjustedOps, type Op, type ServerEvent } from '../src/domain/ops.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
 const H = { 'content-type': 'application/json', 'x-sp': '1' }
 
-function setup(opts: { owners?: string[]; publicUrl?: URL } = {}) {
-  const repo = new Repo(openDb(':memory:'))
+function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync } = {}) {
+  const db = opts.db ?? openDb(':memory:')
+  const repo = new Repo(db)
   const hub = new Hub()
   const app = createApp({
     repo,
@@ -22,8 +24,9 @@ function setup(opts: { owners?: string[]; publicUrl?: URL } = {}) {
     owners: opts.owners ?? [],
     ownerHeader: 'x-auth-request-email',
     publicUrl: opts.publicUrl,
+    staticDir: opts.staticDir,
   })
-  return { app, repo, hub }
+  return { app, repo, hub, db }
 }
 
 const item = (id: string, workshopId: string, dayId: string | null, over: Partial<Item> = {}): Item => ({
@@ -133,6 +136,36 @@ describe('workshops and operations', () => {
     expect((await ops(app, a.workshop.id, { clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'x', fields: { secret: 1 } }] })).status).toBe(400)
     const badLink = { materials: [{ id: 'm', label: 'x', qty: 1, link: 'javascript:alert(1)' }] }
     expect((await ops(app, a.workshop.id, { clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'x', fields: badLink }] })).status).toBe(400)
+  })
+
+  it('echoes a batch so that nothing counts as adjusted, and marks what it did adjust', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const id = ws.workshop.id
+    const day = ws.days[0].id
+    const sent: Op[] = [
+      { op: 'create', entity: 'item', record: item('a', id, day) },
+      // the fields in an order of the browser's choosing, not the schema's
+      { op: 'set', entity: 'item', id: 'a', fields: { groupId: null, position: 2, dayId: day } },
+    ]
+    const echoed = ((await (await ops(app, id, { clientId: 'c', ops: sent })).json()) as { ops: Op[] }).ops
+    expect(echoed).toHaveLength(2)
+    expect(adjustedOps(sent, echoed)).toEqual([])
+    const parked: Op[] = [{ op: 'create', entity: 'item', record: item('b', id, 'gone-day') }]
+    const stored = ((await (await ops(app, id, { clientId: 'c', ops: parked })).json()) as { ops: Op[] }).ops
+    expect(adjustedOps(parked, stored)).toMatchObject([{ op: 'create', record: { id: 'b', dayId: null } }])
+  })
+
+  it('refuses dates that are not calendar dates', async () => {
+    const { app } = setup()
+    const post = (date: string) => app.request(`${BASE}/api/workshops`, { method: 'POST', headers: H, body: JSON.stringify({ date }) })
+    expect((await post('2026-99-99')).status).toBe(400)
+    expect((await post('2026-02-29')).status).toBe(400)
+    expect((await post('2028-02-29')).status).toBe(201)
+    const ws = await create(app)
+    const id = ws.workshop.id
+    expect((await ops(app, id, { clientId: 'c', ops: [{ op: 'set', entity: 'day', id: ws.days[0].id, fields: { date: '2026-13-01' } }] })).status).toBe(400)
+    expect((await ops(app, id, { clientId: 'c', ops: [{ op: 'create', entity: 'day', record: { id: 'd2', workshopId: id, position: 2, date: '2026-04-31', startMin: 540, endMin: null } }] })).status).toBe(400)
   })
 
   it('ignores changes to records that are gone', async () => {
@@ -291,6 +324,51 @@ describe('duplicate', () => {
     // the original is untouched
     const orig = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
     expect(orig.items.map((i) => i.id).sort()).toEqual(['a', 'b'])
+  })
+})
+
+describe('duplicate dates', () => {
+  it('refuses a first date that is not a calendar date, and leaves a stored date it cannot shift as it is', async () => {
+    const { app, db } = setup()
+    const ws = await create(app)
+    const dup = (firstDate: string) => app.request(`${BASE}/api/workshops/${ws.workshop.id}/duplicate`, { method: 'POST', headers: H, body: JSON.stringify({ title: 'copy', firstDate }) })
+    expect((await dup('2027-99-99')).status).toBe(400)
+    // older data, stored before the API checked calendar dates
+    db.prepare('UPDATE days SET date = ? WHERE id = ?').run('2026-99-99', ws.days[0].id)
+    const res = await dup('2027-03-01')
+    expect(res.status).toBe(201)
+    expect(((await res.json()) as WorkshopState).days[0].date).toBe('2026-99-99')
+  })
+})
+
+describe('member addresses', () => {
+  it('answers 400, not 500, for an address the path cannot carry, and decodes only once', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const put = (raw: string) => app.request(`${BASE}/api/workshops/${ws.workshop.id}/members/${raw}`, { method: 'PUT', headers: H, body: JSON.stringify({ role: 'view', showNotes: false }) })
+    expect((await put('a%25zz%40example.com')).status).toBe(400) // "%zz" is no percent sequence
+    expect((await put('a%2540example.com')).status).toBe(400) // encoded twice is not an address
+    const ok = await put(encodeURIComponent('User+Tag@Example.com'))
+    expect(ok.status).toBe(200)
+    expect(((await ok.json()) as { email: string }).email).toBe('user+tag@example.com')
+  })
+})
+
+describe('built UI', () => {
+  it('sends the content-security policy with every HTML page and with nothing else', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sp-dist-'))
+    writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>Session Planner</title>')
+    writeFileSync(path.join(dir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    const { app } = setup({ staticDir: dir })
+    for (const p of ['/', '/index.html', '/w/abc', '/settings']) {
+      const res = await app.request(`${BASE}${p}`)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/html')
+      expect(res.headers.get('content-security-policy')).toContain("default-src 'self'")
+    }
+    expect((await app.request(`${BASE}/favicon.svg`)).headers.get('content-security-policy')).toBeNull()
+    expect((await app.request(`${BASE}/api/health`)).headers.get('content-security-policy')).toBeNull()
+    expect((await app.request(`${BASE}/assets/old-build.js`)).status).toBe(404)
   })
 })
 

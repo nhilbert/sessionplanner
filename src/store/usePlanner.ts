@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api, ApiError } from '@/api'
-import { applyOps, inverseOps, type Op, type ServerEvent } from '@/domain/ops'
+import { adjustedOps, applyOps, inverseOps, type Op, type ServerEvent } from '@/domain/ops'
 import type { Attachment, WorkshopState } from '@/domain/types'
 
 /**
@@ -62,8 +62,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       try {
         const res = await api.sendOps(id, CLIENT_ID, ops)
         // The server may have adjusted something (an item whose day is gone gets parked): take those over.
-        const sent = new Set(ops.map((o) => JSON.stringify(o)))
-        const extra = res.ops.filter((o) => !sent.has(JSON.stringify(o)))
+        const extra = adjustedOps(ops, res.ops)
         const data = get().data
         if (extra.length && data && get().id === id) set({ data: applyOps(data, extra) })
       } catch (err) {
