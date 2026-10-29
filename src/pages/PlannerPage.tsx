@@ -20,6 +20,8 @@ import { ItemCard } from '@/planner/ItemCard'
 import Toolbox, { type Tab } from '@/planner/Toolbox'
 import { flatIds, inner, PARKING, placeOf, useBoard } from '@/planner/board'
 import { newItem, TextField } from '@/planner/fields'
+import TimeEditor, { type TimeMode } from '@/planner/TimeEditor'
+import type { Preview } from '@/planner/DayColumn'
 import AgendaView from './AgendaView'
 
 const ZOOM: Record<string, number> = { s: 1, m: 1.6, l: 2.6 }
@@ -40,7 +42,9 @@ export default function PlannerPage() {
   const [mobileToolbox, setMobileToolbox] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [detailsId, setDetailsId] = useState<string | null>(null)
-  const [resizing, setResizing] = useState<{ id: string; minutes: number } | null>(null)
+  // What the timeline shows before it is saved: a length dragged or slid, a start time being chosen.
+  const [preview, setPreview] = useState<Preview | null>(null)
+  const [timeEdit, setTimeEdit] = useState<{ id: string; mode: TimeMode; anchor: DOMRect } | null>(null)
   const [notice, setNotice] = useState('')
   const ppm = ZOOM[zoom] ?? ZOOM.m
   const collapsed = useMemo(() => new Set<string>(safeParse(collapsedRaw)), [collapsedRaw])
@@ -105,11 +109,11 @@ export default function PlannerPage() {
       const timed = flatIds(board.projected, d.id, board.groupIds)
         .map((x) => items[x])
         .filter(Boolean)
-        .map((i) => (resizing?.id === i.id ? { ...i, duration: resizing.minutes } : i))
+        .map((i) => (preview?.id === i.id ? { ...i, ...preview.fields } : i))
       out[d.id] = scheduleDay(d.startMin, d.endMin, timed)
     }
     return out
-  }, [days, board.projected, board.groupIds, items, resizing])
+  }, [days, board.projected, board.groupIds, items, preview])
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -284,7 +288,7 @@ export default function PlannerPage() {
     showDescription: desc === '1',
     selected,
     collapsed,
-    resizing,
+    preview,
     onSelect: (itemId, e) => {
       if (e.shiftKey || e.metaKey || e.ctrlKey) {
         const next = new Set(selected)
@@ -295,7 +299,8 @@ export default function PlannerPage() {
       } else openDetails(itemId)
     },
     onEditItem: (itemId, fields) => change([{ op: 'set', entity: 'item', id: itemId, fields }]),
-    onResize: (itemId, minutes) => setResizing(minutes === null ? null : { id: itemId, minutes }),
+    onResize: (itemId, minutes) => setPreview(minutes === null ? null : { id: itemId, fields: { duration: minutes } }),
+    onOpenTime: (itemId, mode, anchor) => setTimeEdit({ id: itemId, mode, anchor }),
     onResizeEnd: (itemId, duration) => change([{ op: 'set', entity: 'item', id: itemId, fields: { duration } }]),
     onToggleGroup: (gid) => setCollapsedRaw(JSON.stringify(collapsed.has(gid) ? [...collapsed].filter((x) => x !== gid) : [...collapsed, gid])),
     onRenameGroup: (gid, title) => change([{ op: 'set', entity: 'group', id: gid, fields: { title } }]),
@@ -454,6 +459,22 @@ export default function PlannerPage() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      {timeEdit && items[timeEdit.id] && (
+        <TimeEditor
+          key={`${timeEdit.id}-${timeEdit.mode}`}
+          item={items[timeEdit.id]}
+          mode={timeEdit.mode}
+          anchor={timeEdit.anchor}
+          computedStart={(() => {
+            const it = items[timeEdit.id]
+            return it.dayId ? (schedules[it.dayId]?.slots[it.id]?.start ?? null) : null
+          })()}
+          phone={phone}
+          onPreview={(fields) => setPreview(fields ? { id: timeEdit.id, fields } : null)}
+          onCommit={(fields) => change([{ op: 'set', entity: 'item', id: timeEdit.id, fields }])}
+          onClose={() => setTimeEdit(null)}
+        />
+      )}
       {notice && <div className="no-print fade-in fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-ink px-4 py-2 text-[13px] text-paper shadow-[var(--shadow)] md:bottom-6">{notice}</div>}
     </BoardContext.Provider>
   )

@@ -14,6 +14,7 @@ import Menu from '@/components/Menu'
 import { Inline, SortableItem } from './ItemCard'
 import { TimeField } from './fields'
 import { inner, type Lists } from './board'
+import type { TimeMode } from './TimeEditor'
 
 /** What every list on the board needs; provided once by the planner. */
 export interface BoardCtx {
@@ -25,10 +26,12 @@ export interface BoardCtx {
   showDescription: boolean
   selected: Set<string>
   collapsed: Set<string>
-  resizing: { id: string; minutes: number } | null
+  preview: Preview | null
   onSelect: (id: string, e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => void
   onEditItem: (id: string, fields: Partial<ItemFields>) => void
   onResize: (id: string, minutes: number | null) => void
+  /** Opens the editor for an item's length or start time beside the clicked value. */
+  onOpenTime: (id: string, mode: TimeMode, anchor: DOMRect) => void
   onResizeEnd: (id: string, minutes: number) => void
   onToggleGroup: (id: string) => void
   onRenameGroup: (id: string, title: string) => void
@@ -36,6 +39,12 @@ export interface BoardCtx {
   onDeleteGroup: (id: string) => void
   /** Absent for guests (the library is the owner's). */
   onSaveGroup?: (id: string) => void
+}
+
+/** Not yet saved values the timeline already shows (dragging the lower edge, the time editor). */
+export interface Preview {
+  id: string
+  fields: { duration?: number; fixedStart?: number | null }
 }
 
 export const BoardContext = createContext<BoardCtx | null>(null)
@@ -59,9 +68,10 @@ export function Entries({ ids, schedule }: { ids: string[]; schedule?: DaySchedu
         color={itemColor(item, ctx.categories)}
         showDescription={ctx.showDescription}
         selected={ctx.selected.has(id)}
-        duration={ctx.resizing?.id === id ? ctx.resizing.minutes : undefined}
+        duration={ctx.preview?.id === id ? ctx.preview.fields.duration : undefined}
         onSelect={(e) => ctx.onSelect(id, e)}
         onEdit={(fields) => ctx.onEditItem(id, fields)}
+        onOpenTime={schedule ? (mode, anchor) => ctx.onOpenTime(id, mode, anchor) : undefined}
         onResize={schedule && ((m) => ctx.onResize(id, m))}
         onResizeEnd={schedule && ((m) => ctx.onResizeEnd(id, m))}
       />
@@ -77,7 +87,7 @@ function GroupBlock({ group, schedule, card }: { group: Group; schedule?: DaySch
   const memberIds = ctx.lists[inner(group.id)] ?? []
   const members = memberIds.map((id) => ctx.items[id]).filter(Boolean)
   const collapsed = ctx.collapsed.has(group.id)
-  const total = members.reduce((sum, m) => sum + (ctx.resizing?.id === m.id ? ctx.resizing.minutes : durationOf(m)), 0)
+  const total = members.reduce((sum, m) => sum + (ctx.preview?.id === m.id && ctx.preview.fields.duration !== undefined ? ctx.preview.fields.duration : durationOf(m)), 0)
   const slots = members.map((m) => schedule?.slots[m.id]).filter((s) => !!s)
   const range = slots.length ? `${formatTime(slots[0].start)}–${formatTime(Math.max(...slots.map((s) => s.end)))}` : null
 

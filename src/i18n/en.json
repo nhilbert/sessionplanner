@@ -267,5 +267,11 @@
     "remove": "Remove access",
     "removeConfirm": "Remove access for {{email}}?",
     "invalid": "Please enter a valid e-mail address."
+  },
+  "time": {
+    "flows": "Follows the agenda",
+    "fixed": "Fixed time",
+    "flowsHint": "Starts at {{time}}, right after the item before.",
+    "done": "Done"
   }
 }

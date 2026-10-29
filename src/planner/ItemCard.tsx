@@ -7,6 +7,7 @@ import type { Item, PaletteKey } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime, parseClock, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
 import { cx } from '@/components/ui'
+import type { TimeMode } from './TimeEditor'
 
 export const MIN_CARD = 40
 
@@ -25,6 +26,8 @@ export interface CardProps {
   onSelect?: (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => void
   /** Edits made right on the card (title, start time, duration). */
   onEdit?: (fields: Partial<ItemFields>) => void
+  /** Opens the time editor for the start time or the length (on the timeline). */
+  onOpenTime?: (mode: TimeMode, anchor: DOMRect) => void
   onResize?: (minutes: number | null) => void
   onResizeEnd?: (minutes: number) => void
 }
@@ -126,9 +129,28 @@ export function Inline({
 }
 
 // Empty start: the item flows again; anything unreadable is ignored.
+/** A start time or length on the card: one click opens the time editor right there; dragging still moves the card. */
+function TimeButton({ label, onOpen, className, children }: { label: string; onOpen: (anchor: DOMRect) => void; className?: string; children: React.ReactNode }) {
+  return (
+    <span
+      role="button"
+      tabIndex={-1}
+      title={label}
+      onClick={(e) => {
+        if (e.shiftKey || e.metaKey || e.ctrlKey) return
+        e.stopPropagation()
+        onOpen(e.currentTarget.getBoundingClientRect())
+      }}
+      className={cx('cursor-pointer rounded px-1 py-0.5 -mx-1 ring-line-2 transition-colors hover:bg-ink/5 hover:ring-1', className)}
+    >
+      {children}
+    </span>
+  )
+}
+
 const parseStart = (v: string): number | null | undefined => (v.trim() ? (parseClock(v) ?? undefined) : null)
 
-export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, onSelect, onEdit, onResize, onResizeEnd }: CardProps) {
+export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, onSelect, onEdit, onOpenTime, onResize, onResizeEnd }: CardProps) {
   const { t } = useTranslation()
   const minutes = duration ?? durationOf(item)
   const timed = slot !== undefined
@@ -139,22 +161,29 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   const title = (className?: string) => (
     <Inline value={item.title} display={item.title || t(`kinds.${item.kind}`)} label={t('item.title')} onSave={onEdit && ((v) => onEdit({ title: v as string }))} className={className} inputClassName="w-full font-medium" />
   )
-  const start = timed && (
-    <Inline
-      value={item.fixedStart !== null ? formatTime(item.fixedStart) : formatTime(slot.start)}
-      display={
-        <span className="inline-flex items-center gap-0.5">
-          {formatTime(slot.start)}
-          {item.fixedStart !== null && <Pin size={10} className="text-ink-3" />}
-        </span>
-      }
-      parse={parseStart}
-      label={t('item.fixedStart')}
-      onSave={onEdit && ((v) => onEdit({ fixedStart: v as number | null }))}
-      className="tnum shrink-0 text-ink-2"
-      inputClassName="tnum w-14"
-    />
+  const startLabel = timed && (
+    <span className="inline-flex items-center gap-0.5">
+      {formatTime(slot.start)}
+      {item.fixedStart !== null && <Pin size={10} className="text-ink-3" />}
+    </span>
   )
+  const start =
+    timed &&
+    (onOpenTime ? (
+      <TimeButton label={t('item.fixedStart')} onOpen={(r) => onOpenTime('start', r)} className="tnum shrink-0 text-ink-2">
+        {startLabel}
+      </TimeButton>
+    ) : (
+      <Inline
+        value={item.fixedStart !== null ? formatTime(item.fixedStart) : formatTime(slot.start)}
+        display={startLabel}
+        parse={parseStart}
+        label={t('item.fixedStart')}
+        onSave={onEdit && ((v) => onEdit({ fixedStart: v as number | null }))}
+        className="tnum shrink-0 text-ink-2"
+        inputClassName="tnum w-14"
+      />
+    ))
 
   const notices = slot && (slot.gap > 0 || slot.overlap > 0) && (
     <div className={cx('mb-1 flex items-center gap-1 px-1 text-[11px] tnum', slot.overlap > 0 ? 'text-rose' : 'text-ink-3')}>
@@ -211,15 +240,21 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
           <div className="flex items-baseline gap-2">
             {start && <span className="shrink-0 text-[12px]">{start}</span>}
             <span className={cx('min-w-0 flex-1 truncate font-medium', item.kind === 'break' && 'text-ink-2')}>{title()}</span>
-            <Inline
-              value={String(minutes)}
-              display={formatDuration(minutes)}
-              parse={parseDuration}
-              label={t('item.duration')}
-              onSave={onEdit && ((v) => onEdit({ duration: v as number }))}
-              className="tnum shrink-0 text-[11px] text-ink-3"
-              inputClassName="tnum w-12 text-right text-[12px]"
-            />
+            {onOpenTime ? (
+              <TimeButton label={t('item.duration')} onOpen={(r) => onOpenTime('duration', r)} className="tnum shrink-0 text-[11px] text-ink-3">
+                {formatDuration(minutes)}
+              </TimeButton>
+            ) : (
+              <Inline
+                value={String(minutes)}
+                display={formatDuration(minutes)}
+                parse={parseDuration}
+                label={t('item.duration')}
+                onSave={onEdit && ((v) => onEdit({ duration: v as number }))}
+                className="tnum shrink-0 text-[11px] text-ink-3"
+                inputClassName="tnum w-12 text-right text-[12px]"
+              />
+            )}
           </div>
           {roomy && showDescription && item.description && <div className="mt-0.5 line-clamp-3 whitespace-pre-line text-[12px] leading-snug text-ink-2">{item.description}</div>}
           {roomy && (

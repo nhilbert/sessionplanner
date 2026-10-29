@@ -267,5 +267,11 @@
     "remove": "Zugriff entziehen",
     "removeConfirm": "Zugriff für {{email}} entziehen?",
     "invalid": "Bitte eine gültige E-Mail-Adresse eingeben."
+  },
+  "time": {
+    "flows": "Folgt dem Ablauf",
+    "fixed": "Feste Uhrzeit",
+    "flowsHint": "Beginnt um {{time}}, direkt nach dem Punkt davor.",
+    "done": "Fertig"
   }
 }
