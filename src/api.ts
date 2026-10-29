@@ -12,11 +12,15 @@ export class ApiError extends Error {
   }
 }
 
+export const LOGIN_REQUIRED = 'sp:login-required'
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('x-sp', '1')
   if (init.body && typeof init.body === 'string') headers.set('content-type', 'application/json')
   const res = await fetch(path, { ...init, headers })
+  // The login in front has expired (or is new): say so app-wide instead of failing quietly (components/AppShell.tsx).
+  if (res.status === 401) window.dispatchEvent(new Event(LOGIN_REQUIRED))
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
     throw new ApiError(res.status, body.error ?? res.statusText)

@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { BookMarked, CalendarDays, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react'
 import { useSettings } from '@/store/useSettings'
+import { LOGIN_REQUIRED } from '@/api'
 import { cx, useLocalState } from './ui'
 
 const NAV = [
@@ -19,9 +20,13 @@ export default function AppShell() {
   // Guests see their shared workshops and the language setting; the library is the owner's.
   const nav = me.owner ? NAV : NAV.filter((n) => n.to !== '/library')
 
+  const [loginExpired, setLoginExpired] = useState(false)
   useEffect(() => {
     void load()
     void loadMe()
+    const onExpired = () => setLoginExpired(true)
+    window.addEventListener(LOGIN_REQUIRED, onExpired)
+    return () => window.removeEventListener(LOGIN_REQUIRED, onExpired)
   }, [load, loadMe])
 
   const link = (to: string, label: string, Icon: typeof Settings, end?: boolean) => (
@@ -66,6 +71,14 @@ export default function AppShell() {
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        {loginExpired && (
+          <div className="no-print flex items-center justify-between gap-3 bg-amber-soft px-4 py-2 text-[13px] text-amber md:px-6">
+            {t('common.login')}
+            <button type="button" onClick={() => window.location.reload()} className="shrink-0 rounded-md border border-amber/40 px-2.5 py-1 font-medium hover:bg-amber/10">
+              {t('common.signIn')}
+            </button>
+          </div>
+        )}
         <Outlet />
       </div>
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">

@@ -12,12 +12,13 @@
     "loading": "Lädt …",
     "back": "Alle Workshops",
     "missing": "Diesen Workshop gibt es nicht (mehr).",
-    "login": "Deine Anmeldung ist abgelaufen. Lade die Seite neu, um dich wieder anzumelden.",
+    "login": "Deine Anmeldung ist abgelaufen, deshalb kann nichts gespeichert werden. Melde dich neu an; Gespeichertes geht nicht verloren.",
     "reload": "Neu laden",
     "error": "Der Server ist nicht erreichbar.",
     "download": "Herunterladen",
     "upload": "Datei hochladen",
-    "uploading": "Lädt hoch …"
+    "uploading": "Lädt hoch …",
+    "signIn": "Neu anmelden"
   },
   "workshops": {
     "title": "Workshops",

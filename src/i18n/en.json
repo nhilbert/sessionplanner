@@ -12,12 +12,13 @@
     "loading": "Loading…",
     "back": "All workshops",
     "missing": "This workshop does not exist (any more).",
-    "login": "Your sign-in has expired. Reload the page to sign in again.",
+    "login": "Your sign-in has expired, so changes cannot be saved. Sign in again; nothing you saved before is lost.",
     "reload": "Reload",
     "error": "The server cannot be reached.",
     "download": "Download",
     "upload": "Upload file",
-    "uploading": "Uploading…"
+    "uploading": "Uploading…",
+    "signIn": "Sign in again"
   },
   "workshops": {
     "title": "Workshops",
