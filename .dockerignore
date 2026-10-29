@@ -1,0 +1,16 @@
+# Never bake private data or local state into an image
+.git
+.githooks
+.claude
+node_modules
+dist
+data
+backups
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite
+*.log
+*.tsbuildinfo

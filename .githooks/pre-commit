@@ -1,0 +1,3 @@
+#!/bin/sh
+# This repository is public: see .githooks/guard.sh
+exec bash "$(dirname "$0")/guard.sh" pre-commit

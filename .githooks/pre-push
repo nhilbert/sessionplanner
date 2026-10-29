@@ -1,0 +1,3 @@
+#!/bin/sh
+# This repository is public: see .githooks/guard.sh. Checks every commit that is not on GitHub yet.
+exec bash "$(dirname "$0")/guard.sh" pre-push
