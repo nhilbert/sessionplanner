@@ -69,6 +69,7 @@ const app = createApp({
   guestsFile: process.env.SP_GUESTS_FILE?.trim() || undefined,
   mcp,
   oauth: oauth && { routes: oauth.routes(), admin: oauth.adminRoutes() },
+  linkToken: process.env.SP_LINK_TOKEN?.trim() || undefined,
 })
 
 const server = serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {

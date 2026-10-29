@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono'
+import { timingSafeEqual } from 'node:crypto'
 
 export interface GuardOptions {
   /** Public address when hosted behind the login proxy (SP_PUBLIC_URL); its host and origin pass next to loopback. */
@@ -51,6 +52,13 @@ export function guard({ publicUrl, owners, ownerHeader }: GuardOptions) {
     c.set('user', user)
     await next()
   }
+}
+
+/** Compares a presented bearer token with the configured one in constant time. */
+export function sameToken(given: string, expected: string): boolean {
+  const a = Buffer.from(given)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
 }
 
 /** For routes only the owner may use. */

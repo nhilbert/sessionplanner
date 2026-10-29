@@ -7,7 +7,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { newId } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
-import { type Env, guard, type GuardOptions, ownerOnly } from './guard.ts'
+import { type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { BadRequest, safeMime, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
@@ -31,6 +31,8 @@ export interface AppOptions extends GuardOptions {
   mcp?: Hono
   /** OAuth for the MCP endpoint (server/oauth.ts): discovery and /oauth/* at the root, connection admin under /api/mcp. */
   oauth?: { routes: Hono; admin: Hono }
+  /** Token for GET /api/link/workshops (SP_LINK_TOKEN): another app (the CRM) reads the list to link to workshops. */
+  linkToken?: string
 }
 
 // The built UI loads only its own files; nothing a user typed can run as script.
@@ -47,7 +49,7 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   }
 }
 
-export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile, mcp, oauth }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile, mcp, oauth, linkToken }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const filePath = (id: string) => path.join(filesDir, id)
   /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
@@ -71,6 +73,16 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     if (c.req.path.startsWith('/api/') && !c.res.headers.has('cache-control')) c.header('Cache-Control', 'no-store')
   })
   app.get('/api/health', (c) => c.json({ ok: true }))
+  // Another app (the CRM) links its deliveries to workshops: with its own token, before the login's guard, it
+  // reads id, title, client and dates of all workshops – nothing else, and nothing it could change.
+  if (linkToken) {
+    app.get('/api/link/workshops', (c) => {
+      const header = c.req.header('authorization') ?? ''
+      const given = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+      if (!given || !sameToken(given, linkToken)) return c.json({ error: 'unauthorized' }, 401)
+      return c.json(repo.listWorkshops().map(({ id, title, client, archived, firstDate, lastDate }) => ({ id, title, client, archived, firstDate, lastDate })))
+    })
+  }
   app.use('/api/*', guard({ publicUrl, owners, ownerHeader }))
   // Every request body is bounded, checked after the guard so that a foreign request is refused before its body is
   // read. Uploads and operation batches have their room; everything else (JSON of a few kilobytes, the agents'

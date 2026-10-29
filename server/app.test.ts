@@ -13,7 +13,7 @@ import type { Item, WorkshopState } from '../src/domain/types.ts'
 const BASE = 'http://127.0.0.1'
 const H = { 'content-type': 'application/json', 'x-sp': '1' }
 
-function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync } = {}) {
+function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string } = {}) {
   const db = opts.db ?? openDb(':memory:')
   const repo = new Repo(db)
   const hub = new Hub()
@@ -25,6 +25,7 @@ function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; d
     ownerHeader: 'x-auth-request-email',
     publicUrl: opts.publicUrl,
     staticDir: opts.staticDir,
+    linkToken: opts.linkToken,
   })
   return { app, repo, hub, db }
 }
@@ -424,6 +425,40 @@ describe('caching', () => {
     form.append('file', new File(['x'], 'a.png', { type: 'image/png' }))
     await app.request(`${BASE}/api/settings/logo`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })
     expect((await app.request(`${BASE}/api/settings/logo`)).headers.get('cache-control')).toBe('private, max-age=300')
+  })
+})
+
+describe('link list for the CRM', () => {
+  const pub = 'https://sessions.example.com'
+  const TOKEN = 'a'.repeat(64)
+  const link = (app: ReturnType<typeof setup>['app'], headers: Record<string, string> = {}) => app.request(`${pub}/api/link/workshops`, { headers })
+
+  it('answers only with its own token, with id, title, client and dates and nothing else', async () => {
+    const { app } = setup({ owners: ['me@example.com'], publicUrl: new URL(pub), linkToken: TOKEN })
+    const owner = { 'x-auth-request-email': 'me@example.com', 'x-sp': '1', 'content-type': 'application/json' }
+    await app.request(`${pub}/api/workshops`, { method: 'POST', headers: owner, body: JSON.stringify({ title: 'Teamtag', client: 'Beispiel GmbH', date: '2026-11-10' }) })
+    expect((await link(app)).status).toBe(401)
+    expect((await link(app, { authorization: `Bearer ${'b'.repeat(64)}` })).status).toBe(401)
+    expect((await link(app, { authorization: TOKEN })).status).toBe(401)
+    // The signed-in owner's header is no substitute for the token
+    expect((await link(app, { 'x-auth-request-email': 'me@example.com' })).status).toBe(401)
+    const res = await link(app, { authorization: `Bearer ${TOKEN}` })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    const list = (await res.json()) as Record<string, unknown>[]
+    expect(list).toHaveLength(1)
+    expect(Object.keys(list[0]).sort()).toEqual(['archived', 'client', 'firstDate', 'id', 'lastDate', 'title'])
+    expect(list[0]).toMatchObject({ title: 'Teamtag', firstDate: '2026-11-10', lastDate: '2026-11-10' })
+  })
+
+  it('does not exist without a configured token, and the token opens nothing else', async () => {
+    const off = setup({ owners: ['me@example.com'], publicUrl: new URL(pub) })
+    expect((await link(off.app, { authorization: `Bearer ${TOKEN}` })).status).toBe(401)
+    const { app } = setup({ owners: ['me@example.com'], publicUrl: new URL(pub), linkToken: TOKEN })
+    for (const p of ['/api/workshops', '/api/settings', '/api/me', '/api/link/other']) {
+      expect((await app.request(`${pub}${p}`, { headers: { authorization: `Bearer ${TOKEN}` } })).status).toBe(401)
+    }
+    expect((await app.request(`${pub}/api/link/workshops`, { method: 'POST', headers: { authorization: `Bearer ${TOKEN}`, 'x-sp': '1' } })).status).toBe(401)
   })
 })
 

@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { timingSafeEqual } from 'node:crypto'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { z } from 'zod'
@@ -7,6 +6,7 @@ import type { Repo } from './repo.ts'
 import { BadRequest } from './validate.ts'
 import { Ops, type OpsOptions } from './ops.ts'
 import type { OAuthServer } from './oauth.ts'
+import { sameToken } from './guard.ts'
 import { PALETTE } from '../src/domain/types.ts'
 
 /**
@@ -223,12 +223,6 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
   // ---------- settings ----------
   tool('settings_get', 'The categories (id, name, colour), the default day times and what the item kinds mean.', {}, () => ops.settingsGet(), 'read')
   return server
-}
-
-function sameToken(given: string, expected: string): boolean {
-  const a = Buffer.from(given)
-  const b = Buffer.from(expected)
-  return a.length === b.length && timingSafeEqual(a, b)
 }
 
 export interface McpAuth {
