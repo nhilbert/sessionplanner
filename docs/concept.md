@@ -127,6 +127,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 **2026-10-29, MCP**
 
 - The agent acts as the owner (every workshop, notes included); files, sharing and deleting workshops stay in the app. No read-only scopes for now.
+- Guests (co-facilitators, clients) never get MCP access: only owners (`SP_OWNERS`) can approve a connection or manage agents; there is no guest-scoped token.
 - Tools take ids or titles (days also dates or numbers) and answer with computed times and warnings, so the agent can judge whether the day still works without reading the whole workshop again.
 - Every write is a batch of the app's own operations: the same validation, the same transaction, and the open windows see it live through the hub. The stdio server is a separate process and has no hub: there the page is reloaded.
 - OAuth is a copy of Zendo's (`server/oauth.ts`): same flow, same token lifecycle; approval is tied to the owner list (`SP_OWNERS`) instead of a separate allow-list.

@@ -232,6 +232,10 @@ The server also sends the agent short instructions on connect: read the workshop
 
 ## Security model
 
+### Guests never get MCP access
+
+Co-facilitators and clients who see shared workshops are guests: their e-mail is not in `SP_OWNERS`. Only an owner can approve a connection (the consent page refuses everyone else), only an owner can list or disconnect agents, and the static token is the owner's. There is no guest-scoped token and no way to grant one; a guest's Claude cannot connect to Session Planner at all.
+
 ### What protects what
 
 | Asset / path | Protection |

@@ -184,6 +184,22 @@ describe('OAuth for /mcp', () => {
     expect(ctx.oauth.connections()).toEqual([])
   })
 
+  it('a guest (co-facilitator with a shared workshop) can neither approve a connection nor see connections', async () => {
+    const ctx = setup({ baseUrl: new URL('https://sessions.example.com'), allowedUsers: ['me@example.com'], userHeader: 'x-auth-request-email' }, ['me@example.com'])
+    const ws = ctx.repo.createWorkshop({ title: 'Shared' })
+    ctx.repo.setMember(ws.workshop.id, 'anna@example.com', 'edit', true)
+    const guest = { host: 'sessions.example.com', 'x-auth-request-email': 'anna@example.com' }
+    expect((await ctx.app.request('https://sessions.example.com/api/workshops', { headers: guest })).status).toBe(200) // she is signed in and sees her workshop
+    const reg = await ctx.app.request('/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: [CALLBACK] }) })
+    const { client_id } = (await reg.json()) as { client_id: string }
+    const q = new URLSearchParams({ response_type: 'code', client_id, redirect_uri: CALLBACK, code_challenge: 'c'.repeat(43), code_challenge_method: 'S256', resource: 'https://sessions.example.com/mcp' })
+    const page = await ctx.app.request(`/oauth/authorize?${q}`, { headers: guest })
+    expect(page.status).toBe(403)
+    expect(await page.text()).toContain('may not approve')
+    expect((await ctx.app.request('https://sessions.example.com/api/mcp/connections', { headers: guest })).status).toBe(403)
+    expect(ctx.oauth.connections()).toEqual([])
+  })
+
   it('hosted, only the owner sees and disconnects connections', async () => {
     const ctx = setup({ baseUrl: new URL('https://sessions.example.com'), allowedUsers: ['me@example.com'], userHeader: 'x-auth-request-email' }, ['me@example.com'])
     const url = 'https://sessions.example.com/api/mcp/connections'
