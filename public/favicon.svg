@@ -1,1 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#4f6f5f"/><rect x="16" y="13" width="32" height="10" rx="3" fill="#fff"/><rect x="16" y="27" width="32" height="16" rx="3" fill="#fff" opacity=".75"/><rect x="16" y="47" width="32" height="5" rx="2.5" fill="#fff" opacity=".5"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .tile { fill: #5d5a8a } .mark { stroke: #faf9f6 }
+    @media (prefers-color-scheme: dark) { .tile { fill: #a3a0cc } .mark { stroke: #171716 } }
+  </style>
+  <rect class="tile" width="64" height="64" rx="14"/>
+  <g class="mark" fill="none" stroke-linecap="round">
+    <!-- the agenda: three blocks of different length -->
+    <path d="M14 21 H31 M14 33 H25 M14 45 H39" stroke-width="6"/>
+    <!-- a fixed time -->
+    <circle cx="45" cy="25" r="6" stroke-width="5"/>
+  </g>
+</svg>

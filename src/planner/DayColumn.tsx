@@ -3,7 +3,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, BookmarkPlus, CalendarDays, ChevronDown, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
+import { AlertTriangle, BookmarkPlus, CalendarDays, ChevronDown, Maximize2, Minimize2, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
 import type { Category, Day, Group, Item, ItemKind } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH } from '@/domain/time'
@@ -169,12 +169,15 @@ interface DayProps {
   ids: string[]
   schedule: DaySchedule
   className?: string
+  /** Several days: this one is shown on its own. */
+  focused?: boolean
+  onFocus?: () => void
   onAdd: (kind: ItemKind | 'group') => void
   onChange: (fields: Partial<Pick<Day, 'date' | 'startMin' | 'endMin'>>) => void
   onDelete: () => void
 }
 
-export function DayColumn({ day, index, count, ids, schedule, className, onAdd, onChange, onDelete }: DayProps) {
+export function DayColumn({ day, index, count, ids, schedule, className, focused, onFocus, onAdd, onChange, onDelete }: DayProps) {
   const { t } = useTranslation()
   return (
     <section className={cx('flex flex-col', className)}>
@@ -186,6 +189,11 @@ export function DayColumn({ day, index, count, ids, schedule, className, onAdd, 
             <TimeField value={day.startMin} onChange={(v) => v !== null && onChange({ startMin: v })} className="h-7 w-[58px] text-[12px] max-md:w-[72px]" aria-label={t('planner.start')} title={t('planner.start')} />
             <span>–</span>
             <TimeField value={day.endMin} nullable onChange={(v) => onChange({ endMin: v })} className="h-7 w-[58px] text-[12px] max-md:w-[72px]" aria-label={t('planner.end')} title={t('planner.end')} />
+            {count > 1 && onFocus && (
+              <IconButton label={focused ? t('planner.allDays') : t('planner.focusDay')} onClick={onFocus}>
+                {focused ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </IconButton>
+            )}
             {count > 1 && (
               <IconButton label={t('planner.deleteDay')} onClick={onDelete} className="reveal opacity-0 group-hover/day:opacity-100">
                 <Trash2 size={14} />

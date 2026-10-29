@@ -25,6 +25,8 @@ export interface AppOptions extends GuardOptions {
   staticDir?: string
   /** Seconds between keep-alive pings on the live-update stream. */
   pingSeconds?: number
+  /** The login's allow-list for this app (read-only): offered as people to share with. */
+  guestsFile?: string
 }
 
 // The built UI loads only its own files; nothing a user typed can run as script.
@@ -41,7 +43,7 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   }
 }
 
-export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25 }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const filePath = (id: string) => path.join(filesDir, id)
   /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
@@ -219,6 +221,20 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   })
 
   // ---- guests (owner only) ----------------------------------------------------------------------------
+  /** People to share with: the login's allow-list (without the owners) and everyone shared with before. */
+  app.get('/api/people', ownerOnly, async (c) => {
+    const listed = guestsFile
+      ? (await readFile(guestsFile, 'utf8').catch(() => ''))
+          .split('\n')
+          .map((l) => l.trim().toLowerCase())
+          .filter((l) => l && !l.startsWith('#') && l.includes('@') && !owners.includes(l))
+      : []
+    const shared = repo.sharedEmails()
+    const emails = [...new Set([...listed, ...shared.map((s) => s.email)])].sort()
+    return c.json(
+      emails.map((email) => ({ email, allowed: guestsFile ? listed.includes(email) : null, workshops: shared.find((s) => s.email === email)?.workshops ?? 0 })),
+    )
+  })
   app.get('/api/workshops/:id/members', ownerOnly, (c) => c.json(repo.listMembers(c.req.param('id')!)))
   app.put('/api/workshops/:id/members/:email', ownerOnly, async (c) => {
     const id = c.req.param('id')!

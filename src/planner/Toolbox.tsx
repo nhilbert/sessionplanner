@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -8,7 +8,7 @@ import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration } from '@/domain/time'
 import { useLibrary } from '@/store/useLibrary'
 import { itemColor, useSettings } from '@/store/useSettings'
-import { cx, IconButton } from '@/components/ui'
+import { cx, IconButton, useLocalState } from '@/components/ui'
 import { AddBar, Entries, List } from './DayColumn'
 import ItemPanel from './ItemPanel'
 import { AccessPanel, FilesPanel, PackingPanel, WorkshopPanel } from './panels'
@@ -53,6 +53,8 @@ interface Props {
 /** The right-hand sidebar: parking lot, library, packing list, files and details; item details open here too. */
 export default function Toolbox(p: Props) {
   const { t } = useTranslation()
+  const [widthRaw, setWidthRaw] = useLocalState('sp.toolboxWidth', String(DEFAULT_WIDTH))
+  const width = clampWidth(Number(widthRaw) || DEFAULT_WIDTH)
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, files: p.data.attachments.length }
   const tabs = TABS.filter((x) => p.owner || (x.id !== 'library' && x.id !== 'access'))
@@ -114,11 +116,10 @@ export default function Toolbox(p: Props) {
 
   return (
     <aside
-      className={cx(
-        'no-print flex flex-col bg-surface',
-        p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)]' : 'hidden w-[340px] shrink-0 border-l border-line md:flex lg:w-[360px]',
-      )}
+      style={p.mobile ? undefined : { width }}
+      className={cx('no-print flex flex-col bg-surface', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)]' : 'relative hidden shrink-0 border-l border-line md:flex')}
     >
+      {!p.mobile && <ResizeEdge width={width} onWidth={(w) => setWidthRaw(String(w))} label={t('toolbox.resize')} />}
       <div className="flex items-center gap-0.5 border-b border-line px-2 py-1.5">
         {item ? (
           <button type="button" onClick={p.onCloseItem} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink-2 hover:bg-surface-2 hover:text-ink">
@@ -156,6 +157,32 @@ export default function Toolbox(p: Props) {
       </div>
       <div className="flex-1 overflow-y-auto p-4">{body}</div>
     </aside>
+  )
+}
+
+const DEFAULT_WIDTH = 360
+const clampWidth = (w: number) => Math.round(Math.min(Math.max(w, 280), Math.max(320, window.innerWidth * 0.6)))
+
+/** The left edge of the sidebar: drag to make it wider or narrower (remembered on this device); double-click resets. */
+function ResizeEdge({ width, onWidth, label }: { width: number; onWidth: (w: number) => void; label: string }) {
+  const start = useRef<{ x: number; w: number } | null>(null)
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      title={label}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        start.current = { x: e.clientX, w: width }
+      }}
+      onPointerMove={(e) => start.current && onWidth(clampWidth(start.current.w + (start.current.x - e.clientX)))}
+      onPointerUp={() => void (start.current = null)}
+      onPointerCancel={() => void (start.current = null)}
+      onDoubleClick={() => onWidth(DEFAULT_WIDTH)}
+      className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize transition-colors hover:bg-accent/30 active:bg-accent/40"
+    />
   )
 }
 

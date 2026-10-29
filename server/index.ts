@@ -50,6 +50,7 @@ const app = createApp({
   publicUrl: PUBLIC_URL,
   owners: OWNERS,
   ownerHeader: process.env.SP_OWNER_HEADER?.trim().toLowerCase() || 'x-auth-request-email',
+  guestsFile: process.env.SP_GUESTS_FILE?.trim() || undefined,
 })
 
 const server = serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {

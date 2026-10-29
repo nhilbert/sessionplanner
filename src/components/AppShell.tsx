@@ -52,7 +52,7 @@ export default function AppShell() {
     <div className="flex h-dvh">
       <aside className={cx('no-print sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line py-7 md:flex', collapsed ? 'w-[60px] px-2' : 'w-[216px] px-4')}>
         <div className={cx('mb-8 flex items-center gap-2', collapsed ? 'justify-center' : 'px-2')}>
-          <span className="inline-block h-3 w-3 shrink-0 rounded-full border-[2.5px] border-accent" />
+          <img src="/favicon.svg" alt="" className="h-5 w-5 shrink-0" />
           {!collapsed && <span className="text-[15px] font-medium tracking-[-0.01em]">{t('app.name')}</span>}
         </div>
         <nav className="flex flex-col gap-0.5">{nav.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>

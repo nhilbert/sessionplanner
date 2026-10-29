@@ -78,7 +78,10 @@
     "clearSelection": "Auswahl aufheben",
     "changeDate": "Datum ändern",
     "moveOtherDays_one": "Den anderen Tag um gleich viele Tage mitverschieben?",
-    "moveOtherDays_other": "Die {{count}} anderen Tage um gleich viele Tage mitverschieben?"
+    "moveOtherDays_other": "Die {{count}} anderen Tage um gleich viele Tage mitverschieben?",
+    "allDays": "Alle Tage",
+    "focusDay": "Nur diesen Tag zeigen",
+    "days": "Tage"
   },
   "kinds": {
     "block": "Einheit",
@@ -232,7 +235,8 @@
   },
   "toolbox": {
     "open": "Seitenleiste öffnen",
-    "close": "Seitenleiste schließen"
+    "close": "Seitenleiste schließen",
+    "resize": "Ziehen ändert die Breite · Doppelklick setzt zurück"
   },
   "library": {
     "saved": "„{{title}}“ in der Bibliothek gespeichert",
@@ -270,7 +274,12 @@
     "never": "noch nicht geöffnet",
     "remove": "Zugriff entziehen",
     "removeConfirm": "Zugriff für {{email}} entziehen?",
-    "invalid": "Bitte eine gültige E-Mail-Adresse eingeben."
+    "invalid": "Bitte eine gültige E-Mail-Adresse eingeben.",
+    "known": "Bekannte Personen",
+    "notListed": "Diese Adresse steht noch nicht auf der Login-Liste des Session Planners: Die Person kann sich erst anmelden, wenn sie dort ergänzt ist (apps-server-README, Abschnitt 7).",
+    "notOnList": "nicht auf der Login-Liste",
+    "sharedIn_one": "in {{count}} Workshop",
+    "sharedIn_other": "in {{count}} Workshops"
   },
   "time": {
     "flows": "Folgt dem Ablauf",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { openDb } from './db.ts'
@@ -395,5 +395,25 @@ describe('guests', () => {
     expect((await app.request(`${pub}/api/attachments/${shared}`, { headers: ANNA })).status).toBe(200)
     expect((await app.request(`${pub}/api/attachments/${mine}`, { headers: ANNA })).status).toBe(404)
     expect((await app.request(`${pub}/api/attachments/${shared}`, { method: 'DELETE', headers: ANNA })).status).toBe(403)
+  })
+})
+
+describe('people to share with', () => {
+  it('lists the allow-list (without owners) and everyone shared with, for the owner only', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sp-guests-'))
+    const file = path.join(dir, 'guests.txt')
+    writeFileSync(file, '# comment\nme@example.com\nAnna@Example.com\nnot-an-address\n')
+    const repo = new Repo(openDb(':memory:'))
+    const app = createApp({ repo, hub: new Hub(), filesDir: dir, owners: ['me@example.com'], ownerHeader: 'x-auth-request-email', publicUrl: new URL('https://sessions.example.com'), guestsFile: file })
+    const pub = 'https://sessions.example.com'
+    const owner = { 'x-auth-request-email': 'me@example.com', 'x-sp': '1', 'content-type': 'application/json' }
+    const ws = (await (await app.request(`${pub}/api/workshops`, { method: 'POST', headers: owner, body: '{}' })).json()) as WorkshopState
+    await app.request(`${pub}/api/workshops/${ws.workshop.id}/members/ben%40example.com`, { method: 'PUT', headers: owner, body: JSON.stringify({ role: 'view', showNotes: false }) })
+    const people = await (await app.request(`${pub}/api/people`, { headers: owner })).json()
+    expect(people).toEqual([
+      { email: 'anna@example.com', allowed: true, workshops: 0 },
+      { email: 'ben@example.com', allowed: false, workshops: 1 },
+    ])
+    expect((await app.request(`${pub}/api/people`, { headers: { 'x-auth-request-email': 'anna@example.com' } })).status).toBe(403)
   })
 })

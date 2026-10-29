@@ -302,7 +302,15 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
   const [role, setRole] = useState<MemberRole>('view')
   const [notes, setNotes] = useState(false)
   const [error, setError] = useState('')
+  const [people, setPeople] = useState<{ email: string; allowed: boolean | null; workshops: number }[]>([])
   const id = data.workshop.id
+  useEffect(() => {
+    api.people().then(setPeople, () => setPeople([]))
+  }, [])
+  const typed = email.trim().toLowerCase()
+  const known = people.find((p) => p.email === typed)
+  // People to pick: known ones not yet sharing this workshop, narrowed by what is typed.
+  const offer = people.filter((p) => !(members ?? []).some((m) => m.email === p.email) && (!typed || p.email.includes(typed)))
   useEffect(() => {
     // Switching workshops quickly: a late answer for the previous one must not show up here.
     let current = true
@@ -360,6 +368,30 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
           </Button>
         </div>
         {error && <p className="text-[12px] text-rose">{error}</p>}
+        {/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed) && people.length > 0 && (!known || known.allowed === false) && <p className="text-[12px] leading-snug text-amber">{t('access.notListed')}</p>}
+        {offer.length > 0 && (
+          <div className="border-t border-line pt-2">
+            <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.1em] text-ink-3">{t('access.known')}</div>
+            <ul className="max-h-48 space-y-0.5 overflow-y-auto">
+              {offer.map((p) => (
+                <li key={p.email}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail(p.email)
+                      setError('')
+                    }}
+                    className={cx('flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] hover:bg-surface', typed === p.email && 'bg-surface')}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{p.email}</span>
+                    {p.allowed === false && <span className="shrink-0 text-[11px] text-amber">{t('access.notOnList')}</span>}
+                    {p.workshops > 0 && <span className="shrink-0 text-[11px] text-ink-3">{t('access.sharedIn', { count: p.workshops })}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </form>
       {members && !members.length && <p className="text-[13px] text-ink-3">{t('access.empty')}</p>}
       <ul className="divide-y divide-line">

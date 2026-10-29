@@ -78,7 +78,10 @@
     "clearSelection": "Clear selection",
     "changeDate": "Change date",
     "moveOtherDays_one": "Move the other day by the same number of days?",
-    "moveOtherDays_other": "Move the {{count}} other days by the same number of days?"
+    "moveOtherDays_other": "Move the {{count}} other days by the same number of days?",
+    "allDays": "All days",
+    "focusDay": "Show this day only",
+    "days": "Days"
   },
   "kinds": {
     "block": "Block",
@@ -232,7 +235,8 @@
   },
   "toolbox": {
     "open": "Open sidebar",
-    "close": "Close sidebar"
+    "close": "Close sidebar",
+    "resize": "Drag to resize · double-click to reset"
   },
   "library": {
     "saved": "“{{title}}” saved to the library",
@@ -270,7 +274,12 @@
     "never": "not opened yet",
     "remove": "Remove access",
     "removeConfirm": "Remove access for {{email}}?",
-    "invalid": "Please enter a valid e-mail address."
+    "invalid": "Please enter a valid e-mail address.",
+    "known": "Known people",
+    "notListed": "This address is not on the Session Planner's login list yet: the person can only sign in once it is added (apps-server README, section 7).",
+    "notOnList": "not on the login list",
+    "sharedIn_one": "in {{count}} workshop",
+    "sharedIn_other": "in {{count}} workshops"
   },
   "time": {
     "flows": "Follows the agenda",

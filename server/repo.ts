@@ -424,6 +424,11 @@ export class Repo {
     this.db.prepare('UPDATE members SET last_seen_at = ? WHERE workshop_id = ? AND email = ?').run(now(), workshopId, email)
   }
 
+  /** Everyone any workshop is shared with, and in how many workshops. */
+  sharedEmails(): { email: string; workshops: number }[] {
+    return (this.db.prepare('SELECT email, COUNT(*) AS n FROM members GROUP BY email ORDER BY email').all() as Row[]).map((r) => ({ email: r.email as string, workshops: r.n as number }))
+  }
+
   getSettings(): Settings {
     const r = this.db.prepare("SELECT value FROM settings WHERE key = 'settings'").get() as Row | undefined
     return r ? { ...DEFAULT_SETTINGS, ...JSON.parse(r.value as string) } : DEFAULT_SETTINGS

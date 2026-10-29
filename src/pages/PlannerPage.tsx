@@ -47,11 +47,14 @@ export default function PlannerPage() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [timeEdit, setTimeEdit] = useState<{ id: string; mode: TimeMode; anchor: DOMRect } | null>(null)
   const [notice, setNotice] = useState('')
+  // Several days: one can be opened on its own, full width.
+  const [focusDay, setFocusDay] = useState<string | null>(null)
   const ppm = ZOOM[zoom] ?? ZOOM.m
   const collapsed = useMemo(() => new Set<string>(safeParse(collapsedRaw)), [collapsedRaw])
 
   useEffect(() => {
     open(id)
+    setFocusDay(null)
     return () => close()
   }, [id, open, close])
   useEffect(() => {
@@ -347,8 +350,10 @@ export default function PlannerPage() {
   const activeGroup = active ? groups[active] : undefined
   const activeLib = active?.startsWith('lib:') ? library.entries.find((e) => `lib:${e.id}` === active) : undefined
   const dates = days.length ? (days.length === 1 ? formatDate(days[0].date) : `${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`) : ''
+  const focused = focusDay && days.some((d) => d.id === focusDay) ? focusDay : null
+  const shownDays = focused ? days.filter((d) => d.id === focused) : days
   // One day gets one wide, centred column; two share the width; more scroll sideways.
-  const dayWidth = days.length === 1 ? 'w-full md:max-w-[760px]' : days.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
+  const dayWidth = shownDays.length === 1 ? 'w-full md:max-w-[760px]' : shownDays.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
 
   return (
     <BoardContext.Provider value={ctx}>
@@ -419,6 +424,22 @@ export default function PlannerPage() {
               </div>
             )}
 
+            {days.length > 1 && (
+              <nav className="no-print flex gap-1 overflow-x-auto border-b border-line px-4 py-1.5 md:px-6" aria-label={t('planner.days')}>
+                {[null, ...days.map((d) => d.id)].map((dayId, i) => (
+                  <button
+                    key={dayId ?? 'all'}
+                    type="button"
+                    onClick={() => setFocusDay(dayId)}
+                    aria-pressed={focused === dayId}
+                    className={cx('shrink-0 rounded-md px-2.5 py-1 text-[13px] transition-colors', focused === dayId ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink')}
+                  >
+                    {dayId === null ? t('planner.allDays') : `${i} · ${formatDate(days[i - 1].date, { weekday: 'short', day: 'numeric', month: 'numeric' })}`}
+                  </button>
+                ))}
+              </nav>
+            )}
+
             {selected.size > 1 && (
               <div className="no-print flex items-center gap-2 border-b border-line bg-accent-soft/60 px-4 py-1.5 text-[13px] md:px-6">
                 <span className="text-ink-2">{t('planner.selected', { count: selected.size })}</span>
@@ -433,13 +454,15 @@ export default function PlannerPage() {
             )}
 
             <main className="min-h-0 flex-1 overflow-auto">
-              <div className={cx('flex min-h-full flex-col gap-8 p-4 md:flex-row md:items-start md:gap-6 md:p-8', days.length === 1 && 'md:justify-center')}>
-                {days.map((d, i) => (
+              <div className={cx('flex min-h-full flex-col gap-8 p-4 md:flex-row md:items-start md:gap-6 md:p-8', shownDays.length === 1 && 'md:justify-center')}>
+                {shownDays.map((d) => (
                   <DayColumn
                     key={d.id}
                     day={d}
-                    index={i}
+                    index={days.indexOf(d)}
                     count={days.length}
+                    focused={focused === d.id}
+                    onFocus={() => setFocusDay(focused === d.id ? null : d.id)}
                     ids={board.order[d.id] ?? []}
                     schedule={schedules[d.id]}
                     className={dayWidth}
