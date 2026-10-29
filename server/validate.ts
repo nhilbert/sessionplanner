@@ -134,3 +134,18 @@ export function validateDuplicate(body: unknown): z.infer<typeof duplicateBody> 
   if (!parsed.success) throw new BadRequest('invalid duplicate request')
   return parsed.data
 }
+
+const memberBody = z.strictObject({ role: z.enum(['view', 'edit']), showNotes: z.boolean() })
+
+export function validateMember(body: unknown): z.infer<typeof memberBody> {
+  const parsed = memberBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest('invalid access')
+  return parsed.data
+}
+
+/** An e-mail as the login reports it, in lower case. */
+export function validEmail(value: string): string {
+  const email = decodeURIComponent(value).trim().toLowerCase()
+  if (!z.email().safeParse(email).success || email.length > 254) throw new BadRequest('invalid e-mail')
+  return email
+}

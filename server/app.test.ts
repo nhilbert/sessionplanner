@@ -71,7 +71,10 @@ describe('guard', () => {
     const { app } = setup({ owners: ['me@example.com'], publicUrl })
     const url = 'https://sessions.example.com/api/workshops'
     expect((await app.request(url)).status).toBe(401)
-    expect((await app.request(url, { headers: { 'x-auth-request-email': 'other@example.com' } })).status).toBe(401)
+    // signed in, but not the owner: a guest who sees only what is shared with them (here: nothing)
+    const guest = await app.request(url, { headers: { 'x-auth-request-email': 'other@example.com' } })
+    expect(guest.status).toBe(200)
+    expect(await guest.json()).toEqual([])
     expect((await app.request(url, { headers: { 'x-auth-request-email': 'Me@Example.com' } })).status).toBe(200)
   })
 })
@@ -288,5 +291,109 @@ describe('duplicate', () => {
     // the original is untouched
     const orig = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
     expect(orig.items.map((i) => i.id).sort()).toEqual(['a', 'b'])
+  })
+})
+
+describe('guests', () => {
+  const pub = 'https://sessions.example.com'
+  const hosted = () => setup({ owners: ['me@example.com'], publicUrl: new URL(pub) })
+  const as = (email: string, extra: Record<string, string> = {}) => ({ 'x-auth-request-email': email, 'x-sp': '1', 'content-type': 'application/json', ...extra })
+  const OWNER = as('me@example.com')
+  const ANNA = as('anna@example.com')
+  const BEN = as('ben@example.com')
+
+  async function prepared() {
+    const { app, hub } = hosted()
+    const ws = (await (await app.request(`${pub}/api/workshops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ title: 'Geteilt' }) })).json()) as WorkshopState
+    const other = (await (await app.request(`${pub}/api/workshops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ title: 'Privat' }) })).json()) as WorkshopState
+    const id = ws.workshop.id
+    await app.request(`${pub}/api/workshops/${id}/ops`, {
+      method: 'POST',
+      headers: OWNER,
+      body: JSON.stringify({
+        clientId: 'c',
+        ops: [
+          { op: 'create', entity: 'item', record: item('a', id, ws.days[0].id, { notes: 'internal hint' }) },
+          { op: 'create', entity: 'item', record: item('n', id, ws.days[0].id, { kind: 'note', title: 'cue', duration: 0 }) },
+          { op: 'set', entity: 'workshop', id, fields: { notes: 'internal' } },
+        ],
+      }),
+    })
+    return { app, hub, id, otherId: other.workshop.id }
+  }
+  const share = (app: ReturnType<typeof setup>['app'], id: string, email: string, role: string, showNotes: boolean, headers = OWNER) =>
+    app.request(`${pub}/api/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'PUT', headers, body: JSON.stringify({ role, showNotes }) })
+
+  it('see only the workshops shared with them, and nothing else exists for them', async () => {
+    const { app, id, otherId } = await prepared()
+    expect((await share(app, id, 'Anna@Example.com', 'view', false)).status).toBe(200)
+    const list = await (await app.request(`${pub}/api/workshops`, { headers: ANNA })).json()
+    expect(list.map((w: { id: string }) => w.id)).toEqual([id])
+    expect((await app.request(`${pub}/api/workshops/${otherId}`, { headers: ANNA })).status).toBe(404)
+    expect((await app.request(`${pub}/api/workshops/${id}`, { headers: BEN })).status).toBe(404)
+    expect((await app.request(`${pub}/api/workshops/${otherId}/events`, { headers: ANNA })).status).toBe(404)
+  })
+
+  it('without the notes get neither notes nor note items; edit guests get everything', async () => {
+    const { app, id } = await prepared()
+    await share(app, id, 'anna@example.com', 'view', false)
+    await share(app, id, 'ben@example.com', 'edit', false)
+    const view = (await (await app.request(`${pub}/api/workshops/${id}`, { headers: ANNA })).json()) as WorkshopState
+    expect(view.access).toEqual({ role: 'view', showNotes: false })
+    expect(view.workshop.notes).toBe('')
+    expect(view.items.map((i) => [i.id, i.notes])).toEqual([['a', '']])
+    const edit = (await (await app.request(`${pub}/api/workshops/${id}`, { headers: BEN })).json()) as WorkshopState
+    expect(edit.access).toEqual({ role: 'edit', showNotes: true })
+    expect(edit.items.length).toBe(2)
+  })
+
+  it('may change the agenda only with edit access, and never archive or delete', async () => {
+    const { app, id } = await prepared()
+    await share(app, id, 'anna@example.com', 'view', true)
+    await share(app, id, 'ben@example.com', 'edit', false)
+    const change = (headers: Record<string, string>, fields: object) =>
+      app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers, body: JSON.stringify({ clientId: 'g', ops: [{ op: 'set', entity: 'item', id: 'a', fields }] }) })
+    expect((await change(ANNA, { duration: 90 })).status).toBe(403)
+    expect((await change(BEN, { duration: 90 })).status).toBe(200)
+    const archive = await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: BEN, body: JSON.stringify({ clientId: 'g', ops: [{ op: 'set', entity: 'workshop', id, fields: { archived: true } }] }) })
+    expect(archive.status).toBe(403)
+    expect((await app.request(`${pub}/api/workshops/${id}`, { method: 'DELETE', headers: BEN })).status).toBe(403)
+    expect((await app.request(`${pub}/api/workshops/${id}/duplicate`, { method: 'POST', headers: BEN, body: JSON.stringify({ title: 'x' }) })).status).toBe(403)
+  })
+
+  it('cannot manage access, settings or the library', async () => {
+    const { app, id } = await prepared()
+    await share(app, id, 'ben@example.com', 'edit', true)
+    expect((await share(app, id, 'eve@example.com', 'edit', true, BEN)).status).toBe(403)
+    expect((await app.request(`${pub}/api/workshops/${id}/members`, { headers: BEN })).status).toBe(403)
+    expect((await app.request(`${pub}/api/settings`, { method: 'PUT', headers: BEN, body: JSON.stringify({ categories: [], dayStart: 0, dayEnd: null }) })).status).toBe(403)
+    expect((await app.request(`${pub}/api/library`, { headers: BEN })).status).toBe(403)
+    expect((await app.request(`${pub}/api/workshops`, { method: 'POST', headers: BEN, body: '{}' })).status).toBe(403)
+    expect((await app.request(`${pub}/api/settings`, { headers: BEN })).status).toBe(200)
+  })
+
+  it('lose access at once when removed, also on an open live-update stream', async () => {
+    const { app, hub, id } = await prepared()
+    await share(app, id, 'anna@example.com', 'view', false)
+    const events: string[] = []
+    hub.subscribe(id, (e) => events.push(e.type))
+    expect((await app.request(`${pub}/api/workshops/${id}/members/anna%40example.com`, { method: 'DELETE', headers: OWNER })).status).toBe(200)
+    expect(events).toContain('members-changed')
+    expect((await app.request(`${pub}/api/workshops/${id}`, { headers: ANNA })).status).toBe(404)
+  })
+
+  it('reach files only of workshops shared with them', async () => {
+    const { app, id, otherId } = await prepared()
+    await share(app, id, 'anna@example.com', 'view', false)
+    const upload = async (wid: string) => {
+      const form = new FormData()
+      form.append('file', new File(['x'], 'x.txt', { type: 'text/plain' }))
+      return (await (await app.request(`${pub}/api/workshops/${wid}/attachments`, { method: 'POST', headers: { 'x-auth-request-email': 'me@example.com', 'x-sp': '1' }, body: form })).json()).id
+    }
+    const mine = await upload(otherId)
+    const shared = await upload(id)
+    expect((await app.request(`${pub}/api/attachments/${shared}`, { headers: ANNA })).status).toBe(200)
+    expect((await app.request(`${pub}/api/attachments/${mine}`, { headers: ANNA })).status).toBe(404)
+    expect((await app.request(`${pub}/api/attachments/${shared}`, { method: 'DELETE', headers: ANNA })).status).toBe(403)
   })
 })

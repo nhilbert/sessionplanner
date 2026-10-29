@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Attachment, type Day, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
+import { type Attachment, type Day, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { BadRequest } from './validate.ts'
 
@@ -127,6 +127,15 @@ const toLibraryEntry = (r: Row): LibraryEntry =>
     updatedAt: r.updated_at as string,
   }) as LibraryEntry
 
+const toMember = (r: Row): Member => ({
+  workshopId: r.workshop_id as string,
+  email: r.email as string,
+  role: r.role as MemberRole,
+  showNotes: r.show_notes === 1,
+  addedAt: r.added_at as string,
+  lastSeenAt: (r.last_seen_at as string | null) ?? null,
+})
+
 const now = () => new Date().toISOString()
 
 export class Repo {
@@ -148,16 +157,18 @@ export class Repo {
     }
   }
 
-  listWorkshops(): WorkshopSummary[] {
+  /** All workshops, or only those shared with `guest` (an e-mail). */
+  listWorkshops(guest?: string): WorkshopSummary[] {
     const rows = this.db
       .prepare(
         `SELECT w.id, w.title, w.client, w.archived, w.updated_at,
            (SELECT MIN(date) FROM days WHERE workshop_id = w.id) AS first_date,
            (SELECT MAX(date) FROM days WHERE workshop_id = w.id) AS last_date,
            (SELECT COUNT(*) FROM items WHERE workshop_id = w.id) AS item_count
-         FROM workshops w ORDER BY COALESCE(first_date, w.created_at) DESC`,
+         FROM workshops w ${guest !== undefined ? 'WHERE w.id IN (SELECT workshop_id FROM members WHERE email = ?)' : ''}
+         ORDER BY COALESCE(first_date, w.created_at) DESC`,
       )
-      .all() as Row[]
+      .all(...(guest !== undefined ? [guest] : [])) as Row[]
     return rows.map((r) => ({
       id: r.id as string,
       title: r.title as string,
@@ -382,6 +393,35 @@ export class Repo {
       this.db.prepare('DELETE FROM attachments WHERE id = ?').run(id)
       return { workshopId: att.workshopId, ops }
     })
+  }
+
+  listMembers(workshopId: string): Member[] {
+    return (this.db.prepare('SELECT * FROM members WHERE workshop_id = ? ORDER BY added_at').all(workshopId) as Row[]).map(toMember)
+  }
+
+  getMember(workshopId: string, email: string): Member | null {
+    const r = this.db.prepare('SELECT * FROM members WHERE workshop_id = ? AND email = ?').get(workshopId, email) as Row | undefined
+    return r ? toMember(r) : null
+  }
+
+  /** Adds a guest or changes their access; edit always includes the notes. */
+  setMember(workshopId: string, email: string, role: MemberRole, showNotes: boolean): Member | null {
+    if (!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(workshopId)) return null
+    this.db
+      .prepare(
+        `INSERT INTO members (workshop_id, email, role, show_notes, added_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(workshop_id, email) DO UPDATE SET role = excluded.role, show_notes = excluded.show_notes`,
+      )
+      .run(workshopId, email, role, role === 'edit' || showNotes ? 1 : 0, now())
+    return this.getMember(workshopId, email)
+  }
+
+  removeMember(workshopId: string, email: string): boolean {
+    return this.db.prepare('DELETE FROM members WHERE workshop_id = ? AND email = ?').run(workshopId, email).changes > 0
+  }
+
+  touchMember(workshopId: string, email: string): void {
+    this.db.prepare('UPDATE members SET last_seen_at = ? WHERE workshop_id = ? AND email = ?').run(now(), workshopId, email)
   }
 
   getSettings(): Settings {

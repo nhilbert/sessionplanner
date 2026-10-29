@@ -130,6 +130,8 @@ export interface WorkshopState {
   groups: Group[]
   items: Item[]
   attachments: Attachment[]
+  /** Set when a guest opens the workshop. */
+  access?: Access
 }
 
 /** One row of the workshops list. */
@@ -150,3 +152,28 @@ export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duratio
 export type LibraryEntry =
   | { id: string; kind: 'item'; title: string; data: ItemContent; createdAt: string; updatedAt: string }
   | { id: string; kind: 'group'; title: string; data: { items: ItemContent[] }; createdAt: string; updatedAt: string }
+
+export type MemberRole = 'view' | 'edit'
+
+/** A guest with access to one workshop; e-mail as the login reports it (lower case). */
+export interface Member {
+  workshopId: string
+  email: string
+  role: MemberRole
+  /** Facilitation notes visible; always true for edit. */
+  showNotes: boolean
+  addedAt: string
+  lastSeenAt: string | null
+}
+
+/** Who is signed in: the owner sees everything, a guest only the workshops shared with them. */
+export interface Me {
+  email: string | null
+  owner: boolean
+}
+
+/** A guest's access to the open workshop (absent for the owner). */
+export interface Access {
+  role: MemberRole
+  showNotes: boolean
+}

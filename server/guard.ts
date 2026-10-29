@@ -3,7 +3,7 @@ import type { Context, Next } from 'hono'
 export interface GuardOptions {
   /** Public address when hosted behind the login proxy (SP_PUBLIC_URL); its host and origin pass next to loopback. */
   publicUrl?: URL
-  /** Hosted: e-mail addresses allowed in, as set by the login proxy in `ownerHeader`. Empty = no check (local use). */
+  /** Hosted: the owner's e-mail address(es), as set by the login proxy in `ownerHeader`. Empty = everybody is the owner (local use). */
   owners: string[]
   ownerHeader: string
 }
@@ -23,20 +23,38 @@ export function isTrusted(headers: Headers, url: string, method: string, publicU
   return method === 'GET' || method === 'HEAD' || headers.get('x-sp') === '1'
 }
 
+/** Who sent a request: the owner(s) see everything, a guest only the workshops shared with their e-mail. */
+export interface User {
+  email: string | null
+  owner: boolean
+}
+
+export type Env = { Variables: { user: User } }
+
 /**
- * Hosted, the owner API also needs the e-mail header that only the login proxy sets (Caddy strips it from
- * incoming requests), so a routing mistake in front of the app fails closed.
+ * Hosted, the login proxy sets the signed-in e-mail (Caddy strips it from incoming requests, and only Caddy can
+ * reach this container), so the header tells who is there; without it nothing is answered. Without an owner
+ * list (local use, no login in front) everybody is the owner.
  */
-export function isOwner(headers: Headers, owners: string[], ownerHeader: string): boolean {
-  if (!owners.length) return true
-  const email = headers.get(ownerHeader)?.trim().toLowerCase()
-  return !!email && owners.includes(email)
+export function userOf(headers: Headers, owners: string[], ownerHeader: string): User | null {
+  const email = headers.get(ownerHeader)?.trim().toLowerCase() || null
+  if (!owners.length) return { email, owner: true }
+  if (!email) return null
+  return { email, owner: owners.includes(email) }
 }
 
 export function guard({ publicUrl, owners, ownerHeader }: GuardOptions) {
-  return async (c: Context, next: Next): Promise<Response | void> => {
+  return async (c: Context<Env>, next: Next): Promise<Response | void> => {
     if (!isTrusted(c.req.raw.headers, c.req.url, c.req.method, publicUrl)) return c.json({ error: 'forbidden' }, 403)
-    if (!isOwner(c.req.raw.headers, owners, ownerHeader)) return c.json({ error: 'login_required' }, 401)
+    const user = userOf(c.req.raw.headers, owners, ownerHeader)
+    if (!user) return c.json({ error: 'login_required' }, 401)
+    c.set('user', user)
     await next()
   }
+}
+
+/** For routes only the owner may use. */
+export async function ownerOnly(c: Context<Env>, next: Next): Promise<Response | void> {
+  if (!c.get('user').owner) return c.json({ error: 'forbidden' }, 403)
+  await next()
 }

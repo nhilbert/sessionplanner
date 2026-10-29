@@ -49,6 +49,12 @@ export type ServerEvent =
   | { type: 'attachment'; attachment: import('./types.ts').Attachment }
   | { type: 'attachment-deleted'; id: string }
   | { type: 'workshop-deleted' }
+  /** Guests were added, changed or removed: open guest streams check their access again. */
+  | { type: 'members-changed' }
+  /** For guests who see the workshop without notes: something changed, load it again. */
+  | { type: 'changed' }
+  /** For guests: their access to this workshop has ended. */
+  | { type: 'revoked' }
 
 const pick = <T extends object, K extends keyof T>(record: T, keys: K[]): Pick<T, K> => {
   const out = {} as Pick<T, K>

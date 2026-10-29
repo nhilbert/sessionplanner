@@ -98,11 +98,15 @@ export function useBoard({ data, change, onLibraryDrop }: { data: WorkshopState;
 
   const collision: CollisionDetection = (args) => {
     const within = pointerWithin(args)
-    // Prefer entries over the lists that hold them, and the innermost list (a group) over the day around it.
-    const entries = within.filter((c) => !(String(c.id) in order))
-    if (entries.length) return entries
+    // The innermost target wins: a group's members, then the inside of a group, then entries (items and whole
+    // groups, which cover their members too), then the lists that hold them.
+    const innerKeys = Object.keys(order).filter(isInner)
+    const members = within.filter((c) => innerKeys.some((k) => order[k].includes(String(c.id))))
+    if (members.length) return members
     const innerLists = within.filter((c) => isInner(String(c.id)))
     if (innerLists.length) return innerLists
+    const entries = within.filter((c) => !(String(c.id) in order))
+    if (entries.length) return entries
     if (within.length) return within
     return closestCenter(args)
   }
