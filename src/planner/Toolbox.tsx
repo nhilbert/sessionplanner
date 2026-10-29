@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Archive, ArrowLeft, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Search, X } from 'lucide-react'
+import { Archive, ArrowLeft, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Search, Users, X } from 'lucide-react'
 import type { Attachment, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration } from '@/domain/time'
@@ -11,10 +11,10 @@ import { itemColor, useSettings } from '@/store/useSettings'
 import { cx, IconButton } from '@/components/ui'
 import { AddBar, Entries, List } from './DayColumn'
 import ItemPanel from './ItemPanel'
-import { FilesPanel, PackingPanel, WorkshopPanel } from './panels'
+import { AccessPanel, FilesPanel, PackingPanel, WorkshopPanel } from './panels'
 import { LIB, PARKING } from './board'
 
-export type Tab = 'parking' | 'library' | 'packing' | 'files' | 'details'
+export type Tab = 'parking' | 'library' | 'packing' | 'files' | 'details' | 'access'
 
 const TABS = [
   { id: 'parking', icon: Archive, key: 'planner.parking' },
@@ -22,10 +22,13 @@ const TABS = [
   { id: 'packing', icon: Package, key: 'planner.packing' },
   { id: 'files', icon: Paperclip, key: 'planner.files' },
   { id: 'details', icon: Info, key: 'planner.details' },
+  { id: 'access', icon: Users, key: 'access.title' },
 ] as const satisfies readonly { id: Tab; icon: typeof Archive; key: string }[]
 
 interface Props {
   data: WorkshopState
+  /** Guests see neither the library nor the access tab, and none of the owner's actions. */
+  owner: boolean
   change: (ops: Op[]) => void
   tab: Tab
   onTab: (tab: Tab) => void
@@ -51,6 +54,8 @@ export default function Toolbox(p: Props) {
   const { t } = useTranslation()
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, files: p.data.attachments.length }
+  const tabs = TABS.filter((x) => p.owner || (x.id !== 'library' && x.id !== 'access'))
+  const tab: Tab = tabs.some((x) => x.id === p.tab) ? p.tab : 'parking'
 
   if (!p.open && !p.mobile)
     return (
@@ -58,7 +63,7 @@ export default function Toolbox(p: Props) {
         <IconButton label={t('toolbox.open')} onClick={() => p.onOpen(true)}>
           <PanelRightOpen size={16} />
         </IconButton>
-        {TABS.map(({ id, icon: Icon, key }) => (
+        {tabs.map(({ id, icon: Icon, key }) => (
           <IconButton
             key={id}
             label={t(key)}
@@ -84,8 +89,9 @@ export default function Toolbox(p: Props) {
       onClose={p.onCloseItem}
       onSelect={p.onSelect}
       onSaved={(title) => p.onNotice(t('library.saved', { title }))}
+      owner={p.owner}
     />
-  ) : p.tab === 'parking' ? (
+  ) : tab === 'parking' ? (
     <div>
       <p className="mb-2 text-[12px] leading-snug text-ink-3">{t('planner.parkingHint')}</p>
       <List id={PARKING} ids={p.parkingIds} empty={t('planner.parkingEmpty')}>
@@ -93,14 +99,16 @@ export default function Toolbox(p: Props) {
       </List>
       <AddBar onAdd={p.onAddParked} />
     </div>
-  ) : p.tab === 'library' ? (
+  ) : tab === 'library' ? (
     <LibraryTab onInsert={p.onLibraryInsert} />
-  ) : p.tab === 'packing' ? (
+  ) : tab === 'packing' ? (
     <PackingPanel data={p.data} change={p.change} />
-  ) : p.tab === 'files' ? (
-    <FilesPanel data={p.data} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} />
+  ) : tab === 'files' ? (
+    <FilesPanel data={p.data} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} owner={p.owner} />
+  ) : tab === 'access' ? (
+    <AccessPanel data={p.data} />
   ) : (
-    <WorkshopPanel data={p.data} change={p.change} />
+    <WorkshopPanel data={p.data} change={p.change} owner={p.owner} />
   )
 
   return (
@@ -114,10 +122,10 @@ export default function Toolbox(p: Props) {
         {item ? (
           <button type="button" onClick={p.onCloseItem} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink-2 hover:bg-surface-2 hover:text-ink">
             <ArrowLeft size={15} />
-            {t(TABS.find((x) => x.id === p.tab)!.key)}
+            {t(TABS.find((x) => x.id === tab)!.key)}
           </button>
         ) : (
-          TABS.map(({ id, icon: Icon, key }) => (
+          tabs.map(({ id, icon: Icon, key }) => (
             <button
               key={id}
               type="button"
@@ -125,12 +133,12 @@ export default function Toolbox(p: Props) {
               onClick={() => p.onTab(id)}
               className={cx(
                 'inline-flex h-8 items-center gap-1 rounded-md px-2 text-[12px] transition-colors',
-                p.tab === id ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink',
+                tab === id ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink',
               )}
             >
               <Icon size={15} />
-              {p.tab === id && <span className="max-w-[110px] truncate">{t(key)}</span>}
-              {!!counts[id] && p.tab !== id && <span className="text-[11px] tnum">{counts[id]}</span>}
+              {tab === id && <span className="max-w-[110px] truncate">{t(key)}</span>}
+              {!!counts[id] && tab !== id && <span className="text-[11px] tnum">{counts[id]}</span>}
             </button>
           ))
         )}

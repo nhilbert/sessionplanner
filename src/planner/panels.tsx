@@ -1,18 +1,18 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Copy, ExternalLink, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
-import type { Attachment, PackingState, WorkshopState } from '@/domain/types'
+import { Copy, ExternalLink, Paperclip, Plus, Trash2, Upload, UserMinus, UserPlus, X } from 'lucide-react'
+import type { Attachment, Member, MemberRole, PackingState, WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
 import { packingList } from '@/domain/packing'
 import { api } from '@/api'
-import { Button, Checkbox, cx, Field, IconButton, Input, Modal } from '@/components/ui'
+import { Button, Checkbox, cx, Field, IconButton, Input, Modal, Segmented } from '@/components/ui'
 import { sortedDays } from '@/domain/order'
 import { TextField, formatSize } from './fields'
 import { uploadFiles } from './upload'
 
-export function WorkshopPanel({ data, change }: { data: WorkshopState; change: (ops: Op[]) => void }) {
+export function WorkshopPanel({ data, change, owner }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const w = data.workshop
@@ -31,6 +31,7 @@ export function WorkshopPanel({ data, change }: { data: WorkshopState; change: (
       <Field label={t('workshop.notes')}>
         <TextField multiline value={w.notes} onCommit={(notes) => set({ notes })} className="min-h-[160px]" />
       </Field>
+      {owner && (
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <DuplicateButton data={data} />
         <Button size="sm" onClick={() => set({ archived: !w.archived })}>
@@ -49,6 +50,7 @@ export function WorkshopPanel({ data, change }: { data: WorkshopState; change: (
           {t('workshop.delete')}
         </Button>
       </div>
+      )}
     </div>
   )
 }
@@ -164,7 +166,7 @@ function AddMaterial({ data, change }: { data: WorkshopState; change: (ops: Op[]
   )
 }
 
-export function FilesPanel({ data, onAttachment, onRemove }: { data: WorkshopState; onAttachment: (a: Attachment) => void; onRemove: (id: string) => void }) {
+export function FilesPanel({ data, onAttachment, onRemove, owner }: { data: WorkshopState; onAttachment: (a: Attachment) => void; onRemove: (id: string) => void; owner: boolean }) {
   const { t } = useTranslation()
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
@@ -201,7 +203,7 @@ export function FilesPanel({ data, onAttachment, onRemove }: { data: WorkshopSta
                 {formatSize(a.size)} · {t('files.linked', { count: uses(a.id) })}
               </div>
             </div>
-            <IconButton
+            {owner && <IconButton
               label={t('common.delete')}
               onClick={async () => {
                 if (!window.confirm(t('files.deleteConfirm', { name: a.name }))) return
@@ -210,7 +212,7 @@ export function FilesPanel({ data, onAttachment, onRemove }: { data: WorkshopSta
               }}
             >
               <Trash2 size={14} />
-            </IconButton>
+            </IconButton>}
           </li>
         ))}
       </ul>
@@ -276,5 +278,103 @@ function DuplicateButton({ data }: { data: WorkshopState }) {
         </form>
       </Modal>
     </>
+  )
+}
+
+/** Guests with access to this workshop (owner only): e-mail, view or edit, notes on or off. */
+export function AccessPanel({ data }: { data: WorkshopState }) {
+  const { t, i18n } = useTranslation()
+  const [members, setMembers] = useState<Member[] | null>(null)
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState<MemberRole>('view')
+  const [notes, setNotes] = useState(false)
+  const [error, setError] = useState('')
+  const id = data.workshop.id
+  useEffect(() => {
+    api.listMembers(id).then(setMembers, () => setMembers([]))
+  }, [id])
+  const save = async (address: string, r: MemberRole, n: boolean) => {
+    const m = await api.setMember(id, address, r, n)
+    setMembers((list) => [...(list ?? []).filter((x) => x.email !== m.email), m].sort((a, b) => a.addedAt.localeCompare(b.addedAt)))
+  }
+  const when = (iso: string) => new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[13px] leading-snug text-ink-2">{t('access.hint')}</p>
+      <form
+        className="space-y-2 rounded-lg bg-surface-2/60 p-2.5"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          const address = email.trim().toLowerCase()
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return setError(t('access.invalid'))
+          setError('')
+          try {
+            await save(address, role, notes)
+            setEmail('')
+          } catch {
+            setError(t('access.invalid'))
+          }
+        }}
+      >
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('access.email')} aria-label={t('access.email')} className="field h-8 text-[13px]" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Segmented<MemberRole>
+            size="sm"
+            value={role}
+            onChange={setRole}
+            options={[
+              { value: 'view', label: t('access.view') },
+              { value: 'edit', label: t('access.edit') },
+            ]}
+          />
+          <label className={cx('flex items-center gap-1.5 text-[12px]', role === 'edit' ? 'text-ink-3' : 'text-ink-2')} title={role === 'edit' ? t('access.notesAlways') : undefined}>
+            <input type="checkbox" checked={role === 'edit' || notes} disabled={role === 'edit'} onChange={(e) => setNotes(e.target.checked)} />
+            {t('access.notes')}
+          </label>
+          <Button size="sm" type="submit" className="ml-auto" disabled={!email.trim()}>
+            <UserPlus size={13} />
+            {t('access.add')}
+          </Button>
+        </div>
+        {error && <p className="text-[12px] text-rose">{error}</p>}
+      </form>
+      {members && !members.length && <p className="text-[13px] text-ink-3">{t('access.empty')}</p>}
+      <ul className="divide-y divide-line">
+        {(members ?? []).map((m) => (
+          <li key={m.email} className="py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-[14px]">{m.email}</span>
+              <IconButton
+                label={t('access.remove')}
+                onClick={async () => {
+                  if (!window.confirm(t('access.removeConfirm', { email: m.email }))) return
+                  await api.removeMember(id, m.email)
+                  setMembers((list) => (list ?? []).filter((x) => x.email !== m.email))
+                }}
+              >
+                <UserMinus size={14} />
+              </IconButton>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-ink-3">
+              <Segmented<MemberRole>
+                size="sm"
+                value={m.role}
+                onChange={(r) => void save(m.email, r, m.showNotes)}
+                options={[
+                  { value: 'view', label: t('access.view') },
+                  { value: 'edit', label: t('access.edit') },
+                ]}
+              />
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={m.showNotes} disabled={m.role === 'edit'} onChange={(e) => void save(m.email, m.role, e.target.checked)} />
+                {t('access.notes')}
+              </label>
+              <span className="ml-auto">{m.lastSeenAt ? t('access.lastSeen', { when: when(m.lastSeenAt) }) : t('access.never')}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

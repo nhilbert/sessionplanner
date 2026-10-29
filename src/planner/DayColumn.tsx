@@ -34,7 +34,8 @@ export interface BoardCtx {
   onRenameGroup: (id: string, title: string) => void
   onUngroup: (id: string) => void
   onDeleteGroup: (id: string) => void
-  onSaveGroup: (id: string) => void
+  /** Absent for guests (the library is the owner's). */
+  onSaveGroup?: (id: string) => void
 }
 
 export const BoardContext = createContext<BoardCtx | null>(null)
@@ -109,7 +110,7 @@ function GroupBlock({ group, schedule, card }: { group: Group; schedule?: DaySch
         <Menu
           label={t('group.menu')}
           items={[
-            { label: t('group.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => ctx.onSaveGroup(group.id) },
+            ...(ctx.onSaveGroup ? [{ label: t('group.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => ctx.onSaveGroup!(group.id) }] : []),
             { label: t('group.ungroup'), icon: <Ungroup size={14} />, onSelect: () => ctx.onUngroup(group.id) },
             { label: t('group.delete'), icon: <Trash2 size={14} />, danger: true, onSelect: () => ctx.onDeleteGroup(group.id) },
           ]}

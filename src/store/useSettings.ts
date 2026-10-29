@@ -1,12 +1,15 @@
 import { create } from 'zustand'
 import type { TFunction } from 'i18next'
 import { api } from '@/api'
-import { type Category, DEFAULT_SETTINGS, type Item, type PaletteKey, type Settings } from '@/domain/types'
+import { type Category, DEFAULT_SETTINGS, type Item, type Me, type PaletteKey, type Settings } from '@/domain/types'
 
 /** Settings shared by all workshops (server: GET/PUT /api/settings). Saved right away, one change at a time. */
 interface SettingsStore {
   settings: Settings
   loaded: boolean
+  /** Who is signed in; until known, treated as the owner (the server decides anyway). */
+  me: Me
+  loadMe: () => Promise<void>
   load: () => Promise<void>
   update: (patch: Partial<Omit<Settings, 'logo'>>) => void
   setLogo: (file: File) => Promise<void>
@@ -16,6 +19,14 @@ interface SettingsStore {
 export const useSettings = create<SettingsStore>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   loaded: false,
+  me: { email: null, owner: true },
+  loadMe: async () => {
+    try {
+      set({ me: await api.me() })
+    } catch {
+      /* stays as is; the server refuses what is not allowed */
+    }
+  },
   load: async () => {
     try {
       set({ settings: await api.getSettings(), loaded: true })

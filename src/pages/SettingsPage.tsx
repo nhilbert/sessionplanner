@@ -13,7 +13,7 @@ const MAX_LOGO = 2 * 1024 * 1024
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation()
-  const { settings, update, setLogo, removeLogo } = useSettings()
+  const { settings, update, setLogo, removeLogo, me } = useSettings()
   const input = useRef<HTMLInputElement>(null)
   const [logoError, setLogoError] = useState('')
   const logoUrl = api.logoUrl(settings)
@@ -41,6 +41,8 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {me.owner && (
+          <>
         <section className="card mb-6 p-5">
           <SectionLabel>{t('settings.days')}</SectionLabel>
           <div className="flex flex-wrap items-center gap-3 text-[14px] text-ink-2">
@@ -109,6 +111,8 @@ export default function SettingsPage() {
             }}
           />
         </section>
+          </>
+        )}
       </div>
     </div>
   )

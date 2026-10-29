@@ -1,4 +1,4 @@
-import type { Attachment, LibraryEntry, Settings, WorkshopState, WorkshopSummary } from './domain/types'
+import type { Attachment, LibraryEntry, Me, Member, MemberRole, Settings, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op } from './domain/ops'
 
 /** Thin client for the server API (server/app.ts). Changes carry the app's header (server/guard.ts). */
@@ -25,6 +25,11 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  me: () => call<Me>('/api/me'),
+  listMembers: (id: string) => call<Member[]>(`/api/workshops/${id}/members`),
+  setMember: (id: string, email: string, role: MemberRole, showNotes: boolean) =>
+    call<Member>(`/api/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'PUT', body: JSON.stringify({ role, showNotes }) }),
+  removeMember: (id: string, email: string) => call<{ ok: true }>(`/api/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'DELETE' }),
   listWorkshops: () => call<WorkshopSummary[]>('/api/workshops'),
   createWorkshop: (input: { title?: string; client?: string; date?: string }) => call<WorkshopState>('/api/workshops', { method: 'POST', body: JSON.stringify(input) }),
   loadWorkshop: (id: string) => call<WorkshopState>(`/api/workshops/${id}`),

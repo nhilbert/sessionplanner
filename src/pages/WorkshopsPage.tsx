@@ -6,6 +6,7 @@ import { api } from '@/api'
 import type { WorkshopSummary } from '@/domain/types'
 import { formatDate } from '@/i18n'
 import { Button, Chip, Empty, Field, Input, Modal, PageHeader } from '@/components/ui'
+import { useSettings } from '@/store/useSettings'
 
 export default function WorkshopsPage() {
   const { t } = useTranslation()
@@ -14,6 +15,7 @@ export default function WorkshopsPage() {
   const [failed, setFailed] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [creating, setCreating] = useState(false)
+  const me = useSettings((s) => s.me)
 
   useEffect(() => {
     api.listWorkshops().then(setList, () => setFailed(true))
@@ -27,21 +29,28 @@ export default function WorkshopsPage() {
     <div className="mx-auto max-w-3xl px-4 py-8 md:px-10 md:py-10">
       <PageHeader
         title={t('workshops.title')}
+        subtitle={me.owner ? undefined : t('guest.shared')}
         right={
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            {t('workshops.new')}
-          </Button>
+          me.owner && (
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Plus size={16} />
+              {t('workshops.new')}
+            </Button>
+          )
         }
       />
       {failed && <p className="text-rose">{t('common.error')}</p>}
       {list && !visible.length && !failed && (
-        <Empty title={t('workshops.empty')} body={t('workshops.emptyBody')}>
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            {t('workshops.new')}
-          </Button>
-        </Empty>
+        me.owner ? (
+          <Empty title={t('workshops.empty')} body={t('workshops.emptyBody')}>
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Plus size={16} />
+              {t('workshops.new')}
+            </Button>
+          </Empty>
+        ) : (
+          <Empty title={t('guest.nothingShared')} body={t('guest.nothingSharedBody', { email: me.email ?? '' })} />
+        )
       )}
       <ul className="space-y-2">
         {visible.map((w) => (

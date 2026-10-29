@@ -241,5 +241,30 @@
     "items_other": "{{count}} Punkte",
     "toParking": "In den Themenspeicher",
     "deleteConfirm": "„{{title}}“ aus der Bibliothek löschen? Workshops behalten ihre Kopien."
+  },
+  "guest": {
+    "signedInAs": "Angemeldet als {{email}}",
+    "shared": "Mit dir geteilt",
+    "nothingShared": "Noch nichts geteilt",
+    "nothingSharedBody": "Sobald ein Workshop mit {{email}} geteilt wird, erscheint er hier.",
+    "viewOnly": "Nur ansehen",
+    "editing": "Mit dir geteilt · Bearbeiten",
+    "print": "Drucken"
+  },
+  "access": {
+    "title": "Zugriff",
+    "hint": "Gäste melden sich mit ihrem eigenen Microsoft-Konto an. Sie brauchen einen Gastzugang in deinem Entra und müssen beim Login des Session Planners freigeschaltet sein (siehe Anleitung).",
+    "email": "E-Mail",
+    "view": "Ansehen",
+    "edit": "Bearbeiten",
+    "notes": "Moderationsnotizen sichtbar",
+    "notesAlways": "Bearbeiten schließt die Notizen ein",
+    "add": "Freigeben",
+    "empty": "Noch mit niemandem geteilt.",
+    "lastSeen": "zuletzt geöffnet {{when}}",
+    "never": "noch nicht geöffnet",
+    "remove": "Zugriff entziehen",
+    "removeConfirm": "Zugriff für {{email}} entziehen?",
+    "invalid": "Bitte eine gültige E-Mail-Adresse eingeben."
   }
 }

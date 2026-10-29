@@ -14,12 +14,15 @@ const NAV = [
 export default function AppShell() {
   const { t } = useTranslation()
   const [folded, setFolded] = useLocalState('sp.nav', 'open')
-  const load = useSettings((s) => s.load)
+  const { load, loadMe, me } = useSettings()
   const collapsed = folded === 'folded'
+  // Guests see their shared workshops and the language setting; the library is the owner's.
+  const nav = me.owner ? NAV : NAV.filter((n) => n.to !== '/library')
 
   useEffect(() => {
     void load()
-  }, [load])
+    void loadMe()
+  }, [load, loadMe])
 
   const link = (to: string, label: string, Icon: typeof Settings, end?: boolean) => (
     <NavLink
@@ -47,8 +50,9 @@ export default function AppShell() {
           <span className="inline-block h-3 w-3 shrink-0 rounded-full border-[2.5px] border-accent" />
           {!collapsed && <span className="text-[15px] font-medium tracking-[-0.01em]">{t('app.name')}</span>}
         </div>
-        <nav className="flex flex-col gap-0.5">{NAV.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>
+        <nav className="flex flex-col gap-0.5">{nav.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>
         <div className="mt-auto flex flex-col gap-0.5">
+          {!me.owner && me.email && !collapsed && <p className="mb-2 truncate px-2.5 text-[12px] text-ink-3" title={me.email}>{t('guest.signedInAs', { email: me.email })}</p>}
           {link('/settings', t('nav.settings'), Settings, true)}
           <button
             type="button"
@@ -65,7 +69,7 @@ export default function AppShell() {
         <Outlet />
       </div>
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {[...NAV, { to: '/settings', key: 'nav.settings', icon: Settings, end: true } as const].map(({ to, key, icon: Icon, end }) => (
+        {[...nav, { to: '/settings', key: 'nav.settings', icon: Settings, end: true } as const].map(({ to, key, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => cx('flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]', isActive ? 'text-ink' : 'text-ink-3')}>
             <Icon size={18} strokeWidth={1.75} />
             {t(key)}

@@ -20,6 +20,7 @@ import { ItemCard } from '@/planner/ItemCard'
 import Toolbox, { type Tab } from '@/planner/Toolbox'
 import { flatIds, inner, PARKING, placeOf, useBoard } from '@/planner/board'
 import { newItem, TextField } from '@/planner/fields'
+import AgendaView from './AgendaView'
 
 const ZOOM: Record<string, number> = { s: 1, m: 1.6, l: 2.6 }
 const EMPTY = { workshop: { id: '' }, days: [], groups: [], items: [], attachments: [] } as unknown as WorkshopState
@@ -270,6 +271,10 @@ export default function PlannerPage() {
       </Centered>
     )
 
+  // Guests with view access get the read-only agenda; editing guests the planner without the owner's tools.
+  if (data.access?.role === 'view') return <AgendaView data={data} />
+  const owner = !data.access
+
   const ctx: BoardCtx = {
     lists: board.order,
     items,
@@ -296,7 +301,7 @@ export default function PlannerPage() {
     onRenameGroup: (gid, title) => change([{ op: 'set', entity: 'group', id: gid, fields: { title } }]),
     onUngroup: ungroup,
     onDeleteGroup: deleteGroup,
-    onSaveGroup: (gid) => void saveGroup(gid),
+    onSaveGroup: owner ? (gid) => void saveGroup(gid) : undefined,
   }
 
   const detailsItem = detailsId ? items[detailsId] : null
@@ -414,6 +419,7 @@ export default function PlannerPage() {
 
           <Toolbox
             data={data}
+            owner={owner}
             change={change}
             tab={tab as Tab}
             onTab={(x) => {

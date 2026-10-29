@@ -25,7 +25,10 @@ export default function ItemPanel({
   onSelect,
   onSaved,
   computedStart,
+  owner,
 }: {
+  /** Guests cannot save to the library. */
+  owner: boolean
   item: Item
   /** The item's start as computed now; a fixed start switched on takes this time. */
   computedStart: number | null
@@ -156,7 +159,7 @@ export default function ItemPanel({
           <Copy size={13} />
           {t('item.duplicate')}
         </Button>
-        {item.kind !== 'note' && (
+        {owner && item.kind !== 'note' && (
           <Button size="sm" onClick={() => void save()}>
             <BookmarkPlus size={13} />
             {t('item.saveToLibrary')}

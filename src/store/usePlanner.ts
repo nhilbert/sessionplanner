@@ -100,8 +100,12 @@ export const usePlanner = create<PlannerStore>((set, get) => {
         if (!data.attachments.some((a) => a.id === event.attachment.id)) set({ data: { ...data, attachments: [...data.attachments, event.attachment] } })
       } else if (event.type === 'attachment-deleted') {
         set({ data: { ...data, attachments: data.attachments.filter((a) => a.id !== event.id) } })
-      } else if (event.type === 'workshop-deleted') {
+      } else if (event.type === 'workshop-deleted' || event.type === 'revoked') {
+        source?.close()
         set({ status: 'missing', data: null })
+      } else if (event.type === 'changed') {
+        // A guest without the notes gets no details, only the news that something changed.
+        void reload()
       }
     }
   }

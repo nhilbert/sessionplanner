@@ -241,5 +241,30 @@
     "items_other": "{{count}} items",
     "toParking": "To the parking lot",
     "deleteConfirm": "Delete “{{title}}” from the library? Workshops keep their copies."
+  },
+  "guest": {
+    "signedInAs": "Signed in as {{email}}",
+    "shared": "Shared with you",
+    "nothingShared": "Nothing shared yet",
+    "nothingSharedBody": "As soon as a workshop is shared with {{email}}, it appears here.",
+    "viewOnly": "View only",
+    "editing": "Shared with you · editing",
+    "print": "Print"
+  },
+  "access": {
+    "title": "Access",
+    "hint": "Guests sign in with their own Microsoft account. They need a guest account in your Entra and must be let in at the Session Planner's login (see the guide).",
+    "email": "E-mail",
+    "view": "View",
+    "edit": "Edit",
+    "notes": "Facilitation notes visible",
+    "notesAlways": "Edit always includes the notes",
+    "add": "Share",
+    "empty": "Not shared with anyone yet.",
+    "lastSeen": "last opened {{when}}",
+    "never": "not opened yet",
+    "remove": "Remove access",
+    "removeConfirm": "Remove access for {{email}}?",
+    "invalid": "Please enter a valid e-mail address."
   }
 }
