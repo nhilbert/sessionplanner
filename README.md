@@ -15,6 +15,7 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - **Print views** with your logo: facilitation plan (A4 landscape), client agenda, packing list.
 - **Live updates** between open windows and devices; undo/redo (`Ctrl+Z`, `Ctrl+Shift+Z`).
 - German and English, light and dark.
+- **AI agents** (Claude, Claude Code …) work with the same data through the built-in MCP server: draft an agenda from a brief, rework timings, fill the packing list – see [docs/mcp.md](docs/mcp.md).
 
 The concept, decisions and the next stages (planning comfort, sharing by link, live mode) are in [docs/concept.md](docs/concept.md).
 
@@ -27,7 +28,7 @@ npm run dev             # UI on http://127.0.0.1:5177 + server on 5175
 npm run build && npm start   # one process serving everything on http://127.0.0.1:5175
 ```
 
-`npm test` runs the domain and server tests, `npm run typecheck` the type check.
+`npm test` runs the domain and server tests, `npm run typecheck` the type check. `npm run mcp` starts the MCP server over stdio for a local agent; hosted, `/mcp` with OAuth (`SP_MCP_OAUTH=1`) works as a Claude connector ([docs/mcp.md](docs/mcp.md)).
 
 Data lives in `data/sessions.db` (SQLite) with attachments in `data/files/` and a daily copy in `data/backups/`. Hosted, the same container runs behind a login proxy; see `.env.example` and `Dockerfile`.
 
