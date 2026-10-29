@@ -304,7 +304,16 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
   const [error, setError] = useState('')
   const id = data.workshop.id
   useEffect(() => {
-    api.listMembers(id).then(setMembers, () => setMembers([]))
+    // Switching workshops quickly: a late answer for the previous one must not show up here.
+    let current = true
+    setMembers(null)
+    api.listMembers(id).then(
+      (list) => current && setMembers(list),
+      () => current && setMembers([]),
+    )
+    return () => {
+      current = false
+    }
   }, [id])
   const save = async (address: string, r: MemberRole, n: boolean) => {
     const m = await api.setMember(id, address, r, n)
