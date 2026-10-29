@@ -1,4 +1,5 @@
-import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
+import { type ComponentProps, type ReactNode, type SyntheticEvent, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -24,7 +25,7 @@ export function Button({ variant = 'default', size = 'md', className, type = 'bu
       type={type}
       className={cx(
         'inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-medium transition-colors disabled:pointer-events-none disabled:opacity-40',
-        size === 'sm' ? 'h-7 px-2.5 text-[13px]' : 'h-9 px-3.5 text-sm',
+        size === 'sm' ? 'h-7 px-2.5 text-[13px] pointer-coarse:h-9' : 'h-9 px-3.5 text-sm pointer-coarse:h-10',
         variant === 'primary' && 'bg-accent text-accent-ink hover:opacity-90',
         variant === 'default' && 'border border-line bg-surface text-ink hover:bg-surface-2',
         variant === 'ghost' && 'text-ink-2 hover:bg-surface-2 hover:text-ink',
@@ -43,7 +44,7 @@ export function IconButton({ className, label, ...props }: ComponentProps<'butto
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-30',
+        'tap inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-30 pointer-coarse:h-9 pointer-coarse:w-9',
         className,
       )}
       {...props}
@@ -89,7 +90,7 @@ export function Checkbox({
         onChange(!checked)
       }}
       className={cx(
-        'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors',
+        'tap flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors pointer-coarse:h-5 pointer-coarse:w-5',
         checked ? 'border-accent bg-accent text-accent-ink' : 'border-line-2 bg-surface hover:border-ink-3',
         className,
       )}
@@ -196,7 +197,7 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
           className={cx(
             'rounded-md px-2.5 transition-colors',
-            size === 'sm' ? 'h-6 text-[12px]' : 'h-7 text-[13px]',
+            size === 'sm' ? 'h-6 text-[12px] pointer-coarse:h-9' : 'h-7 text-[13px] pointer-coarse:h-9',
             o.value === value ? 'bg-surface-2 text-ink' : 'text-ink-2 hover:text-ink',
           )}
         >
@@ -207,22 +208,77 @@ export function Segmented<T extends string>({
   )
 }
 
-export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-4 md:pt-[12vh]' }: { open: boolean; onClose: () => void; children: ReactNode; width?: string; top?: string }) {
+/**
+ * Closes on Escape while open. The handler is read through a ref: an effect keyed on the callback would re-subscribe
+ * on every render, and a listener re-added while a keydown is being dispatched (another listener's state change
+ * flushes a render in between) is never invoked for that key.
+ */
+function useEscape(open: boolean, onClose: () => void) {
+  const close = useRef(onClose)
+  close.current = onClose
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') close.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open])
+}
+
+export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-[max(1rem,env(safe-area-inset-top))] md:pt-[12vh]' }: { open: boolean; onClose: () => void; children: ReactNode; width?: string; top?: string }) {
+  useEscape(open, onClose)
   if (!open) return null
   return (
     <div className={cx('fixed inset-0 z-50 flex items-start justify-center bg-ink/15 px-4 backdrop-blur-[2px]', top)} onMouseDown={onClose}>
-      <div className={cx('card fade-in max-h-[calc(100dvh-2rem)] w-full overflow-y-auto p-5 shadow-[var(--shadow)]', width)} onMouseDown={(e) => e.stopPropagation()}>
+      <div className={cx('card fade-in max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain p-5 shadow-[var(--shadow)]', width)} onMouseDown={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
+  )
+}
+
+/**
+ * A bottom sheet for phones: the place for secondary choices and small editors (menus, inserting, times), where a
+ * popover beside the finger would be hidden by it. A tap on the backdrop or Escape closes it; the panel stops pointer
+ * events so a sheet opened from a draggable card never starts a drag.
+ */
+export function Sheet({ open, onClose, label, title, children, className }: { open: boolean; onClose: () => void; label?: string; title?: ReactNode; children: ReactNode; className?: string }) {
+  useEscape(open, onClose)
+  if (!open) return null
+  const stop = (e: SyntheticEvent) => e.stopPropagation()
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-ink/15" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        role="dialog"
+        aria-label={label}
+        onPointerDown={stop}
+        onMouseDown={stop}
+        onTouchStart={stop}
+        onClick={stop}
+        className={cx('fade-in max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-line bg-surface px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-[var(--shadow)]', className)}
+      >
+        <span aria-hidden className="mx-auto mb-3 block h-1 w-9 rounded-full bg-line-2" />
+        {title && <div className="mb-2 truncate text-[13px] font-medium text-ink-2">{title}</div>}
+        {children}
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+/** A row of a Sheet: a large target with an icon, a label and an optional check mark. */
+export function SheetRow({ icon, checked, danger, className, children, ...props }: ComponentProps<'button'> & { icon?: ReactNode; checked?: boolean; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={cx('flex h-12 w-full items-center gap-3 rounded-lg px-2 text-left text-[15px] transition-colors active:bg-surface-2', danger ? 'text-rose' : 'text-ink', className)}
+      {...props}
+    >
+      {icon && <span className="flex w-5 shrink-0 justify-center text-ink-3">{icon}</span>}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {checked && <Check size={16} className="shrink-0 text-accent" />}
+    </button>
   )
 }
 

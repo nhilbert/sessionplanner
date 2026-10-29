@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { AlignLeft, CalendarPlus, FolderOpen, PanelRight, Printer, Redo2, Undo2, X } from 'lucide-react'
+import { AlignLeft, CalendarPlus, ChevronLeft, FolderOpen, PanelRight, Printer, Redo2, Rows2, Rows3, Rows4, Undo2, X } from 'lucide-react'
 import { usePlanner } from '@/store/usePlanner'
 import { itemColor, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
@@ -41,6 +41,8 @@ export default function PlannerPage() {
   const [tab, setTab] = useLocalState('sp.tab', 'parking')
   const [collapsedRaw, setCollapsedRaw] = useLocalState('sp.collapsed', '[]')
   const [mobileToolbox, setMobileToolbox] = useState(false)
+  // Phones: the details were opened by a tap on the agenda, so closing them returns there (not to a sidebar tab).
+  const [overlayForItem, setOverlayForItem] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [detailsId, setDetailsId] = useState<string | null>(null)
   // What the timeline shows before it is saved: a length dragged or slid, a start time being chosen.
@@ -204,10 +206,22 @@ export default function PlannerPage() {
     setSelected(new Set([itemId]))
     setDetailsId(itemId)
     setToolboxOpen('1')
-    if (phone) setMobileToolbox(true)
+    if (phone && !mobileToolbox) {
+      setMobileToolbox(true)
+      setOverlayForItem(true)
+    }
   }
   const clearSelection = () => {
     setSelected(new Set())
+    setDetailsId(null)
+    if (overlayForItem) {
+      setOverlayForItem(false)
+      setMobileToolbox(false)
+    }
+  }
+  const closeMobileToolbox = () => {
+    setMobileToolbox(false)
+    setOverlayForItem(false)
     setDetailsId(null)
   }
 
@@ -282,10 +296,15 @@ export default function PlannerPage() {
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // An item deleted elsewhere leaves the selection.
+  // An item deleted elsewhere leaves the selection (and, on a phone, its details overlay).
   useEffect(() => {
-    if (detailsId && data && !items[detailsId]) setDetailsId(null)
-  }, [detailsId, data, items])
+    if (!detailsId || !data || items[detailsId]) return
+    setDetailsId(null)
+    if (overlayForItem) {
+      setOverlayForItem(false)
+      setMobileToolbox(false)
+    }
+  }, [detailsId, data, items, overlayForItem])
 
   if (status === 'loading' || status === 'idle') return <Centered>{t('common.loading')}</Centered>
   if (status === 'missing')
@@ -318,6 +337,7 @@ export default function PlannerPage() {
     categories: settings.categories,
     ppm,
     showDescription: desc === '1',
+    phone,
     selected,
     collapsed,
     preview,
@@ -354,60 +374,81 @@ export default function PlannerPage() {
   const shownDays = focused ? days.filter((d) => d.id === focused) : days
   // One day gets one wide, centred column; two share the width; more scroll sideways.
   const dayWidth = shownDays.length === 1 ? 'w-full md:max-w-[760px]' : shownDays.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
+  const printItems = (['plan', 'agenda', 'packing'] as const).map((v) => ({
+    label: t(v === 'plan' ? 'planner.printPlan' : v === 'agenda' ? 'planner.printAgenda' : 'planner.printPacking'),
+    icon: <Printer size={15} />,
+    onSelect: () => window.open(`/w/${data.workshop.id}/print/${v}`, '_blank', 'noopener'),
+  }))
+  const zoomItems = [
+    { value: 's', label: t('planner.zoomS'), icon: <Rows4 size={15} /> },
+    { value: 'm', label: t('planner.zoomM'), icon: <Rows3 size={15} /> },
+    { value: 'l', label: t('planner.zoomL'), icon: <Rows2 size={15} /> },
+  ]
 
   return (
     <BoardContext.Provider value={ctx}>
       <DndContext sensors={sensors} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
         <div className="flex h-full min-h-0">
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="no-print flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 md:px-6">
-              <div className="min-w-0 flex-1 basis-full sm:basis-0">
+            <header className="no-print flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-3 py-2 md:gap-x-3 md:px-6 md:py-2.5">
+              <Link to="/" aria-label={t('common.back')} title={t('common.back')} className="tap -ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink md:hidden">
+                <ChevronLeft size={20} />
+              </Link>
+              <div className="min-w-0 flex-1">
                 <TextField
                   value={data.workshop.title}
                   onCommit={(title) => change([{ op: 'set', entity: 'workshop', id: data.workshop.id, fields: { title } }])}
                   onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                   placeholder={t('workshops.untitled')}
                   aria-label={t('workshop.title')}
-                  className="field-bare -ml-2 h-8 w-full max-w-xl px-2 text-[17px] font-medium"
+                  className="field-bare -ml-2 h-8 w-full max-w-xl text-ellipsis px-2 text-[17px] font-medium"
                 />
                 <div className="truncate text-[12px] text-ink-3">{[data.workshop.client, data.workshop.location, dates].filter(Boolean).join(' · ')}</div>
               </div>
-              <div className="flex flex-wrap items-center gap-1">
+              {/* Phones keep undo and the sidebar at hand; the rest sits in a ⋯ menu. Desktop shows everything. */}
+              <div className="flex shrink-0 items-center gap-1">
                 <span title={live ? t('planner.live') : t('planner.offline')} className={cx('mx-1 h-2 w-2 shrink-0 rounded-full', live ? 'bg-accent' : 'bg-amber')} />
+                {!live && <span className="text-[12px] text-amber">{t('planner.offline')}</span>}
                 <IconButton label={t('common.undo')} onClick={undo} disabled={!past.length}>
                   <Undo2 size={15} />
                 </IconButton>
-                <IconButton label={t('common.redo')} onClick={redo} disabled={!future.length}>
+                <IconButton label={t('common.redo')} onClick={redo} disabled={!future.length} className="max-md:hidden">
                   <Redo2 size={15} />
                 </IconButton>
                 <IconButton
                   label={desc === '1' ? t('planner.hideDescription') : t('planner.showDescription')}
                   aria-pressed={desc === '1'}
                   onClick={() => setDesc(desc === '1' ? '0' : '1')}
-                  className={cx(desc === '1' && 'bg-surface-2 text-ink')}
+                  className={cx('max-md:hidden', desc === '1' && 'bg-surface-2 text-ink')}
                 >
                   <AlignLeft size={15} />
                 </IconButton>
-                <Segmented
-                  size="sm"
-                  value={zoom}
-                  onChange={setZoom}
-                  options={[
-                    { value: 's', label: 'S' },
-                    { value: 'm', label: 'M' },
-                    { value: 'l', label: 'L' },
-                  ]}
-                />
-                <IconButton label={t('planner.addDay')} onClick={addDay}>
+                <span className="max-md:hidden">
+                  <Segmented
+                    size="sm"
+                    value={zoom}
+                    onChange={setZoom}
+                    options={[
+                      { value: 's', label: 'S' },
+                      { value: 'm', label: 'M' },
+                      { value: 'l', label: 'L' },
+                    ]}
+                  />
+                </span>
+                <IconButton label={t('planner.addDay')} onClick={addDay} className="max-md:hidden">
                   <CalendarPlus size={15} />
                 </IconButton>
+                <Menu label={t('planner.print')} trigger={<Printer size={15} />} className="max-md:hidden" items={printItems} />
                 <Menu
-                  label={t('planner.print')}
-                  trigger={<Printer size={15} />}
-                  items={(['plan', 'agenda', 'packing'] as const).map((v) => ({
-                    label: t(v === 'plan' ? 'planner.printPlan' : v === 'agenda' ? 'planner.printAgenda' : 'planner.printPacking'),
-                    onSelect: () => window.open(`/w/${data.workshop.id}/print/${v}`, '_blank', 'noopener'),
-                  }))}
+                  label={t('planner.actions')}
+                  className="md:hidden"
+                  items={[
+                    ...(future.length ? [{ label: t('common.redo'), icon: <Redo2 size={15} />, onSelect: redo }] : []),
+                    { label: t('planner.showDescription'), icon: <AlignLeft size={15} />, checked: desc === '1', onSelect: () => setDesc(desc === '1' ? '0' : '1') },
+                    ...zoomItems.map((z) => ({ label: z.label, icon: z.icon, checked: zoom === z.value, onSelect: () => setZoom(z.value) })),
+                    { label: t('planner.addDay'), icon: <CalendarPlus size={15} />, onSelect: addDay },
+                    ...printItems,
+                  ]}
                 />
                 <IconButton label={t('toolbox.open')} onClick={() => setMobileToolbox(true)} className="md:hidden">
                   <PanelRight size={15} />
@@ -432,7 +473,7 @@ export default function PlannerPage() {
                     type="button"
                     onClick={() => setFocusDay(dayId)}
                     aria-pressed={focused === dayId}
-                    className={cx('shrink-0 rounded-md px-2.5 py-1 text-[13px] transition-colors', focused === dayId ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink')}
+                    className={cx('shrink-0 rounded-md px-2.5 py-1 text-[13px] transition-colors pointer-coarse:py-2', focused === dayId ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink')}
                   >
                     {dayId === null ? t('planner.allDays') : `${i} · ${formatDate(days[i - 1].date, { weekday: 'short', day: 'numeric', month: 'numeric' })}`}
                   </button>
@@ -472,7 +513,7 @@ export default function PlannerPage() {
                   />
                 ))}
               </div>
-              <p className="no-print px-8 pb-6 text-center text-[12px] text-ink-3">{t('planner.keys')}</p>
+              <p className="no-print px-8 pb-6 text-center text-[12px] text-ink-3">{phone ? t('planner.touchKeys') : t('planner.keys')}</p>
             </main>
           </div>
 
@@ -489,11 +530,12 @@ export default function PlannerPage() {
             open={toolboxOpen === '1'}
             onOpen={(o) => setToolboxOpen(o ? '1' : '0')}
             mobile={phone && mobileToolbox}
-            onCloseMobile={() => setMobileToolbox(false)}
+            onCloseMobile={closeMobileToolbox}
             parkingIds={board.order[PARKING] ?? []}
             itemId={detailsItem ? detailsItem.id : null}
             computedStart={computedStart}
             onCloseItem={clearSelection}
+            itemBack={phone && overlayForItem ? t('planner.agenda') : undefined}
             onSelect={openDetails}
             onAddParked={(kind) => add(null, kind)}
             onLibraryInsert={(entry) => insertLibrary(entry, PARKING, (board.lists[PARKING] ?? []).length)}

@@ -70,7 +70,7 @@ export default function AppShell() {
           </button>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] md:pb-0">
         {loginExpired && (
           <div className="no-print flex items-center justify-between gap-3 bg-amber-soft px-4 py-2 text-[13px] text-amber md:px-6">
             {t('common.login')}

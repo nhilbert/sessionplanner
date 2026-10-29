@@ -9,7 +9,7 @@ import type { ItemFields } from '@/domain/ops'
 import { durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH } from '@/domain/time'
 import { itemColor } from '@/store/useSettings'
 import { formatDate } from '@/i18n'
-import { cx, IconButton } from '@/components/ui'
+import { cx, IconButton, useIsPhone } from '@/components/ui'
 import Menu from '@/components/Menu'
 import { Inline, SortableItem } from './ItemCard'
 import { TimeField } from './fields'
@@ -25,6 +25,8 @@ export interface BoardCtx {
   categories: Category[]
   ppm: number
   showDescription: boolean
+  /** Phones: a tap on a card opens the details, where the title is edited (no inline title editing). */
+  phone: boolean
   selected: Set<string>
   collapsed: Set<string>
   preview: Preview | null
@@ -83,6 +85,7 @@ export function Entries({ list, ids, schedule }: { list: string; ids: string[]; 
         showDescription={ctx.showDescription}
         selected={ctx.selected.has(id)}
         duration={ctx.preview?.id === id ? ctx.preview.fields.duration : undefined}
+        inlineTitle={!ctx.phone}
         onSelect={(e) => ctx.onSelect(id, e)}
         onEdit={(fields) => ctx.onEditItem(id, fields)}
         onOpenTime={schedule ? (mode, anchor) => ctx.onOpenTime(id, mode, anchor) : undefined}
@@ -125,7 +128,7 @@ function GroupBlock({ group, schedule, after }: { group: Group; schedule?: DaySc
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
           onClick={() => ctx.onToggleGroup(group.id)}
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-3 hover:text-ink"
+          className="tap inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-3 hover:text-ink pointer-coarse:h-8 pointer-coarse:w-8"
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </button>
@@ -143,6 +146,7 @@ function GroupBlock({ group, schedule, after }: { group: Group; schedule?: DaySc
         </span>
         <Menu
           label={t('group.menu')}
+          title={group.title || t('group.untitled')}
           items={[
             ...(ctx.onSaveGroup ? [{ label: t('group.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => ctx.onSaveGroup!(group.id) }] : []),
             { label: t('group.ungroup'), icon: <Ungroup size={14} />, onSelect: () => ctx.onUngroup(group.id) },
@@ -179,18 +183,20 @@ interface DayProps {
 
 export function DayColumn({ day, index, count, ids, schedule, className, focused, onFocus, onAdd, onChange, onDelete }: DayProps) {
   const { t } = useTranslation()
+  // Phones: the short date, taller time fields, and no focus button (the day tabs above do that).
+  const phone = useIsPhone()
   return (
     <section className={cx('flex flex-col', className)}>
       <header className="group/day mb-3 space-y-1.5 px-1">
         <div className="flex items-center gap-2">
           {count > 1 && <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{index + 1}</span>}
-          <DateButton date={day.date} short={count > 1} onDate={(date) => onChange({ date })} />
+          <DateButton date={day.date} short={count > 1 || phone} onDate={(date) => onChange({ date })} />
           <div className="ml-auto flex items-center gap-1.5 text-[12px] text-ink-3">
-            <TimeField value={day.startMin} onChange={(v) => v !== null && onChange({ startMin: v })} className="h-7 w-[58px] text-[12px] max-md:w-[72px]" aria-label={t('planner.start')} title={t('planner.start')} />
+            <TimeField value={day.startMin} onChange={(v) => v !== null && onChange({ startMin: v })} className="h-7 w-[58px] text-[12px] max-md:h-9 max-md:w-[66px]" aria-label={t('planner.start')} title={t('planner.start')} />
             <span>–</span>
-            <TimeField value={day.endMin} nullable onChange={(v) => onChange({ endMin: v })} className="h-7 w-[58px] text-[12px] max-md:w-[72px]" aria-label={t('planner.end')} title={t('planner.end')} />
+            <TimeField value={day.endMin} nullable onChange={(v) => onChange({ endMin: v })} className="h-7 w-[58px] text-[12px] max-md:h-9 max-md:w-[66px]" aria-label={t('planner.end')} title={t('planner.end')} />
             {count > 1 && onFocus && (
-              <IconButton label={focused ? t('planner.allDays') : t('planner.focusDay')} onClick={onFocus}>
+              <IconButton label={focused ? t('planner.allDays') : t('planner.focusDay')} onClick={onFocus} className="max-md:hidden">
                 {focused ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </IconButton>
             )}
@@ -299,13 +305,13 @@ export function List({ id, ids, empty, compact, children }: { id: string; ids: s
 export function AddBar({ onAdd }: { onAdd: (kind: ItemKind | 'group') => void }) {
   const { t } = useTranslation()
   const button = (kind: ItemKind | 'group', icon: ReactNode) => (
-    <button type="button" onClick={() => onAdd(kind)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-ink-3 hover:bg-surface-2 hover:text-ink">
+    <button type="button" onClick={() => onAdd(kind)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-ink-3 hover:bg-surface-2 hover:text-ink pointer-coarse:h-9 pointer-coarse:text-[13px]">
       {icon}
       {kind === 'group' ? t('group.new') : t(`kinds.${kind}`)}
     </button>
   )
   return (
-    <div className="mt-1 flex flex-wrap gap-0.5 px-1">
+    <div className="mt-1 flex flex-wrap gap-0.5 px-1 pointer-coarse:gap-1">
       {button('block', <Plus size={13} />)}
       {button('break', <Plus size={13} />)}
       {button('marker', <Flag size={12} />)}

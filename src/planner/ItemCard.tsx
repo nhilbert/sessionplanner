@@ -23,6 +23,8 @@ export interface CardProps {
   selected?: boolean
   /** Duration shown while the lower edge is being dragged. */
   duration?: number
+  /** The title is edited right on the card (default). Off on phones, where a tap anywhere opens the details. */
+  inlineTitle?: boolean
   onSelect?: (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => void
   /** Edits made right on the card (title, start time, duration). */
   onEdit?: (fields: Partial<ItemFields>) => void
@@ -142,7 +144,7 @@ function TimeButton({ label, onOpen, className, children }: { label: string; onO
         e.stopPropagation()
         onOpen(e.currentTarget.getBoundingClientRect())
       }}
-      className={cx('cursor-pointer rounded px-1 py-0.5 -mx-1 ring-line-2 transition-colors hover:bg-ink/5 hover:ring-1', className)}
+      className={cx('tap cursor-pointer rounded px-1 py-0.5 -mx-1 ring-line-2 transition-colors hover:bg-ink/5 hover:ring-1', className)}
     >
       {children}
     </span>
@@ -151,7 +153,7 @@ function TimeButton({ label, onOpen, className, children }: { label: string; onO
 
 const parseStart = (v: string): number | null | undefined => (v.trim() ? (parseClock(v) ?? undefined) : null)
 
-export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, onSelect, onEdit, onOpenTime, onResize, onResizeEnd }: CardProps) {
+export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd }: CardProps) {
   const { t } = useTranslation()
   const minutes = duration ?? durationOf(item)
   const timed = slot !== undefined
@@ -160,7 +162,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   const style = { '--cat': color ? `var(--c-${color})` : undefined } as React.CSSProperties
   const select = (e: React.MouseEvent) => onSelect?.(e)
   const title = (className?: string) => (
-    <Inline value={item.title} display={item.title || t(`kinds.${item.kind}`)} label={t('item.title')} onSave={onEdit && ((v) => onEdit({ title: v as string }))} className={className} inputClassName="w-full font-medium" />
+    <Inline value={item.title} display={item.title || t(`kinds.${item.kind}`)} label={t('item.title')} disabled={!inlineTitle} onSave={onEdit && ((v) => onEdit({ title: v as string }))} className={className} inputClassName="w-full font-medium" />
   )
   const startLabel = timed && (
     <span className="inline-flex items-center gap-0.5">
@@ -284,7 +286,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   )
 }
 
-/** The lower edge: drag to change the duration in steps of 5 minutes. */
+/** The lower edge: drag to change the duration in steps of 5 minutes. Taller on touch screens, where it also keeps the page from scrolling instead. */
 function ResizeHandle({ minutes, ppm, onResize, onResizeEnd }: { minutes: number; ppm: number; onResize: (m: number | null) => void; onResizeEnd: (m: number) => void }) {
   const start = useRef<{ y: number; current: number } | null>(null)
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
@@ -293,7 +295,7 @@ function ResizeHandle({ minutes, ppm, onResize, onResizeEnd }: { minutes: number
     <div
       role="separator"
       aria-orientation="horizontal"
-      className="reveal absolute inset-x-0 bottom-0 flex h-2.5 cursor-ns-resize items-end justify-center opacity-0 transition-opacity hover:opacity-100 [div:hover>&]:opacity-60"
+      className="reveal absolute inset-x-0 bottom-0 flex h-2.5 cursor-ns-resize touch-none items-end justify-center opacity-0 transition-opacity hover:opacity-100 pointer-coarse:h-5 [div:hover>&]:opacity-60"
       onMouseDown={stop}
       onTouchStart={stop}
       onClick={stop}
@@ -323,7 +325,7 @@ function ResizeHandle({ minutes, ppm, onResize, onResizeEnd }: { minutes: number
         onResize(null)
       }}
     >
-      <span className="mb-0.5 h-1 w-8 rounded-full bg-ink-3" />
+      <span className="mb-0.5 h-1 w-8 rounded-full bg-ink-3 pointer-coarse:mb-1 pointer-coarse:h-1.5 pointer-coarse:w-10" />
     </div>
   )
 }

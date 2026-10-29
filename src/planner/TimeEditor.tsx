@@ -4,7 +4,7 @@ import { Minus, Plus } from 'lucide-react'
 import type { Item } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { formatDuration, formatTime, parseClock, parseDuration, SNAP } from '@/domain/time'
-import { Button, cx, Segmented } from '@/components/ui'
+import { Button, cx, Segmented, Sheet } from '@/components/ui'
 
 export type TimeMode = 'duration' | 'start'
 
@@ -28,7 +28,8 @@ interface Props {
 /**
  * Editing a length or a start time (docs/concept.md, section 3): slider, steps of 5 minutes, common values and
  * typing, previewed live on the timeline. Closing (Done, Enter, a click elsewhere) saves as one undo step;
- * Escape discards. A popover beside the card on desktop, a bottom sheet with large targets on phones.
+ * Escape discards. A popover beside the card on desktop, a bottom sheet with large targets on phones (a tap on
+ * its backdrop saves, like a click elsewhere on desktop).
  */
 export default function TimeEditor({ item, mode, anchor, computedStart, phone, onPreview, onCommit, onClose }: Props) {
   const { t } = useTranslation()
@@ -37,22 +38,30 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
   const [start, setStart] = useState(item.fixedStart ?? computedStart ?? 540)
   const box = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  // Closing can be asked for twice (a tap on the sheet's backdrop reaches two listeners): only the first counts.
+  const closing = useRef(false)
 
   const fields = (): Partial<Pick<ItemFields, 'duration' | 'fixedStart'>> => (mode === 'duration' ? { duration } : { fixedStart: fixed ? start : null })
   const changed = () => (mode === 'duration' ? duration !== item.duration : (fixed ? start : null) !== item.fixedStart)
   const done = () => {
+    if (closing.current) return
+    closing.current = true
     onPreview(null)
     if (changed()) onCommit(fields())
     onClose()
   }
   /** Enter in the typed field: take that value and close in one go. */
   const submit = (v: number) => {
+    if (closing.current) return
+    closing.current = true
     const f = mode === 'duration' ? { duration: v } : { fixedStart: v }
     onPreview(null)
     if (mode === 'duration' ? v !== item.duration : v !== item.fixedStart) onCommit(f)
     onClose()
   }
   const cancel = () => {
+    if (closing.current) return
+    closing.current = true
     onPreview(null)
     onClose()
   }
@@ -66,6 +75,8 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
   }, [duration, fixed, start])
 
   useEffect(() => {
+    // Desktop: a press anywhere outside the popover saves and closes. On phones the sheet's backdrop does that on
+    // the tap's click, so the card underneath never receives the tap.
     const onDown = (e: PointerEvent) => {
       if (!box.current?.contains(e.target as Node)) handlers.current.done()
     }
@@ -75,13 +86,13 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
         handlers.current.cancel()
       }
     }
-    window.addEventListener('pointerdown', onDown, true)
+    if (!phone) window.addEventListener('pointerdown', onDown, true)
     window.addEventListener('keydown', onKey, true)
     return () => {
       window.removeEventListener('pointerdown', onDown, true)
       window.removeEventListener('keydown', onKey, true)
     }
-  }, [])
+  }, [phone])
 
   // Desktop: below the clicked value, or above it when there is no room; always inside the window.
   useLayoutEffect(() => {
@@ -100,6 +111,7 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
       setStart((s) => Math.min(1435, Math.max(0, s + delta)))
     }
   }
+  const label = mode === 'duration' ? t('item.duration') : t('item.fixedStart')
   const quarters = (() => {
     const base = computedStart ?? start
     const next = Math.ceil((base + 1) / 15) * 15
@@ -109,8 +121,8 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
   const body = (
     <div
       ref={box}
-      role="dialog"
-      aria-label={mode === 'duration' ? t('item.duration') : t('item.fixedStart')}
+      role={phone ? undefined : 'dialog'}
+      aria-label={phone ? undefined : label}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
@@ -121,10 +133,7 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
         }
       }}
       style={phone ? undefined : { top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
-      className={cx(
-        'card z-50 space-y-3 p-4 shadow-[var(--shadow)]',
-        phone ? 'fixed inset-x-0 bottom-0 rounded-b-none pb-[calc(1rem+env(safe-area-inset-bottom))]' : 'fixed w-[320px]',
-      )}
+      className={cx('space-y-3', phone ? 'pb-1' : 'card fixed z-50 w-[320px] p-4 shadow-[var(--shadow)]')}
     >
       <div className="truncate text-[13px] font-medium text-ink-2">{item.title || t(`kinds.${item.kind}`)}</div>
 
@@ -203,10 +212,9 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
     </div>
   )
   return phone ? (
-    <>
-      <div className="fixed inset-0 z-40 bg-ink/15" />
+    <Sheet open onClose={done} label={label}>
       {body}
-    </>
+    </Sheet>
   ) : (
     body
   )
