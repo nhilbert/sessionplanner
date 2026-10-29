@@ -32,7 +32,7 @@ export interface CardProps {
   onResizeEnd?: (minutes: number) => void
 }
 
-export function SortableItem(props: CardProps) {
+export function SortableItem({ after, ...props }: CardProps & { after?: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.item.id })
   return (
     <div
@@ -40,9 +40,10 @@ export function SortableItem(props: CardProps) {
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={cx('touch-manipulation select-none [-webkit-touch-callout:none]', isDragging && 'opacity-30')}
+      className={cx('relative touch-manipulation select-none [-webkit-touch-callout:none]', isDragging && 'opacity-30')}
     >
       <ItemCard {...props} />
+      {after}
     </div>
   )
 }

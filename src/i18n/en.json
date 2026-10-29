@@ -273,5 +273,8 @@
     "fixed": "Fixed time",
     "flowsHint": "Starts at {{time}}, right after the item before.",
     "done": "Done"
+  },
+  "insert": {
+    "here": "Add here"
   }
 }

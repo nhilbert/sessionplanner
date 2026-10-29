@@ -21,6 +21,7 @@ import Toolbox, { type Tab } from '@/planner/Toolbox'
 import { flatIds, inner, PARKING, placeOf, useBoard } from '@/planner/board'
 import { newItem, TextField } from '@/planner/fields'
 import TimeEditor, { type TimeMode } from '@/planner/TimeEditor'
+import type { InsertKind } from '@/planner/Insert'
 import type { Preview } from '@/planner/DayColumn'
 import AgendaView from './AgendaView'
 
@@ -132,6 +133,22 @@ export default function PlannerPage() {
     const item = newItem(t, data.workshop.id, dayId, kind, position)
     change([{ op: 'create', entity: 'item', record: item }])
     openDetails(item.id)
+  }
+
+  /** An entry added at a ⊕ between two others: into that day, the parking lot or the group. */
+  const insertAt = (list: string, index: number, kind: InsertKind) => {
+    if (!data) return
+    const { dayId, groupId } = placeOf(data, list)
+    const id = newId()
+    const siblings = (board.lists[list] ?? []).map((x) => ({ id: x, position: positionOf(x) }))
+    const ops: Op[] = []
+    for (const p of placeAt(siblings, id, index)) {
+      if (p.id !== id) ops.push(setPosition(p.id, p.position))
+      else if (kind === 'group') ops.push({ op: 'create', entity: 'group', record: { id, workshopId: data.workshop.id, dayId, position: p.position, title: t('group.newTitle') } })
+      else ops.push({ op: 'create', entity: 'item', record: { ...newItem(t, data.workshop.id, dayId, kind, p.position), id, groupId } })
+    }
+    change(ops)
+    if (kind !== 'group') openDetails(id)
   }
 
   const addDay = () => {
@@ -301,6 +318,8 @@ export default function PlannerPage() {
     onEditItem: (itemId, fields) => change([{ op: 'set', entity: 'item', id: itemId, fields }]),
     onResize: (itemId, minutes) => setPreview(minutes === null ? null : { id: itemId, fields: { duration: minutes } }),
     onOpenTime: (itemId, mode, anchor) => setTimeEdit({ id: itemId, mode, anchor }),
+    onInsert: insertAt,
+    busy: !!board.activeId || !!preview,
     onResizeEnd: (itemId, duration) => change([{ op: 'set', entity: 'item', id: itemId, fields: { duration } }]),
     onToggleGroup: (gid) => setCollapsedRaw(JSON.stringify(collapsed.has(gid) ? [...collapsed].filter((x) => x !== gid) : [...collapsed, gid])),
     onRenameGroup: (gid, title) => change([{ op: 'set', entity: 'group', id: gid, fields: { title } }]),

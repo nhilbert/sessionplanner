@@ -95,7 +95,7 @@ export default function Toolbox(p: Props) {
     <div>
       <p className="mb-2 text-[12px] leading-snug text-ink-3">{t('planner.parkingHint')}</p>
       <List id={PARKING} ids={p.parkingIds} empty={t('planner.parkingEmpty')}>
-        <Entries ids={p.parkingIds} />
+        <Entries list={PARKING} ids={p.parkingIds} />
       </List>
       <AddBar onAdd={p.onAddParked} />
     </div>

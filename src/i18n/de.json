@@ -273,5 +273,8 @@
     "fixed": "Feste Uhrzeit",
     "flowsHint": "Beginnt um {{time}}, direkt nach dem Punkt davor.",
     "done": "Fertig"
+  },
+  "insert": {
+    "here": "Hier einfügen"
   }
 }

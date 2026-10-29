@@ -14,6 +14,7 @@ import Menu from '@/components/Menu'
 import { Inline, SortableItem } from './ItemCard'
 import { TimeField } from './fields'
 import { inner, type Lists } from './board'
+import { type InsertKind, InsertPoint } from './Insert'
 import type { TimeMode } from './TimeEditor'
 
 /** What every list on the board needs; provided once by the planner. */
@@ -32,6 +33,10 @@ export interface BoardCtx {
   onResize: (id: string, minutes: number | null) => void
   /** Opens the editor for an item's length or start time beside the clicked value. */
   onOpenTime: (id: string, mode: TimeMode, anchor: DOMRect) => void
+  /** Adds an entry at `index` of list `list` (a day, the parking lot, the inside of a group); absent for read-only. */
+  onInsert?: (list: string, index: number, kind: InsertKind) => void
+  /** Something is dragged or resized: the ⊕ marks step aside. */
+  busy: boolean
   onResizeEnd: (id: string, minutes: number) => void
   onToggleGroup: (id: string) => void
   onRenameGroup: (id: string, title: string) => void
@@ -51,16 +56,25 @@ export const BoardContext = createContext<BoardCtx | null>(null)
 export const useBoardCtx = (): BoardCtx => useContext(BoardContext)!
 
 /** One list entry: an item or a group with its members. Without a schedule (parking lot) the cards are compact. */
-export function Entries({ ids, schedule }: { ids: string[]; schedule?: DaySchedule }) {
+export function Entries({ list, ids, schedule }: { list: string; ids: string[]; schedule?: DaySchedule }) {
   const ctx = useBoardCtx()
+  const inGroup = list.startsWith('in:')
+  const insert = (index: number, position: 'top' | 'bottom' = 'bottom') =>
+    ctx.onInsert && !ctx.busy ? <InsertPoint position={position} allowGroup={!inGroup} onInsert={(kind) => ctx.onInsert!(list, index, kind)} /> : null
   const segmentEnd: Record<string, number | null> = {}
   for (const s of schedule?.segments ?? []) for (const id of s.itemIds) segmentEnd[id] = s.end
-  const card = (id: string) => {
+  const card = (id: string, index: number) => {
     const item = ctx.items[id]
     if (!item) return null
     return (
       <SortableItem
         key={id}
+        after={
+          <>
+            {index === 0 && insert(0, 'top')}
+            {insert(index + 1)}
+          </>
+        }
         item={item}
         slot={schedule?.slots[id]}
         segmentEnd={segmentEnd[id]}
@@ -77,10 +91,20 @@ export function Entries({ ids, schedule }: { ids: string[]; schedule?: DaySchedu
       />
     )
   }
-  return <>{ids.map((id) => (ctx.groups[id] ? <GroupBlock key={id} group={ctx.groups[id]} schedule={schedule} card={card} /> : card(id)))}</>
+  return (
+    <>
+      {ids.map((id, index) =>
+        ctx.groups[id] ? (
+          <GroupBlock key={id} group={ctx.groups[id]} schedule={schedule} after={<>{index === 0 && insert(0, 'top')}{insert(index + 1)}</>} />
+        ) : (
+          card(id, index)
+        ),
+      )}
+    </>
+  )
 }
 
-function GroupBlock({ group, schedule, card }: { group: Group; schedule?: DaySchedule; card: (id: string) => ReactNode }) {
+function GroupBlock({ group, schedule, after }: { group: Group; schedule?: DaySchedule; after: ReactNode }) {
   const { t } = useTranslation()
   const ctx = useBoardCtx()
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: group.id })
@@ -92,7 +116,7 @@ function GroupBlock({ group, schedule, card }: { group: Group; schedule?: DaySch
   const range = slots.length ? `${formatTime(slots[0].start)}–${formatTime(Math.max(...slots.map((s) => s.end)))}` : null
 
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('mb-1.5', isDragging && 'opacity-30')}>
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('relative mb-1.5', isDragging && 'opacity-30')}>
       <div ref={setActivatorNodeRef} {...listeners} {...attributes} className="flex cursor-grab touch-manipulation items-center gap-1 rounded-md py-1 pr-1 hover:bg-surface-2 active:cursor-grabbing">
         <button
           type="button"
@@ -129,10 +153,11 @@ function GroupBlock({ group, schedule, card }: { group: Group; schedule?: DaySch
       {!collapsed && (
         <div className="ml-3 border-l-2 border-line pl-2">
           <List id={inner(group.id)} ids={memberIds} empty={t('group.empty')} compact>
-            {memberIds.map(card)}
+            <Entries list={inner(group.id)} ids={memberIds} schedule={schedule} />
           </List>
         </div>
       )}
+      {after}
     </div>
   )
 }
@@ -174,7 +199,7 @@ export function DayColumn({ day, index, count, ids, schedule, className, onAdd, 
         <DaySummary schedule={schedule} endMin={day.endMin} />
       </header>
       <List id={day.id} ids={ids} empty={t('planner.emptyDay')}>
-        <Entries ids={ids} schedule={schedule} />
+        <Entries list={day.id} ids={ids} schedule={schedule} />
       </List>
       <AddBar onAdd={onAdd} />
     </section>
@@ -220,7 +245,7 @@ export function List({ id, ids, empty, compact, children }: { id: string; ids: s
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <SortableContext id={id} items={ids} strategy={verticalListSortingStrategy}>
-      <div ref={setNodeRef} className={cx('rounded-xl transition-colors', compact ? 'min-h-9 p-0.5' : 'min-h-24 flex-1 p-1', isOver && 'bg-surface-2')}>
+      <div ref={setNodeRef} className={cx('group/list rounded-xl transition-colors', compact ? 'min-h-9 p-0.5' : 'min-h-24 flex-1 py-1 pl-7 pr-1', isOver && 'bg-surface-2')}>
         {children}
         {!ids.length && (
           <div className={cx('flex items-center justify-center rounded-lg border border-dashed border-line-2 px-4 text-center text-[12px] text-ink-3', compact ? 'h-8' : 'h-20')}>{empty}</div>
