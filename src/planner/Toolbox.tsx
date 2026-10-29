@@ -42,6 +42,8 @@ interface Props {
   itemId: string | null
   computedStart: number | null
   onCloseItem: () => void
+  /** Phones: label of the back button when the details were opened from the agenda; closing them returns there. */
+  itemBack?: string
   onSelect: (id: string) => void
   onAddParked: (kind: ItemKind | 'group') => void
   onLibraryInsert: (entry: LibraryEntry) => void
@@ -117,14 +119,14 @@ export default function Toolbox(p: Props) {
   return (
     <aside
       style={p.mobile ? undefined : { width }}
-      className={cx('no-print flex flex-col bg-surface', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)]' : 'relative hidden shrink-0 border-l border-line md:flex')}
+      className={cx('no-print flex flex-col bg-surface', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]' : 'relative hidden shrink-0 border-l border-line md:flex')}
     >
       {!p.mobile && <ResizeEdge width={width} onWidth={(w) => setWidthRaw(String(w))} label={t('toolbox.resize')} />}
       <div className="flex items-center gap-0.5 border-b border-line px-2 py-1.5">
         {item ? (
-          <button type="button" onClick={p.onCloseItem} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink-2 hover:bg-surface-2 hover:text-ink">
+          <button type="button" onClick={p.onCloseItem} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink-2 hover:bg-surface-2 hover:text-ink pointer-coarse:h-10">
             <ArrowLeft size={15} />
-            {t(TABS.find((x) => x.id === tab)!.key)}
+            {p.itemBack ?? t(TABS.find((x) => x.id === tab)!.key)}
           </button>
         ) : (
           tabs.map(({ id, icon: Icon, key }) => (
@@ -134,7 +136,7 @@ export default function Toolbox(p: Props) {
               title={t(key)}
               onClick={() => p.onTab(id)}
               className={cx(
-                'inline-flex h-8 items-center gap-1 rounded-md px-2 text-[12px] transition-colors',
+                'inline-flex h-8 items-center gap-1 rounded-md px-2 text-[12px] transition-colors pointer-coarse:h-10 pointer-coarse:px-2.5',
                 tab === id ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink',
               )}
             >
@@ -155,7 +157,7 @@ export default function Toolbox(p: Props) {
           </IconButton>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto p-4">{body}</div>
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4">{body}</div>
     </aside>
   )
 }

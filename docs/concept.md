@@ -132,6 +132,17 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Every write is a batch of the app's own operations: the same validation, the same transaction, and the open windows see it live through the hub. The stdio server is a separate process and has no hub: there the page is reloaded.
 - OAuth is a copy of Zendo's (`server/oauth.ts`): same flow, same token lifecycle; approval is tied to the owner list (`SP_OWNERS`) instead of a separate allow-list.
 
+**2026-10-29, phones**
+
+The same app, not a reduced one; what differs follows the device, consistently:
+
+- A tap on a card opens its details (no inline title editing on phones: there is no hover to tell the two apart; group headings are still renamed in place); start time and length still open their editor right from the card. Dragging is press-and-hold; the hint under the agenda says so instead of the keyboard shortcuts.
+- Secondary choices come up as bottom sheets with labelled rows: the ⋯ menus, the ⊕ between entries (instead of the radial menu) and the time editor. A tap on the backdrop closes a sheet; for the time editor that saves, like a click elsewhere on desktop.
+- The planner header keeps back, title, undo and the sidebar; the rest (redo, descriptions, zoom, add day, print) sits in a ⋯ menu. The day heading uses the short date and drops the focus button (the day tabs do that).
+- Details opened from the agenda go back to the agenda; details opened from a sidebar tab go back to that tab.
+- Touch targets: on coarse pointers icon buttons, segmented controls, colour dots, the ⊕ and the resize grip are larger, and small controls get an invisible 6px slop (`.tap`), so nothing drops below about 40px without moving the layout. The resize grip blocks page scrolling while it is dragged.
+- Safe areas (notch, home indicator) on the shell, the full-screen sidebar, sheets and dialogs; overlays contain their scrolling. The offline state is shown as text next to the dot, on every size.
+
 **2026-10-29, third round**
 
 - Duplicating a workshop belongs to the current scope; the other planning-comfort ideas and live mode go to the backlog.

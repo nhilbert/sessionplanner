@@ -1,25 +1,40 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Coffee, Flag, FolderOpen, Plus, Square, StickyNote } from 'lucide-react'
 import type { ItemKind } from '@/domain/types'
-import { cx } from '@/components/ui'
+import { cx, Sheet, SheetRow, useIsPhone } from '@/components/ui'
 
 export type InsertKind = ItemKind | 'group'
 
 const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
 
+const kindsOf = (t: TFunction, allowGroup: boolean): { kind: InsertKind; icon: ReactNode; label: string }[] => [
+  { kind: 'block', icon: <Square size={15} />, label: t('kinds.block') },
+  { kind: 'break', icon: <Coffee size={15} />, label: t('kinds.break') },
+  { kind: 'marker', icon: <Flag size={15} />, label: t('kinds.marker') },
+  { kind: 'note', icon: <StickyNote size={15} />, label: t('kinds.note') },
+  ...(allowGroup ? [{ kind: 'group' as const, icon: <FolderOpen size={15} />, label: t('group.new') }] : []),
+]
+
 /**
  * A ⊕ in the gutter left of the cards, at the gap between two entries (docs/concept.md, section 3). It never
  * starts a drag and sits outside the cards, so the lower-edge resize handle and dragging keep working; while
- * something is dragged or resized the planner hides all of them. On touch screens it stays faintly visible.
+ * something is dragged or resized the planner hides all of them. On touch screens it stays faintly visible and
+ * is larger; on phones the kinds come up as a labelled sheet instead of the radial menu.
  */
 export function InsertPoint({ onInsert, allowGroup, position }: { onInsert: (kind: InsertKind) => void; allowGroup: boolean; position: 'top' | 'bottom' }) {
   const { t } = useTranslation()
+  const phone = useIsPhone()
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const pick = (kind: InsertKind) => {
+    setMenu(null)
+    onInsert(kind)
+  }
   return (
     // Only the ⊕ takes the pointer; the rest lets clicks and the resize handle underneath work as before.
-    <div className={cx('pointer-events-none absolute -left-6 z-10 flex h-5 w-full items-center', position === 'top' ? '-top-2.5' : '-bottom-2')}>
+    <div className={cx('pointer-events-none absolute -left-6 z-10 flex h-5 w-full items-center pointer-coarse:-left-7', position === 'top' ? '-top-2.5' : '-bottom-2')}>
       <button
         type="button"
         aria-label={t('insert.here')}
@@ -33,7 +48,7 @@ export function InsertPoint({ onInsert, allowGroup, position }: { onInsert: (kin
           setMenu({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
         }}
         className={cx(
-          'peer pointer-events-auto relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line-2 bg-surface text-ink-3 opacity-0 shadow-sm transition-opacity hover:border-accent hover:text-accent hover:opacity-100 group-hover/list:opacity-40 [@media(hover:none)]:opacity-50',
+          'tap peer pointer-events-auto relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line-2 bg-surface text-ink-3 opacity-0 shadow-sm transition-opacity hover:border-accent hover:text-accent hover:opacity-100 group-hover/list:opacity-40 pointer-coarse:h-7 pointer-coarse:w-7 [@media(hover:none)]:opacity-50',
           menu && 'opacity-100',
         )}
       >
@@ -41,20 +56,17 @@ export function InsertPoint({ onInsert, allowGroup, position }: { onInsert: (kin
       </button>
       {/* the line shows where the new entry lands */}
       <span className={cx('pointer-events-none ml-1 h-px flex-1 bg-accent/50 opacity-0 transition-opacity peer-hover:opacity-100', menu && 'opacity-100')} />
-      {menu &&
-        createPortal(
-          <Radial
-            x={menu.x}
-            y={menu.y}
-            allowGroup={allowGroup}
-            onClose={() => setMenu(null)}
-            onPick={(kind) => {
-              setMenu(null)
-              onInsert(kind)
-            }}
-          />,
-          document.body,
-        )}
+      {menu && phone ? (
+        <Sheet open onClose={() => setMenu(null)} label={t('insert.here')} title={t('insert.here')}>
+          {kindsOf(t, allowGroup).map((k) => (
+            <SheetRow key={k.kind} icon={k.icon} onClick={() => pick(k.kind)}>
+              {k.label}
+            </SheetRow>
+          ))}
+        </Sheet>
+      ) : menu ? (
+        createPortal(<Radial x={menu.x} y={menu.y} allowGroup={allowGroup} onClose={() => setMenu(null)} onPick={pick} />, document.body)
+      ) : null}
     </div>
   )
 }
@@ -80,13 +92,7 @@ function Radial({ x, y, allowGroup, onPick, onClose }: { x: number; y: number; a
     }
   }, [onClose])
 
-  const kinds: { kind: InsertKind; icon: ReactNode; label: string }[] = [
-    { kind: 'block', icon: <Square size={15} />, label: t('kinds.block') },
-    { kind: 'break', icon: <Coffee size={15} />, label: t('kinds.break') },
-    { kind: 'marker', icon: <Flag size={15} />, label: t('kinds.marker') },
-    { kind: 'note', icon: <StickyNote size={15} />, label: t('kinds.note') },
-    ...(allowGroup ? [{ kind: 'group' as const, icon: <FolderOpen size={15} />, label: t('group.new') }] : []),
-  ]
+  const kinds = kindsOf(t, allowGroup)
   // Spread over a half circle opening to the right (the ⊕ sits at the left edge of the column).
   const radius = 58
   const span = Math.PI * 0.9

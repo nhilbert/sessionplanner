@@ -26,10 +26,10 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
           {sortedDays(data.days).map((d, i) => (
             <li key={d.id} className="flex items-center gap-1.5 text-[13px]">
               <span className="w-4 text-right text-[11px] text-ink-3 tnum">{i + 1}</span>
-              <input type="date" value={d.date} onChange={(e) => e.target.value && e.target.value !== d.date && onDayDate(d.id, e.target.value)} aria-label={t('planner.date')} className="field h-8 w-[138px] px-2 text-[13px]" />
-              <TimeField value={d.startMin} onChange={(v) => v !== null && change([{ op: 'set', entity: 'day', id: d.id, fields: { startMin: v } }])} className="w-[56px]" aria-label={t('planner.start')} />
+              <input type="date" value={d.date} onChange={(e) => e.target.value && e.target.value !== d.date && onDayDate(d.id, e.target.value)} aria-label={t('planner.date')} className="field h-8 min-w-0 flex-1 px-2 text-[13px] md:w-[138px] md:flex-none" />
+              <TimeField value={d.startMin} onChange={(v) => v !== null && change([{ op: 'set', entity: 'day', id: d.id, fields: { startMin: v } }])} className="w-[56px] max-md:w-[66px]" aria-label={t('planner.start')} />
               <span className="text-ink-3">–</span>
-              <TimeField value={d.endMin} nullable onChange={(v) => change([{ op: 'set', entity: 'day', id: d.id, fields: { endMin: v } }])} className="w-[56px]" aria-label={t('planner.end')} />
+              <TimeField value={d.endMin} nullable onChange={(v) => change([{ op: 'set', entity: 'day', id: d.id, fields: { endMin: v } }])} className="w-[56px] max-md:w-[66px]" aria-label={t('planner.end')} />
             </li>
           ))}
         </ul>

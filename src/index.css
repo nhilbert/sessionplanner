@@ -201,6 +201,17 @@
   .item-late {
     box-shadow: inset 3px 0 0 var(--rose);
   }
+  /* Touch screens: a transparent 6px slop around small controls, so a 28px icon reaches 40px without moving the layout. */
+  @media (pointer: coarse) {
+    .tap {
+      position: relative;
+    }
+    .tap::before {
+      content: "";
+      position: absolute;
+      inset: -6px;
+    }
+  }
 }
 
 /* Touch screens have no hover: controls that appear on hover are always visible there. */

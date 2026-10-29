@@ -70,7 +70,7 @@ export default function NotesField({ value, onCommit, label, hint }: { value: st
       ) : (
         editor(false)
       )}
-      <Modal open={large} onClose={() => setLarge(false)} width="max-w-5xl" top="pt-4 md:pt-[6vh]">
+      <Modal open={large} onClose={() => setLarge(false)} width="max-w-5xl" top="pt-[max(1rem,env(safe-area-inset-top))] md:pt-[6vh]">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-medium">{label}</h2>
           <button type="button" onClick={() => setLarge(false)} className="rounded-md px-3 py-1.5 text-[13px] text-ink-2 hover:bg-surface-2">
