@@ -151,6 +151,18 @@ export default function PlannerPage() {
     if (kind !== 'group') openDetails(id)
   }
 
+  /** A day gets a new date; for the first of several days the app offers to move the others along. */
+  const changeDate = (dayId: string, date: string) => {
+    const day = days.find((d) => d.id === dayId)
+    if (!day) return
+    const shift = Math.round((Date.parse(date) - Date.parse(day.date)) / 86_400_000)
+    const others = days.filter((d) => d.id !== dayId)
+    if (days[0]?.id === dayId && others.length && shift && window.confirm(t('planner.moveOtherDays', { count: others.length }))) {
+      const moved = (d: string) => new Date(Date.parse(d) + shift * 86_400_000).toISOString().slice(0, 10)
+      change(days.map((d): Op => ({ op: 'set', entity: 'day', id: d.id, fields: { date: moved(d.date) } })))
+    } else change([{ op: 'set', entity: 'day', id: dayId, fields: { date } }])
+  }
+
   const addDay = () => {
     if (!data) return
     const last = days[days.length - 1]
@@ -432,7 +444,7 @@ export default function PlannerPage() {
                     schedule={schedules[d.id]}
                     className={dayWidth}
                     onAdd={(kind) => add(d.id, kind)}
-                    onChange={(fields) => change([{ op: 'set', entity: 'day', id: d.id, fields }])}
+                    onChange={(fields) => (fields.date ? changeDate(d.id, fields.date) : change([{ op: 'set', entity: 'day', id: d.id, fields }]))}
                     onDelete={() => deleteDay(d.id)}
                   />
                 ))}
@@ -444,6 +456,7 @@ export default function PlannerPage() {
           <Toolbox
             data={data}
             owner={owner}
+            onDayDate={changeDate}
             change={change}
             tab={tab as Tab}
             onTab={(x) => {

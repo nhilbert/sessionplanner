@@ -1,9 +1,9 @@
-import { createContext, type ReactNode, useContext } from 'react'
+import { createContext, type ReactNode, useContext, useRef } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, BookmarkPlus, ChevronDown, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
+import { AlertTriangle, BookmarkPlus, CalendarDays, ChevronDown, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
 import type { Category, Day, Group, Item, ItemKind } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH } from '@/domain/time'
@@ -181,10 +181,7 @@ export function DayColumn({ day, index, count, ids, schedule, className, onAdd, 
       <header className="group/day mb-3 space-y-1.5 px-1">
         <div className="flex items-center gap-2">
           {count > 1 && <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{index + 1}</span>}
-          <label className="relative min-w-0 cursor-pointer">
-            <span className="block truncate text-[15px] font-medium">{formatDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-            <input type="date" value={day.date} onChange={(e) => e.target.value && onChange({ date: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0" aria-label={t('planner.date')} />
-          </label>
+          <DateButton date={day.date} short={count > 1} onDate={(date) => onChange({ date })} />
           <div className="ml-auto flex items-center gap-1.5 text-[12px] text-ink-3">
             <TimeField value={day.startMin} onChange={(v) => v !== null && onChange({ startMin: v })} className="h-7 w-[58px] text-[12px] max-md:w-[72px]" aria-label={t('planner.start')} title={t('planner.start')} />
             <span>–</span>
@@ -203,6 +200,42 @@ export function DayColumn({ day, index, count, ids, schedule, className, onAdd, 
       </List>
       <AddBar onAdd={onAdd} />
     </section>
+  )
+}
+
+/** The day's date as a visible button that opens the date picker (the input itself stays out of sight). */
+export function DateButton({ date, short, onDate }: { date: string; short?: boolean; onDate: (date: string) => void }) {
+  const { t } = useTranslation()
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <span className="relative flex min-w-0">
+      <button
+        type="button"
+        title={t('planner.changeDate')}
+        onClick={() => {
+          const el = input.current
+          if (!el) return
+          try {
+            el.showPicker()
+          } catch {
+            el.focus()
+          }
+        }}
+        className="-mx-1.5 inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[15px] font-medium hover:bg-surface-2"
+      >
+        <CalendarDays size={14} className="shrink-0 text-ink-3" />
+        <span className="truncate">{formatDate(date, short ? { weekday: 'short', day: 'numeric', month: 'short' } : { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+      </button>
+      <input
+        ref={input}
+        type="date"
+        tabIndex={-1}
+        aria-label={t('planner.date')}
+        value={date}
+        onChange={(e) => e.target.value && e.target.value !== date && onDate(e.target.value)}
+        className="pointer-events-none absolute bottom-0 left-0 h-0 w-0 opacity-0"
+      />
+    </span>
   )
 }
 

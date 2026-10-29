@@ -75,7 +75,10 @@
     "showDescription": "Show short descriptions",
     "selected_one": "{{count}} selected",
     "selected_other": "{{count}} selected",
-    "clearSelection": "Clear selection"
+    "clearSelection": "Clear selection",
+    "changeDate": "Change date",
+    "moveOtherDays_one": "Move the other day by the same number of days?",
+    "moveOtherDays_other": "Move the {{count}} other days by the same number of days?"
   },
   "kinds": {
     "block": "Block",
@@ -131,7 +134,8 @@
     "duplicate": "Duplicate",
     "copyTitle": "{{title}} (copy)",
     "daysFollow": "the other days follow",
-    "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked."
+    "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked.",
+    "days": "Days"
   },
   "packing": {
     "empty": "No material yet. Add material to the agenda items.",

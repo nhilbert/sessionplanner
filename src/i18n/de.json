@@ -75,7 +75,10 @@
     "showDescription": "Kurzbeschreibungen zeigen",
     "selected_one": "{{count}} ausgewählt",
     "selected_other": "{{count}} ausgewählt",
-    "clearSelection": "Auswahl aufheben"
+    "clearSelection": "Auswahl aufheben",
+    "changeDate": "Datum ändern",
+    "moveOtherDays_one": "Den anderen Tag um gleich viele Tage mitverschieben?",
+    "moveOtherDays_other": "Die {{count}} anderen Tage um gleich viele Tage mitverschieben?"
   },
   "kinds": {
     "block": "Einheit",
@@ -131,7 +134,8 @@
     "duplicate": "Duplizieren",
     "copyTitle": "{{title}} (Kopie)",
     "daysFollow": "die weiteren Tage folgen",
-    "duplicateHint": "Kopiert Tage, Gruppen, Punkte, Material und Dateien. Die Packliste beginnt unabgehakt."
+    "duplicateHint": "Kopiert Tage, Gruppen, Punkte, Material und Dateien. Die Packliste beginnt unabgehakt.",
+    "days": "Tage"
   },
   "packing": {
     "empty": "Noch kein Material. Ergänze Material an den Agendapunkten.",

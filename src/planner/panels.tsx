@@ -9,17 +9,31 @@ import { packingList } from '@/domain/packing'
 import { api } from '@/api'
 import { Button, Checkbox, cx, Field, IconButton, Input, Modal, Segmented } from '@/components/ui'
 import { sortedDays } from '@/domain/order'
-import { TextField, formatSize } from './fields'
+import { TextField, TimeField, formatSize } from './fields'
 import NotesField from './NotesField'
 import { uploadFiles } from './upload'
 
-export function WorkshopPanel({ data, change, owner }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean }) {
+export function WorkshopPanel({ data, change, owner, onDayDate }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onDayDate: (dayId: string, date: string) => void }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const w = data.workshop
   const set = (fields: Partial<WorkshopFields>) => change([{ op: 'set', entity: 'workshop', id: w.id, fields }])
   return (
     <div className="space-y-4">
+      <div>
+        <div className="mb-1 text-[12px] font-medium text-ink-2">{t('workshop.days')}</div>
+        <ul className="space-y-1.5">
+          {sortedDays(data.days).map((d, i) => (
+            <li key={d.id} className="flex items-center gap-1.5 text-[13px]">
+              <span className="w-4 text-right text-[11px] text-ink-3 tnum">{i + 1}</span>
+              <input type="date" value={d.date} onChange={(e) => e.target.value && e.target.value !== d.date && onDayDate(d.id, e.target.value)} aria-label={t('planner.date')} className="field h-8 w-[138px] px-2 text-[13px]" />
+              <TimeField value={d.startMin} onChange={(v) => v !== null && change([{ op: 'set', entity: 'day', id: d.id, fields: { startMin: v } }])} className="w-[56px]" aria-label={t('planner.start')} />
+              <span className="text-ink-3">–</span>
+              <TimeField value={d.endMin} nullable onChange={(v) => change([{ op: 'set', entity: 'day', id: d.id, fields: { endMin: v } }])} className="w-[56px]" aria-label={t('planner.end')} />
+            </li>
+          ))}
+        </ul>
+      </div>
       <Field label={t('workshop.client')}>
         <TextField value={w.client} onCommit={(client) => set({ client })} />
       </Field>

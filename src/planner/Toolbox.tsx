@@ -29,6 +29,7 @@ interface Props {
   data: WorkshopState
   /** Guests see neither the library nor the access tab, and none of the owner's actions. */
   owner: boolean
+  onDayDate: (dayId: string, date: string) => void
   change: (ops: Op[]) => void
   tab: Tab
   onTab: (tab: Tab) => void
@@ -108,7 +109,7 @@ export default function Toolbox(p: Props) {
   ) : tab === 'access' ? (
     <AccessPanel data={p.data} />
   ) : (
-    <WorkshopPanel data={p.data} change={p.change} owner={p.owner} />
+    <WorkshopPanel data={p.data} change={p.change} owner={p.owner} onDayDate={p.onDayDate} />
   )
 
   return (
