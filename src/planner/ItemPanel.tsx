@@ -12,6 +12,7 @@ import { SNAP } from '@/domain/time'
 import { api } from '@/api'
 import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/components/ui'
 import { DEFAULT_DURATION, DurationField, TextField, TimeField, formatSize } from './fields'
+import NotesField from './NotesField'
 import { uploadFiles } from './upload'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
@@ -146,9 +147,7 @@ export default function ItemPanel({
       )}
 
       {item.kind !== 'note' && (
-        <Field label={t('item.notes')} hint={t('item.notesHint')}>
-          <TextField multiline value={item.notes} onCommit={(notes) => set({ notes })} className="min-h-[120px]" />
-        </Field>
+        <NotesField value={item.notes} onCommit={(notes) => set({ notes })} label={t('item.notes')} hint={t('item.notesHint')} />
       )}
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}

@@ -7,6 +7,7 @@ import { durationOf, formatDuration, formatTime, scheduleDay, type DaySchedule }
 import { formatDate } from '@/i18n'
 import { itemColor, useSettings } from '@/store/useSettings'
 import { Button, Chip, cx } from '@/components/ui'
+import Markdown from '@/components/Markdown'
 
 /** The read-only agenda for guests with view access: times, groups, descriptions, material, files (and notes if shared). */
 export default function AgendaView({ data }: { data: WorkshopState }) {
@@ -25,6 +26,7 @@ export default function AgendaView({ data }: { data: WorkshopState }) {
             <h1 className="text-[22px] font-medium leading-tight tracking-[-0.02em]">{w.title || t('workshops.untitled')}</h1>
             <div className="mt-1 text-[13px] text-ink-2">{[w.client, w.location, dates].filter(Boolean).join(' · ')}</div>
             {w.goal && <p className="mt-2 whitespace-pre-line text-[14px] text-ink-2">{w.goal}</p>}
+            {w.notes && <Markdown text={w.notes} className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-[13px] text-ink-2" />}
           </div>
           <div className="flex items-center gap-2">
             <Chip>
@@ -111,7 +113,7 @@ function Row({ item, schedule, data, color }: { item: Item; schedule: DaySchedul
             <span className="shrink-0 text-[12px] text-ink-3 tnum">{formatDuration(minutes)}</span>
           </div>
           {item.description && <p className="mt-0.5 whitespace-pre-line text-[13px] text-ink-2">{item.description}</p>}
-          {item.notes && <p className="mt-1 whitespace-pre-line rounded bg-surface-2 px-2 py-1 text-[12px] text-ink-2">{item.notes}</p>}
+          {item.notes && <Markdown text={item.notes} className="mt-1 rounded bg-surface-2 px-2 py-1 text-[12px] text-ink-2" />}
           {(item.materials.length > 0 || files.length > 0) && (
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-ink-3">
               {item.materials.map((m) => (

@@ -276,5 +276,16 @@
   },
   "insert": {
     "here": "Add here"
+  },
+  "notes": {
+    "edit": "Edit",
+    "preview": "Preview",
+    "enlarge": "Enlarge",
+    "empty": "No notes yet",
+    "bold": "Bold",
+    "italic": "Italic",
+    "list": "List",
+    "heading": "Heading",
+    "syntax": "**bold** · *italic* · - list · 1. numbered · ## heading · - [ ] to-do · [link](https://…)"
   }
 }

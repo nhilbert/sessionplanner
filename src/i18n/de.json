@@ -276,5 +276,16 @@
   },
   "insert": {
     "here": "Hier einfügen"
+  },
+  "notes": {
+    "edit": "Bearbeiten",
+    "preview": "Vorschau",
+    "enlarge": "Vergrößern",
+    "empty": "Noch keine Notizen",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "list": "Liste",
+    "heading": "Überschrift",
+    "syntax": "**fett** · *kursiv* · - Liste · 1. nummeriert · ## Überschrift · - [ ] Aufgabe · [Link](https://…)"
   }
 }

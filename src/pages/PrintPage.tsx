@@ -9,6 +9,7 @@ import { packingList } from '@/domain/packing'
 import { durationOf, formatDuration, formatTime, scheduleDay } from '@/domain/time'
 import { formatDate } from '@/i18n'
 import { Button, cx } from '@/components/ui'
+import Markdown from '@/components/Markdown'
 import { useSettings } from '@/store/useSettings'
 
 type Variant = 'plan' | 'agenda' | 'packing'
@@ -53,6 +54,7 @@ export default function PrintPage() {
           <h1 className="text-[22px] font-semibold leading-tight">{w.title || t('workshops.untitled')}</h1>
           <div className="text-black/70">{[w.client, w.location, dates].filter(Boolean).join(' · ')}</div>
           {v !== 'packing' && w.goal && <p className="mt-2 whitespace-pre-wrap">{w.goal}</p>}
+          {v === 'plan' && w.notes && <Markdown text={w.notes} className="mt-2 text-[12px]" />}
         </div>
         {logo && <img src={logo} alt="" className="max-h-14 max-w-[200px] shrink-0 object-contain" />}
       </header>
@@ -151,7 +153,7 @@ function DayTable({ data, dayIndex, variant }: { data: WorkshopState; dayIndex: 
                         </div>
                       ))}
                     </td>
-                    <td className={cx(td, 'whitespace-pre-wrap text-[12px]')}>{item.notes}</td>
+                    <td className={cx(td, 'text-[12px]')}>{item.notes && <Markdown text={item.notes} />}</td>
                   </>
                 )}
               </tr>
