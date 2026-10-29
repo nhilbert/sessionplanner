@@ -151,3 +151,12 @@ export function validEmail(value: string): string {
   if (!z.email().safeParse(email).success || email.length > 254) throw new BadRequest('invalid e-mail')
   return email
 }
+
+// type/subtype with optional parameters (text/plain; charset="utf-8"), as a browser reports it.
+const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*(?:\s*;\s*[a-z0-9!#$&^_.+-]+=(?:"[^"\\\r\n]*"|[a-z0-9!#$&^_.+-]+))*$/
+
+/** The media type of an uploaded file, stored and sent back as the Content-Type of its download; anything that is not one (or over 255 characters) is a plain download. */
+export function safeMime(value: string): string {
+  const mime = value.trim().toLowerCase()
+  return mime.length <= 255 && MIME.test(mime) ? mime : 'application/octet-stream'
+}

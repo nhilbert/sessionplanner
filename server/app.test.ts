@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
-import { createApp } from './app.ts'
+import { createApp, MAX_FILE } from './app.ts'
 import { adjustedOps, type Op, type ServerEvent } from '../src/domain/ops.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
@@ -199,6 +199,24 @@ describe('attachments', () => {
     expect(state.items[0].attachmentIds).toEqual([])
   })
 
+  it('keeps only a well-formed media type, as sent or as stored', async () => {
+    const { app, db } = setup()
+    const ws = await create(app)
+    const upload = async (type: string) => {
+      const form = new FormData()
+      form.append('file', new File(['x'], 'a.bin', { type }))
+      return (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()) as { id: string; mime: string }
+    }
+    expect((await upload('application/pdf')).mime).toBe('application/pdf')
+    expect((await upload('text/plain; charset="utf-8"')).mime).toBe('text/plain; charset="utf-8"')
+    expect((await upload('')).mime).toBe('application/octet-stream')
+    const odd = await upload('text/plain; charset=utf-8; ' + 'x'.repeat(5000))
+    expect(odd.mime).toBe('application/octet-stream')
+    // stored before the check
+    db.prepare('UPDATE attachments SET mime = ? WHERE id = ?').run('text/html; ' + 'y'.repeat(300), odd.id)
+    expect((await app.request(`${BASE}/api/attachments/${odd.id}`)).headers.get('content-type')).toBe('application/octet-stream')
+  })
+
   it('removes the files with the workshop', async () => {
     const { app } = setup()
     const ws = await create(app)
@@ -369,6 +387,43 @@ describe('built UI', () => {
     expect((await app.request(`${BASE}/favicon.svg`)).headers.get('content-security-policy')).toBeNull()
     expect((await app.request(`${BASE}/api/health`)).headers.get('content-security-policy')).toBeNull()
     expect((await app.request(`${BASE}/assets/old-build.js`)).status).toBe(404)
+  })
+})
+
+describe('request bodies', () => {
+  const big = (bytes: number) => 'x'.repeat(bytes)
+  it('refuses JSON over a megabyte on every route, while uploads and operation batches keep their room', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const id = ws.workshop.id
+    const put = await app.request(`${BASE}/api/settings`, { method: 'PUT', headers: H, body: JSON.stringify({ categories: [{ id: 'a', name: big(1.5 * 1024 * 1024), color: 'slate' }], dayStart: 540, dayEnd: null }) })
+    expect(put.status).toBe(413)
+    expect(await put.json()).toEqual({ error: 'too_large' })
+    expect((await app.request(`${BASE}/api/library`, { method: 'POST', headers: H, body: JSON.stringify({ kind: 'item', title: big(1.5 * 1024 * 1024), data: {} }) })).status).toBe(413)
+    // 15 items with 100 kB of notes each: 1.5 MB, within the 4 MB of a batch
+    const batch = { clientId: 'c', ops: Array.from({ length: 15 }, (_, i) => ({ op: 'create', entity: 'item', record: item(`n${i}`, id, ws.days[0].id, { notes: big(100_000) }) })) }
+    expect((await ops(app, id, batch)).status).toBe(200)
+    const upload = async (bytes: number) => {
+      const form = new FormData()
+      form.append('file', new File([new Uint8Array(bytes)], 'f.bin', { type: 'application/octet-stream' }))
+      return (await app.request(`${BASE}/api/workshops/${id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).status
+    }
+    expect(await upload(2 * 1024 * 1024)).toBe(201)
+    expect(await upload(MAX_FILE + 1)).toBe(413)
+  })
+})
+
+describe('caching', () => {
+  it('marks API answers as not to be stored, while the logo keeps its own short cache', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    for (const p of ['/api/workshops', `/api/workshops/${ws.workshop.id}`, '/api/settings', '/api/me', '/api/health']) {
+      expect((await app.request(`${BASE}${p}`)).headers.get('cache-control')).toBe('no-store')
+    }
+    const form = new FormData()
+    form.append('file', new File(['x'], 'a.png', { type: 'image/png' }))
+    await app.request(`${BASE}/api/settings/logo`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })
+    expect((await app.request(`${BASE}/api/settings/logo`)).headers.get('cache-control')).toBe('private, max-age=300')
   })
 })
 

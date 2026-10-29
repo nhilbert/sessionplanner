@@ -208,3 +208,11 @@ describe('OAuth for /mcp', () => {
     expect((await ctx.app.request(`${url}/x`, { method: 'DELETE', headers: { 'x-auth-request-email': 'guest@example.com', 'x-sp': '1' } })).status).toBe(403)
   })
 })
+
+describe('request bodies', () => {
+  it('refuses a registration over a megabyte before reading it', async () => {
+    const { app } = setup()
+    const res = await app.request('/oauth/register', { method: 'POST', headers: { ...LOCAL, 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'x'.repeat(1.5 * 1024 * 1024), redirect_uris: [CALLBACK] }) })
+    expect(res.status).toBe(413)
+  })
+})

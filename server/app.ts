@@ -10,7 +10,7 @@ import type { Hub } from './hub.ts'
 import { type Env, guard, type GuardOptions, ownerOnly } from './guard.ts'
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
-import { BadRequest, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
+import { BadRequest, safeMime, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -66,9 +66,29 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     // Every HTML page carries the app's policy, whichever handler produced it (the static handler serves / and
     // /index.html itself). A response with a policy of its own (a downloaded HTML attachment: sandbox) keeps it.
     if (c.res.headers.get('content-type')?.startsWith('text/html') && !c.res.headers.has('content-security-policy')) c.header('Content-Security-Policy', CSP)
+    // API answers are personal (a guest's workshop, the owner's list) and change often: never stored by a browser or
+    // a proxy. A route with a policy of its own (the logo's short cache) keeps it.
+    if (c.req.path.startsWith('/api/') && !c.res.headers.has('cache-control')) c.header('Cache-Control', 'no-store')
   })
   app.get('/api/health', (c) => c.json({ ok: true }))
   app.use('/api/*', guard({ publicUrl, owners, ownerHeader }))
+  // Every request body is bounded, checked after the guard so that a foreign request is refused before its body is
+  // read. Uploads and operation batches have their room; everything else (JSON of a few kilobytes, the agents'
+  // JSON-RPC, the OAuth forms and registrations) gets a megabyte.
+  const tooLarge = (c: Context) => c.json({ error: 'too_large' }, 413)
+  const limits = {
+    upload: bodyLimit({ maxSize: MAX_FILE + 64 * 1024, onError: tooLarge }),
+    logo: bodyLimit({ maxSize: MAX_LOGO + 64 * 1024, onError: tooLarge }),
+    ops: bodyLimit({ maxSize: 4 * 1024 * 1024, onError: tooLarge }),
+    json: bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge }),
+  }
+  app.use('/api/*', (c, next) => {
+    const p = c.req.path
+    const limit = /^\/api\/workshops\/[^/]+\/attachments$/.test(p) ? limits.upload : /^\/api\/workshops\/[^/]+\/ops$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
+    return limit(c, next)
+  })
+  app.use('/mcp', limits.json)
+  app.use('/oauth/*', limits.json)
   app.onError((err, c) => {
     if (err instanceof BadRequest) return c.json({ error: err.message }, 400)
     console.error('API error:', err)
@@ -108,7 +128,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     return c.json(result.state, 201)
   })
 
-  app.post('/api/workshops/:id/ops', bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+  app.post('/api/workshops/:id/ops', async (c) => {
     const id = c.req.param('id')!
     const access = accessTo(c, id)
     if (!access) return c.json({ error: 'not_found' }, 404)
@@ -157,7 +177,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     })
   })
 
-  app.post('/api/workshops/:id/attachments', bodyLimit({ maxSize: MAX_FILE + 64 * 1024, onError: (c) => c.json({ error: 'too_large' }, 413) }), async (c) => {
+  app.post('/api/workshops/:id/attachments', async (c) => {
     const access = accessTo(c, c.req.param('id')!)
     if (!access) return c.json({ error: 'not_found' }, 404)
     if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
@@ -169,7 +189,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     await mkdir(filesDir, { recursive: true })
     await writeFile(filePath(id), Buffer.from(await file.arrayBuffer()))
     const name = (file.name || 'file').replace(/[\\/\r\n]/g, '_').slice(0, 250)
-    const attachment = repo.addAttachment(c.req.param('id')!, { id, name, mime: file.type || 'application/octet-stream', size: file.size })
+    const attachment = repo.addAttachment(c.req.param('id')!, { id, name, mime: safeMime(file.type), size: file.size })
     if (!attachment) {
       await rm(filePath(id), { force: true })
       return c.json({ error: 'not_found' }, 404)
@@ -185,7 +205,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     if (!data) return c.json({ error: 'not_found' }, 404)
     // Always a download, never rendered in the app's origin (an uploaded HTML or SVG file must not run).
     return c.body(new Uint8Array(data), 200, {
-      'Content-Type': att.mime,
+      'Content-Type': safeMime(att.mime),
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(att.name)}`,
       'Content-Security-Policy': 'sandbox',
       'Cache-Control': 'private, no-store',
@@ -206,7 +226,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   app.get('/api/settings', (c) => c.json(repo.getSettings()))
   app.put('/api/settings', ownerOnly, async (c) => c.json(repo.saveSettings({ ...validateSettings(await c.req.json()), logo: repo.getSettings().logo })))
 
-  app.post('/api/settings/logo', ownerOnly, bodyLimit({ maxSize: MAX_LOGO + 64 * 1024, onError: (c) => c.json({ error: 'too_large' }, 413) }), async (c) => {
+  app.post('/api/settings/logo', ownerOnly, async (c) => {
     const file = (await c.req.parseBody()).file
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (!LOGO_TYPES.includes(file.type)) throw new BadRequest('png, jpeg, webp or svg only')

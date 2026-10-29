@@ -36,6 +36,15 @@ describe('MCP endpoint', () => {
     await expect(ready).rejects.toThrow()
   })
 
+  it('refuses a request body over a megabyte', async () => {
+    const res = await app.request('/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'workshop_create', arguments: { title: 'x'.repeat(1.5 * 1024 * 1024) } } }),
+    })
+    expect(res.status).toBe(413)
+  })
+
   it('lists the tools, creates a workshop and drafts an agenda with computed times', async () => {
     const { client, ready } = connect(app)
     await ready
