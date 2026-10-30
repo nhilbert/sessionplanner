@@ -139,10 +139,15 @@ export interface WorkshopSummary {
   id: string
   title: string
   client: string
+  location: string
   archived: boolean
   firstDate: string | null
   lastDate: string | null
   itemCount: number
+  /** Number of days. */
+  days: number
+  /** Length of the agenda: per day from its start to its computed end (breaks included, parked items not), summed. */
+  minutes: number
   updatedAt: string
 }
 

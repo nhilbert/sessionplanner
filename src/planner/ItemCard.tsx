@@ -286,7 +286,11 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   )
 }
 
-/** The lower edge: drag to change the duration in steps of 5 minutes. Taller on touch screens, where it also keeps the page from scrolling instead. */
+/**
+ * The lower edge: drag to change the duration in steps of 5 minutes. Not on touch screens: there it covered the
+ * lower half of a short card, the browser's touch adjustment sent taps on the card to it (so the details never
+ * opened), and a 5px wiggle changed the length. Touch changes the length by tapping it (time editor).
+ */
 function ResizeHandle({ minutes, ppm, onResize, onResizeEnd }: { minutes: number; ppm: number; onResize: (m: number | null) => void; onResizeEnd: (m: number) => void }) {
   const start = useRef<{ y: number; current: number } | null>(null)
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
@@ -295,7 +299,7 @@ function ResizeHandle({ minutes, ppm, onResize, onResizeEnd }: { minutes: number
     <div
       role="separator"
       aria-orientation="horizontal"
-      className="reveal absolute inset-x-0 bottom-0 flex h-2.5 cursor-ns-resize touch-none items-end justify-center opacity-0 transition-opacity hover:opacity-100 pointer-coarse:h-5 [div:hover>&]:opacity-60"
+      className="reveal absolute inset-x-0 bottom-0 flex h-2.5 cursor-ns-resize touch-none items-end justify-center opacity-0 transition-opacity hover:opacity-100 pointer-coarse:hidden [div:hover>&]:opacity-60"
       onMouseDown={stop}
       onTouchStart={stop}
       onClick={stop}
@@ -325,7 +329,7 @@ function ResizeHandle({ minutes, ppm, onResize, onResizeEnd }: { minutes: number
         onResize(null)
       }}
     >
-      <span className="mb-0.5 h-1 w-8 rounded-full bg-ink-3 pointer-coarse:mb-1 pointer-coarse:h-1.5 pointer-coarse:w-10" />
+      <span className="mb-0.5 h-1 w-8 rounded-full bg-ink-3" />
     </div>
   )
 }

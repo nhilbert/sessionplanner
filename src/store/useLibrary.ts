@@ -1,6 +1,17 @@
 import { create } from 'zustand'
+import type { TFunction } from 'i18next'
 import { api } from '@/api'
-import type { LibraryEntry } from '@/domain/types'
+import type { Category, ItemContent, LibraryEntry } from '@/domain/types'
+import { categoryName } from './useSettings'
+
+/** What a library search looks through: titles, descriptions, goal, method, lead, the category and a group's items. */
+export function libraryText(e: LibraryEntry, categories: Category[], t: TFunction): string {
+  const item = (i: ItemContent) => [i.title, i.description, i.goal, i.method, i.lead, ...categories.filter((c) => c.id === i.categoryId).map((c) => categoryName(c, t))]
+  return [e.title, ...(e.kind === 'group' ? e.data.items.flatMap(item) : item(e.data))].join(' ').toLowerCase()
+}
+
+/** Every typed word occurs somewhere in the text. */
+export const matchesWords = (text: string, query: string): boolean => query.trim().toLowerCase().split(/\s+/).filter(Boolean).every((w) => text.includes(w))
 
 /** The shared library of items and groups (server: /api/library). */
 interface LibraryStore {
