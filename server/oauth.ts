@@ -145,6 +145,10 @@ export class OAuthServer {
   private get local(): boolean {
     return this.cfg.allowedUsers.length === 0
   }
+  /** Whether the user a token was issued to may still use it: an owner, or anyone in local mode. */
+  private allowed(user: string): boolean {
+    return this.local || this.cfg.allowedUsers.includes(user)
+  }
 
   // ---------- policy ----------
 
@@ -223,6 +227,9 @@ export class OAuthServer {
       | { client_id: string; user: string; expires_at: number }
       | undefined
     if (!row || row.expires_at < Date.now()) return null
+    // The owner list decides who may use the tools, not only who may approve: someone taken off it (SP_OWNERS,
+    // restart) is refused with their next call, however long their tokens would still live.
+    if (!this.allowed(row.user)) return null
     const cutoff = new Date(Date.now() - 5 * 60_000).toISOString()
     this.db.prepare('UPDATE oauth_clients SET last_used_at = ? WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)').run(new Date().toISOString(), row.client_id, cutoff)
     return { clientId: row.client_id, user: row.user }
@@ -384,6 +391,11 @@ export class OAuthServer {
           | { client_id: string; family: string; user: string; resource: string; expires_at: number; used_at: number | null }
           | undefined
         if (!row || row.client_id !== client.client_id || row.expires_at < Date.now()) return err('invalid_grant')
+        if (!this.allowed(row.user)) {
+          // No longer an owner: the connection ends instead of being renewed for another 30 days.
+          this.revokeFamily(row.family)
+          return err('invalid_grant')
+        }
         if (row.used_at !== null) {
           // Rotated before: a late retry is refused; a replay after that means the token leaked, so the whole family goes.
           if (Date.now() - row.used_at > REUSE_GRACE_MS) this.revokeFamily(row.family)

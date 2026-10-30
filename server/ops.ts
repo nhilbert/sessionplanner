@@ -2,7 +2,7 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
-import { BadRequest, validateOps } from './validate.ts'
+import { BadRequest, isCalendarDate, validateOps } from './validate.ts'
 import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import { ZERO_KINDS } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
@@ -82,7 +82,6 @@ export interface PackingLineInput {
 }
 
 const CLIENT_ID = 'mcp'
-const DATE = /^\d{4}-\d{2}-\d{2}$/
 const todayLocal = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -93,8 +92,9 @@ function compact<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0))) as Partial<T>
 }
 
+// A day that exists on the calendar, as the HTTP API demands it: Date.parse alone would let 2026-02-30 through.
 function checkDate(d: unknown, field: string): void {
-  if (d !== undefined && d !== null && (typeof d !== 'string' || !DATE.test(d) || Number.isNaN(Date.parse(d)))) throw new BadRequest(`${field} must be a date YYYY-MM-DD`)
+  if (d !== undefined && d !== null && (typeof d !== 'string' || !isCalendarDate(d))) throw new BadRequest(`${field} must be a date YYYY-MM-DD`)
 }
 
 /** "09:30" → 570; undefined stays undefined, null stays null. */
@@ -629,18 +629,22 @@ export class Ops {
     return { workshop: s.workshop.title, lines: this.packingView(s) }
   }
 
-  /** Ticks, venue marks and quantity overrides per line; `add` puts material on the workshop as a whole. */
+  /** Ticks, venue marks and quantity overrides per line; `add` puts material on the workshop as a whole, `remove` takes such material off again. */
   packingUpdate(ref: string, input: { lines?: PackingLineInput[]; add?: MaterialInput[]; remove?: string[] }) {
     const s = this.state(ref)
     const packing: Record<string, PackingState> = { ...s.workshop.packing }
-    const known = new Set(packingList(s.items, s.workshop.packing, s.workshop.materials).map((l) => l.key))
+    // The lines are the ones packing_list shows: placed steps and the workshop's own material (parked steps pack nothing).
+    const placed = agendaOrder(s.days, s)
+    const known = new Set(packingList(placed, s.workshop.packing, s.workshop.materials).map((l) => l.key))
     let materials = s.workshop.materials
     if (input.add?.length) materials = [...materials, ...this.materials(input.add)!]
     for (const label of input.remove ?? []) {
       const key = packingKey(label)
       if (!known.has(key)) throw new BadRequest(`no line "${label}" in the packing list`)
+      if (!materials.some((m) => packingKey(m.label) === key)) throw new BadRequest(`"${label}" is material of a step, not of the workshop as a whole: change it on the item`)
       materials = materials.filter((m) => packingKey(m.label) !== key)
-      delete packing[key]
+      // The line goes only when no placed step needs the material any more; otherwise it stays with its tick.
+      if (!placed.some((i) => i.materials.some((m) => packingKey(m.label) === key))) delete packing[key]
     }
     for (const line of input.lines ?? []) {
       const key = packingKey(line.label)

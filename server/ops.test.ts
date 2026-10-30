@@ -47,6 +47,13 @@ describe('workshops and days', () => {
     expect(ops.workshopList()).toMatchObject([{ title: 'Klausur', firstDate: '2026-11-10', lastDate: '2026-11-11', items: 0 }])
   })
 
+  it('refuses dates that are not on the calendar, as the HTTP API does', () => {
+    const { ops } = setup()
+    expect(() => ops.workshopCreate({ title: 'Teamtag', date: '2026-02-30' })).toThrow(/date YYYY-MM-DD/)
+    expect(() => ops.workshopCreate({ title: 'Teamtag', date: '2026-13-01' })).toThrow(/date YYYY-MM-DD/)
+    expect(ops.workshopCreate({ title: 'Teamtag', date: '2028-02-29', days: 2 }).days?.map((d) => d.date)).toEqual(['2028-02-29', '2028-03-01'])
+  })
+
   it('finds workshops by title, current before archived, and complains about ambiguity', () => {
     const { ops } = setup()
     const a = ops.workshopCreate({ title: 'Teamtag' })
@@ -175,6 +182,12 @@ describe('packing list and library', () => {
     ])
     ops.itemMove(id, 'Erwartungen', { day: null })
     expect(ops.packingList(id).lines.map((l) => l.label)).toEqual(['Flipchart'])
+    // A parked step packs nothing, so its material is no line to tick; a step's material is not removed here but on the item.
+    expect(() => ops.packingUpdate(id, { lines: [{ label: 'Moderationskarten', checked: true }] })).toThrow(/no line/)
+    expect(() => ops.packingUpdate(id, { remove: ['Flipchart'] })).toThrow(/material of a step/)
+    // Workshop-wide material that a step also needs: removing the workshop's entry keeps the line and its tick.
+    ops.packingUpdate(id, { add: [{ label: 'Flipchart' }], lines: [{ label: 'Flipchart', checked: true }] })
+    expect(ops.packingUpdate(id, { remove: ['Flipchart'] }).lines).toEqual([{ label: 'Flipchart', qty: 2, checked: true, items: ['Begrüßung'] }])
   })
 
   it('saves items and groups to the library and inserts copies', () => {

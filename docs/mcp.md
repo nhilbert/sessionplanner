@@ -199,7 +199,7 @@ Conventions:
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
 | `packing_list` | read | `workshop` | Per material: quantity to pack (largest of any single placed item, or the override), which items need it, ticked, at the venue, links. |
-| `packing_update` | write | `workshop`, `lines[]` (`label`, `qty` override or null, `checked`, `venue`), `add[]` (workshop-wide material), `remove[]` (labels of workshop-wide material) | Ticks, venue marks, overrides and material for the workshop as a whole. |
+| `packing_update` | write | `workshop`, `lines[]` (`label`, `qty` override or null, `checked`, `venue`), `add[]` (workshop-wide material), `remove[]` (labels of workshop-wide material) | Ticks, venue marks, overrides and material for the workshop as a whole. Lines are the ones `packing_list` shows (placed steps and workshop-wide material); material that belongs to a step is changed on the item, not removed here. |
 
 ### Library
 
@@ -255,6 +255,7 @@ Not in cryptographic strength – both are 256-bit random values. The gain is in
 - **Human approval with MFA.** A token exists only after you signed in and pressed Allow; the static token is a value that anyone holding it can use.
 - **Short-lived and rotating.** Access tokens expire after an hour. Each refresh token works once; if an already used refresh token is presented again later, the server assumes it was copied and revokes the whole connection.
 - **Revocable per agent** in Settings, effective immediately, without restarting or reconfiguring other clients.
+- **Tied to the owner list.** A token belongs to the owner who approved it; once that address is no longer in `SP_OWNERS`, the next call is refused and the next refresh ends the connection, however long the tokens would still live.
 - **Narrow redirects.** Clients may register only Claude's callbacks (`https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`) and loopback addresses, so a third party cannot have authorization codes delivered to its own server.
 
 What OAuth adds in exposure:
@@ -287,7 +288,7 @@ What neither protects against:
 | Consent page says "only … on the computer running Session Planner" while hosted | `SP_PUBLIC_URL` not set, so the server runs in local mode | Set `SP_PUBLIC_URL` and `SP_OWNERS` |
 | "Invalid redirect" on the consent page | The client registered a redirect URI that is not Claude's or loopback | Add it to `SP_OAUTH_REDIRECTS` if you trust that client |
 | Claude reports `invalid_target` | The URL entered in Claude differs from `SP_PUBLIC_URL` + `/mcp` (other host, `http`, trailing path) | Enter exactly `https://<SP_PUBLIC_URL host>/mcp` |
-| Connector worked, now asks to sign in again | Refresh token expired (30 days unused), was revoked in Settings, or replayed | Reconnect; if you did not disconnect it, look at who else might hold the token |
+| Connector worked, now asks to sign in again | Refresh token expired (30 days unused), was revoked in Settings, replayed, or the approving address left `SP_OWNERS` | Reconnect; if you did not disconnect it, look at who else might hold the token |
 | Agent changes do not show in the browser | The agent runs over stdio (no live updates) or the window lost its stream | Reload the page |
 | "… matches several workshops" | Two workshops share the title | Give the id from `workshop_list`, or add the client to the query |
 

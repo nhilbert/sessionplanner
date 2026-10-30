@@ -10,6 +10,8 @@ const minutes = z.number().int().min(0).max(2 * 1440)
 const position = z.number().finite()
 // YYYY-MM-DD of a day that exists (no 2026-02-29, no 2026-99-99): a date that cannot be parsed would break shifting on duplicate.
 const isoDate = z.iso.date()
+/** The same calendar check for dates that arrive outside the HTTP bodies (the agents' tools). */
+export const isCalendarDate = (value: string): boolean => isoDate.safeParse(value).success
 // Links are rendered as <a href>: only web and mail addresses, never javascript: or data:.
 const link = z.union([z.literal(''), z.string().max(2000).regex(/^(https?:\/\/|mailto:)/i)])
 

@@ -12,8 +12,8 @@ import { OAuthServer, type OAuthConfig } from './oauth.ts'
 
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback'
 
-function setup(cfg: Partial<OAuthConfig> = {}, owners: string[] = []) {
-  const db = openDb(':memory:')
+/** A server; `db` lets a second server start on the same database, as after a restart with a changed configuration. */
+function setup(cfg: Partial<OAuthConfig> = {}, owners: string[] = [], db = openDb(':memory:')) {
   const repo = new Repo(db)
   const oauth = new OAuthServer(db, { baseUrl: new URL('http://127.0.0.1:5175'), remoteAddress: () => '127.0.0.1', ...cfg })
   const app = createApp({
@@ -26,7 +26,7 @@ function setup(cfg: Partial<OAuthConfig> = {}, owners: string[] = []) {
     mcp: mcpRoutes(repo, { oauth }),
     oauth: { routes: oauth.routes(), admin: oauth.adminRoutes() },
   })
-  return { app, oauth, repo }
+  return { app, oauth, repo, db }
 }
 
 const LOCAL = { host: '127.0.0.1:5175' }
@@ -42,8 +42,8 @@ async function register(app: ReturnType<typeof setup>['app'], redirect_uris = [C
 }
 
 /** Runs authorize → consent → code; returns the redirect URL. */
-async function authorize(app: ReturnType<typeof setup>['app'], clientId: string, challenge: string, headers: Record<string, string> = LOCAL, redirect = CALLBACK) {
-  const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: 'S256', state: 'xyz', resource: 'http://127.0.0.1:5175/mcp' })
+async function authorize(app: ReturnType<typeof setup>['app'], clientId: string, challenge: string, headers: Record<string, string> = LOCAL, redirect = CALLBACK, resource = 'http://127.0.0.1:5175/mcp') {
+  const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: 'S256', state: 'xyz', resource })
   const page = await app.request(`/oauth/authorize?${q}`, { headers })
   if (page.status !== 200) return { status: page.status, url: page.headers.get('location') }
   const html = await page.text()
@@ -198,6 +198,26 @@ describe('OAuth for /mcp', () => {
     expect(await page.text()).toContain('may not approve')
     expect((await ctx.app.request('https://sessions.example.com/api/mcp/connections', { headers: guest })).status).toBe(403)
     expect(ctx.oauth.connections()).toEqual([])
+  })
+
+  it('hosted, an owner taken off the list is refused with the next call, and the refresh ends the connection', async () => {
+    const hosted = { baseUrl: new URL('https://sessions.example.com'), userHeader: 'x-auth-request-email' }
+    const ctx = setup({ ...hosted, allowedUsers: ['me@example.com'] }, ['me@example.com'])
+    const me = { host: 'sessions.example.com', 'x-auth-request-email': 'me@example.com' }
+    const { body } = await register(ctx.app)
+    const { verifier, challenge } = pkce()
+    const { url } = await authorize(ctx.app, body.client_id, challenge, me, CALLBACK, 'https://sessions.example.com/mcp')
+    const code = new URL(url!).searchParams.get('code')!
+    const issued = await ctx.app.request('/oauth/token', form({ grant_type: 'authorization_code', code, redirect_uri: CALLBACK, client_id: body.client_id, code_verifier: verifier }))
+    expect(issued.status).toBe(200)
+    const tokens = (await issued.json()) as { access_token: string; refresh_token: string }
+    expect((await callMcp(ctx.app, tokens.access_token)).status).toBe(200)
+    // The owner list changes (SP_OWNERS, restart): the same database, a server that no longer lists me.
+    const later = setup({ ...hosted, allowedUsers: ['other@example.com'] }, ['other@example.com'], ctx.db)
+    expect((await callMcp(later.app, tokens.access_token)).status).toBe(401)
+    const refresh = await later.app.request('/oauth/token', form({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: body.client_id }))
+    expect(refresh.status).toBe(400)
+    expect(later.oauth.connections()).toEqual([])
   })
 
   it('hosted, only the owner sees and disconnects connections', async () => {
