@@ -38,6 +38,9 @@ export interface AppOptions extends GuardOptions {
 // The built UI loads only its own files; nothing a user typed can run as script.
 const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 
+/** A request's JSON body; a missing or malformed one is the client's mistake (400), not the server's. */
+const jsonBody = (c: Context): Promise<unknown> => c.req.json().catch(() => { throw new BadRequest('invalid JSON body') })
+
 /** What a guest without the notes may not see: facilitation notes and note items. */
 export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   if (access.role === 'edit' || access.showNotes) return { ...state, access }
@@ -131,7 +134,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   })
 
   app.post('/api/workshops/:id/duplicate', ownerOnly, async (c) => {
-    const result = repo.duplicateWorkshop(c.req.param('id')!, validateDuplicate(await c.req.json()))
+    const result = repo.duplicateWorkshop(c.req.param('id')!, validateDuplicate(await jsonBody(c)))
     if (!result) return c.json({ error: 'not_found' }, 404)
     await mkdir(filesDir, { recursive: true })
     // A file missing on disk stays listed but fails its download, as in the original.
@@ -144,7 +147,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     const access = accessTo(c, id)
     if (!access) return c.json({ error: 'not_found' }, 404)
     if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
-    const { clientId, ops } = validateOps(await c.req.json())
+    const { clientId, ops } = validateOps(await jsonBody(c))
     // Guests plan along; archiving stays with the owner.
     if (access !== 'owner' && ops.some((o) => o.op === 'set' && o.entity === 'workshop' && 'archived' in o.fields)) return c.json({ error: 'forbidden' }, 403)
     const stored = repo.applyOps(id, ops)
@@ -235,7 +238,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   // ---- settings and logo -------------------------------------------------------------------------
   const logoPath = path.join(filesDir, 'logo')
   app.get('/api/settings', (c) => c.json(repo.getSettings()))
-  app.put('/api/settings', ownerOnly, async (c) => c.json(repo.saveSettings({ ...validateSettings(await c.req.json()), logo: repo.getSettings().logo })))
+  app.put('/api/settings', ownerOnly, async (c) => c.json(repo.saveSettings({ ...validateSettings(await jsonBody(c)), logo: repo.getSettings().logo })))
 
   app.post('/api/settings/logo', ownerOnly, async (c) => {
     const file = (await c.req.parseBody()).file
@@ -276,7 +279,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   app.get('/api/workshops/:id/members', ownerOnly, (c) => c.json(repo.listMembers(c.req.param('id')!)))
   app.put('/api/workshops/:id/members/:email', ownerOnly, async (c) => {
     const id = c.req.param('id')!
-    const { role, showNotes } = validateMember(await c.req.json())
+    const { role, showNotes } = validateMember(await jsonBody(c))
     const member = repo.setMember(id, validEmail(c.req.param('email')!), role, showNotes)
     if (!member) return c.json({ error: 'not_found' }, 404)
     hub.publish(id, { type: 'members-changed' })
@@ -293,9 +296,9 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   app.use('/api/library', ownerOnly)
   app.use('/api/library/*', ownerOnly)
   app.get('/api/library', (c) => c.json(repo.listLibrary()))
-  app.post('/api/library', async (c) => c.json(repo.saveLibraryEntry(null, validateLibraryEntry(await c.req.json())), 201))
+  app.post('/api/library', async (c) => c.json(repo.saveLibraryEntry(null, validateLibraryEntry(await jsonBody(c))), 201))
   app.put('/api/library/:id', async (c) => {
-    const entry = repo.saveLibraryEntry(c.req.param('id')!, validateLibraryEntry(await c.req.json()))
+    const entry = repo.saveLibraryEntry(c.req.param('id')!, validateLibraryEntry(await jsonBody(c)))
     return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
   })
   app.delete('/api/library/:id', (c) => (repo.deleteLibraryEntry(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))

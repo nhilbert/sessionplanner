@@ -358,6 +358,15 @@ describe('duplicate dates', () => {
     expect(res.status).toBe(201)
     expect(((await res.json()) as WorkshopState).days[0].date).toBe('2026-99-99')
   })
+
+  it('answers a missing or malformed body with 400, not 500', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const post = (path: string, body?: string) => app.request(`${BASE}${path}`, { method: 'POST', headers: H, body })
+    expect((await post(`/api/workshops/${ws.workshop.id}/duplicate`)).status).toBe(400)
+    expect((await post(`/api/workshops/${ws.workshop.id}/ops`, '{not json')).status).toBe(400)
+    expect((await post('/api/library', '')).status).toBe(400)
+  })
 })
 
 describe('member addresses', () => {
