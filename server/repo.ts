@@ -1,6 +1,8 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
 import { type Attachment, type Day, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
+import { itemsIn } from '../src/domain/order.ts'
+import { scheduleDay } from '../src/domain/time.ts'
 import { BadRequest } from './validate.ts'
 
 type Codec = 'text' | 'num' | 'bool' | 'json'
@@ -159,24 +161,45 @@ export class Repo {
 
   /** All workshops, or only those shared with `guest` (an e-mail). */
   listWorkshops(guest?: string): WorkshopSummary[] {
+    const only = guest !== undefined ? 'WHERE workshop_id IN (SELECT workshop_id FROM members WHERE email = ?)' : ''
+    const args = guest !== undefined ? [guest] : []
     const rows = this.db
       .prepare(
-        `SELECT w.id, w.title, w.client, w.archived, w.updated_at,
+        `SELECT w.id, w.title, w.client, w.location, w.archived, w.updated_at,
            (SELECT MIN(date) FROM days WHERE workshop_id = w.id) AS first_date,
            (SELECT MAX(date) FROM days WHERE workshop_id = w.id) AS last_date,
            (SELECT COUNT(*) FROM items WHERE workshop_id = w.id) AS item_count
          FROM workshops w ${guest !== undefined ? 'WHERE w.id IN (SELECT workshop_id FROM members WHERE email = ?)' : ''}
          ORDER BY COALESCE(first_date, w.created_at) DESC`,
       )
-      .all(...(guest !== undefined ? [guest] : [])) as Row[]
+      .all(...args) as Row[]
+    // The length needs the computed times: days, groups and placed items of the listed workshops, three queries in all.
+    const byWorkshop = <T extends { workshopId: string }>(list: T[]) => {
+      const map = new Map<string, T[]>()
+      for (const x of list) map.set(x.workshopId, [...(map.get(x.workshopId) ?? []), x])
+      return map
+    }
+    const days = byWorkshop((this.db.prepare(`SELECT * FROM days ${only}`).all(...args) as Row[]).map(toDay))
+    const groups = byWorkshop((this.db.prepare(`SELECT * FROM groups ${only}`).all(...args) as Row[]).map(toGroup))
+    const items = byWorkshop((this.db.prepare(`SELECT * FROM items ${only ? `${only} AND` : 'WHERE'} day_id IS NOT NULL`).all(...args) as Row[]).map(toItem))
+    const minutes = (id: string) => {
+      const structure = { groups: groups.get(id) ?? [], items: items.get(id) ?? [] }
+      return (days.get(id) ?? []).reduce((sum, d) => {
+        const placed = itemsIn(structure, d.id)
+        return sum + (placed.length ? Math.max(0, scheduleDay(d.startMin, d.endMin, placed).end - d.startMin) : 0)
+      }, 0)
+    }
     return rows.map((r) => ({
       id: r.id as string,
       title: r.title as string,
       client: r.client as string,
+      location: r.location as string,
       archived: r.archived === 1,
       firstDate: (r.first_date as string | null) ?? null,
       lastDate: (r.last_date as string | null) ?? null,
       itemCount: r.item_count as number,
+      days: days.get(r.id as string)?.length ?? 0,
+      minutes: minutes(r.id as string),
       updatedAt: r.updated_at as string,
     }))
   }

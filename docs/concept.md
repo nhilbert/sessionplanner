@@ -40,7 +40,7 @@ Goal, method and lead make the printed plan look like a German facilitation plan
 The agenda is a vertical timeline per day, each item as high as it is long; several days stand side by side; on a phone they stack. The parking lot, library, packing list, files and details share a foldable sidebar on the right (full screen on a phone).
 
 - **Drag to reorder** within a day, **between days**, and **to and from the parking lot**. While dragging, all times recompute live, so you see the effect before you drop.
-- **Drag the lower edge to change the duration**, snapping to 5 minutes. From the keyboard: select an item, then `+`/`−` changes it by 5 minutes.
+- **Drag the lower edge to change the duration**, snapping to 5 minutes (with a mouse; on touch screens a tap on the length opens the time editor, section 10). From the keyboard: select an item, then `+`/`−` changes it by 5 minutes.
 - **Fixed start** on any item: lunch at 12:30, the board member at 15:00. The free items around it flow; gaps and overlaps show at once.
 - **Insert**: add a block, break, marker or note at the end of a day or in the parking lot, then drag it into place. **Duplicate** an item.
 - **Undo/redo** (`Ctrl+Z`, `Ctrl+Shift+Z`/`Ctrl+Y`) for every change made in this window: moves, resizes, edits, deletes.
@@ -123,6 +123,12 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project; Markdown export (e.g. for the photo protocol).
 
 ## 10. Decisions
+
+**2026-10-30, after trying it on a phone**
+
+- No drag-resize on touch screens. The grip covered the lower half of a short card; the browser's touch adjustment sent taps there to it, so tapping a card rarely opened its details, and a wiggle of a few pixels changed the length. On touch, the length is changed by tapping it (time editor: common values, ±5, slider). Whether to bring direct resizing back on touch in another form is open.
+- Workshops list: a search field (title, client, location; every word must match; it includes archived workshops); the client on its own line; the length of the agenda instead of the number of items (per day from its start to its computed end, breaks included, parked items not, summed over the days); the location.
+- Library: cards with what an entry holds (kind, category, description, goal, method, lead, material, notes; a group's items with their lengths), two columns on wide screens; the search also looks through descriptions, goal, method, lead and categories, on the library page and in the planner's library tab.
 
 **2026-10-29, MCP**
 

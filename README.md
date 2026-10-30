@@ -15,7 +15,8 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - **Print views** with your logo: facilitation plan (A4 landscape), client agenda, packing list.
 - **Live updates** between open windows and devices; undo/redo (`Ctrl+Z`, `Ctrl+Shift+Z`).
 - German and English, light and dark.
-- **On a phone**: days stack, the sidebar fills the screen, menus and the time editor come up as bottom sheets, a tap opens an item, press and hold drags it.
+- **On a phone**: days stack, the sidebar fills the screen, menus and the time editor come up as bottom sheets, a tap opens an item, press and hold drags it, a tap on the length changes it.
+- **Workshops list** with search (title, client, location), each workshop's dates, agenda length and location.
 - **AI agents** (Claude, Claude Code …) work with the same data through the built-in MCP server: draft an agenda from a brief, rework timings, fill the packing list – see [docs/mcp.md](docs/mcp.md).
 
 The concept, decisions and the next stages (planning comfort, sharing by link, live mode) are in [docs/concept.md](docs/concept.md).

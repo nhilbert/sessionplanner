@@ -1,6 +1,7 @@
 import { type ComponentProps, type ReactNode, type SyntheticEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Check, Search, X } from 'lucide-react'
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ')
@@ -58,6 +59,52 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
 
 export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
   return <textarea className={cx('field min-h-[84px] resize-y py-2 leading-relaxed', className)} {...props} />
+}
+
+/**
+ * A search field: magnifier in front, a clear button once something is typed, Escape clears. `shortcut` lets "/"
+ * focus it from anywhere on the page (not while typing elsewhere), as on the workshops list and in the library.
+ */
+export function SearchField({ value, onChange, placeholder, shortcut, className }: { value: string; onChange: (v: string) => void; placeholder: string; shortcut?: boolean; className?: string }) {
+  const { t } = useTranslation()
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (!shortcut) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !isTyping(e.target)) {
+        e.preventDefault()
+        ref.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [shortcut])
+  return (
+    <div className={cx('relative', className)}>
+      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+      <input
+        ref={ref}
+        type="search"
+        enterKeyHint="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && value) {
+            e.stopPropagation()
+            onChange('')
+          }
+        }}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="field pl-9 pr-9 pointer-coarse:h-11 [&::-webkit-search-cancel-button]:hidden"
+      />
+      {value && (
+        <button type="button" aria-label={t('common.clear')} onClick={() => { onChange(''); ref.current?.focus() }} className="tap absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink">
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  )
 }
 
 export function Select({ className, children, ...props }: ComponentProps<'select'>) {

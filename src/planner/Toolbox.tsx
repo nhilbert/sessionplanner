@@ -2,13 +2,13 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Archive, ArrowLeft, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Search, Users, X } from 'lucide-react'
+import { Archive, ArrowLeft, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Users, X } from 'lucide-react'
 import type { Attachment, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration } from '@/domain/time'
-import { useLibrary } from '@/store/useLibrary'
+import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { itemColor, useSettings } from '@/store/useSettings'
-import { cx, IconButton, useLocalState } from '@/components/ui'
+import { cx, IconButton, SearchField, useLocalState } from '@/components/ui'
 import { AddBar, Entries, List } from './DayColumn'
 import ItemPanel from './ItemPanel'
 import { AccessPanel, FilesPanel, PackingPanel, WorkshopPanel } from './panels'
@@ -191,18 +191,15 @@ function ResizeEdge({ width, onWidth, label }: { width: number; onWidth: (w: num
 function LibraryTab({ onInsert }: { onInsert: (entry: LibraryEntry) => void }) {
   const { t } = useTranslation()
   const { entries, loaded, load } = useLibrary()
+  const categories = useSettings((s) => s.settings.categories)
   const [query, setQuery] = useState('')
   useEffect(() => {
     if (!loaded) void load()
   }, [loaded, load])
-  const q = query.trim().toLowerCase()
-  const shown = entries.filter((e) => !q || e.title.toLowerCase().includes(q) || (e.kind === 'group' ? e.data.items.some((i) => i.title.toLowerCase().includes(q)) : e.data.description.toLowerCase().includes(q)))
+  const shown = entries.filter((e) => matchesWords(libraryText(e, categories, t), query))
   return (
     <div>
-      <div className="relative mb-3">
-        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('library.search')} className="field h-8 pl-8 text-[13px]" />
-      </div>
+      <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} className="mb-3" />
       {loaded && !entries.length && <p className="text-[13px] leading-snug text-ink-2">{t('library.emptyHint')}</p>}
       <ul className="space-y-1">
         {shown.map((e) => (
@@ -235,8 +232,14 @@ function LibraryRow({ entry, onInsert }: { entry: LibraryEntry; onInsert: () => 
       {...attributes}
       className={cx('flex cursor-grab touch-manipulation items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] hover:bg-surface-2 active:cursor-grabbing', isDragging && 'opacity-40')}
     >
-      {entry.kind === 'group' ? <FolderOpen size={13} className="shrink-0 text-ink-3" /> : <span className="h-3.5 w-[3px] shrink-0 rounded-full" style={{ background: color ? `var(--c-${color})` : 'var(--line-2)' }} />}
-      <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+      {entry.kind === 'group' ? <FolderOpen size={13} className="shrink-0 self-start mt-0.5 text-ink-3" /> : <span className="w-[3px] shrink-0 self-stretch rounded-full" style={{ background: color ? `var(--c-${color})` : 'var(--line-2)' }} />}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{entry.title}</span>
+        {/* one line of what it is: the description, or a group's items */}
+        {(entry.kind === 'group' ? entry.data.items.length > 0 : !!entry.data.description) && (
+          <span className="block truncate text-[12px] text-ink-3">{entry.kind === 'group' ? entry.data.items.map((i) => i.title || t(`kinds.${i.kind}`)).join(' · ') : entry.data.description}</span>
+        )}
+      </span>
       <span className="shrink-0 text-[11px] text-ink-3 tnum">
         {entry.kind === 'group' && `${t('library.items', { count: items.length })} · `}
         {formatDuration(minutes)}
