@@ -440,8 +440,11 @@ describe('link list for the CRM', () => {
     expect((await link(app)).status).toBe(401)
     expect((await link(app, { authorization: `Bearer ${'b'.repeat(64)}` })).status).toBe(401)
     expect((await link(app, { authorization: TOKEN })).status).toBe(401)
+    expect((await link(app, { authorization: 'Bearer' })).status).toBe(401)
     // The signed-in owner's header is no substitute for the token
     expect((await link(app, { 'x-auth-request-email': 'me@example.com' })).status).toBe(401)
+    // The scheme is case-insensitive (RFC 6750), as some HTTP clients send it
+    expect((await link(app, { authorization: `bearer ${TOKEN}` })).status).toBe(200)
     const res = await link(app, { authorization: `Bearer ${TOKEN}` })
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')

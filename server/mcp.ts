@@ -6,7 +6,7 @@ import type { Repo } from './repo.ts'
 import { BadRequest } from './validate.ts'
 import { Ops, type OpsOptions } from './ops.ts'
 import type { OAuthServer } from './oauth.ts'
-import { sameToken } from './guard.ts'
+import { bearerToken, sameToken } from './guard.ts'
 import { PALETTE } from '../src/domain/types.ts'
 
 /**
@@ -241,9 +241,8 @@ export interface McpAuth {
 export function mcpRoutes(repo: Repo, auth: McpAuth, options: OpsOptions = {}): Hono {
   const app = new Hono()
   app.all('/', async (c) => {
-    const header = c.req.header('authorization') ?? ''
-    const given = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
-    const ok = !!given && ((auth.token !== undefined && sameToken(given, auth.token)) || auth.oauth?.verifyAccess(given) != null)
+    const given = bearerToken(c.req.raw.headers)
+    const ok = given !== null && ((auth.token !== undefined && sameToken(given, auth.token)) || auth.oauth?.verifyAccess(given) != null)
     if (!ok) {
       const challenge = auth.oauth ? `Bearer resource_metadata="${auth.oauth.resourceMetadataUrl}", scope="sessionplanner"` : 'Bearer'
       return c.json({ error: 'unauthorized' }, 401, { 'WWW-Authenticate': challenge })

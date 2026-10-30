@@ -54,6 +54,12 @@ export function guard({ publicUrl, owners, ownerHeader }: GuardOptions) {
   }
 }
 
+/** The token of an `Authorization: Bearer …` header, or null without one (the scheme is case-insensitive, RFC 6750). */
+export function bearerToken(headers: Headers): string | null {
+  const m = /^Bearer\s+(\S+)\s*$/i.exec(headers.get('authorization') ?? '')
+  return m ? m[1] : null
+}
+
 /** Compares a presented bearer token with the configured one in constant time. */
 export function sameToken(given: string, expected: string): boolean {
   const a = Buffer.from(given)

@@ -357,7 +357,11 @@ export class OAuthServer {
       const u = new URL(req.redirectUri)
       if (form.decision === 'allow') {
         const code = randomToken()
-        this.codes.set(sha256(code), { ...req, expires: Date.now() + CODE_TTL_MS })
+        // A code is removed when it is exchanged; one that never is (closed tab, crashed client) would stay for the
+        // life of the process, so the expired ones go whenever a new one is issued, as with the pending requests.
+        const now = Date.now()
+        for (const [k, v] of this.codes) if (v.expires < now) this.codes.delete(k)
+        this.codes.set(sha256(code), { ...req, expires: now + CODE_TTL_MS })
         u.searchParams.set('code', code)
       } else u.searchParams.set('error', 'access_denied')
       if (req.state) u.searchParams.set('state', req.state)

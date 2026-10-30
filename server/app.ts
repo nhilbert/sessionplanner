@@ -7,7 +7,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { newId } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
-import { type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
+import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { BadRequest, safeMime, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
@@ -77,9 +77,8 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   // reads id, title, client and dates of all workshops – nothing else, and nothing it could change.
   if (linkToken) {
     app.get('/api/link/workshops', (c) => {
-      const header = c.req.header('authorization') ?? ''
-      const given = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
-      if (!given || !sameToken(given, linkToken)) return c.json({ error: 'unauthorized' }, 401)
+      const given = bearerToken(c.req.raw.headers)
+      if (given === null || !sameToken(given, linkToken)) return c.json({ error: 'unauthorized' }, 401)
       return c.json(repo.listWorkshops().map(({ id, title, client, archived, firstDate, lastDate }) => ({ id, title, client, archived, firstDate, lastDate })))
     })
   }
