@@ -1,10 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { Copy, Download, Printer } from 'lucide-react'
-import { PRINT_CHOICES, type PrintOptions, type PrintVariant } from '@/domain/print'
+import { PRINT_CHOICES, PRINT_VARIANTS, type PrintOptions, type PrintVariant } from '@/domain/print'
 import { cx } from '@/components/ui'
-
-const VARIANTS: PrintVariant[] = ['overview', 'plan', 'agenda', 'packing']
-const VARIANT_LABEL = { overview: 'planner.printOverview', plan: 'planner.printPlan', agenda: 'planner.printAgenda', packing: 'planner.printPacking' } as const
+import { VARIANT_LABEL } from './options'
 
 const base = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[13px] font-medium'
 const btn = `${base} border-black/15 bg-white text-black hover:bg-[#f1f0ec]`
@@ -40,7 +38,7 @@ export function Toolbar({
     <div className="no-print sticky top-0 z-10 border-b border-black/10 bg-[#f7f6f2]/95 backdrop-blur">
       <div className="mx-auto flex max-w-[297mm] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
         <div role="tablist" className="inline-flex rounded-lg border border-black/15 bg-white p-0.5 text-[13px]">
-          {VARIANTS.map((v) => (
+          {PRINT_VARIANTS.map((v) => (
             <button key={v} type="button" role="tab" aria-selected={v === variant} onClick={() => onVariant(v)} className={cx('rounded-md px-2.5 py-1 whitespace-nowrap', v === variant ? 'bg-[#e9e6df] font-medium text-black' : 'text-black/60 hover:text-black')}>
               {t(VARIANT_LABEL[v])}
             </button>

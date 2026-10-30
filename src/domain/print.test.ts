@@ -123,6 +123,8 @@ describe('workshopMarkdown', () => {
     expect(md).not.toMatch(/Goal|NH|Say hello|Photo|Projector/)
     expect(workshopMarkdown(state, 'overview', PRINT_DEFAULTS.overview, labels, date)).toContain('| 09:00–09:20 | 20 min | **Welcome** | Everyone knows the plan | Input | NH |')
     expect(workshopMarkdown(state, 'overview', { ...PRINT_DEFAULTS.overview, notes: true }, labels, date)).toContain('| ## Steps<br>1. Say hello<br>2. Show the \\| agenda |')
+    const piped = { ...state, groups: [{ ...state.groups[0], title: 'Part 1 | Arrival' }] }
+    expect(workshopMarkdown(piped, 'agenda', PRINT_DEFAULTS.agenda, labels, date)).toContain('| 09:00–09:45 | **PART 1 \\| ARRIVAL** |')
   })
   it('renders the packing list as a task list, and appends it to the plan on request', () => {
     expect(workshopMarkdown(state, 'packing', PRINT_DEFAULTS.packing, labels, date)).toContain('- [ ] Kit\n- [x] 2 × Flip chart\n')

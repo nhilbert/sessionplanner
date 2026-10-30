@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next'
-import type { TFunction } from 'i18next'
-import type { Category, Day, Item, Material, WorkshopState } from '@/domain/types'
+import type { Day, WorkshopState } from '@/domain/types'
 import { type DaySchedule, formatDuration, formatTime } from '@/domain/time'
 import { dateRange, type PrintOptions, type PrintRow, type PrintVariant } from '@/domain/print'
 import { formatDate } from '@/i18n'
 import Markdown from '@/components/Markdown'
 import { cx } from '@/components/ui'
-import { categoryName } from '@/store/useSettings'
+
+// The texts of material, files and categories come from the same functions as the Markdown twin.
+export { fileNames, materialLabel } from '@/domain/print'
+export { categoryOf } from './options'
 
 export type ItemRow = Extract<PrintRow, { kind: 'item' }>
 
@@ -71,12 +73,3 @@ export function Late({ row, className }: { row: ItemRow; className?: string }) {
 }
 
 export const Tick = ({ large, className }: { large?: boolean; className?: string }) => <span aria-hidden className={cx('tick', large && 'tick-lg', className)} />
-
-export const fileNames = (data: WorkshopState, item: Item): string[] => item.attachmentIds.map((a) => data.attachments.find((x) => x.id === a)?.name).filter((n): n is string => !!n)
-
-export const materialLabel = (m: Material): string => (m.qty > 1 ? `${m.qty} × ${m.label}` : m.label)
-
-export function categoryOf(item: Item, categories: Category[], t: TFunction): string | null {
-  const c = categories.find((x) => x.id === item.categoryId)
-  return c ? categoryName(c, t) : null
-}

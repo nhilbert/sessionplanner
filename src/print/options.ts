@@ -1,8 +1,17 @@
 import { useState } from 'react'
 import type { TFunction } from 'i18next'
-import type { Category } from '@/domain/types'
+import type { Category, Item } from '@/domain/types'
 import { PRINT_DEFAULTS, type PrintLabels, type PrintOptions, type PrintVariant, printOptions } from '@/domain/print'
 import { categoryName } from '@/store/useSettings'
+
+/** The menu and tab label of each view (planner's print menu, the print page's tabs). */
+export const VARIANT_LABEL = { overview: 'planner.printOverview', plan: 'planner.printPlan', agenda: 'planner.printAgenda', packing: 'planner.printPacking' } as const
+
+/** The name of an item's category in the UI's language, or null without one. */
+export function categoryOf(item: Item, categories: Category[], t: TFunction): string | null {
+  const c = categories.find((x) => x.id === item.categoryId)
+  return c ? categoryName(c, t) : null
+}
 
 const key = (variant: PrintVariant) => `sp.print.${variant}`
 
@@ -59,10 +68,7 @@ export function printLabels(t: TFunction, variant: PrintVariant, categories: Cat
     gap: (d) => t('planner.gap', { d }),
     overlap: (d) => t('planner.overlap', { d }),
     late: (time) => t('planner.late', { time }),
-    categoryOf: (item) => {
-      const c = categories.find((x) => x.id === item.categoryId)
-      return c ? categoryName(c, t) : null
-    },
+    categoryOf: (item) => categoryOf(item, categories, t),
   }
 }
 

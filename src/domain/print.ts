@@ -1,4 +1,4 @@
-import type { Day, Item, WorkshopState } from './types.ts'
+import type { Day, Item, Material, WorkshopState } from './types.ts'
 import { agendaOrder, entriesIn, itemsIn, sortedDays } from './order.ts'
 import { type DaySchedule, durationOf, formatDuration, formatTime, scheduleDay } from './time.ts'
 import { packingList } from './packing.ts'
@@ -76,7 +76,9 @@ export const PRINT_CHOICES: Record<PrintVariant, (keyof PrintOptions)[]> = {
   packing: [],
 }
 
-export const isPrintVariant = (v: string | undefined): v is PrintVariant => v === 'overview' || v === 'plan' || v === 'agenda' || v === 'packing'
+export const PRINT_VARIANTS: readonly PrintVariant[] = ['overview', 'plan', 'agenda', 'packing']
+
+export const isPrintVariant = (v: string | undefined): v is PrintVariant => PRINT_VARIANTS.includes(v as PrintVariant)
 
 /** Options read back from storage: unknown keys dropped, missing ones filled from the defaults. */
 export function printOptions(variant: PrintVariant, stored: unknown): PrintOptions {
@@ -174,8 +176,10 @@ const cell = (text: string): string => text.trim().replace(/\|/g, '\\|').replace
 /** Headings inside notes move below the heading they sit under (notes may use #, ## and ###). */
 const demote = (markdown: string, by: number): string => markdown.replace(/^(#{1,6})(\s)/gm, (_m, h: string, s: string) => '#'.repeat(Math.min(6, h.length + by)) + s)
 
-const materialText = (item: Item): string => item.materials.map((m) => (m.qty > 1 ? `${m.qty} × ${m.label}` : m.label)).join(', ')
-const fileNames = (state: WorkshopState, item: Item): string[] => item.attachmentIds.map((a) => state.attachments.find((x) => x.id === a)?.name).filter((n): n is string => !!n)
+/** "2 × Flipchart", or just the label for a single piece. Shared with the printed page, so paper and file agree. */
+export const materialLabel = (m: Material): string => (m.qty > 1 ? `${m.qty} × ${m.label}` : m.label)
+export const fileNames = (state: WorkshopState, item: Item): string[] => item.attachmentIds.map((a) => state.attachments.find((x) => x.id === a)?.name).filter((n): n is string => !!n)
+const materialText = (item: Item): string => item.materials.map(materialLabel).join(', ')
 
 /**
  * The workshop as Markdown, shaped like the printed view: a table per day for the overview and the client agenda,
@@ -231,7 +235,7 @@ function tableLines(rows: PrintRow[], state: WorkshopState, o: PrintOptions, l: 
     if (r.kind === 'group') {
       const cells = cols.map(() => '')
       cells[0] = r.start !== null && r.end !== null ? timeRange(r.start, r.end) : ''
-      cells[o.duration ? 2 : 1] = `**${r.title.toUpperCase()}**`
+      cells[o.duration ? 2 : 1] = `**${cell(r.title.toUpperCase())}**`
       out.push(line(cells))
     } else out.push(line(cols.map((c) => cell(c.of(r)))))
   }

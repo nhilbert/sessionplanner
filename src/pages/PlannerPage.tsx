@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { AlignLeft, CalendarPlus, ChevronLeft, FolderOpen, PanelRight, Printer, Redo2, Rows2, Rows3, Rows4, Undo2, X } from 'lucide-react'
+import { PRINT_VARIANTS } from '@/domain/print'
+import { VARIANT_LABEL } from '@/print/options'
 import { usePlanner } from '@/store/usePlanner'
 import { itemColor, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
@@ -374,9 +376,8 @@ export default function PlannerPage() {
   const shownDays = focused ? days.filter((d) => d.id === focused) : days
   // One day gets one wide, centred column; two share the width; more scroll sideways.
   const dayWidth = shownDays.length === 1 ? 'w-full md:max-w-[760px]' : shownDays.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
-  const printLabels = { overview: 'planner.printOverview', plan: 'planner.printPlan', agenda: 'planner.printAgenda', packing: 'planner.printPacking' } as const
-  const printItems = (['overview', 'plan', 'agenda', 'packing'] as const).map((v) => ({
-    label: t(printLabels[v]),
+  const printItems = PRINT_VARIANTS.map((v) => ({
+    label: t(VARIANT_LABEL[v]),
     icon: <Printer size={15} />,
     onSelect: () => window.open(`/w/${data.workshop.id}/print/${v}`, '_blank', 'noopener'),
   }))

@@ -22,8 +22,10 @@ export default function PrintPage() {
 
   useEffect(() => {
     api.loadWorkshop(id).then(setData, () => setFailed(true))
+  }, [id])
+  useEffect(() => {
     if (!loaded) void load()
-  }, [id, loaded, load])
+  }, [loaded, load])
   useEffect(() => {
     if (data) document.title = `${data.workshop.title || t('workshops.untitled')} – ${t(`print.${v}`)}`
   }, [data, v, t])
