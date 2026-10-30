@@ -12,7 +12,7 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - Per step: short description, goal, method, lead, notes, material and files.
 - **Packing list** from all material (largest quantity of any single step, not the sum), tick off, mark "at the venue", override quantities, add material right there.
 - **Files** (up to 25 MB) attached to the workshop and linked to steps.
-- **Print views** with your logo: facilitation plan (A4 landscape), client agenda, packing list.
+- **Print views** on A4 portrait with your logo: planning overview (a table with the columns you choose), moderation plan (one card per step with the time large in the margin, tick boxes, goal, method, material and notes, a day-at-a-glance list first), client agenda, packing list. Every view has a Markdown twin to copy or save.
 - **Live updates** between open windows and devices; undo/redo (`Ctrl+Z`, `Ctrl+Shift+Z`).
 - German and English, light and dark.
 - **On a phone**: days stack, the sidebar fills the screen, menus and the time editor come up as bottom sheets, a tap opens an item, press and hold drags it.

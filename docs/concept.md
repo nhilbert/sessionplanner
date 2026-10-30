@@ -66,11 +66,12 @@ Computing a day (pure function, `src/domain/time.ts`):
 
 ## 6. Output
 
-Print views (browser print, also to PDF):
+Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 portrait with the owner's logo, a running footer (workshop, dates, page x of y) and switches that are remembered per device. Every view has a Markdown twin built from the same switches (copy, or save as `.md`, e.g. for the photo protocol). The field names follow the German facilitation plan (Zeit · Dauer · Inhalt · Ziel · Methode · Wer · Material · Hinweise):
 
-- **Facilitation plan**: A4 landscape table per day – time, duration, content and description, goal, method, lead, material, notes.
-- **Client agenda**: times, titles and short descriptions only.
-- **Packing list** with checkboxes.
+- **Planning overview** (`overview`): one table per day with the columns switched on (time, duration, content with description, goal, method, lead, category, material, files, notes); landscape as an option. The head repeats on every page, a row never splits. For planning and for a co-facilitator who wants everything on a few pages.
+- **Moderation plan** (`plan`): built to be worked through during the workshop. Per day first the day at a glance (times, numbered steps, length, lead), then one card per step: the clock time large in the margin with end time and length, a box to tick, the step's number and title, lead and category, description, goal, method, material as a checklist, files, and the facilitation notes in full (Markdown). Breaks hatched with a box, markers as a time line, cue notes shaded, groups as section headings with their time range. Slack before a fixed start and overlaps are printed, so the facilitator sees the buffers. A card never splits across a page. Options: packing list appended, each day on a new page.
+- **Client agenda** (`agenda`): clock times, titles, short descriptions and the workshop's goal; groups as sections, breaks and markers quiet; no methods, notes, slack or warnings. Goal per step, lead and durations can be switched on. Days follow each other (one page for most workshops); a page per day as an option.
+- **Packing list** (`packing`): a box per line, quantity, which steps need it, link, "at the venue".
 
 ## 7. Working together
 
@@ -120,9 +121,18 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Minimum duration and "optional" per item, with fit suggestions for a stretch that is over.
 - Asking before saving the same item to the library twice.
 - Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far.
-- Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project; Markdown export (e.g. for the photo protocol).
+- Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
+- Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
+
+**2026-10-30, print and Markdown**
+
+- A4 portrait for every view; landscape only as an option of the overview table. The first version printed the plan as a landscape table in which each row forced a page of its own.
+- Two views for the facilitator instead of one: the overview table for planning (columns of your choice) and the moderation plan as cards for the workshop itself. What the research into facilitation plans agreed on went into the cards: one step per block that never splits across pages, the clock time largest, a box to tick, numbered steps, goal before method, material as a checklist, the notes (Ablauf, cues) in full, a day-at-a-glance list first, the revision date on the sheet, a running footer with title, date and page x of y, and no colour that carries meaning (hatching and shading instead). Sources: the ZIM grid Ziel–Inhalt–Methode with Zeit, Material and Zuständigkeit (SV-Bildungswerk, Methode des Monats, 2010), the Bertelsmann Stiftung handout "Der Moderationsplan" (2018: Schritt · Ziel · Methodik · Hilfsmittel · Zeit), the Berufsgenossenschaften's Moderationsleitfäden (Dauer · Inhalt/Material · Hinweise für Moderierende), SessionLab's split of description (for everyone) and additional information (facilitators only), and the checklist rules of Gawande and Boorman (2010) and Degani and Wiener (NASA, 1990).
+- The client agenda stays lean by default (times, titles, descriptions, goal of the workshop); goal per step, lead and durations are switches. Days follow each other so that most workshops fit one page.
+- The Markdown twin is built from the same rows and switches as the printed page (`src/domain/print.ts`), so the file always matches the paper. Tables for the overview and the agenda, a section per step for the moderation plan, a task list for the packing list. No new fields in the data model: the notes hold the Ablauf and the cues.
+- Switches are remembered per device and per view (localStorage), not per workshop.
 
 **2026-10-29, MCP**
 

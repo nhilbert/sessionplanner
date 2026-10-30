@@ -1,0 +1,88 @@
+/* Print views (src/print): a sheet on the screen, A4 pages on paper. Always light, whatever the app's theme. */
+.print-root {
+  color-scheme: light;
+  background: #efede8;
+  color: #111;
+  min-height: 100dvh;
+}
+.print-root a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sheet {
+  background: #fff;
+  color: #111;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 12px 32px -16px rgba(0, 0, 0, 0.25);
+}
+/* A box to tick, drawn rather than a glyph, so it prints crisply in any font. */
+.tick {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border: 1.2px solid #222;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.tick-lg {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+/* Breaks are hatched and cue notes shaded: still visible without background printing and in greyscale. */
+.hatched {
+  background: repeating-linear-gradient(135deg, #f1f0ec 0 5px, #fff 5px 10px);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.shaded {
+  background: #f3f2ee;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+/* A field label in a step card or table head. */
+.print-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(0, 0, 0, 0.5);
+}
+/* Markdown inside a step: the step's size, tight spacing. */
+.md-compact [role="heading"] {
+  font-size: inherit;
+  margin-top: 4px;
+}
+.md-compact p,
+.md-compact ul,
+.md-compact ol {
+  margin: 2px 0;
+}
+.md-compact code {
+  background: #f1f0ec;
+}
+
+@media print {
+  .print-root {
+    background: #fff;
+    min-height: 0;
+  }
+  .sheet {
+    box-shadow: none;
+  }
+  /* Table heads repeat on every page (Chromium and Firefox do that for thead); a row or a step never splits. */
+  thead {
+    display: table-header-group;
+  }
+  tr,
+  .avoid-break {
+    break-inside: avoid;
+  }
+  .keep-next {
+    break-after: avoid;
+  }
+  .page-break {
+    break-before: page;
+  }
+}

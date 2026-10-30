@@ -374,8 +374,9 @@ export default function PlannerPage() {
   const shownDays = focused ? days.filter((d) => d.id === focused) : days
   // One day gets one wide, centred column; two share the width; more scroll sideways.
   const dayWidth = shownDays.length === 1 ? 'w-full md:max-w-[760px]' : shownDays.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
-  const printItems = (['plan', 'agenda', 'packing'] as const).map((v) => ({
-    label: t(v === 'plan' ? 'planner.printPlan' : v === 'agenda' ? 'planner.printAgenda' : 'planner.printPacking'),
+  const printLabels = { overview: 'planner.printOverview', plan: 'planner.printPlan', agenda: 'planner.printAgenda', packing: 'planner.printPacking' } as const
+  const printItems = (['overview', 'plan', 'agenda', 'packing'] as const).map((v) => ({
+    label: t(printLabels[v]),
     icon: <Printer size={15} />,
     onSelect: () => window.open(`/w/${data.workshop.id}/print/${v}`, '_blank', 'noopener'),
   }))
