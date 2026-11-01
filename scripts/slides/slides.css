@@ -288,3 +288,19 @@
 /* cards fill the height they have: one row gives tall cards, two rows split it */
 .slide ul.cards { align-content: stretch; grid-auto-rows: 1fr; }
 .slide ul.cards.plain { align-content: start; grid-auto-rows: auto; }
+
+/* a long statement (a definition without a picture) */
+.slide.statement .text.long .big { font-size: 34px; line-height: 1.35; }
+/* a dense list in four columns (a word list) */
+.slide ul.list.four { display: block; column-count: 4; column-gap: 28px; font-size: 16px; line-height: 1.3; }
+.slide ul.list.four > li { break-inside: avoid; margin-bottom: 5px; padding-left: 20px; }
+.slide ul.list.four > li::before { top: 0.45em; width: 8px; height: 8px; }
+/* picture cards: portrait pictures whole, lists inside */
+.slide ul.cards.picture.contain > li img { object-fit: contain; background: var(--surface-2); }
+.slide ul.cards.picture ul.list { font-size: 17px; gap: 4px; }
+.slide ul.cards.picture > li > ul.list:last-child { padding-bottom: 22px; }
+.slide ul.cards.picture > li > p + ul.list { margin-top: 0; }
+
+/* picture cards: the picture takes the room, the label sits under it */
+.slide ul.cards.picture > li img { flex: 1 1 200px; min-height: 160px; height: auto; }
+.slide ul.cards.picture > li > h3:last-child { padding-bottom: 22px; }
