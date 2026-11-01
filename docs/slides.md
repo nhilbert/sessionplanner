@@ -61,11 +61,11 @@ Stage 1 (this draft): the format and the layout catalogue, tried on sample slide
 | `model` | a diagram as inline SVG: pyramid, cycle, curve, triangle | `figure.model > svg + figcaption?` |
 | `table` | a small table | `table`, `td.good`, `td.bad`, modifier `.compact` |
 
-Title, agenda, break and closing slides are the ones the app can generate from the workshop (section 5 of the concept); the others are written. The facts panel of an exercise (duration, social form, material) can be filled from the item.
+Title, agenda, break and closing slides are the ones the app can generate from the workshop (section 5 of the concept); the others are written. The facts panel of an exercise (duration, format, material) can be filled from the item.
 
 Common elements: `.eyebrow` (kicker above the title), `.tag` (a pill such as "Übung" in front of the title, later derived from the item's category), `.lead`, `.source`, `.muted`, `.accent`.
 
-The facts panel of an exercise (`aside.facts`: duration, social form, material) is optional. It repeats on the wall what the facilitator knows from the plan, so participants see how long they have and what to use; in the app it can be filled from the item instead of being written into the slide.
+The facts panel of an exercise (`aside.facts`: duration, format, material) is optional. It repeats on the wall what the facilitator knows from the plan, so participants see how long they have and what to use; in the app it can be filled from the item instead of being written into the slide.
 
 ## 4. Themes
 

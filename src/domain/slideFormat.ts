@@ -121,9 +121,9 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
   {
     layout: 'exercise',
     use: 'an exercise: the task, its steps, optionally the facts',
-    structure: 'header > h2 (span.tag + title) + p.lead (the question or goal), then div.exercise > ol.steps + aside.facts? > dl > dt + dd (Dauer, Sozialform, Material)',
+    structure: 'header > h2 (span.tag + title) + p.lead (the question or goal), then div.exercise > ol.steps + aside.facts? > dl > dt + dd (Dauer, Format, Material)',
     options: 'the facts panel only with values the plan gives; without it the steps take the width',
-    example: '<section class="slide exercise"><header><h2><span class="tag">Übung</span> Feedback in Dreiergruppen</h2><p class="lead">Jede Person gibt einmal Feedback, bekommt einmal Feedback und beobachtet einmal</p></header><div class="exercise"><ol class="steps"><li>Beobachtung schildern, ohne zu bewerten</li><li>Wirkung auf mich benennen</li><li>Wunsch für das nächste Mal</li></ol><aside class="facts"><dl><dt>Dauer</dt><dd>30 Minuten</dd><dt>Sozialform</dt><dd>Dreiergruppen</dd><dt>Material</dt><dd>Beobachtungsbogen</dd></dl></aside></div></section>',
+    example: '<section class="slide exercise"><header><h2><span class="tag">Übung</span> Feedback in Dreiergruppen</h2><p class="lead">Jede Person gibt einmal Feedback, bekommt einmal Feedback und beobachtet einmal</p></header><div class="exercise"><ol class="steps"><li>Beobachtung schildern, ohne zu bewerten</li><li>Wirkung auf mich benennen</li><li>Wunsch für das nächste Mal</li></ol><aside class="facts"><dl><dt>Dauer</dt><dd>30 Minuten</dd><dt>Format</dt><dd>Dreiergruppen</dd><dt>Material</dt><dd>Beobachtungsbogen</dd></dl></aside></div></section>',
   },
   {
     layout: 'steps',
