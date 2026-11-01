@@ -5,10 +5,9 @@ import type { Category, ItemContent, ItemKind, LibraryEntry } from '@/domain/typ
 import { durationOf, formatDuration } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { categoryName, itemColor, useSettings } from '@/store/useSettings'
-import { Button, cx, Empty, Field, IconButton, PageHeader, SearchField } from '@/components/ui'
+import { cx, Empty, Field, IconButton, PageHeader, SearchField } from '@/components/ui'
 import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
-import { useNavigate } from 'react-router'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { SlideView } from '@/slides/SlideView'
 
@@ -24,7 +23,6 @@ const GROUP_PREVIEW = 6
 export default function LibraryPage() {
   const { t } = useTranslation()
   const { entries, loaded, load, save, remove } = useLibrary()
-  const navigate = useNavigate()
   const categories = useSettings((s) => s.settings.categories)
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
@@ -37,7 +35,7 @@ export default function LibraryPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-10 md:py-10">
-        <PageHeader title={t('nav.library')} subtitle={t('library.subtitle')} right={<Button size="sm" onClick={() => void navigate('/library/decks')}>{t('slides.pool')}</Button>} />
+        <PageHeader title={t('nav.library')} subtitle={t('library.subtitle')} />
         {entries.length > 0 && <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} shortcut className="mb-4" />}
         {loaded && !entries.length && <Empty title={t('library.empty')} body={t('library.emptyHint')} />}
         {searching && !shown.length && <p className="py-10 text-center text-[14px] text-ink-2">{t('library.noMatch', { q: query.trim() })}</p>}

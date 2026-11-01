@@ -58,4 +58,4 @@ Look at every contact sheet (`<deck>-sheetK.png`). Fix text that overflows, titl
 
 ## 5. Import
 
-In the app: Library → Slide pool → Upload deck, choosing the preview folder (`private-slide-decks/html`). Every `deck.json` found is offered; the slides become a deck in the pool, the pictures are stored once, and the manifest's entries become library entries when the box is ticked (existing titles are skipped). Hand over with the preview path and the numbers; the owner uploads.
+In the app: Slide pool (in the navigation) → Upload deck, choosing the preview folder (`private-slide-decks/html`). Every `deck.json` found is offered; the slides become a deck in the pool, the pictures are stored once, and the manifest's entries become library entries when the box is ticked (existing titles are skipped). Hand over with the preview path and the numbers; the owner uploads.
