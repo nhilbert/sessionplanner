@@ -311,3 +311,18 @@
 .slide.agenda ol.agenda.many .when { font-size: 15px; }
 
 .slide h2 small { font: 400 20px/1 var(--font-body), 'Noto Sans JP'; color: var(--fg-3); margin-left: 8px; }
+
+/* plain picture cards that show the picture whole: a row of illustrations with a label each. One row is centred
+   on the slide with the labels aligned at its bottom, so a card without a picture reads as open; two rows or more
+   share the height and the pictures shrink to fit. */
+.slide ul.cards.plain.contain { align-content: center; }
+.slide ul.cards.plain.contain > li { justify-content: flex-end; min-height: 0; }
+.slide ul.cards.plain.contain .icon { height: auto; max-height: 300px; object-fit: contain; }
+.slide ul.cards.plain.contain:not(.cols-2):not(.cols-4):not(.cols-5):has(> li:nth-child(4)),
+.slide ul.cards.plain.contain.cols-2:has(> li:nth-child(3)),
+.slide ul.cards.plain.contain.cols-4:has(> li:nth-child(5)),
+.slide ul.cards.plain.contain.cols-5:has(> li:nth-child(6)) { grid-auto-rows: 1fr; align-content: stretch; }
+.slide ul.cards.plain.contain:not(.cols-2):not(.cols-4):not(.cols-5):has(> li:nth-child(4)) .icon,
+.slide ul.cards.plain.contain.cols-2:has(> li:nth-child(3)) .icon,
+.slide ul.cards.plain.contain.cols-4:has(> li:nth-child(5)) .icon,
+.slide ul.cards.plain.contain.cols-5:has(> li:nth-child(6)) .icon { flex: 0 1 auto; min-height: 0; max-height: 100%; }

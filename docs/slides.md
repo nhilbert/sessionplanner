@@ -50,7 +50,7 @@ Stage 1 (this draft): the format and the layout catalogue, tried on sample slide
 | `statement` | one sentence that carries the slide, a question for the group | `div.text` with `.eyebrow?`, `p.big`, `p.sub?` |
 | `quote` | a quotation with attribution | `blockquote > p + p.sub?`, `cite` |
 | `list` | bullet points, one or two levels; rules; literature; points with a heading each | `ul.list` or `ol.list`, modifiers `.compact`, `.two`, `.rows` (a `strong` heading on each point) |
-| `cards` | two to five parallel points with heading and text, optional picture, number or short list | `ul.cards.cols-N > li > img.icon? + .eyebrow? + h3 + (p | ul.list)`; modifiers `.numbered`, `.plain`, `.picture`; cards fill the height they have |
+| `cards` | two to five parallel points with heading and text, optional picture, number or short list | `ul.cards.cols-N > li > img.icon? + .eyebrow? + h3 + (p | ul.list)`; modifiers `.numbered`, `.plain` (no surface, picture cropped to a band), `.plain.contain` (illustrations shown whole, labels aligned below), `.picture` (picture fills the top of the card), `.picture.contain` (book covers); cards fill the height they have |
 | `split` | text beside a picture or diagram; a definition with an illustration | `div.split > div.text + figure`; modifiers `.figure-left`, `.wide-text` |
 | `figure` | one large picture with caption | `figure.main > img + figcaption`; modifier `.full` |
 | `exercise` | an exercise: the task, its steps, optionally the facts | `header` with `h2 > span.tag + title` and `p.lead` (the question or goal), then `div.exercise > ol.steps + aside.facts? > dl` |
