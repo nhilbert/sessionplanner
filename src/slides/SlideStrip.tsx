@@ -55,7 +55,7 @@ export function SlideStrip({ slides, onChange, scope, theme, canEdit, owner }: {
       {slides.length === 0 && <p className="mb-1.5 text-[13px] text-ink-3">{t('slides.empty')}</p>}
       <div className="flex flex-wrap gap-2">
         {slides.map((s, i) => (
-          <div key={s.id} className="relative w-[132px]">
+          <div key={s.id} className="relative w-[132px] max-md:w-[calc(50%-4px)]">
             <SlideView html={s.html} theme={theme} scope={scope} onClick={() => setOpen(i)} label={t('slides.slide', { n: i + 1 })} />
             <span className="pointer-events-none absolute left-1 top-1 rounded bg-ink/70 px-1 text-[10px] font-medium text-paper tnum">{i + 1}</span>
           </div>
@@ -147,7 +147,7 @@ function Lightbox({ slide, index, count, theme, scope, canEdit, onPrev, onNext, 
         <IconButton label={t('slides.next')} onClick={onNext} disabled={index >= count - 1}>
           <ChevronRight size={16} />
         </IconButton>
-        <span className="ml-2 min-w-0 flex-1 truncate text-[13px] text-ink-3">
+        <span className="ml-2 min-w-0 flex-1 truncate text-[13px] text-ink-3 max-md:order-last max-md:basis-full max-md:ml-0">
           {slideTitle(slide.html)} <span className="text-ink-3">· {slideLayout(slide.html)}</span>
         </span>
         {canEdit && (

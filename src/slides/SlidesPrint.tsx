@@ -4,7 +4,8 @@ import { Printer } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
 import { deckOf } from '@/domain/deck'
 import { useSettings } from '@/store/useSettings'
-import { Button, Checkbox } from '@/components/ui'
+import { Button } from '@/components/ui'
+import { Option } from './Option'
 import { SlideStage, themeOf, useTheme } from './SlideView'
 import { deckLabels } from './deckLabels'
 import { useDeckOptions } from './deckOptions'
@@ -25,8 +26,8 @@ export default function SlidesPrint({ data }: { data: WorkshopState }) {
       <style>{'@page { size: 338.667mm 190.5mm; margin: 0; } @media print { .slide-page { page-break-after: always; break-after: page; } }'}</style>
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-black/20 bg-[#f3f1ec] px-4 py-2 text-[13px] text-[#111]">
         <span className="font-medium">{t('slides.printSlides')}</span>
-        <Checkbox checked={options.agenda} onChange={(agenda) => update({ agenda })} label={t('slides.withAgenda')} />
-        <Checkbox checked={options.breaks} onChange={(breaks) => update({ breaks })} label={t('slides.withBreaks')} />
+        <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
+        <Option checked={options.breaks} onChange={(breaks) => update({ breaks })}>{t('slides.withBreaks')}</Option>
         <span className="text-ink-3">{t('slides.count', { count: deck.length })}</span>
         <Button size="sm" variant="primary" className="ml-auto" onClick={() => window.print()}>
           <Printer size={13} />

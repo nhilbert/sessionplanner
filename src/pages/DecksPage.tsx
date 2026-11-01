@@ -7,7 +7,8 @@ import type { Deck, DeckSlide } from '@/domain/types'
 import { formatDate } from '@/i18n'
 import { useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
-import { Button, Checkbox, cx, Empty, IconButton, PageHeader } from '@/components/ui'
+import { Button, cx, Empty, IconButton, PageHeader } from '@/components/ui'
+import { Option } from '@/slides/Option'
 import { SlideView } from '@/slides/SlideView'
 import { forgetDecks } from '@/slides/SlidePicker'
 import { findDecks, type FoundDeck, importDeck } from '@/slides/importDeck'
@@ -121,12 +122,12 @@ export default function DecksPage() {
             <ul className="space-y-1.5">
               {found.map((d) => (
                 <li key={d.folder}>
-                  <Checkbox checked={chosen.includes(d.folder)} onChange={(on) => setChosen(on ? [...chosen, d.folder] : chosen.filter((f) => f !== d.folder))} label={`${d.meta.title} · ${t('slides.count', { count: d.fragments.length })}${d.meta.entries?.length ? ` · ${t('library.items', { count: d.meta.entries.length })}` : ''}`} />
+                  <Option checked={chosen.includes(d.folder)} onChange={(on) => setChosen(on ? [...chosen, d.folder] : chosen.filter((f) => f !== d.folder))}>{`${d.meta.title} · ${t('slides.count', { count: d.fragments.length })}${d.meta.entries?.length ? ` · ${t('library.items', { count: d.meta.entries.length })}` : ''}`}</Option>
                 </li>
               ))}
             </ul>
             <div className="mt-3">
-              <Checkbox checked={createEntries} onChange={setCreateEntries} label={t('slides.createEntries')} />
+              <Option checked={createEntries} onChange={setCreateEntries}>{t('slides.createEntries')}</Option>
             </div>
             <div className="mt-3 flex items-center gap-2">
               <Button size="sm" onClick={() => void run()} disabled={!chosen.length || !!progress}>

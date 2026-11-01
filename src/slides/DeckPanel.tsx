@@ -4,7 +4,8 @@ import { Download, MonitorSpeaker, Play, Printer } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
 import { deckOf } from '@/domain/deck'
 import { useSettings } from '@/store/useSettings'
-import { Button, Checkbox, cx } from '@/components/ui'
+import { Button, cx } from '@/components/ui'
+import { Option } from './Option'
 import { fileSlug } from '@/print/options'
 import { SlideView, themeOf, useTheme } from './SlideView'
 import { deckLabels } from './deckLabels'
@@ -50,8 +51,8 @@ export function DeckPanel({ data, onSelect }: { data: WorkshopState; onSelect: (
         </Button>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <Checkbox checked={options.agenda} onChange={(agenda) => update({ agenda })} label={t('slides.withAgenda')} />
-        <Checkbox checked={options.breaks} onChange={(breaks) => update({ breaks })} label={t('slides.withBreaks')} />
+        <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
+        <Option checked={options.breaks} onChange={(breaks) => update({ breaks })}>{t('slides.withBreaks')}</Option>
       </div>
       {!deck.some((s) => !s.generated) && <p className="text-[13px] text-ink-3">{t('slides.deckEmpty')}</p>}
       <ol className="grid grid-cols-2 gap-2">

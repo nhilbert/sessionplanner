@@ -23,6 +23,7 @@ export default function PresentPage() {
   const [scale, setScale] = useState(1)
   const [hint, setHint] = useState(true)
   const hintTimer = useRef<number | null>(null)
+  const touchX = useRef<number | null>(null)
   const theme = useTheme(data ? themeOf(data.workshop, settings) : 'default')
 
   useEffect(() => {
@@ -79,14 +80,29 @@ export default function PresentPage() {
   const slide = deck[n]
   const title = data.workshop.title || t('workshops.untitled')
   return (
-    <div className="fixed inset-0 select-none overflow-hidden bg-black" onClick={(e) => go(e.clientX < window.innerWidth / 3 ? n - 1 : n + 1)}>
+    <div
+      className="fixed inset-0 select-none overflow-hidden bg-black"
+      onClick={(e) => go(e.clientX < window.innerWidth / 3 ? n - 1 : n + 1)}
+      onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+      onTouchEnd={(e) => {
+        // A swipe pages; a tap falls through to the click.
+        if (touchX.current === null) return
+        const dx = e.changedTouches[0].clientX - touchX.current
+        touchX.current = null
+        if (Math.abs(dx) > 40) {
+          e.preventDefault()
+          go(dx < 0 ? n + 1 : n - 1)
+        }
+      }}
+    >
       {slide && (
         <div className="absolute left-1/2 top-1/2" style={{ width: 1280 * scale, height: 720 * scale, transform: 'translate(-50%, -50%)' }}>
           <SlideStage html={slide.html} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: n + 1 }} scale={scale} />
         </div>
       )}
-      <div className={`pointer-events-none absolute bottom-3 right-4 text-[12px] text-white/60 transition-opacity tnum ${hint ? 'opacity-100' : 'opacity-0'}`}>
-        {n + 1} / {deck.length} · Esc {t('slides.exit')}
+      <div className={`pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-4 text-[12px] text-white/60 transition-opacity tnum ${hint ? 'opacity-100' : 'opacity-0'}`}>
+        {n + 1} / {deck.length}
+        <span className="max-md:hidden"> · Esc {t('slides.exit')}</span>
       </div>
     </div>
   )

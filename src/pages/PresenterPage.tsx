@@ -101,7 +101,7 @@ export default function PresenterPage() {
         <span className="text-ink-3">·</span>
         <span className="tnum text-ink-2">{formatTime(minutesNow)}</span>
         <span className="ml-auto hidden text-ink-3 md:inline">{t('slides.presenterHint')}</span>
-        <Button size="sm" onClick={() => window.open(`/w/${id}/present?n=${n + 1}`, '_blank', 'noopener')}>
+        <Button size="sm" onClick={() => window.open(`/w/${id}/present?n=${n + 1}`, '_blank', 'noopener')} className="max-md:hidden">
           <ExternalLink size={13} />
           {t('slides.projector')}
         </Button>
@@ -109,7 +109,7 @@ export default function PresenterPage() {
           <X size={16} />
         </IconButton>
       </header>
-      <div className="grid min-h-0 flex-1 gap-4 p-4 md:grid-cols-[2fr_1fr]">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-[2fr_1fr] md:overflow-visible">
         <div className="flex min-h-0 flex-col gap-3">
           {slide ? <SlideView html={slide.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 1 }} className="w-full shadow-[var(--shadow)]" /> : <p className="text-ink-3">{t('slides.deckEmpty')}</p>}
           <div className="flex items-center gap-2">
@@ -125,7 +125,7 @@ export default function PresenterPage() {
             <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{slide?.caption}</span>
           </div>
         </div>
-        <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+        <aside className="flex min-h-0 flex-col gap-4 md:overflow-y-auto">
           <div>
             <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('slides.nextSlide')}</div>
             {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2 }} className="w-full" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
