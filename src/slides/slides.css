@@ -258,6 +258,7 @@
 /* centred layouts: their block must not grow */
 .slide.title > .text, .slide.section > .text, .slide.statement > .text, .slide.break > .text, .slide.quote > blockquote { flex: 0 0 auto; }
 .slide.quote cite { flex: 0 0 auto; }
+.slide.closing > * { flex: 0 0 auto; }
 /* footer line of the host (deck name, number) never on title, section and closing slides */
 .slide.title > footer.chrome, .slide.section > footer.chrome, .slide.closing > footer.chrome { display: none; }
 /* cards without a surface: pictures sit directly on the slide background */

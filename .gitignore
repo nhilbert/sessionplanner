@@ -24,6 +24,9 @@ msal-cache*.json
 exports/
 backups/
 
+# Python
+__pycache__/
+
 # Logs
 logs/
 *.log
@@ -41,3 +44,7 @@ Thumbs.db
 
 # Private material (sample sessions, client documents): local demo and inspiration only, never committed
 private-*/
+
+# The slide-build skill ships only the default theme; the installation's themes are added there by hand and stay private
+.claude/skills/slide-build/assets/themes/*
+!.claude/skills/slide-build/assets/themes/default.css

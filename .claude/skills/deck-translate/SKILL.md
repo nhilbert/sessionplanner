@@ -50,11 +50,12 @@ One file per slide, `NN-layout.html`, a single `<section class="slide LAYOUT">` 
 ## 4. Build, render, check
 
 ```bash
+python3 scripts/slides/check.py private-slide-decks/html/decks/<deck>
 python3 scripts/slides/build.py private-slide-decks/html
 OUT=/tmp/shots scripts/slides/render.sh private-slide-decks/html/<deck>.html
 ```
 
-Look at every contact sheet (`<deck>-sheetK.png`). Fix text that overflows, titles that wrap into three lines, empty halves, todos that can be resolved from the notes. Re-render only what changed. Then hand over: the preview path, the number of slides and entries, the skipped slides, and the todos left for the owner.
+`check.py` reports what the sanitiser would remove, unknown classes, too much on a slide, missing pictures, todos, and, rendered with the deck's theme, text that leaves the slide or its card. Fix the errors first. Then look at every contact sheet (`<deck>-sheetK.png`). Fix text that overflows, titles that wrap into three lines, empty halves, todos that can be resolved from the notes. Re-render only what changed. Then hand over: the preview path, the number of slides and entries, the skipped slides, and the todos left for the owner.
 
 ## 5. Import
 
