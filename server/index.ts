@@ -56,7 +56,7 @@ const oauth =
   process.env.SP_MCP_OAUTH === '1'
     ? new OAuthServer(db, { baseUrl: PUBLIC_URL ?? new URL(`http://127.0.0.1:${PORT}`), allowedUsers: OWNERS, userHeader: OWNER_HEADER, extraRedirects: list(process.env.SP_OAUTH_REDIRECTS) })
     : undefined
-const mcp = MCP_TOKEN || oauth ? mcpRoutes(repo, { token: MCP_TOKEN, oauth }, { hub, filesDir }) : undefined
+const mcp = MCP_TOKEN || oauth ? mcpRoutes(repo, { token: MCP_TOKEN, oauth }, { hub, filesDir, themesDir }) : undefined
 
 const hasUi = existsSync(path.join(DIST, 'index.html'))
 const app = createApp({

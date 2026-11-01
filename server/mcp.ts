@@ -8,6 +8,8 @@ import { Ops, type OpsOptions } from './ops.ts'
 import type { OAuthServer } from './oauth.ts'
 import { bearerToken, sameToken } from './guard.ts'
 import { PALETTE } from '../src/domain/types.ts'
+import { MAX_SLIDES } from '../src/domain/slides.ts'
+import { SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
 
 /**
  * MCP server: lets an AI agent (Claude, Claude Code, …) read workshops with their computed times, draft
@@ -22,6 +24,7 @@ const INSTRUCTIONS = `Session Planner holds workshop agendas: a workshop has day
 - Drafting from a brief: workshop_create, then item_create_many per day in order, with goal, method and lead where known. Use kind "break" for pauses, "marker" for points in time (arrival, end) and "note" for cues. Keep stretches without a break under 90 minutes.
 - Facilitation notes (notes) are the facilitator's own; appendNotes adds to them instead of replacing.
 - The packing list is computed from the material of all placed items (largest quantity per label, not the sum); packing_update ticks lines, overrides quantities and adds workshop-wide material.
+- Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show.
 - Prefer small, reversible changes and say what you changed. Workshops cannot be deleted through these tools; archive instead.`
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
@@ -39,6 +42,7 @@ const placement = {
   at: z.number().int().min(0).optional().describe('0-based index among the entries of the day (or group); default: at the end'),
   after: z.string().optional().describe('Place it right after this item or group (id or title) instead'),
 }
+const slideGiven = z.object({ html: z.string().optional().describe('Markup in the slide format (slide_format)'), pool: z.string().optional().describe('Id of a pool slide to copy (pool_search)') })
 const itemFields = {
   kind: kind.optional().describe('Default block'),
   duration: z.number().int().min(0).max(1440).optional().describe('Minutes (default 30, breaks 15); markers and notes take none'),
@@ -52,12 +56,14 @@ const itemFields = {
   materials: z.array(material).optional().describe('Replaces the item\'s material'),
   category: z.string().nullable().optional().describe('Category id or name (settings_get lists them); null clears'),
   color: color.nullable().optional().describe('Overrides the category colour'),
+  slides: z.array(slideGiven).max(MAX_SLIDES).optional().describe('Replaces the item\'s slides: markup or pool copies, in order (the slide_* tools change single slides)'),
 }
 const workshopFields = {
   client: z.string().optional(),
   location: z.string().optional(),
   goal: z.string().optional(),
   notes: z.string().nullable().optional().describe('Notes on the workshop as a whole; null clears'),
+  theme: z.string().nullable().optional().describe('Slide theme (settings_get lists them); "default" is the built-in one, null follows the settings'),
 }
 
 type Input = Record<string, unknown>
@@ -220,23 +226,74 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
     (a) => ops.libraryInsert(a.workshop as string, a.entry as string, a.day as never, a as never),
   )
 
-  // ---------- settings ----------
-  // ---------- slides ----------
-  const slideGiven = { html: z.string().optional().describe('Markup in the slide format (docs/slides.md)'), pool: z.string().optional().describe('Id of a pool slide to copy (pool_search)') }
-  tool('slide_list', 'The slides of an item: number, id, layout, title and text; html: true adds the markup.', { workshop: workshopRef, item: itemRef, html: z.boolean().optional() }, (a) => ops.slideList(a.workshop as string, a.item as string, a as never), 'read')
+  // ---------- slides (docs/slides.md) ----------
+  // Slides live on a step of a workshop (workshop + item) or on a library entry (entry; for a group entry also item).
+  const target = {
+    workshop: workshopRef.optional().describe('With item: the step of this workshop'),
+    item: itemRef.optional().describe('The step of the workshop; for a library group entry the item inside it (title or number)'),
+    entry: z.string().optional().describe('A library entry (id or title) instead of a workshop step'),
+  }
+  const slideRef = z.union([z.string(), z.number().int().min(1)]).describe('Slide id or number (1 = first)')
+  const slideAt = z.number().int().min(0).optional().describe('0-based position; default at the end')
   tool(
-    'slide_set',
-    'Replace the slides of an item with the given list, in order: each entry is markup (html), a copy of a pool slide (pool), or one of the item\'s slides kept (keep: id or number). Reorder by listing kept slides in the new order.',
-    { workshop: workshopRef, item: itemRef, slides: z.array(z.object({ ...slideGiven, keep: z.union([z.string(), z.number().int().min(1)]).optional().describe('Keep this slide of the item: id or number (1 = first)') })).max(60) },
-    (a) => ops.slideSet(a.workshop as string, a.item as string, a as never),
+    'slide_format',
+    'The slide format for writing markup: the rules, the common classes and every layout with its purpose, structure and a complete example. Read it before writing or changing slides; layout narrows the answer to one layout.',
+    { layout: z.string().optional().describe(`One layout (${SLIDE_LAYOUTS.map((l) => l.layout).join(', ')})`) },
+    (a) => ops.slideFormat(a as never),
+    'read',
+  )
+  tool('slide_list', 'The slides of a step or library entry: number, id, layout, title and text; html: true adds the markup.', { ...target, html: z.boolean().optional() }, (a) => ops.slideList(a as never), 'read')
+  tool(
+    'slide_get',
+    'One slide with its full markup and the pictures (asset hashes) it shows: a slide of a step or library entry (slide), or a pool slide (pool).',
+    { ...target, slide: slideRef.optional(), pool: z.string().optional().describe('Id of a pool slide (pool_search) instead') },
+    (a) => ops.slideGet(a as never),
+    'read',
+  )
+  tool(
+    'slide_add',
+    'Add slides to a step or library entry: one (html or pool) or several (slides), at a 0-based position, default at the end. Answers with the list and the numbers added.',
+    { ...target, ...slideGiven.shape, slides: z.array(slideGiven).min(1).max(MAX_SLIDES).optional().describe('Several slides in order, instead of html/pool'), at: slideAt },
+    (a) => ops.slideAdd(a as never),
+  )
+  tool(
+    'slide_update',
+    'Change one slide: html replaces its markup (the id stays), replace swaps exact pieces of the stored markup (every occurrence; slide_get shows it), at moves the slide to a 0-based position. Answers with the list and the slide as stored.',
+    {
+      ...target,
+      slide: slideRef,
+      html: z.string().optional().describe('New markup for the whole slide'),
+      replace: z.array(z.object({ find: z.string().min(1), with: z.string() })).max(50).optional().describe('Exact text replacements in the markup, applied in order'),
+      at: slideAt.describe('New 0-based position'),
+    },
+    (a) => ops.slideUpdate(a as never),
     'destructive',
   )
-  tool('slide_add', 'Add one slide to an item: markup or a copy of a pool slide; at = 0-based position, default at the end.', { workshop: workshopRef, item: itemRef, ...slideGiven, at: z.number().int().min(0).optional() }, (a) => ops.slideAdd(a.workshop as string, a.item as string, a as never))
-  tool('slide_remove', 'Remove one slide of an item, by id or number (1 = first).', { workshop: workshopRef, item: itemRef, slide: z.union([z.string(), z.number().int().min(1)]) }, (a) => ops.slideRemove(a.workshop as string, a.item as string, a.slide as string | number), 'destructive')
-  tool('pool_search', 'Search the slide pool (translated decks): every word of query must occur in the deck title, caption or text; deck narrows to one deck. Returns ids for slide_add and slide_set.', { query: z.string().optional(), deck: z.string().optional() }, (a) => ops.poolSearch(a as never), 'read')
-  tool('deck_outline', 'The deck of a workshop as it is presented: the generated title, agenda and break slides and the items\' own slides, in order.', { workshop: workshopRef }, (a) => ops.deckOutline(a.workshop as string), 'read')
+  tool('slide_remove', 'Remove one slide (slide) or several (slides) of a step or library entry, by id or number (1 = first).', { ...target, slide: slideRef.optional(), slides: z.array(slideRef).max(MAX_SLIDES).optional() }, (a) => ops.slideRemove(a as never), 'destructive')
+  tool(
+    'slide_set',
+    'Replace the slides of a step or library entry with the given list, in order: each entry is markup (html), a copy of a pool slide (pool), or one of the existing slides kept (keep: id or number). Reorder by listing kept slides in the new order; an empty list removes all.',
+    { ...target, slides: z.array(slideGiven.extend({ keep: slideRef.optional().describe('Keep this existing slide') })).max(MAX_SLIDES) },
+    (a) => ops.slideSet(a as never),
+    'destructive',
+  )
+  tool(
+    'pool_search',
+    'The slide pool (translated decks): the decks, and the slides whose deck, caption or text contain every word of query; deck (title or id) and layout narrow it. Returns ids for slide_get, slide_add and slide_set.',
+    { query: z.string().optional(), deck: z.string().optional(), layout: z.string().optional() },
+    (a) => ops.poolSearch(a as never),
+    'read',
+  )
+  tool(
+    'deck_outline',
+    'The deck of a workshop as it is presented: the generated title, agenda and break slides and the items\' own slides, in order, with the theme. agenda/breaks false leave the generated agenda or break slides out, as the app can.',
+    { workshop: workshopRef, agenda: z.boolean().optional(), breaks: z.boolean().optional() },
+    (a) => ops.deckOutline(a.workshop as string, a as never),
+    'read',
+  )
 
-  tool('settings_get', 'The categories (id, name, colour), the default day times and what the item kinds mean.', {}, () => ops.settingsGet(), 'read')
+  // ---------- settings ----------
+  tool('settings_get', 'The categories (id, name, colour), the default day times, the slide themes (and the default one) and what the item kinds mean.', {}, () => ops.settingsGet(), 'read')
   return server
 }
 
