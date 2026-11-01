@@ -731,9 +731,9 @@ export class Ops {
 
   // ---------- slides (docs/slides.md) ----------
 
-  /** The slide themes: the built-in default and the folders in data/themes that hold a theme.css. */
-  themes(): string[] {
-    return listThemes(this.themesDir)
+  /** The slide themes: the built-in default, the folders in data/themes that hold a theme.css, and the themes kept as data. */
+  themes(): { id: string; name: string }[] {
+    return listThemes(this.themesDir, this.repo.listThemes()).map((t) => ({ id: t.id, name: t.name }))
   }
 
   /** A workshop's theme from the agent's input: null or '' follows the settings, 'default' is the built-in one, any other name must be a theme the server has. */
@@ -742,8 +742,8 @@ export class Ops {
     const name = (ref ?? '').trim().toLowerCase()
     if (!name) return ''
     if (!THEME_NAME.test(name)) throw new BadRequest(`no theme "${ref}"`)
-    if (name !== 'default' && this.themesDir) {
-      const themes = this.themes()
+    if (name !== 'default') {
+      const themes = this.themes().map((t) => t.id)
       if (!themes.includes(name)) throw new BadRequest(`no theme "${ref}" (${themes.join(', ')})`)
     }
     return name

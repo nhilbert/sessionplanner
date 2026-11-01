@@ -1,5 +1,6 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
+import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
+import { type Theme, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { scheduleDay } from '../src/domain/time.ts'
@@ -125,6 +126,17 @@ const toAttachment = (r: Row): Attachment => ({
 
 const toDeck = (r: Row): Deck => ({ id: r.id as string, title: r.title as string, theme: r.theme as string, source: r.source as string, createdAt: r.created_at as string, slides: (r.n as number | null) ?? 0 })
 const toDeckSlide = (r: Row): DeckSlide => ({ id: r.id as string, deckId: r.deck_id as string, position: r.position as number, html: r.html as string, caption: r.caption as string })
+
+const toTheme = (r: Row): Theme => ({
+  id: r.id as string,
+  name: r.name as string,
+  tokens: withDefaults(JSON.parse((r.tokens as string) || '{}')),
+  logo: r.logo ? (JSON.parse(r.logo as string) as ThemeLogo) : null,
+  logoLight: r.logo_light ? (JSON.parse(r.logo_light as string) as ThemeLogo) : null,
+  createdAt: r.created_at as string,
+  updatedAt: r.updated_at as string,
+})
+const toTemplate = (r: Row): SlideTemplate => ({ id: r.id as string, name: r.name as string, layout: r.layout as string, html: r.html as string, position: r.position as number, createdAt: r.created_at as string, updatedAt: r.updated_at as string })
 
 const toAsset = (r: Row): Asset => ({ hash: r.hash as string, mime: r.mime as string, size: r.size as number, createdAt: r.created_at as string })
 
@@ -514,13 +526,13 @@ export class Repo {
     return !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${hash}%`)
   }
 
-  /** Removes the records of assets no slide shows any more (in a workshop or the library); returns their hashes, whose files the caller removes. */
+  /** Removes the records of assets no slide shows any more (in a workshop, the library, the pool or a template); returns their hashes, whose files the caller removes. */
   sweepAssets(): string[] {
     const gone: string[] = []
     for (const r of this.db.prepare('SELECT hash FROM assets').all() as Row[]) {
       const hash = r.hash as string
       const like = `%asset:${hash}%`
-      if (this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like)) continue
+      if (this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM slide_templates WHERE html LIKE ? LIMIT 1').get(like)) continue
       this.db.prepare('DELETE FROM assets WHERE hash = ?').run(hash)
       gone.push(hash)
     }
@@ -567,5 +579,76 @@ export class Repo {
 
   deleteDeck(id: string): boolean {
     return this.db.prepare('DELETE FROM decks WHERE id = ?').run(id).changes > 0
+  }
+
+  // ---- slide themes as data -----------------------------------------------------------------------------------
+
+  listThemes(): Theme[] {
+    return (this.db.prepare('SELECT * FROM themes ORDER BY name COLLATE NOCASE, created_at').all() as Row[]).map(toTheme)
+  }
+
+  getTheme(id: string): Theme | null {
+    const r = this.db.prepare('SELECT * FROM themes WHERE id = ?').get(id) as Row | undefined
+    return r ? toTheme(r) : null
+  }
+
+  createTheme(input: { id: string; name: string; tokens: ThemeTokens }): Theme {
+    const t = now()
+    this.db.prepare('INSERT INTO themes (id, name, tokens, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(input.id, input.name, JSON.stringify(input.tokens), t, t)
+    return this.getTheme(input.id)!
+  }
+
+  updateTheme(id: string, patch: { name?: string; tokens?: ThemeTokens }): Theme | null {
+    const current = this.getTheme(id)
+    if (!current) return null
+    this.db.prepare('UPDATE themes SET name = ?, tokens = ?, updated_at = ? WHERE id = ?').run(patch.name ?? current.name, JSON.stringify(patch.tokens ?? current.tokens), now(), id)
+    return this.getTheme(id)
+  }
+
+  /** Records an uploaded logo (or its removal with null); the file itself is the caller's. */
+  setThemeLogo(id: string, variant: 'logo' | 'logoLight', logo: ThemeLogo | null): Theme | null {
+    if (!this.getTheme(id)) return null
+    this.db.prepare(`UPDATE themes SET ${variant === 'logo' ? 'logo' : 'logo_light'} = ?, updated_at = ? WHERE id = ?`).run(logo ? JSON.stringify(logo) : null, now(), id)
+    return this.getTheme(id)
+  }
+
+  /**
+   * Deletes a theme. Workshops that used it fall back to the settings' default (and the settings to the built-in
+   * theme); the ids of those workshops come back so the open windows can be told.
+   */
+  deleteTheme(id: string): { workshops: string[] } | null {
+    if (!this.getTheme(id)) return null
+    return this.tx(() => {
+      const workshops = (this.db.prepare('SELECT id FROM workshops WHERE theme = ?').all(id) as Row[]).map((r) => r.id as string)
+      this.db.prepare("UPDATE workshops SET theme = '' WHERE theme = ?").run(id)
+      const settings = this.getSettings()
+      if (settings.theme === id) this.saveSettings({ ...settings, theme: '' })
+      this.db.prepare('DELETE FROM themes WHERE id = ?').run(id)
+      return { workshops }
+    })
+  }
+
+  // ---- template slides -----------------------------------------------------------------------------------------
+
+  listSlideTemplates(): SlideTemplate[] {
+    return (this.db.prepare('SELECT * FROM slide_templates ORDER BY position, name COLLATE NOCASE').all() as Row[]).map(toTemplate)
+  }
+
+  saveSlideTemplate(id: string | null, input: { name: string; layout: string; html: string; position?: number }): SlideTemplate | null {
+    const t = now()
+    if (id === null) {
+      id = newId()
+      const last = (this.db.prepare('SELECT MAX(position) AS p FROM slide_templates').get() as Row).p as number | null
+      this.db.prepare('INSERT INTO slide_templates (id, name, layout, html, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, input.name, input.layout, input.html, input.position ?? (last ?? 0) + 1, t, t)
+    } else {
+      const current = this.db.prepare('SELECT position FROM slide_templates WHERE id = ?').get(id) as Row | undefined
+      if (!current) return null
+      this.db.prepare('UPDATE slide_templates SET name = ?, layout = ?, html = ?, position = ?, updated_at = ? WHERE id = ?').run(input.name, input.layout, input.html, input.position ?? (current.position as number), t, id)
+    }
+    return toTemplate(this.db.prepare('SELECT * FROM slide_templates WHERE id = ?').get(id) as Row)
+  }
+
+  deleteSlideTemplate(id: string): boolean {
+    return this.db.prepare('DELETE FROM slide_templates WHERE id = ?').run(id).changes > 0
   }
 }

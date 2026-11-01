@@ -6,7 +6,18 @@ import slidesCss from './slides.css?raw'
 import defaultThemeCss from './themes/default.css?raw'
 import notoCss from '@fontsource/noto-sans-jp/400.css?raw'
 
+import interCss from '@fontsource-variable/inter?raw'
+import manropeCss from '@fontsource-variable/manrope?raw'
+import serifCss from '@fontsource-variable/source-serif-4?raw'
+
 const notoFiles = import.meta.glob('/node_modules/@fontsource/noto-sans-jp/files/*-400-normal.woff2', { query: '?url', import: 'default' }) as Record<string, () => Promise<string>>
+/** The hosted fonts a data theme may choose (src/domain/theme.ts): their stylesheets and the files of their Latin slices. */
+const hostedFiles = import.meta.glob(['/node_modules/@fontsource-variable/inter/files/*-wght-normal.woff2', '/node_modules/@fontsource-variable/manrope/files/*-wght-normal.woff2', '/node_modules/@fontsource-variable/source-serif-4/files/*-wght-normal.woff2'], { query: '?url', import: 'default' }) as Record<string, () => Promise<string>>
+const HOSTED: { family: string; css: string }[] = [
+  { family: 'Inter Variable', css: interCss },
+  { family: 'Manrope Variable', css: manropeCss },
+  { family: 'Source Serif 4 Variable', css: serifCss },
+]
 
 const toDataUrl = async (url: string): Promise<string | null> => {
   const res = await fetch(url).catch(() => null)
@@ -27,12 +38,30 @@ async function themeCss(theme: string): Promise<string> {
   const res = await fetch(`${base}theme.css`).catch(() => null)
   if (!res?.ok) return defaultThemeCss
   let css = await res.text()
-  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:|\/)/.test(u)))]
+  // Relative addresses are files beside a folder theme; /api/… addresses are the logos of a data theme.
+  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:)/.test(u) && (!u.startsWith('/') || u.startsWith('/api/'))))]
   for (const ref of refs) {
-    const data = await toDataUrl(base + ref.replace(/^\.\//, ''))
+    const data = await toDataUrl(ref.startsWith('/') ? ref : base + ref.replace(/^\.\//, ''))
     if (data) css = css.split(`url(${ref})`).join(`url(${data})`).split(`url('${ref}')`).join(`url('${data}')`).split(`url("${ref}")`).join(`url("${data}")`)
   }
   return css
+}
+
+/** The Latin slices of the hosted fonts a theme's stylesheet names, inlined, so the file shows the same type everywhere. */
+async function hostedFontFaces(themeStyles: string): Promise<string> {
+  const out: string[] = []
+  for (const font of HOSTED) {
+    if (!themeStyles.includes(`'${font.family}'`)) continue
+    for (const block of font.css.split('@font-face').slice(1)) {
+      const file = /url\(\.\/files\/([^)]+\.woff2)\)/.exec(block)?.[1]
+      if (!file || !/-latin(-ext)?-/.test(file)) continue
+      const loader = Object.entries(hostedFiles).find(([p]) => p.endsWith(`/${file}`))?.[1]
+      const url = loader && (await loader().catch(() => null))
+      const data = url && (await toDataUrl(url))
+      if (data) out.push(`@font-face${block.replace(/url\([^)]+\)/, `url(${data})`).split('}')[0]}}`)
+    }
+  }
+  return out.join('\n')
 }
 
 /** The slices of Noto Sans JP the deck's glyphs need, inlined. */
@@ -91,7 +120,8 @@ export async function exportDeckHtml(deck: DeckSlideRef[], options: { title: str
     sections.push(html)
   }
   const fonts = await notoFontFaces(cjkCodePoints(sections.join('')))
-  const css = [slidesCss.replace(/@import[^;]+;/g, ''), await themeCss(options.theme), fonts, STAGE_CSS].join('\n')
+  const theme = await themeCss(options.theme)
+  const css = [slidesCss.replace(/@import[^;]+;/g, ''), theme, await hostedFontFaces(theme), fonts, STAGE_CSS].join('\n')
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const doc = `<!doctype html>
 <html lang="${esc(options.lang)}" data-theme="${esc(options.theme)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(options.title)}</title>

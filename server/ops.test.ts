@@ -409,7 +409,7 @@ describe('slides', () => {
     writeFileSync(path.join(themesDir, 'sr-light', 'theme.css'), ':root {}')
     mkdirSync(path.join(themesDir, 'broken'))
     const themed = new Ops(new Repo(openDb(':memory:')), { themesDir, today: () => '2026-11-10' })
-    expect(themed.settingsGet()).toMatchObject({ theme: 'default', themes: ['default', 'sr-light'] })
+    expect(themed.settingsGet()).toMatchObject({ theme: 'default', themes: [{ id: 'default', name: 'default' }, { id: 'sr-light', name: 'sr-light' }] })
     const ws = themed.workshopCreate({ title: 'Klausur', theme: 'sr-light' })
     expect(ws.theme).toBe('sr-light')
     expect(themed.workshopUpdate(ws.id!, { theme: 'default' }).theme).toBe('default')

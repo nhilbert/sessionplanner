@@ -288,7 +288,10 @@ export default function PlannerPage() {
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
-      } else if (e.key === 'Escape') clearSelection()
+      } else if (e.key === 'Escape') {
+        // A dialog above the planner (the slide editor, a picker) takes its own Escape.
+        if (!document.querySelector('[role="dialog"]')) clearSelection()
+      }
       else if (!mod && single && items[single] && (e.key === '+' || e.key === '=' || e.key === '-')) {
         e.preventDefault()
         resizeBy(items[single], e.key === '-' ? -SNAP : SNAP)

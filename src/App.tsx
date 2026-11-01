@@ -8,6 +8,8 @@ import LibraryPage from './pages/LibraryPage'
 import DecksPage from './pages/DecksPage'
 import PresentPage from './pages/PresentPage'
 import PresenterPage from './pages/PresenterPage'
+import ThemesPage from './pages/ThemesPage'
+import TemplatesPage from './pages/TemplatesPage'
 
 const router = createBrowserRouter([
   {
@@ -20,6 +22,8 @@ const router = createBrowserRouter([
       { path: 'decks', element: <DecksPage /> },
       { path: 'library/decks', element: <Navigate to="/decks" replace /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'themes', element: <ThemesPage /> },
+      { path: 'templates', element: <TemplatesPage /> },
     ],
   },
   { path: '/w/:id/print/:variant', element: <PrintPage /> },

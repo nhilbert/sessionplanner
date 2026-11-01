@@ -1,0 +1,7 @@
+/* The editor's preview (src/slides/editor): the element of each field is marked and lights up when its field has the focus. */
+.slide-edit .slide [data-f] { cursor: text; outline: 2px solid transparent; outline-offset: 6px; border-radius: 6px; transition: outline-color 120ms ease; }
+.slide-edit .slide [data-f]:hover { outline-color: color-mix(in oklab, var(--accent) 45%, transparent); }
+.slide-edit .slide [data-f].is-focus { outline-color: var(--accent); }
+.slide-edit .slide figure[data-f], .slide-edit .slide img[data-f] { cursor: pointer; }
+/* An over-full slide: a quiet mark at the bottom edge, so the editor can show where it cuts off. */
+.slide-edit.is-overflow .slide { box-shadow: inset 0 -4px 0 var(--accent-2, #B5513D); }

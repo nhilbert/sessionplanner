@@ -16,6 +16,7 @@ import NotesField from './NotesField'
 import { uploadFiles } from './upload'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
+import { slideAssets } from '@/domain/slides'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
 
@@ -27,6 +28,7 @@ export default function ItemPanel({
   onClose,
   onSelect,
   onSaved,
+  onNotice,
   computedStart,
   owner,
 }: {
@@ -42,6 +44,8 @@ export default function ItemPanel({
   onSelect: (id: string) => void
   /** Saved to the library: a short confirmation. */
   onSaved: (title: string) => void
+  /** A short confirmation (a template saved). */
+  onNotice?: (text: string) => void
 }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
@@ -155,7 +159,9 @@ export default function ItemPanel({
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
       {item.kind !== 'note' && <Files item={item} data={data} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
-      {(item.kind === 'block' || item.kind === 'break') && <SlideStrip slides={item.slides} onChange={(slides) => set({ slides })} scope={{ workshopId: data.workshop.id }} theme={themeOf(data.workshop, settings)} canEdit owner={owner} />}
+      {(item.kind === 'block' || item.kind === 'break') && (
+        <SlideStrip slides={item.slides} onChange={(slides) => set({ slides })} scope={{ workshopId: data.workshop.id }} theme={themeOf(data.workshop, settings)} canEdit owner={owner} assets={data.items.flatMap((i) => i.slides.flatMap((s) => slideAssets(s.html)))} onNotice={onNotice} />
+      )}
 
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <Button size="sm" onClick={duplicate}>

@@ -278,7 +278,7 @@ export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-[
   if (!open) return null
   return (
     <div className={cx('fixed inset-0 z-50 flex items-start justify-center bg-ink/15 px-4 backdrop-blur-[2px]', top)} onMouseDown={onClose}>
-      <div className={cx('card fade-in max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain p-5 shadow-[var(--shadow)]', width)} onMouseDown={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" className={cx('card fade-in max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain p-5 shadow-[var(--shadow)]', width)} onMouseDown={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>

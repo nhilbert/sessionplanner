@@ -1,29 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '@/api'
 import { Select } from '@/components/ui'
+import { themeLabel, useThemes } from '@/store/useThemes'
 
-let known: string[] | null = null
-
-/** The slide themes the server has (data/themes), with the built-in default. */
+/** The slide themes the server has (built in, folders in data/themes, themes kept as data), by name. */
 export function ThemeSelect({ value, onChange, withDefault, className }: { value: string; onChange: (theme: string) => void; withDefault?: boolean; className?: string }) {
   const { t } = useTranslation()
-  const [themes, setThemes] = useState<string[]>(known ?? ['default'])
+  const { themes, load } = useThemes()
   useEffect(() => {
-    if (known) return
-    api.listThemes().then((list) => {
-      known = list
-      setThemes(list)
-    }, () => undefined)
-  }, [])
+    void load()
+  }, [load])
+  // A theme that is gone (deleted, folder removed) still shows, so the choice is visible and can be changed.
+  const known = themes.some((x) => x.id === value) || !value || value === 'default'
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)} className={className ?? 'h-8 w-auto text-[13px]'} aria-label={t('slides.theme')}>
       {withDefault && <option value="">{t('slides.themeDefault')}</option>}
-      {themes.map((name) => (
-        <option key={name} value={name === 'default' && !withDefault ? '' : name}>
-          {name === 'default' ? t('slides.themeBuiltIn') : name}
+      {themes.map((info) => (
+        <option key={info.id} value={info.id === 'default' && !withDefault ? '' : info.id}>
+          {themeLabel(info, info.id, t)}
         </option>
       ))}
+      {!known && <option value={value}>{value}</option>}
     </Select>
   )
 }

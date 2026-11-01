@@ -1,15 +1,16 @@
-# Slides – format and catalogue (draft 1, 2026-11-01)
+# Slides – format, catalogue and editor (draft 2, 2026-11-01)
 
-Slides for the agenda and the library. A slide is text in a small HTML subset; one stylesheet owned by the app gives every slide its look, and a theme (colours, fonts, logo) is chosen per workshop. Decks are presented from the app, downloaded as one standalone HTML file, or printed to PDF. There is no slide editor in the app and no way back to PowerPoint: existing decks are translated once (section 6), new slides are written as text, by hand or by an agent through the connector.
+Slides for the agenda and the library. A slide is text in a small HTML subset; one stylesheet owned by the app gives every slide its look, and a theme (colours, fonts, logo) is chosen per workshop. Decks are presented from the app, downloaded as one standalone HTML file, or printed to PDF. Slides are edited in the app as content (section 7): fields for the words, a catalogue layout chosen per slide, the appearance from the theme; themes and template slides are edited there too. There is no way back to PowerPoint: existing decks are translated once (section 6).
 
-Stage 1 (this draft): the format and the layout catalogue, tried on sample slides from the owner's past decks in a private preview (gitignored). Stages 2 and 3 (translation workflow, slides in the app) follow once the format is agreed.
+Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) are done; stage 4 (this draft) adds the editor, themes as data and template slides.
 
 ## 1. Decisions
 
 - **Content, not pictures.** A slide holds structure and text only. Appearance lives in `slides.css`, which is why every deck looks the same, light and dark both work, previews are crisp at any size, text is searchable, and an agent can read and write slides.
 - **One design size**, 1280 × 720 px. The host scales a slide to the thumbnail, the item panel, the full screen or the printed page; nothing in the slide knows about its size.
 - **A fixed catalogue of layouts** (section 3) instead of free positioning. Every slide picks one layout; what the layout does not offer is not possible. The catalogue was derived from eight real decks and covers what recurs in them.
-- **Themes are data.** The repository ships a neutral default theme; the owner's themes (light and dark) and a partner's brand for subcontracted workshops live in the data folder and are chosen per workshop.
+- **Themes are data.** The repository ships a neutral default theme. The owner's themes are kept as data in the database – ten colours, two fonts, a few choices and the logo – and edited in the app (section 4); the stylesheet is generated from them. Theme folders in the data folder (a hand-written stylesheet with its own fonts) still work, for a partner's brand that needs more than the tokens offer. A theme is chosen per workshop.
+- **Content is edited as fields, not as pixels.** The editor (section 7) shows the slide's words in fields next to the live slide, the layout is picked from the catalogue and carries the content along, and nothing can be dragged or resized: what the layout does not offer is not possible, which is what keeps every deck looking the same.
 - **Illustrations stay pictures.** Photos and ink-wash illustrations are assets referenced from the slide, stored once by content hash. Simple shapes, matrices and models are inline SVG so they stay sharp and follow the theme.
 - **No way back to PowerPoint.** A best-effort PPTX export from this format is plausible later because the format is so constrained, but it is not a goal.
 
@@ -69,7 +70,7 @@ The facts panel of an exercise (`aside.facts`: duration, social form, material) 
 
 ## 4. Themes
 
-A theme is a stylesheet that sets tokens on `[data-theme="name"]` and may add decorations for the title, section and closing slides (a picture scrim, a cut-out, where the logo sits):
+A theme sets the tokens slides.css reads on `[data-theme="name"]` and may add decorations for the title, section and closing slides (a picture scrim, where the logo sits):
 
 - colours: `--bg --surface --surface-2 --line --fg --fg-2 --fg-3 --title --accent --accent-deep --accent-2 --accent-3 --accent-4 --on-accent --field --on-field --on-field-2`
 - type: `--font-display --font-body --font-mono --display-weight`
@@ -77,7 +78,16 @@ A theme is a stylesheet that sets tokens on `[data-theme="name"]` and may add de
 
 SVG in slides uses classes bound to these tokens: fills `f-accent f-accent-deep f-accent-2 f-accent-3 f-accent-4 f-surface f-surface-2 f-title f-bg`, strokes `s-accent s-line s-fg`, text `t t-small t-display t-on`.
 
-Fonts are self-hosted by the app. Themes and their logos are uploaded in the settings; a workshop chooses its theme.
+**Themes as data** (`src/domain/theme.ts`, table `themes`, Settings → Slides → Themes). A theme the owner makes in the app holds:
+
+- ten colours: background, text, title, four accents, text on accent, the field colour of section and closing slides and the text on it. The other tokens (surfaces, line, the two quieter text tones, the deeper accent, the quieter text on the field) are derived from these by mixing in OKLab, so they stay in step when a base colour changes; each can be overridden in the editor's advanced section;
+- two fonts, display and body, from a short list the app hosts (Inter, Manrope, Source Serif 4) or the viewer's system stacks, and the heading weight;
+- the corner radius, the footer line on or off, whether a picture on the title slide gets a dark gradient with light text, and where the logo shows (closing slide only, title slide, every slide);
+- a logo and a light variant for the field colour, uploaded like the printout logo (PNG, JPEG, WebP or SVG, 2 MB), stored in `data/files/theme-logos`.
+
+The server generates the stylesheet from the tokens (`GET /api/themes/<id>/theme.css`, literal colours, no `color-mix`, so it prints and exports the same everywhere); the browser generates the same stylesheet for the draft while a theme is edited, so every change shows on sample slides at once. The editor checks the colour pairs that carry text against WCAG 2.2 (SC 1.4.3: 4.5:1 for text, 3:1 for large text from 24 px) and marks what falls short. Deleting a theme resets the workshops and the setting that used it to the default. Theme folders in `data/themes/<name>/theme.css` are listed alongside; a data theme with the same id hides a folder.
+
+Fonts are self-hosted by the app: the standalone file inlines the Latin slices of the hosted fonts a theme names, so the deck shows the same type on a machine without them.
 
 ## 5. In the app (stage 3)
 
@@ -85,11 +95,12 @@ Fonts are self-hosted by the app. Themes and their logos are uploaded in the set
 - **Sanitised on write and on render.** The server stores a slide only after `src/domain/slides.ts` reduced it to the format and gave it a `section.slide` root; the browser sanitises again before it sets the markup. Pictures are `asset:<hash>` references; the host rewrites them to its API.
 - **Assets** are raster pictures (PNG, JPEG, WebP, GIF; the bytes decide, never the file name), stored once by SHA-256 in `data/files/assets`, listed in the `assets` table, served inline and immutable. A workshop's guests load an asset through the workshop's route only while one of its slides shows it; the library route is the owner's. `POST /api/assets/sweep` removes what no slide, library entry or pool deck shows any more.
 - **The slide pool** (`decks`, `deck_slides`): translated decks uploaded once, owner only. The pool page (Slide pool in the navigation, `/decks`) takes the preview folder of a translation: every `deck.json` found becomes a deck, its pictures are uploaded once, every slide checked, and on request the library entries the manifest proposes are created (existing titles skipped). Slides are copied from the pool into items and library entries; later changes to the pool leave the copies alone.
-- **Item panel and library editor**: a strip of thumbnails; a click shows a slide large with its neighbours, where it can be moved, removed or its source corrected (the source field is for small fixes, not an editor). New slides come from the pool, from an uploaded picture, or as a blank layout. Agenda cards show the count next to the paperclip; library cards show the first thumbnails.
+- **Item panel and library editor**: a strip of thumbnails; a click opens the slide editor (section 7), which pages through the slides. New slides come from a template, as a blank layout, from a picture or from the pool, and open in the editor at once. Agenda cards show the count next to the paperclip; library cards show the first thumbnails.
 - **The deck tab** shows the whole deck in agenda order (`src/domain/deck.ts`): a title slide (one per day when there are several), an agenda slide per day with the computed times, the items' slides, and a break slide with its end time for every break without slides of its own; the agenda and break slides can be switched off. From there: present, save as one standalone HTML file, print.
 - **Presenting**: `/w/:id/present`, full screen, arrow keys, space and clicks, `f` for full screen, Escape leaves. **The presenter view** `/w/:id/presenter` is the facilitator's screen while the workshop runs: the current slide large, the next one small, the step's planned time against the clock (minutes left, or over), its facilitation notes; a presentation window opened from it follows along over a broadcast channel. This is the simple live mode; a re-forecast of the day is still open. **Printing**: `/w/:id/print/slides`, 16:9 pages, one slide each. **The standalone file** carries the stylesheet, the theme with its fonts and logos inlined, the slices of Noto Sans JP its glyphs need, the pictures as data, and a few lines of script; it opens without a server and prints the same pages.
-- **Themes are data**: `data/themes/<name>/theme.css` with its fonts and logos beside it, served under `/api/themes`. The repository ships only the built-in default. The owner's themes are kept in the private setup, as the server configuration is.
-- **The connector** reads and writes slides as text, on steps and on library entries: `slide_format` hands the agent the rules and the catalogue with an example per layout (`src/domain/slideFormat.ts`), `slide_list`, `slide_get`, `slide_add`, `slide_update` (new markup, text replacements, a new position), `slide_remove` and `slide_set` change them, `pool_search` and `deck_outline` show the pool and the deck; items take slides when they are created, and the theme is chosen per workshop (docs/mcp.md).
+- **Themes**: the owner's themes as data (section 4), edited under Settings → Slides → Themes; theme folders `data/themes/<name>/theme.css` with fonts and logos beside them still work, served under `/api/themes`. The repository ships only the built-in default.
+- **Template slides** (`slide_templates`, Settings → Slides → Templates): named slides to start from, shared by all workshops. A template is made from a layout or saved from the editor ("Save as template"), edited in the same editor, renamed, duplicated, ordered and deleted. Inserting one makes a copy; changing the template leaves the copies alone, like the library.
+- **The connector** reads and writes slides as text, on steps and on library entries: `slide_format` hands the agent the rules and the catalogue with an example per layout (`src/domain/slideFormat.ts`), `slide_list`, `slide_get`, `slide_add`, `slide_update` (new markup, text replacements, a new position), `slide_remove` and `slide_set` change them, `pool_search` and `deck_outline` show the pool and the deck; items take slides when they are created, and the theme is chosen per workshop from the list `settings_get` gives (built in, folders, data themes; docs/mcp.md). Themes and templates are not written through the connector yet.
 - **Glyphs**: Noto Sans JP (sliced by unicode range, a dependency) sits behind every font stack of the format, so the kanji of section slides render on any machine; a slice is loaded only when a slide needs it.
 
 ## 6. Translating existing decks (stage 2)
@@ -104,8 +115,30 @@ The workflow is a project skill, `.claude/skills/deck-translate/SKILL.md`, with 
 
 The first deck translated this way, a four-day leadership seminar of 61 slides, became 46 library entries without a todo; the regular structure of its slides (inputs as cards, exercises with the facts panel, questions as statements) maps onto the catalogue one to one. Decks built on older templates will need more judgement per slide, in particular grouped shapes and SmartArt.
 
-## 7. Open points
+## 7. Editing (stage 4)
+
+The editor works on content, the layout arranges it, the theme colours it. Three layers, each edited in its own place, none of them in pixels. What the research into slide tools agreed on went into it:
+
+- **Constrained layouts beat free placement.** Beautiful.ai's Smart Slides are templates that act as constraints: when content is added, the layout adapts, text resizes, spacing adjusts, and a slide that no longer fits is fixed by choosing another template, not by nudging boxes (Beautiful.ai blog, "What the heck are Smart Slides"; third-party reviews 2026). Gamma edits cards whose layout type, column count and blocks can be changed per card while the theme stays the same everywhere (Gamma guides, "How Gamma maps content directly to slides using its card system"). Marp states "separation of content and style" as its design principle: content in Markdown, appearance in a theme stylesheet (marp.app/docs). The catalogue of section 3 is this app's set of constraints; the editor only ever fills it.
+- **Three layers, as in PowerPoint and Google Slides.** A theme holds colours and fonts, a master's layouts hold the arrangement and the placeholders, a slide holds content; global formatting belongs on the master or layout, never on the slide, one master per deck, layouts with clear names (think-cell, "How to use and edit slide masters"; pptproductivity, "Difference between templates, themes and layouts"; Google Workspace Updates 2021, Theme builder). Here: theme (section 4), the fixed catalogue with its stylesheet (section 3), template slides as named starting points, the slide.
+- **A brand kit keeps a few colours, the fonts and the logo in one place** and applies them to every design (Canva Brand Kit). The theme editor shows ten colours and derives the rest, so a brand is set in minutes and stays consistent.
+- **Readable text is a check, not a taste.** WCAG 2.2 SC 1.4.3: 4.5:1 for text, 3:1 for large text (18 pt, or 14 pt bold); the ratio is (L1 + 0.05) / (L2 + 0.05) over the relative luminances. The theme editor computes it for every pair that carries text.
+- **On a phone, controls live at the bottom and in one sheet at a time**; nothing hides behind hover (bottom-sheet guidance in design systems and the LogRocket article on bottom sheets). The editor on a phone is one screen: the slide on top, the fields below, previous and next at the thumb.
+- **contentEditable is avoided.** Its known problems – cursor jumps, pasted formatting, output that needs cleaning, uneven behaviour on phones and with screen readers (react-sane-contenteditable's issue list; editor vendors' "paste as plain text" modes) – are not worth it when the content is a handful of short texts. The fields are plain inputs; a click on the slide opens the field it shows, and a focused field lights up its element on the slide. Inline emphasis is written as `**bold**`, `*italic*`, `==accent==`, as in the notes.
+
+[BELEG?] The reviews of Beautiful.ai and the Gamma guides are vendor or third-party pages read in November 2026; they describe the products, not measured outcomes.
+
+**The slide document** (`src/domain/slideDoc.ts`). A slide's markup is read into a document: its layout, the layout's options (the modifier classes of section 3 as flags and a column count), a header (eyebrow, title, lead, the tag of an exercise), the content part the layout holds – points, cards, steps and facts, a quote, a figure, text blocks, agenda rows, the four cells of a matrix, letters, boxes, a table, the SVG of a model – and the source line. Every field is written back in the catalogue's markup, so the sanitiser leaves it unchanged and the stylesheet knows it. A slide whose body is not the catalogue's structure (a translated slide with a variant the editor does not model) keeps that body as source: header, footer and the source are still edited, nothing is locked. `LAYOUTS` is the catalogue as a schema: which parts a layout shows, which options it has, how many entries it holds before the slide is over-full.
+
+**Changing the layout** carries the content: the title stays the title, points become cards become steps (headings and texts kept where the new layout has both), a picture stays where the layout shows one, the source stays in the footer. What the new layout cannot hold is said at once – "2 entries do not fit", "the picture has no place" – with the way back next to it.
+
+**The editor** (`src/slides/editor`). On a desktop the slide is large on the left with the thumbnails of the step's slides below, the fields on the right: the layout's options first, then header, content, footer. Entries (points, cards, steps …) are added, moved and removed in place; the count against the layout's room is shown; a picture is chosen from the ones the workshop already shows or uploaded. The slide reports when its content runs over the edge, so the choice is to shorten or to pick a roomier layout. Edits are stored a moment after typing stops, as one undo step each. The source is still there, behind the ⋯ menu, for what the fields do not reach.
+
+**New slides** start from a template (the owner's), a blank layout (every layout of the catalogue as a thumbnail in the current theme), a picture, or the pool; the first two open the editor at once.
+
+## 8. Open points
 
 - Whether the facts panel of an exercise is always generated from the item, or may be written in the slide.
 - Charts: inline SVG drawn by the translation for now; a chart element of its own only if it is needed often.
 - The partner theme's speech bubble is drawn after the slide master as an SVG background; the fine shape of its curve may still change.
+- Themes and templates through the connector (an agent setting up a client's colours from a style guide); a dark variant derived from a light theme with one click; moving a slide between items.

@@ -92,7 +92,7 @@ describe('MCP endpoint', () => {
     expect(one).toMatchObject({ n: 1, layout: 'statement', html: edited.updated.html })
     const outline = json(await client.callTool({ name: 'deck_outline', arguments: { workshop: 'Strategietag', agenda: false } }))
     expect(outline.deck.map((d: { generated?: string; item?: string }) => d.generated ?? d.item)).toEqual(['title', 'Check-in'])
-    expect(json(await client.callTool({ name: 'settings_get', arguments: {} })).themes).toEqual(['default'])
+    expect(json(await client.callTool({ name: 'settings_get', arguments: {} })).themes).toEqual([{ id: 'default', name: 'default' }])
     await client.close()
   })
 

@@ -12,7 +12,8 @@ import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken }
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
+import { BadRequest, isThemeId, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
+import { DARK_TOKENS, DEFAULT_TOKENS, themeCss, themeIdFrom, type ThemeLogo } from '../src/domain/theme.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -105,7 +106,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   }
   app.use('/api/*', (c, next) => {
     const p = c.req.path
-    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks)$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
+    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : limits.json
     return limit(c, next)
   })
   app.use('/mcp', limits.json)
@@ -375,18 +376,109 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ removed: gone.length })
   })
 
-  // ---- slide themes: folders in data/themes, each a theme.css with its fonts and logos ----------------------
+  // ---- slide themes: kept as data (colours, fonts, logo; the stylesheet is generated) or as folders in data/themes ----
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
-  app.get('/api/themes', (c) => c.json(listThemes(themesDir)))
+  const themeLogoPath = (id: string, variant: 'logo' | 'logoLight') => path.join(filesDir, 'theme-logos', variant === 'logo' ? id : `${id}-light`)
+  const themeLogoUrl = (id: string, logo: ThemeLogo | null, variant: 'logo' | 'logoLight') => (logo ? `/api/themes/${encodeURIComponent(id)}/${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}` : null)
+  app.get('/api/themes', (c) => c.json(listThemes(themesDir, repo.listThemes())))
+  /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
+  app.get('/api/themes/:id', ownerOnly, (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    return theme ? c.json(theme) : c.json({ error: 'not_found' }, 404)
+  })
   app.get('/api/themes/:name/*', async (c) => {
     const name = c.req.param('name')!
     const rel = c.req.path.slice(`/api/themes/${name}/`.length).split('/')
-    if (!themesDir || !THEME_NAME.test(name) || !rel.length || rel.some((s) => !/^[A-Za-z0-9._-]+$/.test(s) || s === '..')) return c.json({ error: 'not_found' }, 404)
+    if (!THEME_NAME.test(name) || !rel.length || rel.some((s) => !/^[A-Za-z0-9._-]+$/.test(s) || s === '..')) return c.json({ error: 'not_found' }, 404)
+    const data = repo.getTheme(name)
+    if (data) {
+      if (rel.length === 1 && rel[0] === 'theme.css') {
+        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data.id, data.logo, 'logo'), logoLightUrl: themeLogoUrl(data.id, data.logoLight, 'logoLight') })
+        return c.body(css, 200, { 'Content-Type': THEME_TYPES['.css'], 'Cache-Control': 'private, max-age=300' })
+      }
+      if (rel.length === 1 && (rel[0] === 'logo' || rel[0] === 'logo-light')) {
+        const variant = rel[0] === 'logo' ? 'logo' : 'logoLight'
+        const logo = variant === 'logo' ? data.logo : data.logoLight
+        const bytes = logo && (await readFile(themeLogoPath(data.id, variant)).catch(() => null))
+        if (!logo || !bytes) return c.json({ error: 'not_found' }, 404)
+        return c.body(new Uint8Array(bytes), 200, { 'Content-Type': logo.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
+      }
+      return c.json({ error: 'not_found' }, 404)
+    }
+    if (!themesDir) return c.json({ error: 'not_found' }, 404)
     const type = THEME_TYPES[path.extname(rel[rel.length - 1]).toLowerCase()]
-    const data = type && (await readFile(path.join(themesDir, name, ...rel)).catch(() => null))
-    if (!type || !data) return c.json({ error: 'not_found' }, 404)
-    return c.body(new Uint8Array(data), 200, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
+    const bytes = type && (await readFile(path.join(themesDir, name, ...rel)).catch(() => null))
+    if (!type || !bytes) return c.json({ error: 'not_found' }, 404)
+    return c.body(new Uint8Array(bytes), 200, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
   })
+  app.post('/api/themes', ownerOnly, async (c) => {
+    const input = validateTheme(await jsonBody(c))
+    // Copied from another theme, started dark, or the neutral default.
+    const from = input.from ? repo.getTheme(input.from) : null
+    if (input.from && !from && input.from !== 'default' && input.from !== 'dark') throw new BadRequest(`no theme "${input.from}" to copy`)
+    const tokens = input.tokens ?? from?.tokens ?? (input.from === 'dark' ? DARK_TOKENS : DEFAULT_TOKENS)
+    let id = themeIdFrom(input.name, newId)
+    while (repo.getTheme(id) || listThemes(themesDir).some((t) => t.id === id)) id = themeIdFrom(input.name, newId)
+    repo.createTheme({ id, name: input.name, tokens })
+    if (from) {
+      // The logos come along with a copy.
+      await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
+      for (const variant of ['logo', 'logoLight'] as const) {
+        const logo = from[variant]
+        if (!logo) continue
+        await copyFile(themeLogoPath(from.id, variant), themeLogoPath(id, variant)).catch(() => undefined)
+        repo.setThemeLogo(id, variant, { ...logo, updatedAt: new Date().toISOString() })
+      }
+    }
+    return c.json(repo.getTheme(id), 201)
+  })
+  app.put('/api/themes/:id', ownerOnly, async (c) => {
+    const current = repo.getTheme(c.req.param('id')!)
+    if (!current) return c.json({ error: 'not_found' }, 404)
+    const theme = repo.updateTheme(current.id, validateThemePatch(await jsonBody(c), current.tokens))
+    return c.json(theme)
+  })
+  app.delete('/api/themes/:id', ownerOnly, async (c) => {
+    const id = c.req.param('id')!
+    if (!isThemeId(id)) return c.json({ error: 'not_found' }, 404)
+    const result = repo.deleteTheme(id)
+    if (!result) return c.json({ error: 'not_found' }, 404)
+    await Promise.all([rm(themeLogoPath(id, 'logo'), { force: true }), rm(themeLogoPath(id, 'logoLight'), { force: true })])
+    // Workshops that used the theme fall back to the default: the open windows learn it like any other change.
+    for (const w of result.workshops) hub.publish(w, { type: 'ops', clientId: 'server', ops: [{ op: 'set', entity: 'workshop', id: w, fields: { theme: '' } }] })
+    return c.json({ ok: true })
+  })
+  const logoVariant = (c: Context): 'logo' | 'logoLight' => (c.req.query('variant') === 'light' ? 'logoLight' : 'logo')
+  app.post('/api/themes/:id/logo', ownerOnly, async (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    if (!theme) return c.json({ error: 'not_found' }, 404)
+    const file = (await c.req.parseBody()).file
+    if (!(file instanceof File)) throw new BadRequest('file required')
+    if (!LOGO_TYPES.includes(file.type)) throw new BadRequest('png, jpeg, webp or svg only')
+    if (file.size > MAX_LOGO) return c.json({ error: 'too_large' }, 413)
+    const variant = logoVariant(c)
+    await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
+    await writeFile(themeLogoPath(theme.id, variant), Buffer.from(await file.arrayBuffer()))
+    return c.json(repo.setThemeLogo(theme.id, variant, { mime: file.type, updatedAt: new Date().toISOString() }))
+  })
+  app.delete('/api/themes/:id/logo', ownerOnly, async (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    if (!theme) return c.json({ error: 'not_found' }, 404)
+    const variant = logoVariant(c)
+    await rm(themeLogoPath(theme.id, variant), { force: true })
+    return c.json(repo.setThemeLogo(theme.id, variant, null))
+  })
+
+  // ---- template slides (owner only): named slides to start from, shared by all workshops --------------------------
+  app.use('/api/slide-templates', ownerOnly)
+  app.use('/api/slide-templates/*', ownerOnly)
+  app.get('/api/slide-templates', (c) => c.json(repo.listSlideTemplates()))
+  app.post('/api/slide-templates', async (c) => c.json(repo.saveSlideTemplate(null, validateSlideTemplate(await jsonBody(c))), 201))
+  app.put('/api/slide-templates/:id', async (c) => {
+    const saved = repo.saveSlideTemplate(c.req.param('id')!, validateSlideTemplate(await jsonBody(c)))
+    return saved ? c.json(saved) : c.json({ error: 'not_found' }, 404)
+  })
+  app.delete('/api/slide-templates/:id', (c) => (repo.deleteSlideTemplate(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
 
   // ---- AI agents (owner only): connections approved over OAuth, each can be disconnected ------------------
   if (oauth) {

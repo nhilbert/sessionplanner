@@ -117,7 +117,10 @@ describe('slide assets', () => {
 
   it('lists the themes that have a stylesheet and serves their files, nothing outside them', async () => {
     const { app } = setup()
-    expect(await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()).toEqual(['default', 'demo'])
+    expect(await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()).toEqual([
+      { id: 'default', name: 'default', kind: 'builtin' },
+      { id: 'demo', name: 'demo', kind: 'folder' },
+    ])
     const css = await app.request(`${BASE}/api/themes/demo/theme.css`, { headers: H(GUEST) })
     expect(css.status).toBe(200)
     expect(css.headers.get('content-type')).toContain('text/css')

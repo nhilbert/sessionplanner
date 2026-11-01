@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Upload } from 'lucide-react'
+import { LayoutTemplate, Palette, Plus, Trash2, Upload } from 'lucide-react'
 import { api } from '@/api'
 import { newId } from '@/domain/ops'
 import { categoryName, useSettings } from '@/store/useSettings'
@@ -58,6 +59,18 @@ export default function SettingsPage() {
         </section>
 
         <section className="card mb-6 p-5">
+          <SectionLabel>{t('settings.slides')}</SectionLabel>
+          <p className="mb-3 text-[13px] text-ink-3">{t('settings.slidesHint')}</p>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <Link to="/themes" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium hover:bg-surface-2 pointer-coarse:h-10">
+              <Palette size={13} />
+              {t('themes.manage')}
+            </Link>
+            <Link to="/templates" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium hover:bg-surface-2 pointer-coarse:h-10">
+              <LayoutTemplate size={13} />
+              {t('slides.manageTemplates')}
+            </Link>
+          </div>
           <SectionLabel>{t('settings.theme')}</SectionLabel>
           <ThemeSelect value={settings.theme} onChange={(theme) => update({ theme })} />
           <p className="mt-2 text-[13px] text-ink-3">{t('settings.themeHint')}</p>

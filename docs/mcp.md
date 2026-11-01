@@ -240,7 +240,7 @@ Markup is reduced to the slide format on write (`docs/slides.md`, section 2; `sl
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
-| `settings_get` | read | – | Categories (id, name, colour), default day times, the slide themes the server has and the default one, what the item kinds mean. |
+| `settings_get` | read | – | Categories (id, name, colour), default day times, the slide themes the server has (`{ id, name }`: built in, folders, themes made in the app) and the default one, what the item kinds mean. |
 
 Files are listed by name only; uploading, downloading and deleting them stays in the app. Guests and sharing are managed in the app too.
 
@@ -254,7 +254,7 @@ The tools share their rules with the app (`src/domain/`):
 - Ordering by the same fractional positions as the app (`src/domain/order.ts`); a day's entries are renumbered when positions get too close.
 - The packing list takes the largest quantity per label from the placed items (`src/domain/packing.ts`); parked items pack nothing.
 - Library entries are copies both ways: saving copies the item, inserting copies the entry, and changing or deleting an entry leaves the placed copies alone. Entries written through the tools pass the same validation as the app's library editor.
-- Slides are stored sanitised (`src/domain/slides.ts`), whether they arrive as markup, as a text replacement or as a pool copy; a workshop's theme must be one the server has (`data/themes`).
+- Slides are stored sanitised (`src/domain/slides.ts`), whether they arrive as markup, as a text replacement or as a pool copy; a workshop's theme must be one the server has (`settings_get` lists them: the built-in one, folders in `data/themes`, themes made in the app).
 
 The server also sends the agent short instructions on connect: read the workshop before changing it, draft from a brief with goal, method and lead, keep stretches without a break under 90 minutes, read `slide_format` before writing slides and a slide before editing it, prefer small reversible changes and report the computed end of the day.
 

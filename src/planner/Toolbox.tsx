@@ -96,6 +96,7 @@ export default function Toolbox(p: Props) {
       onClose={p.onCloseItem}
       onSelect={p.onSelect}
       onSaved={(title) => p.onNotice(t('library.saved', { title }))}
+      onNotice={p.onNotice}
       owner={p.owner}
     />
   ) : tab === 'parking' ? (
