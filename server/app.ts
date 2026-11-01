@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { streamSSE } from 'hono/streaming'
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { newId } from '../src/domain/ops.ts'
@@ -14,13 +15,17 @@ import { BadRequest, safeMime, validateDuplicate, validateLibraryEntry, validate
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
+/** A picture on a slide (docs/slides.md): stored once per content hash, shown inline. */
+export const MAX_ASSET = 10 * 1024 * 1024
 const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 
 export interface AppOptions extends GuardOptions {
   repo: Repo
   hub: Hub
-  /** Where attachment files live (data/files). */
+  /** Where attachment files live (data/files); slide assets in its assets/ subfolder. */
   filesDir: string
+  /** Slide themes (data/themes/<name>/theme.css with fonts and logos next to it); none without it. */
+  themesDir?: string
   /** Directory with the built client (dist). When set, the server serves the UI too. */
   staticDir?: string
   /** Seconds between keep-alive pings on the live-update stream. */
@@ -52,9 +57,10 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   }
 }
 
-export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile, mcp, oauth, linkToken }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile, mcp, oauth, linkToken }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const filePath = (id: string) => path.join(filesDir, id)
+  const assetPath = (hash: string) => path.join(filesDir, 'assets', hash)
   /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
   const accessTo = (c: Context<Env>, workshopId: string): 'owner' | Access | null => {
     const user = c.get('user')
@@ -98,7 +104,7 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
   }
   app.use('/api/*', (c, next) => {
     const p = c.req.path
-    const limit = /^\/api\/workshops\/[^/]+\/attachments$/.test(p) ? limits.upload : /^\/api\/workshops\/[^/]+\/ops$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
+    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/workshops\/[^/]+\/ops$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
     return limit(c, next)
   })
   app.use('/mcp', limits.json)
@@ -302,6 +308,77 @@ export function createApp({ repo, hub, filesDir, staticDir, publicUrl, owners, o
     return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
   })
   app.delete('/api/library/:id', (c) => (repo.deleteLibraryEntry(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
+
+  // ---- slide assets: pictures, once per content hash, shown inline ---------------------------------------
+  // The file's own bytes decide the type (a renamed HTML file is refused); only raster images, so nothing can run.
+  const sniff = (b: Buffer): string | null => {
+    if (b.length > 8 && b[0] === 0x89 && b.toString('latin1', 1, 4) === 'PNG') return 'image/png'
+    if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+    if (b.length > 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'image/webp'
+    if (b.length > 6 && /^GIF8[79]a/.test(b.toString('latin1', 0, 6))) return 'image/gif'
+    return null
+  }
+  const HASH = /^[0-9a-f]{64}$/
+  const storeAsset = async (c: Context<Env>) => {
+    const file = (await c.req.parseBody()).file
+    if (!(file instanceof File)) throw new BadRequest('file required')
+    if (file.size > MAX_ASSET) return c.json({ error: 'too_large' }, 413)
+    const data = Buffer.from(await file.arrayBuffer())
+    const mime = sniff(data)
+    if (!mime) throw new BadRequest('png, jpeg, webp or gif only')
+    const hash = createHash('sha256').update(data).digest('hex')
+    await mkdir(path.join(filesDir, 'assets'), { recursive: true })
+    await writeFile(assetPath(hash), data)
+    return c.json(repo.addAsset({ hash, mime, size: data.length }), 201)
+  }
+  const sendAsset = async (c: Context<Env>, hash: string) => {
+    const asset = HASH.test(hash) ? repo.getAsset(hash) : null
+    const data = asset && (await readFile(assetPath(hash)).catch(() => null))
+    if (!asset || !data) return c.json({ error: 'not_found' }, 404)
+    // Content-addressed: the same address always holds the same bytes, so a browser may keep it for good.
+    return c.body(new Uint8Array(data), 200, { 'Content-Type': asset.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=31536000, immutable' })
+  }
+  app.post('/api/workshops/:id/assets', async (c) => {
+    const access = accessTo(c, c.req.param('id')!)
+    if (!access) return c.json({ error: 'not_found' }, 404)
+    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
+    return storeAsset(c)
+  })
+  app.get('/api/workshops/:id/assets/:hash', (c) => {
+    const id = c.req.param('id')!
+    const hash = c.req.param('hash')!
+    // A guest of the workshop sees what its slides show, nothing else.
+    if (!accessTo(c, id) || !HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
+    return sendAsset(c, hash)
+  })
+  app.post('/api/library/assets', storeAsset)
+  app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!))
+  app.post('/api/assets/sweep', ownerOnly, async (c) => {
+    const gone = repo.sweepAssets()
+    await Promise.all(gone.map((h) => rm(assetPath(h), { force: true })))
+    return c.json({ removed: gone.length })
+  })
+
+  // ---- slide themes: folders in data/themes, each a theme.css with its fonts and logos ----------------------
+  const THEME_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/
+  const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
+  app.get('/api/themes', async (c) => {
+    const names: string[] = []
+    if (themesDir) {
+      for (const entry of await readdir(themesDir, { withFileTypes: true }).catch(() => []))
+        if (entry.isDirectory() && THEME_NAME.test(entry.name) && (await stat(path.join(themesDir, entry.name, 'theme.css')).catch(() => null))) names.push(entry.name)
+    }
+    return c.json(['default', ...names.sort()])
+  })
+  app.get('/api/themes/:name/*', async (c) => {
+    const name = c.req.param('name')!
+    const rel = c.req.path.slice(`/api/themes/${name}/`.length).split('/')
+    if (!themesDir || !THEME_NAME.test(name) || !rel.length || rel.some((s) => !/^[A-Za-z0-9._-]+$/.test(s) || s === '..')) return c.json({ error: 'not_found' }, 404)
+    const type = THEME_TYPES[path.extname(rel[rel.length - 1]).toLowerCase()]
+    const data = type && (await readFile(path.join(themesDir, name, ...rel)).catch(() => null))
+    if (!type || !data) return c.json({ error: 'not_found' }, 404)
+    return c.body(new Uint8Array(data), 200, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
+  })
 
   // ---- AI agents (owner only): connections approved over OAuth, each can be disconnected ------------------
   if (oauth) {

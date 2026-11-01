@@ -274,6 +274,7 @@ export class Ops {
       notes: '',
       materials: [],
       attachmentIds: [],
+      slides: [],
       categoryId: null,
       color: null,
       ...this.itemFields(input),
@@ -375,7 +376,7 @@ export class Ops {
   }
 
   private libraryView(e: LibraryEntry) {
-    const content = (c: ItemContent) => compact({ kind: c.kind, title: c.title, duration: ZERO_KINDS.includes(c.kind) ? undefined : c.duration, description: c.description, goal: c.goal, method: c.method, lead: c.lead, materials: c.materials.map((m) => compact({ label: m.label, qty: m.qty, link: m.link })), category: c.categoryId })
+    const content = (c: ItemContent) => compact({ kind: c.kind, title: c.title, duration: ZERO_KINDS.includes(c.kind) ? undefined : c.duration, description: c.description, goal: c.goal, method: c.method, lead: c.lead, materials: c.materials.map((m) => compact({ label: m.label, qty: m.qty, link: m.link })), slides: c.slides?.length || undefined, category: c.categoryId })
     return e.kind === 'item' ? { id: e.id, kind: e.kind, title: e.title, item: content(e.data) } : { id: e.id, kind: e.kind, title: e.title, items: e.data.items.map(content) }
   }
 
@@ -669,7 +670,7 @@ export class Ops {
   }
 
   private content(i: Item | ItemContent): ItemContent {
-    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), categoryId: i.categoryId, color: i.color }
+    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
   }
 
   /** Saves an item, or a group with its items, of a workshop to the library (a copy; files stay with the workshop). */
