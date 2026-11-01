@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Play, Printer } from 'lucide-react'
+import { Download, MonitorSpeaker, Play, Printer } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
 import { deckOf } from '@/domain/deck'
 import { useSettings } from '@/store/useSettings'
@@ -35,6 +35,10 @@ export function DeckPanel({ data, onSelect }: { data: WorkshopState; onSelect: (
         <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/present`, '_blank', 'noopener')} disabled={!deck.length}>
           <Play size={13} />
           {t('slides.present')}
+        </Button>
+        <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/presenter`, '_blank', 'noopener')} disabled={!deck.length}>
+          <MonitorSpeaker size={13} />
+          {t('slides.presenter')}
         </Button>
         <Button size="sm" onClick={() => void save()} disabled={!deck.length || busy}>
           <Download size={13} />

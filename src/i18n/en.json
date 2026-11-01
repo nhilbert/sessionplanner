@@ -259,7 +259,8 @@
     "agentsDisconnectConfirm": "Disconnect {{name}}? It loses access immediately and has to be approved again.",
     "agentsError": "Could not load or change the connections ({{error}}). Try again; until then they stay as they were.",
     "theme": "Slide theme",
-    "themeHint": "The slide theme of new workshops; each workshop can choose another in its details. Themes are folders under data/themes with theme.css, fonts and logos."
+    "themeHint": "The slide theme of new workshops; each workshop can choose another in its details. Themes are folders under data/themes with theme.css, fonts and logos.",
+    "sweepHint": "Pictures no slide shows any more (in workshops, the library or the pool) are deleted."
   },
   "categories": {
     "input": "Input",
@@ -447,6 +448,19 @@
     "deckEmpty": "No slides in the agenda yet. Add slides to items (details) or take items with slides from the library.",
     "withAgenda": "Agenda slide per day",
     "withBreaks": "Break slides",
-    "exit": "Leave the presentation"
+    "exit": "Leave the presentation",
+    "presenter": "Presenter view",
+    "projector": "Open presentation",
+    "nextSlide": "Next slide",
+    "lastSlide": "Last slide",
+    "planned": "Planned",
+    "remaining_one": "{{count}} minute left",
+    "remaining_other": "{{count}} minutes left",
+    "over_one": "{{count}} minute over",
+    "over_other": "{{count}} minutes over",
+    "notYet": "starts {{time}}",
+    "generatedSlide": "Generated slide",
+    "presenterHint": "← → to page · Esc to leave · the presentation follows this view",
+    "noNotes": "No notes."
   }
 }

@@ -8,6 +8,7 @@ import { useSettings } from '@/store/useSettings'
 import { SlideStage, themeOf, useTheme } from '@/slides/SlideView'
 import { deckLabels } from '@/slides/deckLabels'
 import { useDeckOptions } from '@/slides/deckOptions'
+import { presentChannel } from '@/slides/presentChannel'
 
 /** Presenting from the app (docs/slides.md): the deck full screen, arrow keys, space and clicks to page, Escape to leave. */
 export default function PresentPage() {
@@ -48,6 +49,14 @@ export default function PresentPage() {
   useEffect(() => {
     if (data) document.title = `${data.workshop.title || t('workshops.untitled')} – ${t('slides.title')}`
   }, [data, t])
+  // A presenter view in another window leads; this window follows.
+  useEffect(() => {
+    const channel = presentChannel(id)
+    channel.onmessage = (e: MessageEvent<{ n?: number }>) => {
+      if (typeof e.data?.n === 'number') setParams({ n: String(e.data.n) }, { replace: true })
+    }
+    return () => channel.close()
+  }, [id, setParams])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown' || e.key === 'Enter') go(n + 1)

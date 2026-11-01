@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const { settings, update, setLogo, removeLogo, me } = useSettings()
   const input = useRef<HTMLInputElement>(null)
   const [logoError, setLogoError] = useState('')
+  const [swept, setSwept] = useState<number | null>(null)
   const logoUrl = api.logoUrl(settings)
 
   const setCategory = (id: string, patch: { name?: string; color?: (typeof settings.categories)[number]['color'] }) =>
@@ -60,6 +61,13 @@ export default function SettingsPage() {
           <SectionLabel>{t('settings.theme')}</SectionLabel>
           <ThemeSelect value={settings.theme} onChange={(theme) => update({ theme })} />
           <p className="mt-2 text-[13px] text-ink-3">{t('settings.themeHint')}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button size="sm" onClick={() => void api.sweepAssets().then((r) => setSwept(r.removed))}>
+              {t('slides.sweep')}
+            </Button>
+            {swept !== null && <span className="text-[13px] text-ink-2">{t('slides.swept', { count: swept })}</span>}
+          </div>
+          <p className="mt-2 text-[13px] text-ink-3">{t('settings.sweepHint')}</p>
         </section>
 
         <section className="card mb-6 p-5">

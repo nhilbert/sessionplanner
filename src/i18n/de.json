@@ -259,7 +259,8 @@
     "agentsDisconnectConfirm": "{{name}} trennen? Der Zugriff endet sofort und muss neu freigegeben werden.",
     "agentsError": "Verbindungen konnten nicht geladen oder geändert werden ({{error}}). Bitte erneut versuchen; bis dahin bleiben sie unverändert.",
     "theme": "Folien-Theme",
-    "themeHint": "Das Theme der Folien neuer Workshops; jeder Workshop kann in seinen Details ein anderes wählen. Themes sind Ordner unter data/themes mit theme.css, Schriften und Logos."
+    "themeHint": "Das Theme der Folien neuer Workshops; jeder Workshop kann in seinen Details ein anderes wählen. Themes sind Ordner unter data/themes mit theme.css, Schriften und Logos.",
+    "sweepHint": "Bilder, die keine Folie mehr zeigt (in Workshops, Bibliothek oder Foliensammlung), werden gelöscht."
   },
   "categories": {
     "input": "Input",
@@ -447,6 +448,19 @@
     "deckEmpty": "Noch keine Folien in der Agenda. Füge Punkten Folien hinzu (Details) oder nimm Punkte mit Folien aus der Bibliothek.",
     "withAgenda": "Agenda-Folie je Tag",
     "withBreaks": "Pausenfolien",
-    "exit": "Präsentation beenden"
+    "exit": "Präsentation beenden",
+    "presenter": "Moderationsansicht",
+    "projector": "Präsentation öffnen",
+    "nextSlide": "Nächste Folie",
+    "lastSlide": "Letzte Folie",
+    "planned": "Geplant",
+    "remaining_one": "noch {{count}} Minute",
+    "remaining_other": "noch {{count}} Minuten",
+    "over_one": "{{count}} Minute über",
+    "over_other": "{{count}} Minuten über",
+    "notYet": "beginnt {{time}}",
+    "generatedSlide": "Generierte Folie",
+    "presenterHint": "← → blättern · Esc beenden · die Präsentation folgt dieser Ansicht",
+    "noNotes": "Keine Notizen."
   }
 }

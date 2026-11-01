@@ -555,6 +555,16 @@ export class Repo {
     return this.getDeck(id)?.deck ?? null
   }
 
+  getDeckSlide(id: string): DeckSlide | null {
+    const r = this.db.prepare('SELECT * FROM deck_slides WHERE id = ?').get(id) as Row | undefined
+    return r ? toDeckSlide(r) : null
+  }
+
+  /** Every slide of the pool, deck by deck, in order. */
+  listDeckSlides(): (DeckSlide & { deck: string })[] {
+    return (this.db.prepare('SELECT s.*, d.title AS deck FROM deck_slides s JOIN decks d ON d.id = s.deck_id ORDER BY d.title COLLATE NOCASE, s.position').all() as Row[]).map((r) => ({ ...toDeckSlide(r), deck: r.deck as string }))
+  }
+
   deleteDeck(id: string): boolean {
     return this.db.prepare('DELETE FROM decks WHERE id = ?').run(id).changes > 0
   }
