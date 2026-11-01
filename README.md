@@ -18,7 +18,7 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - **On a phone**: days stack, the sidebar fills the screen, menus and the time editor come up as bottom sheets, a tap opens an item, press and hold drags it, a tap on the length changes it.
 - **Workshops list** with search (title, client, location), each workshop's dates, agenda length and location.
 - **Slides** on steps and library entries: text in a small slide format with a fixed catalogue of layouts, one stylesheet, themes as data; a slide pool of translated decks to pick from; the deck of a workshop with generated title, agenda and break slides; present from the app with a presenter view that follows the clock, save as one HTML file, print 16:9 – see [docs/slides.md](docs/slides.md).
-- **AI agents** (Claude, Claude Code …) work with the same data through the built-in MCP server: draft an agenda from a brief, rework timings, fill the packing list – see [docs/mcp.md](docs/mcp.md).
+- **AI agents** (Claude, Claude Code …) work with the same data through the built-in MCP server: draft an agenda from a brief, rework timings, fill the packing list, write and edit slides – see [docs/mcp.md](docs/mcp.md).
 
 The concept, decisions and the next stages (planning comfort, sharing by link, live mode) are in [docs/concept.md](docs/concept.md).
 

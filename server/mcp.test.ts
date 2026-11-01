@@ -75,4 +75,24 @@ describe('MCP endpoint', () => {
     expect(json(bad).error).toMatch(/invalid ops/)
     await client.close()
   })
+
+  it('reads the slide format and writes, edits and reads the slides of a step', async () => {
+    const { client, ready } = connect(app)
+    await ready
+    const tools = (await client.listTools()).tools
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['slide_format', 'slide_list', 'slide_get', 'slide_add', 'slide_update', 'slide_remove', 'slide_set', 'pool_search', 'deck_outline']))
+    expect(tools.find((t) => t.name === 'slide_update')?.annotations?.destructiveHint).toBe(true)
+    const format = json(await client.callTool({ name: 'slide_format', arguments: { layout: 'statement' } }))
+    expect(format.example).toMatch(/^<section class="slide statement">/)
+    const added = json(await client.callTool({ name: 'slide_add', arguments: { workshop: 'Strategietag', item: 'Check-in', html: format.example } }))
+    expect(added).toMatchObject({ item: 'Check-in', count: 1, added: [1] })
+    const edited = json(await client.callTool({ name: 'slide_update', arguments: { workshop: 'Strategietag', item: 'Check-in', slide: 1, replace: [{ find: 'Leitfrage', with: 'Einstieg' }] } }))
+    expect(edited.updated.html).toContain('<div class="eyebrow">Einstieg</div>')
+    const one = json(await client.callTool({ name: 'slide_get', arguments: { workshop: 'Strategietag', item: 'Check-in', slide: 1 } }))
+    expect(one).toMatchObject({ n: 1, layout: 'statement', html: edited.updated.html })
+    const outline = json(await client.callTool({ name: 'deck_outline', arguments: { workshop: 'Strategietag', agenda: false } }))
+    expect(outline.deck.map((d: { generated?: string; item?: string }) => d.generated ?? d.item)).toEqual(['title', 'Check-in'])
+    expect(json(await client.callTool({ name: 'settings_get', arguments: {} })).themes).toEqual(['default'])
+    await client.close()
+  })
 })

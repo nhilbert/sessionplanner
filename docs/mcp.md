@@ -6,7 +6,7 @@ Session Planner includes an [MCP](https://modelcontextprotocol.io) server, built
 - **draft an agenda** from a brief, or **rework** one: add, change, move, group and park items,
 - **keep notes and material** with each step, and maintain the **packing list**,
 - **use the library**: save steps and groups, insert copies,
-- **work with slides**: read and write the slides of a step, pick slides from the pool of translated decks, see the deck as it is presented,
+- **work with slides**: read, write, edit and reorder the slides of a step or a library entry as text in the slide format, pick slides from the pool of translated decks, choose the theme, see the deck as it is presented,
 - **set up and duplicate workshops**, add and change days.
 
 The tools apply the app's rules: the same validation as the browser, the same time computation, the same packing-list logic. Changes made through the server's `/mcp` endpoint appear in open windows at once (live updates); changes made over stdio appear after a reload.
@@ -19,6 +19,8 @@ Example requests:
 - "Put the check-in and the expectations round under a heading 'Arrival'."
 - "What do I need to pack for the strategy workshop? Add two extension cords."
 - "Save the feedback round of the team day to the library."
+- "Write a statement slide with the leading question for the expectations round and put it in front of the existing slides."
+- "On the third slide of the feedback input, the second card is wrong – it should say what we agreed in the notes."
 
 Contents: [Choosing a connection](#choosing-a-connection) · [Connecting](#connecting) · [Hosting behind the login proxy](#hosting-behind-caddy-and-oauth2-proxy) · [Configuration](#configuration) · [Tools](#tool-reference) · [Rules](#rules-the-tools-enforce) · [Security model](#security-model) · [Operations](#operations) · [Troubleshooting](#troubleshooting) · [Limitations](#limitations)
 
@@ -155,6 +157,7 @@ Conventions:
 - **Clock times** are `HH:mm` (day start, target end, fixed starts); **durations** are minutes.
 - **Placement** (`at`, `after`): where a new or moved entry goes among the entries of a day (or the members of a group). `at` is a 0-based index, `after` an item or group; without either, the end.
 - **Updates** change only the fields you pass; `null` clears a field.
+- **Slides** are addressed by where they live – a step (`workshop` + `item`) or a library entry (`entry`; for a group entry also the `item` inside it, by title or number) – and by id or number (1 = first).
 - **Answers** carry computed times: every item in a day has `start` and `end`; a fixed start shows `gap` (free minutes before it) or `overlap` (the items before run into it); `late` marks an item that ends after the next fixed start or the target end. Days report `computedEnd`, `overTarget`, work and break minutes, the longest stretch without a break, and `warnings` in plain words. Empty fields are left out.
 - **Errors** (unknown id, invalid time, rule violation) come back as a tool result with `isError` and a message the agent can act on.
 - **Kind** is the MCP annotation clients use to decide whether to ask before a call: *read* never changes data, *write* only adds or changes reversibly, *destructive* may delete or overwrite something you wrote.
@@ -165,8 +168,8 @@ Conventions:
 |---|---|---|---|
 | `workshop_list` | read | `includeArchived`, `query` | Title, client, dates, item count; newest first. |
 | `workshop_get` | read | `workshop` | Details, every day with computed times and warnings, groups, parking lot, packing list, files. |
-| `workshop_create` | write | `title`, `client`, `location`, `goal`, `notes`, `date` (default today), `days` (consecutive, default 1), `start`, `end` (null = open end) | A workshop with its days; times default to the settings. |
-| `workshop_update` | destructive | `workshop`, `title`, `client`, `location`, `goal`, `notes` (replaces, null clears), `appendNotes`, `archived` | Changes details. Archive with `archived: true`; workshops are never deleted through MCP. |
+| `workshop_create` | write | `title`, `client`, `location`, `goal`, `notes`, `theme`, `date` (default today), `days` (consecutive, default 1), `start`, `end` (null = open end) | A workshop with its days; times default to the settings. |
+| `workshop_update` | destructive | `workshop`, `title`, `client`, `location`, `goal`, `notes` (replaces, null clears), `appendNotes`, `theme` (`settings_get` lists them; `default` is the built-in one, null follows the settings), `archived` | Changes details. Archive with `archived: true`; workshops are never deleted through MCP. |
 | `workshop_duplicate` | write | `workshop`, `title`, `firstDate` | A copy with the days moved so the first falls on `firstDate`; agenda, material and files come along, packing-list ticks are cleared. |
 
 ### Days
@@ -181,9 +184,9 @@ Conventions:
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
-| `item_create` | write | `workshop`, `day`, `title`, `kind` (block \| break \| marker \| note), `duration`, `fixedStart`, `description`, `goal`, `method`, `lead`, `notes`, `materials[]` (`label`, `qty`, `link`), `category`, `color`, `group`, `at`, `after` | One item, by default at the end of the day. Returns it with its times and the day's warnings. |
+| `item_create` | write | `workshop`, `day`, `title`, `kind` (block \| break \| marker \| note), `duration`, `fixedStart`, `description`, `goal`, `method`, `lead`, `notes`, `materials[]` (`label`, `qty`, `link`), `category`, `color`, `slides[]` (each `html` \| `pool`), `group`, `at`, `after` | One item, by default at the end of the day. Returns it with its times and the day's warnings. |
 | `item_create_many` | write | `workshop`, `day`, `items[]` (same fields), `group`, `at`, `after` | Several items in order, e.g. a whole agenda drafted from a brief. |
-| `item_update` | destructive | `workshop`, `item`, any field above, `appendNotes` | Changes an item. Changing the kind to marker or note drops the duration. |
+| `item_update` | destructive | `workshop`, `item`, any field above, `appendNotes` | Changes an item. Changing the kind to marker or note drops the duration; `slides[]` replaces the slides (the `slide_*` tools change single ones). |
 | `item_move` | write | `workshop`, `item`, `day` (null = parking lot), `group` (null leaves the group), `at`, `after` | Moves within the day, to another day, into or out of a group, or to the parking lot. Moved to another day without a group, the item leaves its group. |
 | `item_delete` | destructive | `workshop`, `item` | Deletes for good. Agents are told to prefer the parking lot. |
 
@@ -212,22 +215,27 @@ Conventions:
 
 ### Slides
 
+Slides live on a step of a workshop (`workshop` + `item`) or on a library entry (`entry`; for a group entry also `item`, the title or number of the item inside it). The pool (translated decks) is read-only: its slides are copied.
+
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
-| `slide_list` | read | `workshop`, `item`, `html` | The item's slides: number, id, layout, title, text; with `html: true` the markup. |
-| `slide_set` | destructive | `workshop`, `item`, `slides[]` (each `html` \| `pool` \| `keep`) | Replaces the item's slides in the given order: markup in the slide format, a copy of a pool slide by id, or one of the item's own slides kept (by id or number), which is how slides are reordered. |
-| `slide_add` | write | `workshop`, `item`, `html` \| `pool`, `at` | Adds one slide, by default at the end. |
-| `slide_remove` | destructive | `workshop`, `item`, `slide` (id or number) | Removes one slide. |
-| `pool_search` | read | `query`, `deck` | Slides of the pool (translated decks) whose deck, caption or text contain every word; ids for `slide_add` and `slide_set`. |
-| `deck_outline` | read | `workshop` | The deck as presented: generated title, agenda and break slides and the items' own, in order. |
+| `slide_format` | read | `layout` | The slide format for writing markup: the rules, the common classes and every layout with its purpose, structure and a complete example; `layout` narrows it to one. |
+| `slide_list` | read | target, `html` | The slides: number, id, layout, title, text; with `html: true` the markup. |
+| `slide_get` | read | target + `slide` (id or number), or `pool` (pool slide id) | One slide with its full markup and the pictures (asset hashes) it shows. |
+| `slide_add` | write | target, `html` \| `pool` or `slides[]` (each `html` \| `pool`), `at` | Adds one or several slides, by default at the end; answers with the numbers added. |
+| `slide_update` | destructive | target, `slide`, `html` \| `replace[]` (`find`, `with`), `at` | New markup for the slide (its id stays), exact text replacements in the stored markup (every occurrence), or a new 0-based position – also combined; answers with the slide as stored. |
+| `slide_remove` | destructive | target, `slide` or `slides[]` | Removes one or several slides. |
+| `slide_set` | destructive | target, `slides[]` (each `html` \| `pool` \| `keep`) | Replaces the slides in the given order: markup, a pool copy, or an existing slide kept (id or number), which is how slides are reordered in bulk; an empty list removes all. |
+| `pool_search` | read | `query`, `deck`, `layout` | The decks of the pool, and the slides whose deck, caption or text contain every word; `deck` (title or id) and `layout` narrow it. Ids for `slide_get`, `slide_add` and `slide_set`. |
+| `deck_outline` | read | `workshop`, `agenda`, `breaks` | The deck as presented, with its theme: the generated title, agenda and break slides and the items' own, in order; `agenda` or `breaks` false leave the generated ones out, as the app can. |
 
-Markup is reduced to the slide format on write (`docs/slides.md`, section 2): anything outside the allowlist is removed, and a slide without a `section.slide` root gets one. Pictures are referenced as `asset:<hash>`; an agent cannot upload pictures, so it reuses pool slides or writes slides without pictures.
+Markup is reduced to the slide format on write (`docs/slides.md`, section 2; `slide_format` serves the same rules and an example per layout to the agent): anything outside the allowlist is removed, a slide without a `section.slide` root gets one, and the answers show the slide as stored, so the agent sees what survived. Pictures are referenced as `asset:<hash>`; an agent cannot upload pictures, so it reuses hashes that pool slides or other slides already show (`slide_get` lists them) or writes slides without pictures. Markers and notes have no slides.
 
 ### Settings
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
-| `settings_get` | read | – | Categories (id, name, colour), default day times, what the item kinds mean. |
+| `settings_get` | read | – | Categories (id, name, colour), default day times, the slide themes the server has and the default one, what the item kinds mean. |
 
 Files are listed by name only; uploading, downloading and deleting them stays in the app. Guests and sharing are managed in the app too.
 
@@ -241,8 +249,9 @@ The tools share their rules with the app (`src/domain/`):
 - Ordering by the same fractional positions as the app (`src/domain/order.ts`); a day's entries are renumbered when positions get too close.
 - The packing list takes the largest quantity per label from the placed items (`src/domain/packing.ts`); parked items pack nothing.
 - Library entries are copies both ways: saving copies the item, inserting copies the entry.
+- Slides are stored sanitised (`src/domain/slides.ts`), whether they arrive as markup, as a text replacement or as a pool copy; a workshop's theme must be one the server has (`data/themes`).
 
-The server also sends the agent short instructions on connect: read the workshop before changing it, draft from a brief with goal, method and lead, keep stretches without a break under 90 minutes, prefer small reversible changes and report the computed end of the day.
+The server also sends the agent short instructions on connect: read the workshop before changing it, draft from a brief with goal, method and lead, keep stretches without a break under 90 minutes, read `slide_format` before writing slides and a slide before editing it, prefer small reversible changes and report the computed end of the day.
 
 ## Security model
 
@@ -310,7 +319,7 @@ What neither protects against:
 
 - No read-only or per-area scopes; one approval grants everything the owner can do through the tools.
 - No CIMD (Client ID Metadata Documents); Claude falls back to dynamic registration, which it supports.
-- Files cannot be uploaded, downloaded or deleted through MCP; they are listed by name.
+- Files cannot be uploaded, downloaded or deleted through MCP; they are listed by name. Pictures for slides cannot be uploaded either, and decks are added to the pool in the app.
 - Sharing (guests) is managed in the app only.
 - Workshops cannot be deleted through MCP (archive instead).
 - Pending consent requests and authorization codes are kept in memory: a restart during sign-in means starting the connection again.

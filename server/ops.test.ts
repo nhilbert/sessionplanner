@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { openDb } from './db.ts'
@@ -235,27 +235,134 @@ describe('duplicate and settings', () => {
 })
 
 describe('slides', () => {
+  const statement = '<section class="slide statement"><div class="text"><p class="big">Stress entsteht.</p></div></section>'
+  const heading = (text: string) => `<section class="slide list"><header><h2>${text}</h2></header></section>`
+
   it('lists, sets, adds and removes slides of an item, with copies from the pool', () => {
     const { ops, repo } = setup()
     const id = teamDay(ops)
-    expect(ops.slideList(id, 'Begrüßung').slides).toEqual([])
-    const { slides: pool } = repo.createDeck({ title: 'Resilienz', theme: '', source: '', slides: [{ html: '<section class="slide statement"><div class="text"><p class="big">Stress entsteht.</p></div></section>', caption: 'Stress entsteht.' }] })
-    ops.slideAdd(id, 'Begrüßung', { html: '<section class="slide list"><header><h2>Willkommen</h2></header><ul class="list"><li>a</li></ul><script>x()</script></section>' })
-    const after = ops.slideAdd(id, 'Begrüßung', { pool: pool[0].id, at: 0 })
+    const step = { workshop: id, item: 'Begrüßung' }
+    expect(ops.slideList(step)).toEqual({ item: 'Begrüßung', count: 0, slides: [] })
+    const { slides: pool } = repo.createDeck({ title: 'Resilienz', theme: '', source: '', slides: [{ html: statement, caption: 'Stress entsteht.' }] })
+    expect(ops.slideAdd({ ...step, html: '<section class="slide list"><header><h2>Willkommen</h2></header><ul class="list"><li>a</li></ul><script>x()</script></section>' }).added).toEqual([1])
+    const after = ops.slideAdd({ ...step, pool: pool[0].id, at: 0 })
+    expect(after.added).toEqual([1])
     expect(after.slides.map((s) => [s.n, s.layout, s.title])).toEqual([[1, 'statement', 'Stress entsteht.'], [2, 'list', 'Willkommen']])
-    expect(ops.slideList(id, 'Begrüßung', { html: true }).slides[1].html).not.toContain('script')
+    expect(ops.slideList({ ...step, html: true }).slides[1].html).not.toContain('script')
     // Reorder by keeping, drop one, add markup.
-    const set = ops.slideSet(id, 'Begrüßung', { slides: [{ keep: 2 }, { html: '<p>neu</p>' }] })
+    const set = ops.slideSet({ ...step, slides: [{ keep: 2 }, { html: '<p>neu</p>' }] })
     expect(set.slides.map((s) => s.title)).toEqual(['Willkommen', 'neu'])
-    expect(ops.slideRemove(id, 'Begrüßung', 1).slides.map((s) => s.title)).toEqual(['neu'])
-    expect(() => ops.slideAdd(id, 'Ankommen', { html: '<p>x</p>' })).toThrow(/no slides/)
-    expect(() => ops.slideAdd(id, 'Begrüßung', { pool: 'nope' })).toThrow(/pool/)
+    expect(ops.slideRemove({ ...step, slide: 1 })).toMatchObject({ removed: 1, count: 1 })
+    expect(ops.slideList(step).slides.map((s) => s.title)).toEqual(['neu'])
+    // Markers have no slides: reading says so quietly, writing refuses.
+    expect(ops.slideList({ workshop: id, item: 'Ankommen' }).count).toBe(0)
+    expect(() => ops.slideAdd({ workshop: id, item: 'Ankommen', html: '<p>x</p>' })).toThrow(/no slides/)
+    expect(() => ops.slideAdd({ ...step, pool: 'nope' })).toThrow(/pool/)
+    expect(() => ops.slideAdd({ ...step })).toThrow(/html \(markup\) or pool/)
+    expect(() => ops.slideAdd({ ...step, html: '<p>a</p>', slides: [{ html: '<p>b</p>' }] })).toThrow(/not both/)
     const found = ops.poolSearch({ query: 'stress entsteht' })
     expect(found.total).toBe(1)
-    expect(found.slides[0]).toMatchObject({ deck: 'Resilienz', layout: 'statement' })
+    expect(found.decks).toMatchObject([{ title: 'Resilienz', slides: 1 }])
+    expect(found.slides[0]).toMatchObject({ deck: 'Resilienz', layout: 'statement', n: 1 })
     expect(ops.poolSearch({ query: 'nirgends' }).total).toBe(0)
+    expect(ops.poolSearch({ layout: 'list' }).total).toBe(0)
+    expect(ops.poolSearch({ deck: pool[0].deckId }).total).toBe(1)
     const outline = ops.deckOutline(id)
+    expect(outline.theme).toBe('default')
     expect(outline.deck.map((d) => d.generated ?? d.item)).toEqual(['title', 'agenda', 'Begrüßung', 'break'])
+    expect(ops.deckOutline(id, { agenda: false, breaks: false }).deck.map((d) => d.generated ?? d.item)).toEqual(['title', 'Begrüßung'])
     expect(ops.workshopGet(id).days![0].entries!.some((e) => 'slides' in e && (e as { slides?: number }).slides === 1)).toBe(true)
+  })
+
+  it('reads one slide, edits it in place, moves it and removes several', () => {
+    const { ops, repo } = setup()
+    const id = teamDay(ops)
+    const step = { workshop: id, item: 'Begrüßung' }
+    const { slides: pool } = repo.createDeck({ title: 'Resilienz', theme: '', source: '', slides: [{ html: '<section class="slide figure"><header><h2>Bild</h2></header><figure class="main"><img src="asset:0123456789abcdef" alt=""></figure></section>', caption: '' }] })
+    const added = ops.slideAdd({ ...step, slides: [{ html: heading('Eins') }, { html: heading('Zwei') }, { pool: pool[0].id }] })
+    expect(added.added).toEqual([1, 2, 3])
+    const one = ops.slideGet({ ...step, slide: 1 })
+    expect(one).toMatchObject({ item: 'Begrüßung', n: 1, layout: 'list', title: 'Eins', assets: [] })
+    expect(one.html).toContain('<h2>Eins</h2>')
+    expect(ops.slideGet({ ...step, slide: 3 }).assets).toEqual(['0123456789abcdef'])
+    expect(ops.slideGet({ pool: pool[0].id })).toMatchObject({ deck: 'Resilienz', n: 1, layout: 'figure', title: 'Bild', assets: ['0123456789abcdef'] })
+    expect(() => ops.slideGet({ ...step, slide: 9 })).toThrow(/no slide "9" \(the item has 3\)/)
+    expect(() => ops.slideGet({ ...step })).toThrow(/give the slide/)
+    // Text replacement in the stored markup, sanitised again; the id stays.
+    const edited = ops.slideUpdate({ ...step, slide: one.id!, replace: [{ find: '<h2>Eins</h2>', with: '<h2>Eins neu</h2><script>x()</script>' }] })
+    expect(edited.updated).toMatchObject({ n: 1, id: one.id, title: 'Eins neu' })
+    expect(edited.updated.html).not.toContain('script')
+    expect(() => ops.slideUpdate({ ...step, slide: 1, replace: [{ find: 'fehlt', with: 'x' }] })).toThrow(/does not occur/)
+    expect(() => ops.slideUpdate({ ...step, slide: 1, html: '<p>a</p>', replace: [{ find: 'a', with: 'b' }] })).toThrow(/not both/)
+    expect(() => ops.slideUpdate({ ...step, slide: 1 })).toThrow(/nothing to change/)
+    // New markup and a move to the end in one call; a string of digits is a number.
+    const moved = ops.slideUpdate({ ...step, slide: '1', html: statement, at: 5 })
+    expect(moved.updated).toMatchObject({ n: 3, id: one.id, layout: 'statement', title: 'Stress entsteht.' })
+    expect(moved.slides.map((s) => s.title)).toEqual(['Zwei', 'Bild', 'Stress entsteht.'])
+    expect(ops.slideUpdate({ ...step, slide: 3, at: 0 }).slides.map((s) => s.title)).toEqual(['Stress entsteht.', 'Zwei', 'Bild'])
+    // Several at once, given twice counts once.
+    const removed = ops.slideRemove({ ...step, slides: [1, one.id!, 3] })
+    expect(removed).toMatchObject({ removed: 2, count: 1 })
+    expect(removed.slides.map((s) => s.title)).toEqual(['Zwei'])
+    expect(() => ops.slideRemove({ ...step })).toThrow(/give the slide/)
+  })
+
+  it('edits the slides of library entries, an item alone and one inside a group', () => {
+    const { ops } = setup()
+    const id = teamDay(ops)
+    ops.slideAdd({ workshop: id, item: 'Begrüßung', html: heading('Willkommen') })
+    const entry = ops.librarySave(id, { item: 'Begrüßung' })
+    expect(ops.slideList({ entry: 'Begrüßung' })).toMatchObject({ entry: 'Begrüßung', count: 1 })
+    const added = ops.slideAdd({ entry: entry.id, html: statement, at: 0 })
+    expect(added.slides.map((s) => s.title)).toEqual(['Stress entsteht.', 'Willkommen'])
+    // The workshop's item is a copy and stays as it was; the library shows the new count.
+    expect(ops.slideList({ workshop: id, item: 'Begrüßung' }).count).toBe(1)
+    expect(ops.libraryList().find((e) => e.id === entry.id)).toMatchObject({ item: { slides: 2 } })
+    // A group entry: the item inside it by title or number.
+    ops.groupCreate(id, 1, { title: 'Start', items: ['Begrüßung', 'Erwartungen'] })
+    const group = ops.librarySave(id, { group: 'Start' })
+    expect(() => ops.slideList({ entry: 'Start' })).toThrow(/is a group: give the item inside it.*1 Begrüßung, 2 Erwartungen/)
+    expect(ops.slideList({ entry: 'Start', item: 'Erwartungen' })).toMatchObject({ entry: 'Start', item: 'Erwartungen', count: 0 })
+    const inGroup = ops.slideAdd({ entry: group.id, item: '2', html: heading('Erwartungen') })
+    expect(inGroup).toMatchObject({ entry: 'Start', item: 'Erwartungen', count: 1 })
+    expect(ops.slideGet({ entry: 'Start', item: 'Erwartungen', slide: 1 }).title).toBe('Erwartungen')
+    expect(ops.slideList({ entry: 'Start', item: 'Begrüßung' }).count).toBe(1)
+    expect(ops.slideSet({ entry: 'Start', item: '1', slides: [] }).count).toBe(0)
+    expect(ops.slideList({ entry: 'Start', item: '2' }).count).toBe(1)
+    expect(() => ops.slideAdd({ entry: 'Start', item: 'Begrüßung', workshop: id, html: '<p>x</p>' })).toThrow(/not both/)
+    expect(() => ops.slideAdd({ html: '<p>x</p>' })).toThrow(/library entry/)
+    expect(() => ops.slideAdd({ workshop: id, html: '<p>x</p>' })).toThrow(/give the item/)
+  })
+
+  it('takes slides when creating and updating items, and refuses them on markers', () => {
+    const { ops } = setup()
+    const id = teamDay(ops)
+    const [item] = ops.itemCreateMany(id, 1, [{ title: 'Input', duration: 20, slides: [{ html: heading('A') }, { html: heading('B') }] }])
+    expect(item.slides).toBe(2)
+    expect(ops.slideList({ workshop: id, item: 'Input' }).slides.map((s) => s.title)).toEqual(['A', 'B'])
+    ops.itemUpdate(id, 'Input', { slides: [{ html: heading('C') }] })
+    expect(ops.slideList({ workshop: id, item: 'Input' }).slides.map((s) => s.title)).toEqual(['C'])
+    expect(() => ops.itemCreate(id, 1, { title: 'Foto', kind: 'marker', slides: [{ html: '<p>x</p>' }] })).toThrow(/no slides/)
+    expect(() => ops.itemUpdate(id, 'Input', { slides: [{ keep: 1 }] })).toThrow(/html \(markup\) or pool/)
+  })
+
+  it('describes the format and knows the themes the server has', () => {
+    const { ops } = setup()
+    const format = ops.slideFormat()
+    expect('layouts' in format ? format.layouts.map((l) => l.layout) : []).toContain('cards')
+    expect(ops.slideFormat({ layout: 'Cards' })).toMatchObject({ layout: 'cards' })
+    expect(() => ops.slideFormat({ layout: 'poster' })).toThrow(/no layout "poster"/)
+    const themesDir = mkdtempSync(path.join(tmpdir(), 'sp-themes-'))
+    mkdirSync(path.join(themesDir, 'sr-light'))
+    writeFileSync(path.join(themesDir, 'sr-light', 'theme.css'), ':root {}')
+    mkdirSync(path.join(themesDir, 'broken'))
+    const themed = new Ops(new Repo(openDb(':memory:')), { themesDir, today: () => '2026-11-10' })
+    expect(themed.settingsGet()).toMatchObject({ theme: 'default', themes: ['default', 'sr-light'] })
+    const ws = themed.workshopCreate({ title: 'Klausur', theme: 'sr-light' })
+    expect(ws.theme).toBe('sr-light')
+    expect(themed.workshopUpdate(ws.id!, { theme: 'default' }).theme).toBe('default')
+    expect(themed.workshopUpdate(ws.id!, { theme: null }).theme).toBeUndefined()
+    expect(() => themed.workshopUpdate(ws.id!, { theme: 'bfg' })).toThrow(/no theme "bfg" \(default, sr-light\)/)
+    expect(themed.deckOutline('Klausur').theme).toBe('default')
   })
 })

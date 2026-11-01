@@ -161,3 +161,6 @@ export const renderSlideHtml = (html: string, url: (hash: string) => string): st
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 export const newSlides = (slides: Slide[], newId: () => string): Slide[] => slides.map((s) => ({ ...s, id: newId() }))
+
+/** The limit the app and the connector share: slides per item. */
+export const MAX_SLIDES = 60
