@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
-import { ArrowLeft, Trash2, Upload } from 'lucide-react'
+import { Trash2, Upload } from 'lucide-react'
 import { api } from '@/api'
 import type { Deck, DeckSlide } from '@/domain/types'
 import { formatDate } from '@/i18n'
@@ -80,10 +79,6 @@ export default function DecksPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-10 md:py-10">
-        <Link to="/library" className="mb-4 inline-flex items-center gap-1 text-[13px] text-ink-2 hover:text-ink">
-          <ArrowLeft size={14} />
-          {t('nav.library')}
-        </Link>
         <PageHeader
           title={t('slides.pool')}
           subtitle={t('slides.poolSubtitle')}
