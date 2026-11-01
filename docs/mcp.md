@@ -6,6 +6,7 @@ Session Planner includes an [MCP](https://modelcontextprotocol.io) server, built
 - **draft an agenda** from a brief, or **rework** one: add, change, move, group and park items,
 - **keep notes and material** with each step, and maintain the **packing list**,
 - **use the library**: save steps and groups, insert copies,
+- **work with slides**: read and write the slides of a step, pick slides from the pool of translated decks, see the deck as it is presented,
 - **set up and duplicate workshops**, add and change days.
 
 The tools apply the app's rules: the same validation as the browser, the same time computation, the same packing-list logic. Changes made through the server's `/mcp` endpoint appear in open windows at once (live updates); changes made over stdio appear after a reload.
@@ -208,6 +209,19 @@ Conventions:
 | `library_list` | read | – | Reusable items and groups shared by all workshops. |
 | `library_save` | write | `workshop`, `item` or `group`, `title` | Saves a copy to the library. |
 | `library_insert` | write | `workshop`, `entry`, `day`, `at`, `after` | Inserts a copy (an item, or a group with its items). |
+
+### Slides
+
+| Tool | Kind | Parameters | What it does |
+|---|---|---|---|
+| `slide_list` | read | `workshop`, `item`, `html` | The item's slides: number, id, layout, title, text; with `html: true` the markup. |
+| `slide_set` | destructive | `workshop`, `item`, `slides[]` (each `html` \| `pool` \| `keep`) | Replaces the item's slides in the given order: markup in the slide format, a copy of a pool slide by id, or one of the item's own slides kept (by id or number), which is how slides are reordered. |
+| `slide_add` | write | `workshop`, `item`, `html` \| `pool`, `at` | Adds one slide, by default at the end. |
+| `slide_remove` | destructive | `workshop`, `item`, `slide` (id or number) | Removes one slide. |
+| `pool_search` | read | `query`, `deck` | Slides of the pool (translated decks) whose deck, caption or text contain every word; ids for `slide_add` and `slide_set`. |
+| `deck_outline` | read | `workshop` | The deck as presented: generated title, agenda and break slides and the items' own, in order. |
+
+Markup is reduced to the slide format on write (`docs/slides.md`, section 2): anything outside the allowlist is removed, and a slide without a `section.slide` root gets one. Pictures are referenced as `asset:<hash>`; an agent cannot upload pictures, so it reuses pool slides or writes slides without pictures.
 
 ### Settings
 

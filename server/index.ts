@@ -46,6 +46,7 @@ setInterval(() => backupDaily(db, DB_FILE, BACKUP_DIR), 60 * 60 * 1000).unref()
 const OWNER_HEADER = process.env.SP_OWNER_HEADER?.trim().toLowerCase() || 'x-auth-request-email'
 const hub = new Hub()
 const filesDir = path.join(DATA_DIR, 'files')
+const themesDir = path.join(DATA_DIR, 'themes')
 
 // MCP endpoint for AI agents at /mcp: with a static token and/or OAuth for Claude's connectors (docs/mcp.md).
 // Hosted, the owners (SP_OWNERS, checked by the login proxy) approve connections; locally a browser on this machine.
@@ -62,6 +63,7 @@ const app = createApp({
   repo,
   hub,
   filesDir,
+  themesDir,
   staticDir: hasUi ? DIST : undefined,
   publicUrl: PUBLIC_URL,
   owners: OWNERS,

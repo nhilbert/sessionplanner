@@ -5,9 +5,12 @@ import type { Category, ItemContent, ItemKind, LibraryEntry } from '@/domain/typ
 import { durationOf, formatDuration } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { categoryName, itemColor, useSettings } from '@/store/useSettings'
-import { cx, Empty, Field, IconButton, PageHeader, SearchField } from '@/components/ui'
+import { Button, cx, Empty, Field, IconButton, PageHeader, SearchField } from '@/components/ui'
 import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
+import { useNavigate } from 'react-router'
+import { SlideStrip } from '@/slides/SlideStrip'
+import { SlideView } from '@/slides/SlideView'
 
 const KIND_ICON: Record<ItemKind, ReactNode> = {
   block: <Square size={12} />,
@@ -21,6 +24,7 @@ const GROUP_PREVIEW = 6
 export default function LibraryPage() {
   const { t } = useTranslation()
   const { entries, loaded, load, save, remove } = useLibrary()
+  const navigate = useNavigate()
   const categories = useSettings((s) => s.settings.categories)
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
@@ -33,7 +37,7 @@ export default function LibraryPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-10 md:py-10">
-        <PageHeader title={t('nav.library')} subtitle={t('library.subtitle')} />
+        <PageHeader title={t('nav.library')} subtitle={t('library.subtitle')} right={<Button size="sm" onClick={() => void navigate('/library/decks')}>{t('slides.pool')}</Button>} />
         {entries.length > 0 && <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} shortcut className="mb-4" />}
         {loaded && !entries.length && <Empty title={t('library.empty')} body={t('library.emptyHint')} />}
         {searching && !shown.length && <p className="py-10 text-center text-[14px] text-ink-2">{t('library.noMatch', { q: query.trim() })}</p>}
@@ -67,6 +71,7 @@ function CategoryTag({ item, categories }: { item: ItemContent; categories: Cate
 function EntryCard({ entry }: { entry: LibraryEntry }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
+  const theme = useSettings((s) => s.settings.theme) || 'default'
   const items = entry.kind === 'group' ? entry.data.items : [entry.data]
   const minutes = items.reduce((s, i) => s + durationOf(i), 0)
 
@@ -132,8 +137,16 @@ function EntryCard({ entry }: { entry: LibraryEntry }) {
             ))}
           </dl>
         )}
-        {(i.materials.length > 0 || i.notes.trim()) && (
+        {i.slides.length > 0 && (
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {i.slides.slice(0, 3).map((s) => (
+              <SlideView key={s.id} html={s.html} theme={theme} scope="library" />
+            ))}
+          </div>
+        )}
+        {(i.materials.length > 0 || i.notes.trim() || i.slides.length > 3) && (
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-3">
+            {i.slides.length > 3 && <span>{t('slides.count', { count: i.slides.length })}</span>}
             {i.materials.length > 0 && (
               <span className="inline-flex min-w-0 items-center gap-1">
                 <Package size={12} className="shrink-0" />
@@ -156,6 +169,7 @@ function EntryCard({ entry }: { entry: LibraryEntry }) {
 function Row({ entry, open, onToggle, onSave, onDelete }: { entry: LibraryEntry; open: boolean; onToggle: () => void; onSave: (e: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) => void; onDelete: () => void }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
+  const theme = useSettings((s) => s.settings.theme) || 'default'
   const setItem = (patch: Partial<ItemContent>) => entry.kind === 'item' && onSave({ kind: 'item', title: patch.title ?? entry.title, data: { ...entry.data, ...patch } })
 
   return (
@@ -210,6 +224,7 @@ function Row({ entry, open, onToggle, onSave, onDelete }: { entry: LibraryEntry;
               <Field label={t('item.notes')}>
                 <TextField multiline value={entry.data.notes} onCommit={(notes) => setItem({ notes })} />
               </Field>
+              <SlideStrip slides={entry.data.slides} onChange={(slides) => setItem({ slides })} scope="library" theme={theme} canEdit owner />
             </>
           )}
           <div className="flex justify-end">

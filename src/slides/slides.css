@@ -1,0 +1,313 @@
+/* Session Planner slide format – base stylesheet (docs/slides.md). Shared by the app (src/slides) and the static preview (scripts/slides/build.py).
+   A slide is a <section class="slide LAYOUT"> at a design size of 1280 × 720 px; the host scales it.
+   All colours, fonts and decorations come from the theme (themes/*.css). The slide itself carries
+   only structure: header (eyebrow, title, lead), one content block, an optional footer (source). */
+
+
+/* ---------- the slide ---------- */
+.slide {
+  width: 1280px; height: 720px; box-sizing: border-box; position: relative; overflow: hidden;
+  background: var(--bg); color: var(--fg);
+  font: 400 22px/1.45 var(--font-body), 'Noto Sans JP'; -webkit-font-smoothing: antialiased;
+  padding: 52px 64px 60px; display: flex; flex-direction: column; gap: 22px;
+}
+.slide * { box-sizing: border-box; }
+.slide p, .slide ul, .slide ol, .slide dl, .slide h1, .slide h2, .slide h3, .slide figure, .slide blockquote { margin: 0; }
+.slide ul, .slide ol { padding: 0; }
+.slide img { display: block; }
+.slide a { color: inherit; text-decoration: none; }
+.slide strong { font-weight: 700; }
+.slide code, .slide pre { font-family: var(--font-mono); font-size: 0.9em; }
+
+/* the content block fills the space between header and footer */
+.slide > :not(header):not(footer) { flex: 1 1 auto; min-height: 0; }
+.slide > header { flex: none; display: flex; flex-direction: column; gap: 10px; }
+.slide > footer {
+  position: absolute; left: 64px; right: 64px; bottom: 24px; display: flex; justify-content: space-between; gap: 24px;
+  font-size: 14px; line-height: 1.3; color: var(--fg-3);
+}
+.slide > footer.chrome { display: var(--chrome, none); }
+.slide .source { font-size: 14px; color: var(--fg-3); }
+
+/* ---------- typography ---------- */
+.slide h1 { font: var(--display-weight, 600) 64px/1.1 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--title); }
+.slide h2 { font: var(--display-weight, 600) 42px/1.15 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--title); }
+.slide h3 { font: var(--display-weight, 600) 24px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--fg); }
+.slide .eyebrow {
+  font: 600 15px/1.2 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  display: flex; align-items: center; gap: 14px;
+}
+.slide .tag {
+  display: inline-block; font: 700 13px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--on-accent); background: var(--accent); padding: 7px 12px 6px; border-radius: 999px;
+}
+.slide .lead { font-size: 24px; line-height: 1.4; color: var(--fg-2); max-width: 1000px; }
+.slide .muted { color: var(--fg-3); }
+.slide .big { font: var(--display-weight, 500) 48px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--title); }
+.slide .accent { color: var(--accent); }
+
+/* lists */
+.slide ul.list, .slide ol.list { list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 24px; line-height: 1.4; }
+.slide ul.list > li { position: relative; padding-left: 30px; }
+.slide ul.list > li::before { content: ''; position: absolute; left: 2px; top: 0.58em; width: 10px; height: 10px; border-radius: 2px; background: var(--accent); transform: rotate(45deg); }
+.slide ol.list { counter-reset: n; }
+.slide ol.list > li { position: relative; padding-left: 54px; counter-increment: n; }
+.slide ol.list > li::before {
+  content: counter(n); position: absolute; left: 0; top: 0.1em; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--surface); color: var(--accent); font: 700 17px/36px var(--font-display), 'Noto Sans JP'; text-align: center;
+}
+.slide ul.list ul { list-style: none; margin-top: 8px; padding-left: 0; font-size: 20px; color: var(--fg-2); display: flex; flex-direction: column; gap: 4px; }
+.slide ul.list ul li { position: relative; padding-left: 22px; }
+.slide ul.list ul li::before { content: ''; position: absolute; left: 4px; top: 0.6em; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-3); }
+.slide .list.compact { font-size: 18px; gap: 10px; }
+.slide .list.two { display: grid; grid-template-columns: 1fr 1fr; column-gap: 48px; }
+
+/* ---------- layouts ---------- */
+
+/* title: full-bleed picture (optional), text block on the left */
+.slide.title { justify-content: center; }
+.slide.title > figure { position: absolute; inset: 0; margin: 0; z-index: 0; }
+.slide.title > figure img { width: 100%; height: 100%; object-fit: cover; }
+.slide.title > .text { position: relative; z-index: 1; max-width: 62%; display: flex; flex-direction: column; gap: 18px; }
+.slide.title .subtitle { font-size: 28px; line-height: 1.3; color: var(--fg-2); }
+.slide.title .meta { font-size: 18px; color: var(--fg-3); display: flex; align-items: center; gap: 12px; }
+.slide.title .meta::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-2, var(--accent)); flex: none; }
+
+/* section: a big title on the theme's field colour */
+.slide.section { background: var(--field); color: var(--on-field); justify-content: center; }
+.slide.section h1 { color: var(--on-field); font-size: 60px; max-width: 900px; }
+.slide.section .eyebrow { color: var(--on-field-2); }
+.slide.section .lead { color: var(--on-field-2); font-size: 26px; }
+.slide.section ul.list { font-size: 24px; color: var(--on-field); }
+.slide.section ul.list > li::before { background: var(--on-field); }
+.slide.section .glyph { position: absolute; right: 72px; top: 50%; transform: translateY(-50%); font-size: 300px; line-height: 1; opacity: 0.22; color: var(--on-field); }
+.slide.section .glyph small { display: block; font: 400 22px/1.2 var(--font-body), 'Noto Sans JP'; text-align: center; opacity: 1; margin-top: -10px; letter-spacing: 0.1em; }
+.slide.section .text { display: flex; flex-direction: column; gap: 18px; max-width: 70%; }
+
+/* agenda: numbered points, optional clock times, optional picture on the right */
+.slide.agenda ol.agenda { list-style: none; counter-reset: n; display: flex; flex-direction: column; justify-content: flex-start; gap: 10px; font-size: 24px; overflow: hidden; }
+.slide.agenda ol.agenda > li { display: grid; grid-template-columns: 44px auto 1fr; align-items: baseline; gap: 16px; counter-increment: n; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.slide.agenda ol.agenda > li::before { content: counter(n, decimal-leading-zero); font: 700 16px/1 var(--font-display), 'Noto Sans JP'; color: var(--accent); }
+.slide.agenda ol.agenda .when { font-size: 18px; color: var(--fg-3); font-variant-numeric: tabular-nums; min-width: 90px; }
+.slide.agenda ol.agenda > li:not(:has(.when)) { grid-template-columns: 44px 1fr; }
+.slide.agenda ol.agenda .break { color: var(--fg-3); }
+.slide.agenda:has(> .cols) > .cols { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: center; }
+.slide.agenda .cols figure img { width: 100%; max-height: 480px; object-fit: contain; }
+/* day overview: blocks as cards with time ranges */
+.slide.agenda ol.blocks { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-content: start; }
+.slide.agenda ol.blocks > li { background: var(--surface); border-radius: var(--radius); padding: 22px 28px; display: flex; flex-direction: column; gap: 6px; }
+.slide.agenda ol.blocks > li:nth-child(2n) { background: var(--surface-2); }
+.slide.agenda ol.blocks .head { display: flex; justify-content: space-between; align-items: baseline; }
+.slide.agenda ol.blocks .when { font-size: 16px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.slide.agenda ol.blocks h3 { font-size: 24px; }
+.slide.agenda ol.blocks p { font-size: 18px; color: var(--fg-2); }
+
+/* break */
+.slide.break { justify-content: center; }
+.slide.break .text { display: flex; flex-direction: column; gap: 16px; max-width: 55%; position: relative; z-index: 1; }
+.slide.break h1 { font-size: 88px; }
+.slide.break .until { font-size: 30px; color: var(--fg-2); }
+.slide.break .until strong { color: var(--title); font-weight: 700; }
+.slide.break > figure { position: absolute; right: 0; top: 0; bottom: 0; width: 50%; margin: 0; }
+.slide.break > figure img { width: 100%; height: 100%; object-fit: cover; }
+
+/* closing */
+.slide.closing { background: var(--field); color: var(--on-field); align-items: center; justify-content: center; text-align: center; gap: 14px; }
+.slide.closing h1 { color: var(--on-field); font-size: 44px; font-weight: 500; }
+.slide.closing p { color: var(--on-field-2); font-size: 22px; }
+.slide.closing .logo { width: 360px; height: 120px; margin-bottom: 36px; background: var(--logo-light, var(--logo)) no-repeat center / contain; }
+
+/* statement: one big sentence */
+.slide.statement { justify-content: center; }
+.slide.statement .text { display: flex; flex-direction: column; gap: 22px; max-width: 1050px; }
+.slide.statement .sub { font-size: 26px; line-height: 1.4; color: var(--fg-2); }
+
+/* quote */
+.slide.quote { justify-content: center; }
+.slide.quote blockquote { position: relative; padding-left: 110px; max-width: 1080px; display: flex; flex-direction: column; gap: 20px; }
+.slide.quote blockquote::before { content: '„'; position: absolute; left: 0; top: -0.28em; font: 700 200px/1 var(--font-display), 'Noto Sans JP'; color: var(--accent-2, var(--accent)); }
+.slide.quote blockquote p { font: 400 38px/1.3 var(--font-display), 'Noto Sans JP'; color: var(--title); }
+.slide.quote blockquote .sub { font: 400 22px/1.4 var(--font-body), 'Noto Sans JP'; color: var(--fg-2); }
+.slide.quote cite { display: block; font-style: normal; font-size: 16px; color: var(--fg-3); padding-left: 110px; margin-top: 24px; }
+
+/* cards */
+.slide ul.cards { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-content: start; }
+.slide ul.cards.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.slide ul.cards.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.slide ul.cards.cols-5 { grid-template-columns: repeat(5, 1fr); }
+.slide ul.cards > li { background: var(--surface); border-radius: var(--radius); padding: 24px 26px; display: flex; flex-direction: column; gap: 8px; }
+.slide ul.cards > li:nth-child(2n) { background: var(--surface-2); }
+.slide ul.cards h3 { font-size: 24px; }
+.slide ul.cards p { font-size: 19px; line-height: 1.4; color: var(--fg-2); }
+.slide ul.cards .icon { width: 64px; height: 64px; object-fit: contain; margin-bottom: 8px; border-radius: 12px; }
+.slide ul.cards.numbered { counter-reset: n; }
+.slide ul.cards.numbered > li { counter-increment: n; }
+.slide ul.cards.numbered > li::before { content: counter(n); font: 700 15px/30px var(--font-display), 'Noto Sans JP'; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--on-accent); text-align: center; margin-bottom: 6px; }
+.slide ul.cards.picture > li { padding: 0; overflow: hidden; }
+.slide ul.cards.picture > li img { width: 100%; height: 200px; object-fit: cover; margin: 0; border-radius: 0; }
+.slide ul.cards.picture > li > :not(img) { padding: 0 24px; }
+.slide ul.cards.picture > li > h3 { padding-top: 18px; }
+.slide ul.cards.picture > li > p:last-child { padding-bottom: 22px; }
+
+/* split: text and picture side by side */
+.slide .split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.slide .split.figure-left > figure { order: -1; }
+.slide .split.wide-text { grid-template-columns: 3fr 2fr; }
+.slide .split .text { display: flex; flex-direction: column; gap: 18px; font-size: 24px; line-height: 1.45; }
+.slide .split .text p.small { font-size: 19px; color: var(--fg-2); }
+.slide .split figure { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.slide .split figure img { width: 100%; flex: 1; min-height: 0; object-fit: contain; border-radius: var(--radius); }
+.slide figcaption { font-size: 15px; color: var(--fg-3); }
+
+/* figure: one large picture */
+.slide figure.main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.slide figure.main img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.slide.figure.full { padding: 0; }
+.slide.figure.full figure.main img { object-fit: cover; height: 100%; }
+
+/* exercise: steps and a facts panel */
+.slide .exercise { display: grid; grid-template-columns: 1fr 330px; gap: 48px; align-items: start; }
+.slide ol.steps { list-style: none; counter-reset: n; display: flex; flex-direction: column; gap: 16px; font-size: 22px; line-height: 1.4; }
+.slide ol.steps > li { position: relative; padding-left: 54px; counter-increment: n; }
+.slide ol.steps > li::before {
+  content: counter(n); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--surface); color: var(--accent); font: 700 17px/36px var(--font-display), 'Noto Sans JP'; text-align: center;
+}
+.slide aside.facts { background: var(--surface-2); border-radius: var(--radius); padding: 26px 28px; }
+.slide aside.facts dl { display: flex; flex-direction: column; gap: 18px; }
+.slide aside.facts dt { font: 700 13px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.slide aside.facts dd { margin: 0; font-size: 19px; line-height: 1.35; }
+
+/* steps: a horizontal sequence */
+.slide ol.flow { list-style: none; counter-reset: n; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 36px; align-content: center; }
+.slide ol.flow > li { position: relative; counter-increment: n; background: var(--surface); border-radius: var(--radius); padding: 28px 26px 26px; display: flex; flex-direction: column; gap: 10px; }
+.slide ol.flow > li::before { content: counter(n); font: 700 16px/32px var(--font-display), 'Noto Sans JP'; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--on-accent); text-align: center; margin-bottom: 6px; }
+.slide ol.flow > li:not(:last-child)::after { content: ''; position: absolute; right: -26px; top: 50%; width: 16px; height: 16px; border-top: 3px solid var(--accent); border-right: 3px solid var(--accent); transform: translateY(-50%) rotate(45deg); }
+.slide ol.flow h3 { font-size: 24px; }
+.slide ol.flow p { font-size: 18px; line-height: 1.4; color: var(--fg-2); }
+.slide ol.flow.plain > li { background: none; padding: 0 0 0 0; }
+
+/* matrix: 2 × 2 with axis labels */
+.slide .matrix { display: grid; grid-template-columns: 40px 1fr; grid-template-rows: 1fr 40px; gap: 14px; }
+.slide .matrix .axis-y { grid-row: 1; grid-column: 1; display: flex; flex-direction: column; justify-content: space-around; align-items: center; }
+.slide .matrix .axis-y span { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 14px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+.slide .matrix .axis-x { grid-row: 2; grid-column: 2; display: flex; justify-content: space-around; align-items: center; }
+.slide .matrix .axis-x span { font: 600 14px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+.slide .matrix .cells { grid-row: 1; grid-column: 2; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 14px; }
+.slide .matrix .cell { background: var(--surface); border-radius: var(--radius); padding: 24px 28px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.slide .matrix .cell.accent { background: var(--accent); color: var(--on-accent); }
+.slide .matrix .cell.accent h3, .slide .matrix .cell.accent p { color: var(--on-accent); }
+.slide .matrix .cell h3 { font-size: 30px; }
+.slide .matrix .cell p { font-size: 19px; color: var(--fg-2); }
+
+/* acronym: letters and their meaning */
+.slide dl.acronym { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.slide dl.acronym > div { display: grid; grid-template-columns: 110px 1fr; gap: 24px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.slide dl.acronym > div:last-child { border-bottom: 0; }
+.slide dl.acronym dt { font: 700 64px/1 var(--font-display), 'Noto Sans JP'; color: var(--accent); text-align: center; }
+.slide dl.acronym dd { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.slide dl.acronym dd strong { font: 600 26px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--fg); }
+.slide dl.acronym dd span { font-size: 19px; color: var(--fg-2); }
+.slide dl.acronym.compact > div { padding: 6px 0; }
+.slide dl.acronym.compact dt { font-size: 48px; }
+
+/* canvas: a grid of labelled boxes with guiding questions */
+.slide .canvas { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 14px; }
+.slide .canvas.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.slide .canvas.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.slide .canvas .box { background: var(--surface); border-radius: var(--radius); padding: 18px 22px; display: flex; flex-direction: column; gap: 6px; }
+.slide .canvas .box.wide { grid-column: span 2; }
+.slide .canvas .box.tall { grid-row: span 2; }
+.slide .canvas .box.accent { background: var(--accent); color: var(--on-accent); }
+.slide .canvas .box.accent h3, .slide .canvas .box.accent p { color: var(--on-accent); }
+.slide .canvas .box h3 { font-size: 20px; color: var(--accent); }
+.slide .canvas .box p { font-size: 16px; line-height: 1.35; color: var(--fg-2); }
+
+/* model: a diagram as inline SVG */
+.slide figure.model { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.slide figure.model svg { flex: 1; min-height: 0; width: 100%; height: 100%; font-family: var(--font-body), 'Noto Sans JP'; }
+.slide svg .t { font-size: 22px; fill: var(--fg); }
+.slide svg .t-small { font-size: 17px; fill: var(--fg-2); }
+.slide svg .t-display { font-family: var(--font-display), 'Noto Sans JP'; font-weight: 600; font-size: 24px; fill: var(--fg); }
+.slide svg .t-on { fill: var(--on-accent); }
+.slide svg .f-accent { fill: var(--accent); }
+.slide svg .f-accent-2 { fill: var(--accent-2); }
+.slide svg .f-accent-3 { fill: var(--accent-3); }
+.slide svg .f-accent-4 { fill: var(--accent-4); }
+.slide svg .f-surface { fill: var(--surface); }
+.slide svg .f-surface-2 { fill: var(--surface-2); }
+.slide svg .s-accent { stroke: var(--accent); fill: none; }
+.slide svg .s-line { stroke: var(--line); fill: none; }
+.slide svg .s-fg { stroke: var(--fg-2); fill: none; }
+
+/* table */
+.slide table { width: 100%; border-collapse: collapse; font-size: 20px; line-height: 1.35; }
+.slide th { text-align: left; font: 700 14px/1.2 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); padding: 0 16px 12px 0; border-bottom: 2px solid var(--line); }
+.slide td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.slide td.good { color: var(--fg); }
+.slide td.bad { color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--accent-2, var(--fg-3)); text-decoration-thickness: 1px; }
+.slide table.compact { font-size: 17px; }
+
+/* extra svg fills */
+.slide svg .f-accent-deep { fill: var(--accent-deep, var(--accent)); }
+.slide svg .f-title { fill: var(--title); }
+.slide svg .f-bg { fill: var(--bg); }
+.slide .split .text h3 { margin-top: 6px; }
+.slide .split .text ul.list { font-size: 20px; gap: 8px; }
+
+/* centred layouts: their block must not grow */
+.slide.title > .text, .slide.section > .text, .slide.statement > .text, .slide.break > .text, .slide.quote > blockquote { flex: 0 0 auto; }
+.slide.quote cite { flex: 0 0 auto; }
+/* footer line of the host (deck name, number) never on title, section and closing slides */
+.slide.title > footer.chrome, .slide.section > footer.chrome, .slide.closing > footer.chrome { display: none; }
+/* cards without a surface: pictures sit directly on the slide background */
+.slide ul.cards.plain > li { background: none; padding: 0; }
+.slide ul.cards.plain .icon { width: 100%; height: 170px; object-fit: cover; border-radius: var(--radius); margin-bottom: 10px; }
+.slide ul.cards.plain h3 { font-size: 26px; }
+
+/* exercise: one header line (tag + title), the lead as the question, steps as the main content */
+.slide.exercise > header { gap: 14px; }
+.slide.exercise h2 { display: flex; align-items: center; gap: 18px; }
+.slide.exercise h2 .tag { position: relative; top: 2px; }
+.slide.exercise h2::after { display: none !important; }
+.slide.exercise .lead { font-size: 26px; color: var(--fg); }
+.slide ol.steps { font-size: 24px; gap: 20px; margin-top: 6px; }
+.slide ol.steps > li { padding-left: 60px; }
+.slide ol.steps > li::before { width: 40px; height: 40px; line-height: 40px; font-size: 18px; top: -3px; }
+.slide .exercise:not(:has(aside.facts)) { grid-template-columns: 1fr; }
+
+/* rows: a heading and a text per point */
+.slide .list.rows { font-size: 20px; gap: 16px; justify-content: center; }
+.slide .list.rows > li > strong { display: block; font: var(--display-weight, 600) 24px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--fg); margin-bottom: 2px; }
+.slide .list.rows.compact { font-size: 18px; gap: 12px; }
+.slide .list.rows.compact > li > strong { font-size: 21px; }
+.slide ol.list.rows > li::before { top: 0.15em; }
+/* a list inside a card */
+.slide ul.cards ul.list { font-size: 19px; gap: 8px; margin-top: 4px; }
+
+/* cards fill the height they have: one row gives tall cards, two rows split it */
+.slide ul.cards { align-content: stretch; grid-auto-rows: 1fr; }
+.slide ul.cards.plain { align-content: start; grid-auto-rows: auto; }
+
+/* a long statement (a definition without a picture) */
+.slide.statement .text.long .big { font-size: 34px; line-height: 1.35; }
+/* a dense list in four columns (a word list) */
+.slide ul.list.four { display: block; column-count: 4; column-gap: 28px; font-size: 16px; line-height: 1.3; }
+.slide ul.list.four > li { break-inside: avoid; margin-bottom: 5px; padding-left: 20px; }
+.slide ul.list.four > li::before { top: 0.45em; width: 8px; height: 8px; }
+/* picture cards: portrait pictures whole, lists inside */
+.slide ul.cards.picture.contain > li img { object-fit: contain; background: var(--surface-2); }
+.slide ul.cards.picture ul.list { font-size: 17px; gap: 4px; }
+.slide ul.cards.picture > li > ul.list:last-child { padding-bottom: 22px; }
+.slide ul.cards.picture > li > p + ul.list { margin-top: 0; }
+
+/* picture cards: the picture takes the room, the label sits under it */
+.slide ul.cards.picture > li img { flex: 1 1 200px; min-height: 160px; height: auto; }
+.slide ul.cards.picture > li > h3:last-child { padding-bottom: 22px; }
+
+/* an agenda slide with many entries */
+.slide.agenda ol.agenda.many { font-size: 20px; gap: 4px; }
+.slide.agenda ol.agenda.many > li { padding: 3px 0; }
+.slide.agenda ol.agenda.many .when { font-size: 15px; }
+
+.slide h2 small { font: 400 20px/1 var(--font-body), 'Noto Sans JP'; color: var(--fg-3); margin-left: 8px; }

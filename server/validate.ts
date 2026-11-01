@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
 import { PALETTE, type ItemContent, type Settings } from '../src/domain/types.ts'
+import { normalizeSlideHtml } from '../src/domain/slides.ts'
 
 export class BadRequest extends Error {}
 
@@ -16,6 +17,11 @@ export const isCalendarDate = (value: string): boolean => isoDate.safeParse(valu
 const link = z.union([z.literal(''), z.string().max(2000).regex(/^(https?:\/\/|mailto:)/i)])
 
 const material = z.strictObject({ id, label: text(200), qty: z.number().int().min(0).max(100_000), link: link.optional() })
+// A slide is stored sanitised (src/domain/slides.ts): only the format's elements and attributes survive the write.
+const slide = z.strictObject({ id, html: text(200_000).transform(normalizeSlideHtml) })
+const slides = z.array(slide).max(60)
+// A theme is a folder under data/themes; '' = the default.
+const theme = text(60).regex(/^[a-z0-9-]*$/)
 const color = z.enum(PALETTE)
 const packingState = z.strictObject({ checked: z.boolean().optional(), venue: z.boolean().optional(), qty: z.number().int().min(0).max(100_000).optional() })
 
@@ -28,6 +34,7 @@ const workshopFields = z.strictObject({
   packing: z.record(z.string().max(200), packingState),
   materials: z.array(material).max(200),
   archived: z.boolean(),
+  theme,
 })
 
 const dayFields = z.strictObject({
@@ -53,6 +60,7 @@ const itemContent = z.strictObject({
   lead: text(300),
   notes: text(100_000),
   materials: z.array(material).max(200),
+  slides: slides.default([]),
   categoryId: id.nullable(),
   color: color.nullable(),
 })
@@ -72,6 +80,7 @@ const itemFields = z.strictObject({
   notes: text(100_000),
   materials: z.array(material).max(200),
   attachmentIds: z.array(id).max(200),
+  slides,
   categoryId: id.nullable(),
   color: color.nullable(),
 })
@@ -83,7 +92,7 @@ const op = z.union([
   z.strictObject({ op: z.literal('set'), entity: z.literal('item'), id, fields: itemFields.partial() }),
   z.strictObject({ op: z.literal('create'), entity: z.literal('day'), record: dayFields.extend({ id, workshopId: id }) }),
   z.strictObject({ op: z.literal('create'), entity: z.literal('group'), record: groupFields.extend({ id, workshopId: id }) }),
-  z.strictObject({ op: z.literal('create'), entity: z.literal('item'), record: itemFields.extend({ id, workshopId: id }) }),
+  z.strictObject({ op: z.literal('create'), entity: z.literal('item'), record: itemFields.extend({ id, workshopId: id, slides: slides.default([]) }) }),
   z.strictObject({ op: z.literal('delete'), entity: z.enum(['day', 'group', 'item']), id }),
 ])
 
@@ -109,6 +118,7 @@ export function validateNewWorkshop(body: unknown): z.infer<typeof newWorkshop> 
 
 const settingsBody = z.strictObject({
   categories: z.array(z.strictObject({ id, name: text(100), color })).max(50),
+  theme: theme.default(''),
   dayStart: minutes,
   dayEnd: minutes.nullable(),
 })
@@ -128,6 +138,23 @@ const libraryBody = z.union([
 export function validateLibraryEntry(body: unknown): { kind: 'item'; title: string; data: ItemContent } | { kind: 'group'; title: string; data: { items: ItemContent[] } } {
   const parsed = libraryBody.safeParse(body)
   if (!parsed.success) throw new BadRequest(`invalid library entry: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return parsed.data
+}
+
+const deckSlide = z.strictObject({ html: text(200_000).transform(normalizeSlideHtml), caption: text(300).default('') })
+const deckBody = z.strictObject({ title: text(300), theme: theme.default(''), source: text(300).default(''), slides: z.array(deckSlide).max(500) })
+
+export function validateDeck(body: unknown): z.infer<typeof deckBody> {
+  const parsed = deckBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid deck: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return parsed.data
+}
+
+const deckPatch = z.strictObject({ title: text(300).optional(), theme: theme.optional() })
+
+export function validateDeckPatch(body: unknown): z.infer<typeof deckPatch> {
+  const parsed = deckPatch.safeParse(body)
+  if (!parsed.success) throw new BadRequest('invalid deck')
   return parsed.data
 }
 

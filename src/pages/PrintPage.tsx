@@ -6,6 +6,7 @@ import type { WorkshopState } from '@/domain/types'
 import { isPrintVariant, type PrintVariant } from '@/domain/print'
 import { useSettings } from '@/store/useSettings'
 import PrintView from '@/print/PrintView'
+import SlidesPrint from '@/slides/SlidesPrint'
 
 /**
  * Print views (docs/concept.md, section 6): planning overview, moderation plan, client agenda, packing list – on
@@ -27,10 +28,11 @@ export default function PrintPage() {
     if (!loaded) void load()
   }, [loaded, load])
   useEffect(() => {
-    if (data) document.title = `${data.workshop.title || t('workshops.untitled')} – ${t(`print.${v}`)}`
-  }, [data, v, t])
+    if (data && variant !== 'slides') document.title = `${data.workshop.title || t('workshops.untitled')} – ${t(`print.${v}`)}`
+  }, [data, v, variant, t])
 
   if (failed) return <p className="p-8 text-rose">{t('common.missing')}</p>
   if (!data) return <p className="p-8 text-ink-2">{t('common.loading')}</p>
+  if (variant === 'slides') return <SlidesPrint data={data} />
   return <PrintView key={v} data={data} variant={v} logo={api.logoUrl(settings)} categories={settings.categories} onVariant={(next) => void navigate(`/w/${id}/print/${next}`, { replace: true })} />
 }

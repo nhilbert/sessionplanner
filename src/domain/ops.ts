@@ -6,7 +6,7 @@ import type { Day, Group, Item, Workshop, WorkshopState } from './types.ts'
  * them on to every other open window. Per field, the later change wins.
  */
 
-export const WORKSHOP_FIELDS = ['title', 'client', 'location', 'goal', 'notes', 'packing', 'materials', 'archived'] as const
+export const WORKSHOP_FIELDS = ['title', 'client', 'location', 'goal', 'notes', 'packing', 'materials', 'archived', 'theme'] as const
 export const DAY_FIELDS = ['position', 'date', 'startMin', 'endMin'] as const
 export const GROUP_FIELDS = ['dayId', 'position', 'title'] as const
 export const ITEM_FIELDS = [
@@ -24,6 +24,7 @@ export const ITEM_FIELDS = [
   'notes',
   'materials',
   'attachmentIds',
+  'slides',
   'categoryId',
   'color',
 ] as const

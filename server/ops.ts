@@ -3,12 +3,14 @@ import path from 'node:path'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { BadRequest, isCalendarDate, validateOps } from './validate.ts'
-import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
+import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import { ZERO_KINDS } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, sortedDays } from '../src/domain/order.ts'
 import { formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
 import { packingKey, packingList } from '../src/domain/packing.ts'
+import { deckOf } from '../src/domain/deck.ts'
+import { normalizeSlideHtml, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 
 /**
  * Session Planner operations for agents (the MCP tools): reads and writes on the server database with
@@ -274,6 +276,7 @@ export class Ops {
       notes: '',
       materials: [],
       attachmentIds: [],
+      slides: [],
       categoryId: null,
       color: null,
       ...this.itemFields(input),
@@ -304,6 +307,7 @@ export class Ops {
       category: category ? category.name.trim() || category.id : undefined,
       color: i.color,
       attachments: i.attachmentIds.map((id) => s.attachments.find((a) => a.id === id)?.name).filter(Boolean),
+      slides: i.slides.length || undefined,
     })
   }
 
@@ -375,7 +379,7 @@ export class Ops {
   }
 
   private libraryView(e: LibraryEntry) {
-    const content = (c: ItemContent) => compact({ kind: c.kind, title: c.title, duration: ZERO_KINDS.includes(c.kind) ? undefined : c.duration, description: c.description, goal: c.goal, method: c.method, lead: c.lead, materials: c.materials.map((m) => compact({ label: m.label, qty: m.qty, link: m.link })), category: c.categoryId })
+    const content = (c: ItemContent) => compact({ kind: c.kind, title: c.title, duration: ZERO_KINDS.includes(c.kind) ? undefined : c.duration, description: c.description, goal: c.goal, method: c.method, lead: c.lead, materials: c.materials.map((m) => compact({ label: m.label, qty: m.qty, link: m.link })), slides: c.slides?.length || undefined, category: c.categoryId })
     return e.kind === 'item' ? { id: e.id, kind: e.kind, title: e.title, item: content(e.data) } : { id: e.id, kind: e.kind, title: e.title, items: e.data.items.map(content) }
   }
 
@@ -662,6 +666,87 @@ export class Ops {
     return this.packingList(s.workshop.id)
   }
 
+  // ---------- slides (docs/slides.md) ----------
+
+  private slideView(slide: Slide, n: number, html: boolean) {
+    return compact({ n, id: slide.id, layout: slideLayout(slide.html), title: slideTitle(slide.html), text: slideText(slide.html).slice(0, 400), html: html ? slide.html : undefined })
+  }
+
+  /** The slides of an item: number, id, layout, title and text; the markup only when asked for. */
+  slideList(ref: string, itemRef: string, input: { html?: boolean } = {}) {
+    const s = this.state(ref)
+    const item = this.item(s, itemRef)
+    return { item: item.title || item.id, slides: item.slides.map((x, i) => this.slideView(x, i + 1, !!input.html)) }
+  }
+
+  /** A slide to store from what the agent gave: markup, a copy of a pool slide, or an existing slide of the item kept (by id or number). */
+  private slideFrom(item: Item, given: { html?: string; pool?: string; keep?: string | number }): Slide {
+    const kinds = [given.html !== undefined, given.pool !== undefined, given.keep !== undefined].filter(Boolean).length
+    if (kinds !== 1) throw new BadRequest('give exactly one of html, pool or keep per slide')
+    if (given.html !== undefined) return { id: newId(), html: normalizeSlideHtml(given.html) }
+    if (given.pool !== undefined) {
+      const slide = this.repo.getDeckSlide(given.pool)
+      if (!slide) throw new BadRequest(`no pool slide "${given.pool}" (pool_search lists ids)`)
+      return { id: newId(), html: slide.html }
+    }
+    const kept = typeof given.keep === 'number' ? item.slides[given.keep - 1] : item.slides.find((x) => x.id === given.keep)
+    if (!kept) throw new BadRequest(`the item has no slide "${given.keep}"`)
+    return kept
+  }
+
+  /** Replaces the item's slides with the given list (markup, pool copies, kept slides in a new order). */
+  slideSet(ref: string, itemRef: string, input: { slides: { html?: string; pool?: string; keep?: string | number }[] }) {
+    const s = this.state(ref)
+    const item = this.item(s, itemRef)
+    if (item.kind === 'marker' || item.kind === 'note') throw new BadRequest('markers and notes have no slides')
+    const slides = input.slides.map((g) => this.slideFrom(item, g))
+    this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields: { slides } }])
+    return this.slideList(ref, item.id)
+  }
+
+  /** Adds one slide (markup or a pool copy), by default at the end. */
+  slideAdd(ref: string, itemRef: string, input: { html?: string; pool?: string; at?: number }) {
+    const s = this.state(ref)
+    const item = this.item(s, itemRef)
+    if (item.kind === 'marker' || item.kind === 'note') throw new BadRequest('markers and notes have no slides')
+    if (item.slides.length >= 60) throw new BadRequest('an item holds at most 60 slides')
+    const slide = this.slideFrom(item, { html: input.html, pool: input.pool })
+    const at = input.at === undefined ? item.slides.length : Math.min(Math.max(input.at, 0), item.slides.length)
+    const slides = [...item.slides.slice(0, at), slide, ...item.slides.slice(at)]
+    this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields: { slides } }])
+    return this.slideList(ref, item.id)
+  }
+
+  /** Removes one slide of an item, by id or number (1 = first). */
+  slideRemove(ref: string, itemRef: string, slideRef: string | number) {
+    const s = this.state(ref)
+    const item = this.item(s, itemRef)
+    const gone = typeof slideRef === 'number' ? item.slides[slideRef - 1] : item.slides.find((x) => x.id === slideRef)
+    if (!gone) throw new BadRequest(`the item has no slide "${slideRef}"`)
+    this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields: { slides: item.slides.filter((x) => x.id !== gone.id) } }])
+    return this.slideList(ref, item.id)
+  }
+
+  /** Slides of the pool whose caption, text or deck match every word of the query (or all of them without one), at most 60. */
+  poolSearch(input: { query?: string; deck?: string } = {}) {
+    const words = (input.query ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+    const deck = input.deck?.trim().toLowerCase()
+    const hits = this.repo.listDeckSlides().filter((x) => {
+      if (deck && !x.deck.toLowerCase().includes(deck)) return false
+      const text = `${x.deck} ${x.caption} ${slideText(x.html)}`.toLowerCase()
+      return words.every((w) => text.includes(w))
+    })
+    return { total: hits.length, slides: hits.slice(0, 60).map((x) => ({ id: x.id, deck: x.deck, n: x.position, layout: slideLayout(x.html), title: x.caption || slideTitle(x.html), text: slideText(x.html).slice(0, 200) })) }
+  }
+
+  /** The deck of a workshop as it would be shown: generated slides and the items' own, in order. */
+  deckOutline(ref: string) {
+    const s = this.state(ref)
+    const labels = { untitled: 'Workshop', day: (n: number) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t: string) => `bis ${t}`, minutes: (n: number) => `${n} Minuten`, date: (d: string) => d }
+    const deck = deckOf(s, labels)
+    return { slides: deck.length, deck: deck.map((d, i) => compact({ n: i + 1, generated: d.generated, item: d.itemId ? s.items.find((x) => x.id === d.itemId)?.title : undefined, title: d.generated ? d.caption : slideTitle(d.html), layout: slideLayout(d.html) })) }
+  }
+
   // ---------- library ----------
 
   libraryList() {
@@ -669,7 +754,7 @@ export class Ops {
   }
 
   private content(i: Item | ItemContent): ItemContent {
-    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), categoryId: i.categoryId, color: i.color }
+    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
   }
 
   /** Saves an item, or a group with its items, of a workshop to the library (a copy; files stay with the workshop). */

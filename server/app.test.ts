@@ -47,6 +47,7 @@ const item = (id: string, workshopId: string, dayId: string | null, over: Partia
   notes: '',
   materials: [],
   attachmentIds: [],
+  slides: [],
   categoryId: null,
   color: null,
   ...over,

@@ -18,9 +18,12 @@ export default function Menu({
   title,
   className,
   trigger,
+  align = 'right',
 }: {
   items: MenuItem[]
   label: string
+  /** Which edge of the button the dropdown lines up with (a button at the left edge of a panel opens to the right). */
+  align?: 'left' | 'right'
   /** Heading of the sheet on phones (the group's name, "Print"); the label otherwise. */
   title?: string
   className?: string
@@ -69,7 +72,7 @@ export default function Menu({
           ))}
         </Sheet>
       ) : open ? (
-        <div role="menu" className="card absolute right-0 z-40 mt-1 min-w-52 p-1 shadow-[var(--shadow)]">
+        <div role="menu" className={cx('card absolute z-40 mt-1 min-w-52 p-1 shadow-[var(--shadow)]', align === 'left' ? 'left-0' : 'right-0')}>
           {items.map((it) => (
             <button
               key={it.label}

@@ -136,6 +136,7 @@ export function newItem(t: TFunction, workshopId: string, dayId: string | null, 
     notes: '',
     materials: [],
     attachmentIds: [],
+    slides: [],
     categoryId: null,
     color: null,
   }

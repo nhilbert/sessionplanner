@@ -1,7 +1,8 @@
 import { newId } from './ops.ts'
+import { newSlides } from './slides.ts'
 import type { Group, Item, ItemContent, LibraryEntry } from './types.ts'
 
-/** Library entries and copies (docs/concept.md, section 9): content only, never a place or files. */
+/** Library entries and copies (docs/concept.md, section 9): content only, never a place or files. Slides are content and come along. */
 
 export const contentOf = (item: Item): ItemContent => ({
   kind: item.kind,
@@ -13,6 +14,7 @@ export const contentOf = (item: Item): ItemContent => ({
   lead: item.lead,
   notes: item.notes,
   materials: item.materials,
+  slides: item.slides,
   categoryId: item.categoryId,
   color: item.color,
 })
@@ -22,6 +24,7 @@ export function fromLibrary(entry: LibraryEntry, workshopId: string, dayId: stri
   const item = (c: ItemContent, gid: string | null, pos: number): Item => ({
     ...c,
     materials: c.materials.map((m) => ({ ...m, id: newId() })),
+    slides: newSlides(c.slides ?? [], newId),
     id: newId(),
     workshopId,
     dayId,

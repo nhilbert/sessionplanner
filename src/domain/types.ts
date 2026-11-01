@@ -27,6 +27,8 @@ export const DEFAULT_CATEGORIES: Category[] = [
 
 export interface Settings {
   categories: Category[]
+  /** The slide theme of new workshops (docs/slides.md); '' = the built-in default. */
+  theme: string
   /** Start and target end of new days, minutes after midnight. */
   dayStart: number
   dayEnd: number | null
@@ -34,7 +36,7 @@ export interface Settings {
   logo: { mime: string; updatedAt: string } | null
 }
 
-export const DEFAULT_SETTINGS: Settings = { categories: DEFAULT_CATEGORIES, dayStart: 540, dayEnd: 1020, logo: null }
+export const DEFAULT_SETTINGS: Settings = { categories: DEFAULT_CATEGORIES, theme: '', dayStart: 540, dayEnd: 1020, logo: null }
 
 export interface Material {
   id: string
@@ -58,6 +60,8 @@ export interface Workshop {
   goal: string
   notes: string
   timezone: string
+  /** Slide theme (a folder in data/themes); '' = the settings' default. */
+  theme: string
   packing: Record<string, PackingState>
   /** Material for the workshop as a whole, not tied to an item (added in the packing list). */
   materials: Material[]
@@ -109,9 +113,45 @@ export interface Item {
   notes: string
   materials: Material[]
   attachmentIds: string[]
+  /** Slides shown for this step, in order (docs/slides.md). */
+  slides: Slide[]
   categoryId: string | null
   /** Overrides the category's colour. */
   color: PaletteKey | null
+}
+
+/** One slide: markup in the slide format, sanitised on write and on render (src/domain/slides.ts). */
+export interface Slide {
+  id: string
+  html: string
+}
+
+/** A picture slides show, stored once by content hash (data/files/assets). */
+export interface Asset {
+  hash: string
+  mime: string
+  size: number
+  createdAt: string
+}
+
+/** A deck in the slide pool: uploaded once, its slides are picked into items and library entries as copies. */
+export interface Deck {
+  id: string
+  title: string
+  theme: string
+  /** Where it came from (the file name of the original). */
+  source: string
+  createdAt: string
+  slides: number
+}
+
+export interface DeckSlide {
+  id: string
+  deckId: string
+  position: number
+  html: string
+  /** A short caption for the picker (the slide's title). */
+  caption: string
 }
 
 export interface Attachment {
@@ -152,7 +192,7 @@ export interface WorkshopSummary {
 }
 
 /** The content of an item without its place in a workshop (library entries, copies). */
-export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'categoryId' | 'color'>
+export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'slides' | 'categoryId' | 'color'>
 
 export type LibraryEntry =
   | { id: string; kind: 'item'; title: string; data: ItemContent; createdAt: string; updatedAt: string }

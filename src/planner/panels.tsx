@@ -12,6 +12,7 @@ import { sortedDays } from '@/domain/order'
 import { TextField, TimeField, formatSize } from './fields'
 import NotesField from './NotesField'
 import { uploadFiles } from './upload'
+import { ThemeSelect } from '@/slides/ThemeSelect'
 
 export function WorkshopPanel({ data, change, owner, onDayDate }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onDayDate: (dayId: string, date: string) => void }) {
   const { t } = useTranslation()
@@ -44,6 +45,11 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
         <TextField multiline value={w.goal} onCommit={(goal) => set({ goal })} className="min-h-[64px]" />
       </Field>
       <NotesField value={w.notes} onCommit={(notes) => set({ notes })} label={t('workshop.notes')} />
+      {owner && (
+        <Field label={t('slides.theme')}>
+          <ThemeSelect value={w.theme} onChange={(theme) => set({ theme })} withDefault />
+        </Field>
+      )}
       {owner && (
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <DuplicateButton data={data} />

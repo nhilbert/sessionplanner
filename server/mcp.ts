@@ -221,6 +221,21 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
   )
 
   // ---------- settings ----------
+  // ---------- slides ----------
+  const slideGiven = { html: z.string().optional().describe('Markup in the slide format (docs/slides.md)'), pool: z.string().optional().describe('Id of a pool slide to copy (pool_search)') }
+  tool('slide_list', 'The slides of an item: number, id, layout, title and text; html: true adds the markup.', { workshop: workshopRef, item: itemRef, html: z.boolean().optional() }, (a) => ops.slideList(a.workshop as string, a.item as string, a as never), 'read')
+  tool(
+    'slide_set',
+    'Replace the slides of an item with the given list, in order: each entry is markup (html), a copy of a pool slide (pool), or one of the item\'s slides kept (keep: id or number). Reorder by listing kept slides in the new order.',
+    { workshop: workshopRef, item: itemRef, slides: z.array(z.object({ ...slideGiven, keep: z.union([z.string(), z.number().int().min(1)]).optional().describe('Keep this slide of the item: id or number (1 = first)') })).max(60) },
+    (a) => ops.slideSet(a.workshop as string, a.item as string, a as never),
+    'destructive',
+  )
+  tool('slide_add', 'Add one slide to an item: markup or a copy of a pool slide; at = 0-based position, default at the end.', { workshop: workshopRef, item: itemRef, ...slideGiven, at: z.number().int().min(0).optional() }, (a) => ops.slideAdd(a.workshop as string, a.item as string, a as never))
+  tool('slide_remove', 'Remove one slide of an item, by id or number (1 = first).', { workshop: workshopRef, item: itemRef, slide: z.union([z.string(), z.number().int().min(1)]) }, (a) => ops.slideRemove(a.workshop as string, a.item as string, a.slide as string | number), 'destructive')
+  tool('pool_search', 'Search the slide pool (translated decks): every word of query must occur in the deck title, caption or text; deck narrows to one deck. Returns ids for slide_add and slide_set.', { query: z.string().optional(), deck: z.string().optional() }, (a) => ops.poolSearch(a as never), 'read')
+  tool('deck_outline', 'The deck of a workshop as it is presented: the generated title, agenda and break slides and the items\' own slides, in order.', { workshop: workshopRef }, (a) => ops.deckOutline(a.workshop as string), 'read')
+
   tool('settings_get', 'The categories (id, name, colour), the default day times and what the item kinds mean.', {}, () => ops.settingsGet(), 'read')
   return server
 }

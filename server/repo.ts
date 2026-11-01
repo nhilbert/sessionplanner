@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Attachment, type Day, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
+import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { scheduleDay } from '../src/domain/time.ts'
@@ -17,6 +17,7 @@ const WORKSHOP_COLS: Columns = {
   packing: ['packing', 'json'],
   materials: ['materials', 'json'],
   archived: ['archived', 'bool'],
+  theme: ['theme', 'text'],
 }
 const DAY_COLS: Columns = {
   position: ['position', 'num'],
@@ -44,6 +45,7 @@ const ITEM_COLS: Columns = {
   notes: ['notes', 'text'],
   materials: ['materials', 'json'],
   attachmentIds: ['attachment_ids', 'json'],
+  slides: ['slides', 'json'],
   categoryId: ['category_id', 'text'],
   color: ['color', 'text'],
 }
@@ -65,6 +67,7 @@ const toWorkshop = (r: Row): Workshop => ({
   goal: r.goal as string,
   notes: r.notes as string,
   timezone: r.timezone as string,
+  theme: (r.theme as string | null) ?? '',
   packing: JSON.parse(r.packing as string),
   materials: JSON.parse(r.materials as string),
   archived: r.archived === 1,
@@ -106,6 +109,7 @@ const toItem = (r: Row): Item => ({
   notes: r.notes as string,
   materials: JSON.parse(r.materials as string),
   attachmentIds: JSON.parse(r.attachment_ids as string),
+  slides: JSON.parse((r.slides as string | null) ?? '[]'),
   categoryId: (r.category_id as string | null) ?? null,
   color: (r.color as Item['color']) ?? null,
 })
@@ -119,15 +123,26 @@ const toAttachment = (r: Row): Attachment => ({
   createdAt: r.created_at as string,
 })
 
+const toDeck = (r: Row): Deck => ({ id: r.id as string, title: r.title as string, theme: r.theme as string, source: r.source as string, createdAt: r.created_at as string, slides: (r.n as number | null) ?? 0 })
+const toDeckSlide = (r: Row): DeckSlide => ({ id: r.id as string, deckId: r.deck_id as string, position: r.position as number, html: r.html as string, caption: r.caption as string })
+
+const toAsset = (r: Row): Asset => ({ hash: r.hash as string, mime: r.mime as string, size: r.size as number, createdAt: r.created_at as string })
+
 const toLibraryEntry = (r: Row): LibraryEntry =>
   ({
     id: r.id as string,
     kind: r.kind as LibraryEntry['kind'],
     title: r.title as string,
-    data: JSON.parse(r.data as string),
+    data: withSlides(JSON.parse(r.data as string)),
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
-  }) as LibraryEntry
+  }) as unknown as LibraryEntry
+
+/** Entries saved before slides existed get an empty list. */
+function withSlides(data: { items?: Record<string, unknown>[] } & Record<string, unknown>) {
+  if (Array.isArray(data.items)) return { ...data, items: data.items.map((i) => ({ slides: [], ...i })) }
+  return { slides: [], ...data }
+}
 
 const toMember = (r: Row): Member => ({
   workshopId: r.workshop_id as string,
@@ -369,8 +384,8 @@ export class Repo {
     const w = src.workshop
     this.tx(() => {
       this.db
-        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, packing, materials, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
-        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), t, t)
+        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, theme, packing, materials, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
+        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, w.theme, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), t, t)
       for (const d of days) this.insert('days', DAY_COLS, { ...d, id: dayIds.get(d.id)!, workshopId: newWs, date: moved(d.date) })
       for (const g of src.groups) this.insert('groups', GROUP_COLS, { ...g, id: groupIds.get(g.id)!, workshopId: newWs, dayId: g.dayId ? (dayIds.get(g.dayId) ?? null) : null })
       for (const a of src.attachments)
@@ -383,6 +398,7 @@ export class Repo {
           dayId: i.dayId ? (dayIds.get(i.dayId) ?? null) : null,
           groupId: i.groupId ? (groupIds.get(i.groupId) ?? null) : null,
           materials: i.materials.map((m) => ({ ...m, id: newId() })),
+          slides: i.slides.map((s) => ({ ...s, id: newId() })),
           attachmentIds: i.attachmentIds.filter((x) => files[x]).map((x) => files[x]),
         })
     })
@@ -479,5 +495,77 @@ export class Repo {
 
   deleteLibraryEntry(id: string): boolean {
     return this.db.prepare('DELETE FROM library WHERE id = ?').run(id).changes > 0
+  }
+
+  // ---- assets: pictures of slides, once per content hash ----------------------------------------------
+
+  addAsset(asset: { hash: string; mime: string; size: number }): Asset {
+    this.db.prepare('INSERT OR IGNORE INTO assets (hash, mime, size, created_at) VALUES (?, ?, ?, ?)').run(asset.hash, asset.mime, asset.size, now())
+    return this.getAsset(asset.hash)!
+  }
+
+  getAsset(hash: string): Asset | null {
+    const r = this.db.prepare('SELECT * FROM assets WHERE hash = ?').get(hash) as Row | undefined
+    return r ? toAsset(r) : null
+  }
+
+  /** Whether a slide of this workshop shows the asset: what a guest of the workshop may load. */
+  assetInWorkshop(workshopId: string, hash: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${hash}%`)
+  }
+
+  /** Removes the records of assets no slide shows any more (in a workshop or the library); returns their hashes, whose files the caller removes. */
+  sweepAssets(): string[] {
+    const gone: string[] = []
+    for (const r of this.db.prepare('SELECT hash FROM assets').all() as Row[]) {
+      const hash = r.hash as string
+      const like = `%asset:${hash}%`
+      if (this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like)) continue
+      this.db.prepare('DELETE FROM assets WHERE hash = ?').run(hash)
+      gone.push(hash)
+    }
+    return gone
+  }
+
+  // ---- the slide pool -----------------------------------------------------------------------------------
+
+  listDecks(): Deck[] {
+    return (this.db.prepare('SELECT d.*, (SELECT COUNT(*) FROM deck_slides s WHERE s.deck_id = d.id) AS n FROM decks d ORDER BY title COLLATE NOCASE').all() as Row[]).map(toDeck)
+  }
+
+  getDeck(id: string): { deck: Deck; slides: DeckSlide[] } | null {
+    const r = this.db.prepare('SELECT d.*, (SELECT COUNT(*) FROM deck_slides s WHERE s.deck_id = d.id) AS n FROM decks d WHERE id = ?').get(id) as Row | undefined
+    if (!r) return null
+    return { deck: toDeck(r), slides: (this.db.prepare('SELECT * FROM deck_slides WHERE deck_id = ? ORDER BY position').all(id) as Row[]).map(toDeckSlide) }
+  }
+
+  createDeck(input: { title: string; theme: string; source: string; slides: { html: string; caption: string }[] }): { deck: Deck; slides: DeckSlide[] } {
+    const id = newId()
+    this.tx(() => {
+      this.db.prepare('INSERT INTO decks (id, title, theme, source, created_at) VALUES (?, ?, ?, ?, ?)').run(id, input.title, input.theme, input.source, now())
+      const insert = this.db.prepare('INSERT INTO deck_slides (id, deck_id, position, html, caption) VALUES (?, ?, ?, ?, ?)')
+      input.slides.forEach((s, i) => insert.run(newId(), id, i + 1, s.html, s.caption))
+    })
+    return this.getDeck(id)!
+  }
+
+  updateDeck(id: string, patch: { title?: string; theme?: string }): Deck | null {
+    const sets = Object.entries(patch).filter(([, v]) => v !== undefined)
+    if (sets.length && !this.db.prepare(`UPDATE decks SET ${sets.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...sets.map(([, v]) => v as string), id).changes) return null
+    return this.getDeck(id)?.deck ?? null
+  }
+
+  getDeckSlide(id: string): DeckSlide | null {
+    const r = this.db.prepare('SELECT * FROM deck_slides WHERE id = ?').get(id) as Row | undefined
+    return r ? toDeckSlide(r) : null
+  }
+
+  /** Every slide of the pool, deck by deck, in order. */
+  listDeckSlides(): (DeckSlide & { deck: string })[] {
+    return (this.db.prepare('SELECT s.*, d.title AS deck FROM deck_slides s JOIN decks d ON d.id = s.deck_id ORDER BY d.title COLLATE NOCASE, s.position').all() as Row[]).map((r) => ({ ...toDeckSlide(r), deck: r.deck as string }))
+  }
+
+  deleteDeck(id: string): boolean {
+    return this.db.prepare('DELETE FROM decks WHERE id = ?').run(id).changes > 0
   }
 }
