@@ -1,0 +1,31 @@
+/* preview chrome: neutral, not part of the slide format */
+html, body { margin: 0; background: #15171a; color: #d6d9dd; font: 14px/1.4 system-ui, sans-serif; }
+.top { padding: 18px 28px; display: flex; gap: 18px; align-items: baseline; border-bottom: 1px solid #2a2e33; }
+.top h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.top a { color: #9fb3c8; }
+.top .hint { color: #7d848c; margin-left: auto; }
+main.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding: 24px 28px; }
+.item { display: flex; flex-direction: column; gap: 6px; }
+.frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: 4px; cursor: zoom-in; box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.4); }
+.frame .slide { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform: scale(var(--s, 0.3)); }
+.cap { color: #8a9099; font-size: 12px; display: flex; gap: 10px; }
+.cap b { color: #c3c8ce; font-weight: 500; }
+.overlay { position: fixed; inset: 0; background: #000; display: none; align-items: center; justify-content: center; z-index: 10; }
+.overlay.open { display: flex; }
+.overlay .stage { width: 1280px; height: 720px; transform-origin: center; position: relative; }
+.overlay .stage .slide { position: absolute; left: 0; top: 0; }
+body.only { background: #fff; }
+body.only .top, body.only main.grid { display: none; }
+body.only .single { width: 1280px; height: 720px; overflow: hidden; }
+body.sheet .top { display: none; }
+body.sheet main.grid { grid-template-columns: repeat(2, 640px); gap: 0; padding: 0; }
+body.sheet .frame { border-radius: 0; box-shadow: none; }
+body.sheet .cap { display: none; }
+ul.decks { list-style: none; padding: 28px; margin: 0; display: grid; gap: 14px; max-width: 720px; }
+ul.decks li { background: #1e2126; border-radius: 8px; padding: 16px 20px; }
+ul.decks a { color: #e8ecf0; font-size: 16px; font-weight: 600; text-decoration: none; }
+ul.decks .meta { color: #8a9099; margin-top: 4px; }
+main.grid h2.entry { grid-column: 1 / -1; margin: 18px 0 -6px; font-size: 15px; font-weight: 600; color: #c3c8ce; display: flex; align-items: baseline; gap: 12px; }
+main.grid h2.entry small { font-weight: 400; color: #8a9099; font-size: 12px; }
+.cap em { color: #e0a84a; font-style: normal; }
+main.grid h2.entry.muted { color: #6f767e; font-weight: 400; }
