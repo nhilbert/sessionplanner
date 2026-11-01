@@ -210,6 +210,53 @@ describe('packing list and library', () => {
     ops.itemUpdate(other.id!, inserted[1].id!, { duration: 20 })
     expect(repo.listLibrary().find((e) => e.title === 'Erwartungen')).toMatchObject({ data: { duration: 60 } })
   })
+
+  it('adds, reads, changes and deletes library entries without touching placed copies', () => {
+    const { ops } = setup()
+    const slide = '<section class="slide list"><header><h2>Check-in</h2></header></section>'
+    const checkin = ops.libraryCreate({ title: ' Check-in ', duration: 20, method: 'Blitzlicht', materials: [{ label: 'Ball' }], category: 'Energizer', notes: 'Kreis stellen', slides: [{ html: slide }] })
+    expect(checkin).toMatchObject({ kind: 'item', title: 'Check-in', item: { kind: 'block', title: 'Check-in', duration: 20, method: 'Blitzlicht', materials: [{ label: 'Ball', qty: 1 }], category: 'energizer', notes: 'Kreis stellen', slides: [{ n: 1, layout: 'list', title: 'Check-in' }] } })
+    const opening = ops.libraryCreate({ title: 'Standard-Einstieg', items: [{ title: 'Begrüßung', duration: 15 }, { title: 'Pause', kind: 'break' }, { title: 'Erwartungen', duration: 45, notes: 'Karten vorbereiten' }] })
+    expect(opening).toMatchObject({ kind: 'group', items: [{ title: 'Begrüßung', duration: 15 }, { kind: 'break', duration: 15 }, { title: 'Erwartungen', duration: 45, notes: 'Karten vorbereiten' }] })
+    expect(() => ops.libraryCreate({ title: 'x', duration: 10, items: [{ title: 'y' }] })).toThrow(/per item/)
+    expect(() => ops.libraryCreate({ title: 'x'.repeat(301) })).toThrow(/invalid library entry/)
+    expect(() => ops.libraryCreate({ title: 'x', materials: [{ label: 'Link', link: 'javascript:alert(1)' }] })).toThrow(/invalid library entry/)
+    // The list is compact, library_get in full.
+    expect(ops.libraryList().map((e) => e.title)).toEqual(['Check-in', 'Standard-Einstieg'])
+    expect(ops.libraryList()[0]).toMatchObject({ item: { slides: 1 } })
+    expect(ops.libraryList()[0].item).not.toHaveProperty('notes')
+    expect(ops.libraryGet('standard').items?.[2]).toMatchObject({ notes: 'Karten vorbereiten' })
+    // An item entry: title and fields change its item; the slides stay unless replaced.
+    const renamed = ops.libraryUpdate('Check-in', { title: 'Ankommen', duration: 25, appendNotes: 'Ball mitbringen', category: null })
+    expect(renamed).toMatchObject({ title: 'Ankommen', item: { title: 'Ankommen', duration: 25, notes: 'Kreis stellen\n\nBall mitbringen', method: 'Blitzlicht' } })
+    expect(renamed.item).not.toHaveProperty('category')
+    expect(renamed.item?.slides).toHaveLength(1)
+    expect(() => ops.libraryUpdate('Ankommen', { item: 1, duration: 5 })).toThrow(/single item/)
+    expect(() => ops.libraryUpdate('Ankommen', { title: '  ' })).toThrow(/title must not be empty/)
+    // A group entry: the heading alone; an item inside by title or number, moved, added and taken out.
+    expect(ops.libraryUpdate('Standard-Einstieg', { title: 'Einstieg' }).title).toBe('Einstieg')
+    expect(() => ops.libraryUpdate('Einstieg', { duration: 5 })).toThrow(/is a group: give the item inside it.*1 Begrüßung, 2 Pause, 3 Erwartungen/)
+    const moved = ops.libraryUpdate('Einstieg', { item: 'Erwartungen', title: 'Erwartungen klären', duration: 60, at: 0 })
+    expect(moved.title).toBe('Einstieg')
+    expect(moved.items?.map((i) => [i.title, i.duration])).toEqual([
+      ['Erwartungen klären', 60],
+      ['Begrüßung', 15],
+      ['Pause', 15],
+    ])
+    const grown = ops.libraryUpdate('Einstieg', { removeItems: ['Pause'], addItems: [{ title: 'Agenda', duration: 10 }, { title: 'Pause', kind: 'break', duration: 10 }], addAt: 1 })
+    expect(grown.items?.map((i) => i.title)).toEqual(['Erwartungen klären', 'Agenda', 'Pause', 'Begrüßung'])
+    expect(ops.libraryUpdate('Einstieg', { item: 4, at: 0 }).items?.map((i) => i.title)).toEqual(['Begrüßung', 'Erwartungen klären', 'Agenda', 'Pause'])
+    expect(() => ops.libraryUpdate('Einstieg', { item: 'nope', duration: 5 })).toThrow(/no item of the entry/)
+    expect(() => ops.libraryUpdate('Einstieg', { removeItems: [1, 2, 3, 4] })).toThrow(/at least one item/)
+    // Copies placed before stay as they are, through changes and the delete.
+    const ws = ops.workshopCreate({ title: 'Teamtag' })
+    ops.libraryInsert(ws.id!, 'Ankommen', 1)
+    ops.libraryUpdate('Ankommen', { duration: 10 })
+    expect(ops.libraryDelete('Ankommen')).toEqual({ deleted: 'Ankommen', kind: 'item' })
+    expect(flat(ops.workshopGet(ws.id!).days![0])).toMatchObject([{ title: 'Ankommen', end: '09:25' }])
+    expect(ops.libraryList().map((e) => e.title)).toEqual(['Einstieg'])
+    expect(() => ops.libraryGet('Ankommen')).toThrow(/no library entry/)
+  })
 })
 
 describe('duplicate and settings', () => {

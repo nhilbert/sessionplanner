@@ -5,7 +5,7 @@ Session Planner includes an [MCP](https://modelcontextprotocol.io) server, built
 - **read a workshop** with every day's computed times, gaps, overlaps and warnings,
 - **draft an agenda** from a brief, or **rework** one: add, change, move, group and park items,
 - **keep notes and material** with each step, and maintain the **packing list**,
-- **use the library**: save steps and groups, insert copies,
+- **use the library**: save steps and groups, insert copies, add, change and delete entries,
 - **work with slides**: read, write, edit and reorder the slides of a step or a library entry as text in the slide format, pick slides from the pool of translated decks, choose the theme, see the deck as it is presented,
 - **set up and duplicate workshops**, add and change days.
 
@@ -19,6 +19,7 @@ Example requests:
 - "Put the check-in and the expectations round under a heading 'Arrival'."
 - "What do I need to pack for the strategy workshop? Add two extension cords."
 - "Save the feedback round of the team day to the library."
+- "Shorten the expectations round in the library to 45 minutes and add a note that the cards go up on the pinboard."
 - "Write a statement slide with the leading question for the expectations round and put it in front of the existing slides."
 - "On the third slide of the feedback input, the second card is wrong – it should say what we agreed in the notes."
 
@@ -209,9 +210,13 @@ Conventions:
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
-| `library_list` | read | – | Reusable items and groups shared by all workshops. |
+| `library_list` | read | – | Reusable items and groups shared by all workshops, compact (slides as a count). |
+| `library_get` | read | `entry` | One entry in full: its item, or the items of a group, with notes, material, category, colour and the slides (number, id, layout, title). |
 | `library_save` | write | `workshop`, `item` or `group`, `title` | Saves a copy to the library. |
+| `library_create` | write | `title`, the item fields (`kind`, `duration`, `description`, `goal`, `method`, `lead`, `notes`, `materials[]`, `category`, `color`, `slides[]`), or `items[]` (each `title` + the same fields) | A new entry from scratch: a single item, or with `items` a group (`title` is its heading) with those items in order. |
+| `library_update` | destructive | `entry`, `title`, the item fields, `appendNotes`; for a group entry `item` (the item inside, by title or number), `at`, `addItems[]`, `addAt`, `removeItems[]` | Changes an entry. An item entry: `title` and the fields change its item. A group entry: `title` alone renames the heading; with `item` the title and fields change that item and `at` moves it; `addItems` adds items (at `addAt`, default the end), `removeItems` takes items out. Copies placed in workshops stay as they are. |
 | `library_insert` | write | `workshop`, `entry`, `day`, `at`, `after` | Inserts a copy (an item, or a group with its items). |
+| `library_delete` | destructive | `entry` | Deletes the entry for good; placed copies stay. |
 
 ### Slides
 
@@ -248,7 +253,7 @@ The tools share their rules with the app (`src/domain/`):
 - Markers and notes take no time; durations are whole minutes.
 - Ordering by the same fractional positions as the app (`src/domain/order.ts`); a day's entries are renumbered when positions get too close.
 - The packing list takes the largest quantity per label from the placed items (`src/domain/packing.ts`); parked items pack nothing.
-- Library entries are copies both ways: saving copies the item, inserting copies the entry.
+- Library entries are copies both ways: saving copies the item, inserting copies the entry, and changing or deleting an entry leaves the placed copies alone. Entries written through the tools pass the same validation as the app's library editor.
 - Slides are stored sanitised (`src/domain/slides.ts`), whether they arrive as markup, as a text replacement or as a pool copy; a workshop's theme must be one the server has (`data/themes`).
 
 The server also sends the agent short instructions on connect: read the workshop before changing it, draft from a brief with goal, method and lead, keep stretches without a break under 90 minutes, read `slide_format` before writing slides and a slide before editing it, prefer small reversible changes and report the computed end of the day.

@@ -2,7 +2,7 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
-import { BadRequest, isCalendarDate, validateOps } from './validate.ts'
+import { BadRequest, isCalendarDate, validateLibraryEntry, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import { ZERO_KINDS } from '../src/domain/types.ts'
@@ -71,6 +71,11 @@ export interface ItemInput {
   slides?: SlideGiven[]
 }
 
+/** An item of a library entry as an agent gives it: the content fields with a title; no fixed start, which belongs to a place in an agenda. */
+export interface LibraryItemInput extends ItemInput {
+  title: string
+}
+
 export interface WorkshopInput {
   title?: string
   client?: string
@@ -115,6 +120,12 @@ interface SlideTarget {
 
 /** The target part of a slide tool's input, without the slide fields (html there is markup, in slideList a switch). */
 const targetOf = (i: SlideTargetInput): SlideTargetInput => ({ workshop: i.workshop, entry: i.entry, item: i.item })
+
+type GroupEntry = Extract<LibraryEntry, { kind: 'group' }>
+
+/** The content fields an input carries (title and placement aside): whether the agent meant to change an item. */
+const CONTENT_KEYS = ['kind', 'duration', 'description', 'goal', 'method', 'lead', 'notes', 'appendNotes', 'materials', 'category', 'color', 'slides'] as const satisfies readonly (keyof ItemInput)[]
+const contentKeys = (input: ItemInput) => CONTENT_KEYS.filter((k) => input[k] !== undefined)
 
 const CLIENT_ID = 'mcp'
 const todayLocal = () => {
@@ -273,7 +284,7 @@ export class Ops {
   }
 
   /** The item fields from an agent's input (for creating and updating); `current` supplies kind and notes for appends. */
-  private itemFields(input: ItemInput, current?: Item): Partial<Item> {
+  private itemFields(input: ItemInput, current?: ItemContent): Partial<Item> {
     const f: Partial<Item> = {}
     const kind = input.kind ?? current?.kind ?? 'block'
     if (input.kind !== undefined) f.kind = input.kind
@@ -297,30 +308,23 @@ export class Ops {
     return f
   }
 
-  private newItem(workshopId: string, dayId: string | null, groupId: string | null, position: number, input: ItemInput): Item {
+  /** The content fields for a library entry: as itemFields, without the fixed start (which belongs to a place in an agenda). */
+  private contentFields(input: ItemInput, current?: ItemContent): Partial<ItemContent> {
+    return this.itemFields({ ...input, fixedStart: undefined }, current)
+  }
+
+  /** Fresh content with the defaults for the kind; the agent's fields are laid over it. */
+  private blankContent(input: ItemInput): ItemContent {
     const kind = input.kind ?? 'block'
-    return {
-      id: newId(),
-      workshopId,
-      dayId,
-      position,
-      groupId,
-      kind,
-      title: input.title ?? '',
-      description: '',
-      duration: ZERO_KINDS.includes(kind) ? 0 : Math.round(input.duration ?? (kind === 'break' ? 15 : 30)),
-      fixedStart: null,
-      goal: '',
-      method: '',
-      lead: '',
-      notes: '',
-      materials: [],
-      attachmentIds: [],
-      slides: [],
-      categoryId: null,
-      color: null,
-      ...this.itemFields(input),
-    }
+    return { kind, title: input.title ?? '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : Math.round(input.duration ?? (kind === 'break' ? 15 : 30)), goal: '', method: '', lead: '', notes: '', materials: [], slides: [], categoryId: null, color: null }
+  }
+
+  private newContent(input: ItemInput): ItemContent {
+    return { ...this.blankContent(input), ...this.contentFields(input) }
+  }
+
+  private newItem(workshopId: string, dayId: string | null, groupId: string | null, position: number, input: ItemInput): Item {
+    return { id: newId(), workshopId, dayId, position, groupId, fixedStart: null, attachmentIds: [], ...this.blankContent(input), ...this.itemFields(input) }
   }
 
   // ---------- views ----------
@@ -419,9 +423,24 @@ export class Ops {
     )
   }
 
-  private libraryView(e: LibraryEntry) {
-    const content = (c: ItemContent) => compact({ kind: c.kind, title: c.title, duration: ZERO_KINDS.includes(c.kind) ? undefined : c.duration, description: c.description, goal: c.goal, method: c.method, lead: c.lead, materials: c.materials.map((m) => compact({ label: m.label, qty: m.qty, link: m.link })), slides: c.slides?.length || undefined, category: c.categoryId })
-    return e.kind === 'item' ? { id: e.id, kind: e.kind, title: e.title, item: content(e.data) } : { id: e.id, kind: e.kind, title: e.title, items: e.data.items.map(content) }
+  /** An entry as the agent sees it: in the list compact (slides as a count); in full with notes, colour and the slides (number, id, layout, title). */
+  private libraryView(e: LibraryEntry, full = false) {
+    const content = (c: ItemContent) =>
+      compact({
+        kind: c.kind,
+        title: c.title,
+        duration: ZERO_KINDS.includes(c.kind) ? undefined : c.duration,
+        description: c.description,
+        goal: c.goal,
+        method: c.method,
+        lead: c.lead,
+        notes: full ? c.notes : undefined,
+        materials: c.materials.map((m) => compact({ label: m.label, qty: m.qty, link: m.link })),
+        category: c.categoryId,
+        color: full ? c.color : undefined,
+        slides: full ? (c.slides ?? []).map((x, i) => ({ n: i + 1, id: x.id, layout: slideLayout(x.html), title: slideTitle(x.html) })) : c.slides?.length || undefined,
+      })
+    return compact({ id: e.id, kind: e.kind, title: e.title, item: e.kind === 'item' ? content(e.data) : undefined, items: e.kind === 'group' ? e.data.items.map(content) : undefined })
   }
 
   // ---------- workshops ----------
@@ -751,14 +770,13 @@ export class Ops {
       return { where: { item: item.title || item.id }, slides: item.slides, save: (slides) => this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields: { slides } }]) }
     }
     if (input.entry === undefined) throw new BadRequest('give a workshop and its item, or a library entry')
-    const entry = this.byTitle(this.repo.listLibrary(), input.entry, 'library entry')
+    const entry = this.entry(input.entry)
     if (entry.kind === 'item') {
       check(entry.data.kind)
       return { where: { entry: entry.title }, slides: entry.data.slides ?? [], save: (slides) => this.repo.saveLibraryEntry(entry.id, { kind: 'item', title: entry.title, data: { ...entry.data, slides } }) }
     }
-    const members = entry.data.items.map((c, n) => ({ id: String(n + 1), title: c.title }))
-    if (input.item === undefined) throw new BadRequest(`"${entry.title}" is a group: give the item inside it, by title or number (${members.map((m) => `${m.id} ${m.title}`).join(', ')})`)
-    const index = Number(this.byTitle(members, input.item, 'item of the entry').id) - 1
+    if (input.item === undefined) throw new BadRequest(`"${entry.title}" is a group: give the item inside it, by title or number (${this.memberNames(entry)})`)
+    const index = this.member(entry, input.item)
     const content = entry.data.items[index]
     check(content.kind)
     return {
@@ -906,8 +924,82 @@ export class Ops {
 
   // ---------- library ----------
 
+  private entry(ref: string): LibraryEntry {
+    return this.byTitle(this.repo.listLibrary(), ref, 'library entry')
+  }
+
+  /** The index of an item inside a group entry, by title or number (1 = first). */
+  private member(entry: GroupEntry, ref: string | number): number {
+    const members = entry.data.items.map((c, n) => ({ id: String(n + 1), title: c.title }))
+    return Number(this.byTitle(members, String(ref), 'item of the entry').id) - 1
+  }
+
+  private memberNames(entry: GroupEntry): string {
+    return entry.data.items.map((c, n) => `${n + 1} ${c.title}`).join(', ')
+  }
+
+  /** Validates like the app's library editor (field limits, link schemes) and stores; answers with the entry in full. */
+  private saveEntry(id: string | null, entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) {
+    const saved = this.repo.saveLibraryEntry(id, validateLibraryEntry(entry))
+    if (!saved) throw new BadRequest('no such library entry')
+    return this.libraryView(saved, true)
+  }
+
   libraryList() {
     return this.repo.listLibrary().map((e) => this.libraryView(e))
+  }
+
+  /** One entry in full (notes, colour, the slides), to read before changing it. */
+  libraryGet(ref: string) {
+    return this.libraryView(this.entry(ref), true)
+  }
+
+  /** A new entry from the agent's fields: a single item, or with `items` a group with those items in order. */
+  libraryCreate(input: LibraryItemInput & { items?: LibraryItemInput[] }) {
+    const title = input.title.trim()
+    if (!title) throw new BadRequest('title must not be empty')
+    if (input.items) {
+      if (contentKeys(input).length) throw new BadRequest('a group entry takes its fields per item: put them into items')
+      if (!input.items.length) throw new BadRequest('a group entry needs at least one item')
+      return this.saveEntry(null, { kind: 'group', title, data: { items: input.items.map((i) => this.newContent(i)) } })
+    }
+    return this.saveEntry(null, { kind: 'item', title, data: this.newContent({ ...input, title }) })
+  }
+
+  /**
+   * Changes an entry; copies placed in workshops stay as they are. An item entry: title and fields change its item
+   * (entry and item share the title, as in the app's editor). A group entry: title alone renames the heading; with
+   * `item` the title and fields change that item and `at` moves it; `addItems` adds (at `addAt`, default the end),
+   * `removeItems` takes items out. Items are resolved against the entry as it was before the call.
+   */
+  libraryUpdate(ref: string, input: ItemInput & { item?: string | number; at?: number; addItems?: LibraryItemInput[]; addAt?: number; removeItems?: (string | number)[] }) {
+    const entry = this.entry(ref)
+    const title = input.title?.trim()
+    if (title !== undefined && !title) throw new BadRequest('title must not be empty')
+    if (entry.kind === 'item') {
+      if (input.item !== undefined || input.at !== undefined || input.addItems || input.removeItems) throw new BadRequest(`"${entry.title}" is a single item, not a group: leave item, at, addItems and removeItems out`)
+      return this.saveEntry(entry.id, { kind: 'item', title: title ?? entry.title, data: { ...entry.data, ...this.contentFields({ ...input, title }, entry.data) } })
+    }
+    const index = input.item === undefined ? null : this.member(entry, input.item)
+    if (index === null && (contentKeys(input).length || input.at !== undefined)) throw new BadRequest(`"${entry.title}" is a group: give the item inside it whose fields change, by title or number (${this.memberNames(entry)})`)
+    const removed = new Set((input.removeItems ?? []).map((r) => this.member(entry, r)))
+    const edited = index === null ? null : { ...entry.data.items[index], ...this.contentFields({ ...input, title }, entry.data.items[index]) }
+    let items = entry.data.items.map((c, n) => (n === index ? edited! : c)).filter((_, n) => !removed.has(n))
+    if (edited && input.at !== undefined && items.includes(edited)) {
+      items = items.filter((c) => c !== edited)
+      items.splice(Math.min(Math.max(0, input.at), items.length), 0, edited)
+    }
+    const added = (input.addItems ?? []).map((i) => this.newContent(i))
+    items.splice(Math.min(Math.max(0, input.addAt ?? items.length), items.length), 0, ...added)
+    if (!items.length) throw new BadRequest('a group entry needs at least one item; to drop the entry use library_delete')
+    return this.saveEntry(entry.id, { kind: 'group', title: index === null && title !== undefined ? title : entry.title, data: { items } })
+  }
+
+  /** Deletes an entry for good; copies placed in workshops stay. */
+  libraryDelete(ref: string) {
+    const entry = this.entry(ref)
+    this.repo.deleteLibraryEntry(entry.id)
+    return { deleted: entry.title, kind: entry.kind }
   }
 
   private content(i: Item | ItemContent): ItemContent {
@@ -932,8 +1024,7 @@ export class Ops {
 
   /** Inserts a copy of a library entry into a day (or the parking lot). */
   libraryInsert(ref: string, entryRef: string, dayRef: DayRef, where: Placement = {}) {
-    const entries = this.repo.listLibrary()
-    const entry = this.byTitle(entries, entryRef, 'library entry')
+    const entry = this.entry(entryRef)
     const s = this.state(ref)
     const day = this.day(s, dayRef)
     const dayId = day?.id ?? null

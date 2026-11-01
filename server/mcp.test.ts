@@ -49,7 +49,7 @@ describe('MCP endpoint', () => {
     const { client, ready } = connect(app)
     await ready
     const names = (await client.listTools()).tools.map((t) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['workshop_list', 'workshop_get', 'workshop_create', 'item_create_many', 'item_move', 'group_create', 'packing_update', 'library_insert', 'settings_get']))
+    expect(names).toEqual(expect.arrayContaining(['workshop_list', 'workshop_get', 'workshop_create', 'item_create_many', 'item_move', 'group_create', 'packing_update', 'library_insert', 'library_create', 'library_update', 'library_delete', 'settings_get']))
     const tools = (await client.listTools()).tools
     expect(tools.find((t) => t.name === 'workshop_get')?.annotations?.readOnlyHint).toBe(true)
     expect(tools.find((t) => t.name === 'item_delete')?.annotations?.destructiveHint).toBe(true)
@@ -93,6 +93,28 @@ describe('MCP endpoint', () => {
     const outline = json(await client.callTool({ name: 'deck_outline', arguments: { workshop: 'Strategietag', agenda: false } }))
     expect(outline.deck.map((d: { generated?: string; item?: string }) => d.generated ?? d.item)).toEqual(['title', 'Check-in'])
     expect(json(await client.callTool({ name: 'settings_get', arguments: {} })).themes).toEqual(['default'])
+    await client.close()
+  })
+
+  it('adds, changes and deletes library entries', async () => {
+    const { client, ready } = connect(app)
+    await ready
+    const tools = (await client.listTools()).tools
+    expect(tools.find((t) => t.name === 'library_get')?.annotations?.readOnlyHint).toBe(true)
+    expect(tools.find((t) => t.name === 'library_update')?.annotations?.destructiveHint).toBe(true)
+    const created = json(await client.callTool({ name: 'library_create', arguments: { title: 'Einstieg', items: [{ title: 'Check-in', duration: 20, category: 'energizer' }, { title: 'Erwartungen', duration: 45, materials: [{ label: 'Karten', qty: 100 }] }] } }))
+    expect(created).toMatchObject({ kind: 'group', title: 'Einstieg', items: [{ title: 'Check-in', category: 'energizer' }, { title: 'Erwartungen', materials: [{ label: 'Karten', qty: 100 }] }] })
+    const changed = json(await client.callTool({ name: 'library_update', arguments: { entry: 'Einstieg', item: 2, duration: 60, category: null, notes: 'Karten an die Pinnwand', at: 0 } }))
+    expect(changed.items.map((i: { title: string; duration: number }) => [i.title, i.duration])).toEqual([
+      ['Erwartungen', 60],
+      ['Check-in', 20],
+    ])
+    expect(json(await client.callTool({ name: 'library_get', arguments: { entry: 'Einstieg' } })).items[0]).toMatchObject({ notes: 'Karten an die Pinnwand' })
+    const bad = await client.callTool({ name: 'library_update', arguments: { entry: 'Einstieg', duration: 5 } })
+    expect(bad.isError).toBe(true)
+    expect(json(bad).error).toMatch(/give the item inside it/)
+    expect(json(await client.callTool({ name: 'library_delete', arguments: { entry: 'Einstieg' } }))).toEqual({ deleted: 'Einstieg', kind: 'group' })
+    expect(repo.listLibrary()).toEqual([])
     await client.close()
   })
 })
