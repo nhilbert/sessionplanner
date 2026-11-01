@@ -1,4 +1,4 @@
-/* Session Planner slide format – base stylesheet (docs/slides.md).
+/* Session Planner slide format – base stylesheet (docs/slides.md). Shared by the app (src/slides) and the static preview (scripts/slides/build.py).
    A slide is a <section class="slide LAYOUT"> at a design size of 1280 × 720 px; the host scales it.
    All colours, fonts and decorations come from the theme (themes/*.css). The slide itself carries
    only structure: header (eyebrow, title, lead), one content block, an optional footer (source). */
@@ -8,7 +8,7 @@
 .slide {
   width: 1280px; height: 720px; box-sizing: border-box; position: relative; overflow: hidden;
   background: var(--bg); color: var(--fg);
-  font: 400 22px/1.45 var(--font-body); -webkit-font-smoothing: antialiased;
+  font: 400 22px/1.45 var(--font-body), 'Noto Sans JP'; -webkit-font-smoothing: antialiased;
   padding: 52px 64px 60px; display: flex; flex-direction: column; gap: 22px;
 }
 .slide * { box-sizing: border-box; }
@@ -30,20 +30,20 @@
 .slide .source { font-size: 14px; color: var(--fg-3); }
 
 /* ---------- typography ---------- */
-.slide h1 { font: var(--display-weight, 600) 64px/1.1 var(--font-display); letter-spacing: -0.01em; color: var(--title); }
-.slide h2 { font: var(--display-weight, 600) 42px/1.15 var(--font-display); letter-spacing: -0.01em; color: var(--title); }
-.slide h3 { font: var(--display-weight, 600) 24px/1.25 var(--font-display); color: var(--fg); }
+.slide h1 { font: var(--display-weight, 600) 64px/1.1 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--title); }
+.slide h2 { font: var(--display-weight, 600) 42px/1.15 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--title); }
+.slide h3 { font: var(--display-weight, 600) 24px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--fg); }
 .slide .eyebrow {
-  font: 600 15px/1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  font: 600 15px/1.2 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
   display: flex; align-items: center; gap: 14px;
 }
 .slide .tag {
-  display: inline-block; font: 700 13px/1 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase;
+  display: inline-block; font: 700 13px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--on-accent); background: var(--accent); padding: 7px 12px 6px; border-radius: 999px;
 }
 .slide .lead { font-size: 24px; line-height: 1.4; color: var(--fg-2); max-width: 1000px; }
 .slide .muted { color: var(--fg-3); }
-.slide .big { font: var(--display-weight, 500) 48px/1.25 var(--font-display); color: var(--title); }
+.slide .big { font: var(--display-weight, 500) 48px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--title); }
 .slide .accent { color: var(--accent); }
 
 /* lists */
@@ -54,7 +54,7 @@
 .slide ol.list > li { position: relative; padding-left: 54px; counter-increment: n; }
 .slide ol.list > li::before {
   content: counter(n); position: absolute; left: 0; top: 0.1em; width: 36px; height: 36px; border-radius: 50%;
-  background: var(--surface); color: var(--accent); font: 700 17px/36px var(--font-display); text-align: center;
+  background: var(--surface); color: var(--accent); font: 700 17px/36px var(--font-display), 'Noto Sans JP'; text-align: center;
 }
 .slide ul.list ul { list-style: none; margin-top: 8px; padding-left: 0; font-size: 20px; color: var(--fg-2); display: flex; flex-direction: column; gap: 4px; }
 .slide ul.list ul li { position: relative; padding-left: 22px; }
@@ -81,13 +81,13 @@
 .slide.section ul.list { font-size: 24px; color: var(--on-field); }
 .slide.section ul.list > li::before { background: var(--on-field); }
 .slide.section .glyph { position: absolute; right: 72px; top: 50%; transform: translateY(-50%); font-size: 300px; line-height: 1; opacity: 0.22; color: var(--on-field); }
-.slide.section .glyph small { display: block; font: 400 22px/1.2 var(--font-body); text-align: center; opacity: 1; margin-top: -10px; letter-spacing: 0.1em; }
+.slide.section .glyph small { display: block; font: 400 22px/1.2 var(--font-body), 'Noto Sans JP'; text-align: center; opacity: 1; margin-top: -10px; letter-spacing: 0.1em; }
 .slide.section .text { display: flex; flex-direction: column; gap: 18px; max-width: 70%; }
 
 /* agenda: numbered points, optional clock times, optional picture on the right */
-.slide.agenda ol.agenda { list-style: none; counter-reset: n; display: flex; flex-direction: column; justify-content: center; gap: 10px; font-size: 24px; }
+.slide.agenda ol.agenda { list-style: none; counter-reset: n; display: flex; flex-direction: column; justify-content: flex-start; gap: 10px; font-size: 24px; overflow: hidden; }
 .slide.agenda ol.agenda > li { display: grid; grid-template-columns: 44px auto 1fr; align-items: baseline; gap: 16px; counter-increment: n; padding: 6px 0; border-bottom: 1px solid var(--line); }
-.slide.agenda ol.agenda > li::before { content: counter(n, decimal-leading-zero); font: 700 16px/1 var(--font-display); color: var(--accent); }
+.slide.agenda ol.agenda > li::before { content: counter(n, decimal-leading-zero); font: 700 16px/1 var(--font-display), 'Noto Sans JP'; color: var(--accent); }
 .slide.agenda ol.agenda .when { font-size: 18px; color: var(--fg-3); font-variant-numeric: tabular-nums; min-width: 90px; }
 .slide.agenda ol.agenda > li:not(:has(.when)) { grid-template-columns: 44px 1fr; }
 .slide.agenda ol.agenda .break { color: var(--fg-3); }
@@ -115,7 +115,7 @@
 .slide.closing { background: var(--field); color: var(--on-field); align-items: center; justify-content: center; text-align: center; gap: 14px; }
 .slide.closing h1 { color: var(--on-field); font-size: 44px; font-weight: 500; }
 .slide.closing p { color: var(--on-field-2); font-size: 22px; }
-.slide.closing .logo { height: 96px; margin-bottom: 36px; }
+.slide.closing .logo { width: 360px; height: 120px; margin-bottom: 36px; background: var(--logo-light, var(--logo)) no-repeat center / contain; }
 
 /* statement: one big sentence */
 .slide.statement { justify-content: center; }
@@ -125,9 +125,9 @@
 /* quote */
 .slide.quote { justify-content: center; }
 .slide.quote blockquote { position: relative; padding-left: 110px; max-width: 1080px; display: flex; flex-direction: column; gap: 20px; }
-.slide.quote blockquote::before { content: '„'; position: absolute; left: 0; top: -0.28em; font: 700 200px/1 var(--font-display); color: var(--accent-2, var(--accent)); }
-.slide.quote blockquote p { font: 400 38px/1.3 var(--font-display); color: var(--title); }
-.slide.quote blockquote .sub { font: 400 22px/1.4 var(--font-body); color: var(--fg-2); }
+.slide.quote blockquote::before { content: '„'; position: absolute; left: 0; top: -0.28em; font: 700 200px/1 var(--font-display), 'Noto Sans JP'; color: var(--accent-2, var(--accent)); }
+.slide.quote blockquote p { font: 400 38px/1.3 var(--font-display), 'Noto Sans JP'; color: var(--title); }
+.slide.quote blockquote .sub { font: 400 22px/1.4 var(--font-body), 'Noto Sans JP'; color: var(--fg-2); }
 .slide.quote cite { display: block; font-style: normal; font-size: 16px; color: var(--fg-3); padding-left: 110px; margin-top: 24px; }
 
 /* cards */
@@ -142,7 +142,7 @@
 .slide ul.cards .icon { width: 64px; height: 64px; object-fit: contain; margin-bottom: 8px; border-radius: 12px; }
 .slide ul.cards.numbered { counter-reset: n; }
 .slide ul.cards.numbered > li { counter-increment: n; }
-.slide ul.cards.numbered > li::before { content: counter(n); font: 700 15px/30px var(--font-display); width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--on-accent); text-align: center; margin-bottom: 6px; }
+.slide ul.cards.numbered > li::before { content: counter(n); font: 700 15px/30px var(--font-display), 'Noto Sans JP'; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--on-accent); text-align: center; margin-bottom: 6px; }
 .slide ul.cards.picture > li { padding: 0; overflow: hidden; }
 .slide ul.cards.picture > li img { width: 100%; height: 200px; object-fit: cover; margin: 0; border-radius: 0; }
 .slide ul.cards.picture > li > :not(img) { padding: 0 24px; }
@@ -171,17 +171,17 @@
 .slide ol.steps > li { position: relative; padding-left: 54px; counter-increment: n; }
 .slide ol.steps > li::before {
   content: counter(n); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%;
-  background: var(--surface); color: var(--accent); font: 700 17px/36px var(--font-display); text-align: center;
+  background: var(--surface); color: var(--accent); font: 700 17px/36px var(--font-display), 'Noto Sans JP'; text-align: center;
 }
 .slide aside.facts { background: var(--surface-2); border-radius: var(--radius); padding: 26px 28px; }
 .slide aside.facts dl { display: flex; flex-direction: column; gap: 18px; }
-.slide aside.facts dt { font: 700 13px/1 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.slide aside.facts dt { font: 700 13px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
 .slide aside.facts dd { margin: 0; font-size: 19px; line-height: 1.35; }
 
 /* steps: a horizontal sequence */
 .slide ol.flow { list-style: none; counter-reset: n; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 36px; align-content: center; }
 .slide ol.flow > li { position: relative; counter-increment: n; background: var(--surface); border-radius: var(--radius); padding: 28px 26px 26px; display: flex; flex-direction: column; gap: 10px; }
-.slide ol.flow > li::before { content: counter(n); font: 700 16px/32px var(--font-display); width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--on-accent); text-align: center; margin-bottom: 6px; }
+.slide ol.flow > li::before { content: counter(n); font: 700 16px/32px var(--font-display), 'Noto Sans JP'; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--on-accent); text-align: center; margin-bottom: 6px; }
 .slide ol.flow > li:not(:last-child)::after { content: ''; position: absolute; right: -26px; top: 50%; width: 16px; height: 16px; border-top: 3px solid var(--accent); border-right: 3px solid var(--accent); transform: translateY(-50%) rotate(45deg); }
 .slide ol.flow h3 { font-size: 24px; }
 .slide ol.flow p { font-size: 18px; line-height: 1.4; color: var(--fg-2); }
@@ -190,9 +190,9 @@
 /* matrix: 2 × 2 with axis labels */
 .slide .matrix { display: grid; grid-template-columns: 40px 1fr; grid-template-rows: 1fr 40px; gap: 14px; }
 .slide .matrix .axis-y { grid-row: 1; grid-column: 1; display: flex; flex-direction: column; justify-content: space-around; align-items: center; }
-.slide .matrix .axis-y span { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 14px/1 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+.slide .matrix .axis-y span { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 14px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
 .slide .matrix .axis-x { grid-row: 2; grid-column: 2; display: flex; justify-content: space-around; align-items: center; }
-.slide .matrix .axis-x span { font: 600 14px/1 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+.slide .matrix .axis-x span { font: 600 14px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
 .slide .matrix .cells { grid-row: 1; grid-column: 2; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 14px; }
 .slide .matrix .cell { background: var(--surface); border-radius: var(--radius); padding: 24px 28px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
 .slide .matrix .cell.accent { background: var(--accent); color: var(--on-accent); }
@@ -204,9 +204,9 @@
 .slide dl.acronym { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .slide dl.acronym > div { display: grid; grid-template-columns: 110px 1fr; gap: 24px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .slide dl.acronym > div:last-child { border-bottom: 0; }
-.slide dl.acronym dt { font: 700 64px/1 var(--font-display); color: var(--accent); text-align: center; }
+.slide dl.acronym dt { font: 700 64px/1 var(--font-display), 'Noto Sans JP'; color: var(--accent); text-align: center; }
 .slide dl.acronym dd { margin: 0; display: flex; flex-direction: column; gap: 2px; }
-.slide dl.acronym dd strong { font: 600 26px/1.25 var(--font-display); color: var(--fg); }
+.slide dl.acronym dd strong { font: 600 26px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--fg); }
 .slide dl.acronym dd span { font-size: 19px; color: var(--fg-2); }
 .slide dl.acronym.compact > div { padding: 6px 0; }
 .slide dl.acronym.compact dt { font-size: 48px; }
@@ -225,10 +225,10 @@
 
 /* model: a diagram as inline SVG */
 .slide figure.model { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-.slide figure.model svg { flex: 1; min-height: 0; width: 100%; height: 100%; font-family: var(--font-body); }
+.slide figure.model svg { flex: 1; min-height: 0; width: 100%; height: 100%; font-family: var(--font-body), 'Noto Sans JP'; }
 .slide svg .t { font-size: 22px; fill: var(--fg); }
 .slide svg .t-small { font-size: 17px; fill: var(--fg-2); }
-.slide svg .t-display { font-family: var(--font-display); font-weight: 600; font-size: 24px; fill: var(--fg); }
+.slide svg .t-display { font-family: var(--font-display), 'Noto Sans JP'; font-weight: 600; font-size: 24px; fill: var(--fg); }
 .slide svg .t-on { fill: var(--on-accent); }
 .slide svg .f-accent { fill: var(--accent); }
 .slide svg .f-accent-2 { fill: var(--accent-2); }
@@ -242,7 +242,7 @@
 
 /* table */
 .slide table { width: 100%; border-collapse: collapse; font-size: 20px; line-height: 1.35; }
-.slide th { text-align: left; font: 700 14px/1.2 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); padding: 0 16px 12px 0; border-bottom: 2px solid var(--line); }
+.slide th { text-align: left; font: 700 14px/1.2 var(--font-display), 'Noto Sans JP'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); padding: 0 16px 12px 0; border-bottom: 2px solid var(--line); }
 .slide td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .slide td.good { color: var(--fg); }
 .slide td.bad { color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--accent-2, var(--fg-3)); text-decoration-thickness: 1px; }
@@ -278,7 +278,7 @@
 
 /* rows: a heading and a text per point */
 .slide .list.rows { font-size: 20px; gap: 16px; justify-content: center; }
-.slide .list.rows > li > strong { display: block; font: var(--display-weight, 600) 24px/1.25 var(--font-display); color: var(--fg); margin-bottom: 2px; }
+.slide .list.rows > li > strong { display: block; font: var(--display-weight, 600) 24px/1.25 var(--font-display), 'Noto Sans JP'; color: var(--fg); margin-bottom: 2px; }
 .slide .list.rows.compact { font-size: 18px; gap: 12px; }
 .slide .list.rows.compact > li > strong { font-size: 21px; }
 .slide ol.list.rows > li::before { top: 0.15em; }
@@ -304,3 +304,10 @@
 /* picture cards: the picture takes the room, the label sits under it */
 .slide ul.cards.picture > li img { flex: 1 1 200px; min-height: 160px; height: auto; }
 .slide ul.cards.picture > li > h3:last-child { padding-bottom: 22px; }
+
+/* an agenda slide with many entries */
+.slide.agenda ol.agenda.many { font-size: 20px; gap: 4px; }
+.slide.agenda ol.agenda.many > li { padding: 3px 0; }
+.slide.agenda ol.agenda.many .when { font-size: 15px; }
+
+.slide h2 small { font: 400 20px/1 var(--font-body), 'Noto Sans JP'; color: var(--fg-3); margin-left: 8px; }

@@ -5,7 +5,7 @@ description: Translate a PowerPoint deck into Session Planner slides (docs/slide
 
 # Translate a deck into the slide format
 
-The format and the catalogue are in `docs/slides.md`; the stylesheet is `scripts/slides/slides.css`. Read both first. Decks and everything made from them are private: they live in a gitignored `private-*/` folder (by default `private-slide-decks/`, preview root `private-slide-decks/html/`), never in the repository.
+The format and the catalogue are in `docs/slides.md`; the stylesheet is `src/slides/slides.css`. Read both first. Decks and everything made from them are private: they live in a gitignored `private-*/` folder (by default `private-slide-decks/`, preview root `private-slide-decks/html/`), never in the repository.
 
 ## 1. Extract
 
@@ -45,6 +45,7 @@ One file per slide, `NN-layout.html`, a single `<section class="slide LAYOUT">` 
 - **Text**: German typographic quotes „…“, no emoji, no trailing periods on titles, no ALL CAPS (the eyebrow styles itself), lists keep their order, one `li` per point, two levels at most.
 - **Charts**: a small SVG when the data is in `deck.json`, else the picture, with a `figcaption` naming the source.
 - **Sources** go into `footer > .source` or the `figcaption`, never into the body.
+- **Logos are the theme's.** A closing slide carries `<div class="logo"></div>`, which the theme fills; a logo is never uploaded as an asset, and assets are raster pictures only (PNG, JPEG, WebP, GIF), never SVG.
 
 ## 4. Build, render, check
 
@@ -57,4 +58,4 @@ Look at every contact sheet (`<deck>-sheetK.png`). Fix text that overflows, titl
 
 ## 5. Import
 
-Stage 3 adds the import (`scripts/slides/import.py`): it reads `deck.json` and the fragments, uploads the assets and creates the library entries through the API. Until then the preview is the hand-over.
+In the app: Library → Slide pool → Upload deck, choosing the preview folder (`private-slide-decks/html`). Every `deck.json` found is offered; the slides become a deck in the pool, the pictures are stored once, and the manifest's entries become library entries when the box is ticked (existing titles are skipped). Hand over with the preview path and the numbers; the owner uploads.

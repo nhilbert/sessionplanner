@@ -141,6 +141,23 @@ export function validateLibraryEntry(body: unknown): { kind: 'item'; title: stri
   return parsed.data
 }
 
+const deckSlide = z.strictObject({ html: text(200_000).transform(normalizeSlideHtml), caption: text(300).default('') })
+const deckBody = z.strictObject({ title: text(300), theme: theme.default(''), source: text(300).default(''), slides: z.array(deckSlide).max(500) })
+
+export function validateDeck(body: unknown): z.infer<typeof deckBody> {
+  const parsed = deckBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid deck: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return parsed.data
+}
+
+const deckPatch = z.strictObject({ title: text(300).optional(), theme: theme.optional() })
+
+export function validateDeckPatch(body: unknown): z.infer<typeof deckPatch> {
+  const parsed = deckPatch.safeParse(body)
+  if (!parsed.success) throw new BadRequest('invalid deck')
+  return parsed.data
+}
+
 const duplicateBody = z.strictObject({ title: text(300), firstDate: isoDate.optional() })
 
 export function validateDuplicate(body: unknown): z.infer<typeof duplicateBody> {

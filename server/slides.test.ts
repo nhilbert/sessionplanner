@@ -127,3 +127,25 @@ describe('slide assets', () => {
     expect((await app.request(`${BASE}/api/themes/Bad%20Name/theme.css`, { headers: H() })).status).toBe(404)
   })
 })
+
+describe('the slide pool', () => {
+  it('keeps uploaded decks with sanitised slides for the owner, and the sweep respects what they show', async () => {
+    const { app } = setup()
+    const asset = (await (await upload(app, '/api/library/assets', PNG)).json()) as { hash: string }
+    const body = { title: 'Resilienz', theme: 'sr-light', source: 'resilienz.pptx', slides: [{ html: `<section class="slide figure"><figure class="main"><img src="asset:${asset.hash}"></figure><script>x()</script></section>`, caption: 'Bild' }, { html: '<p>zwei</p>' }] }
+    const created = await app.request(`${BASE}/api/decks`, { method: 'POST', headers: H(), body: JSON.stringify(body) })
+    expect(created.status).toBe(201)
+    const { deck, slides } = (await created.json()) as { deck: { id: string; slides: number }; slides: { html: string; position: number }[] }
+    expect(deck.slides).toBe(2)
+    expect(slides[0].html).not.toContain('script')
+    expect(slides[1]).toMatchObject({ position: 2, html: '<section class="slide list"><p>zwei</p></section>' })
+    expect(await (await app.request(`${BASE}/api/decks`, { headers: H() })).json()).toMatchObject([{ title: 'Resilienz', slides: 2 }])
+    expect((await app.request(`${BASE}/api/decks`, { headers: H(GUEST) })).status).toBe(403)
+    // The asset stays while the deck shows it, and goes with the deck.
+    expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 0 })
+    expect((await app.request(`${BASE}/api/decks/${deck.id}`, { method: 'PATCH', headers: H(), body: JSON.stringify({ title: 'Resilienz 2026' }) })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/decks/${deck.id}`, { method: 'DELETE', headers: H() })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/decks/${deck.id}`, { headers: H() })).status).toBe(404)
+    expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 1 })
+  })
+})

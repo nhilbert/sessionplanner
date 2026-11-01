@@ -1,4 +1,4 @@
-import type { Attachment, LibraryEntry, Me, Member, MemberRole, Settings, WorkshopState, WorkshopSummary } from './domain/types'
+import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op } from './domain/ops'
 
 /** Thin client for the server API (server/app.ts). Changes carry the app's header (server/guard.ts). */
@@ -13,6 +13,10 @@ export class ApiError extends Error {
 }
 
 export const LOGIN_REQUIRED = 'sp:login-required'
+
+/** Where a slide's pictures come from: a workshop's own route (its guests may load them) or the owner's library. */
+export type AssetScope = { workshopId: string } | 'library'
+export const assetUrl = (scope: AssetScope, hash: string): string => (scope === 'library' ? `/api/library/assets/${hash}` : `/api/workshops/${scope.workshopId}/assets/${hash}`)
 
 export interface AgentConnection {
   id: string
@@ -72,5 +76,18 @@ export const api = {
     call<LibraryEntry>(id ? `/api/library/${id}` : '/api/library', { method: id ? 'PUT' : 'POST', body: JSON.stringify(entry) }),
   deleteLibraryEntry: (id: string) => call<{ ok: true }>(`/api/library/${id}`, { method: 'DELETE' }),
   eventsUrl: (id: string) => `/api/workshops/${id}/events`,
+  /** A picture for slides, stored once by its content (docs/slides.md). */
+  uploadAsset: (scope: AssetScope, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return call<Asset>(scope === 'library' ? '/api/library/assets' : `/api/workshops/${scope.workshopId}/assets`, { method: 'POST', body: form })
+  },
+  sweepAssets: () => call<{ removed: number }>('/api/assets/sweep', { method: 'POST' }),
+  listThemes: () => call<string[]>('/api/themes'),
+  listDecks: () => call<Deck[]>('/api/decks'),
+  getDeck: (id: string) => call<{ deck: Deck; slides: DeckSlide[] }>(`/api/decks/${id}`),
+  createDeck: (input: { title: string; theme: string; source: string; slides: { html: string; caption: string }[] }) => call<{ deck: Deck; slides: DeckSlide[] }>('/api/decks', { method: 'POST', body: JSON.stringify(input) }),
+  updateDeck: (id: string, patch: { title?: string; theme?: string }) => call<Deck>(`/api/decks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteDeck: (id: string) => call<{ ok: true }>(`/api/decks/${id}`, { method: 'DELETE' }),
   downloadUrl: (attachmentId: string) => `/api/attachments/${attachmentId}`,
 }

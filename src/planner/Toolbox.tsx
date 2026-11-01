@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Archive, ArrowLeft, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Users, X } from 'lucide-react'
+import { Archive, ArrowLeft, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, Users, X } from 'lucide-react'
 import type { Attachment, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration } from '@/domain/time'
@@ -12,15 +12,17 @@ import { cx, IconButton, SearchField, useLocalState } from '@/components/ui'
 import { AddBar, Entries, List } from './DayColumn'
 import ItemPanel from './ItemPanel'
 import { AccessPanel, FilesPanel, PackingPanel, WorkshopPanel } from './panels'
+import { DeckPanel } from '@/slides/DeckPanel'
 import { LIB, PARKING } from './board'
 
-export type Tab = 'parking' | 'library' | 'packing' | 'files' | 'details' | 'access'
+export type Tab = 'parking' | 'library' | 'packing' | 'files' | 'deck' | 'details' | 'access'
 
 const TABS = [
   { id: 'parking', icon: Archive, key: 'planner.parking' },
   { id: 'library', icon: BookMarked, key: 'nav.library' },
   { id: 'packing', icon: Package, key: 'planner.packing' },
   { id: 'files', icon: Paperclip, key: 'planner.files' },
+  { id: 'deck', icon: Presentation, key: 'slides.tab' },
   { id: 'details', icon: Info, key: 'planner.details' },
   { id: 'access', icon: Users, key: 'access.title' },
 ] as const satisfies readonly { id: Tab; icon: typeof Archive; key: string }[]
@@ -110,6 +112,8 @@ export default function Toolbox(p: Props) {
     <PackingPanel data={p.data} change={p.change} />
   ) : tab === 'files' ? (
     <FilesPanel data={p.data} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} owner={p.owner} />
+  ) : tab === 'deck' ? (
+    <DeckPanel data={p.data} onSelect={p.onSelect} />
   ) : tab === 'access' ? (
     <AccessPanel data={p.data} />
   ) : (

@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Asset, type Attachment, type Day, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
+import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { scheduleDay } from '../src/domain/time.ts'
@@ -122,6 +122,9 @@ const toAttachment = (r: Row): Attachment => ({
   size: r.size as number,
   createdAt: r.created_at as string,
 })
+
+const toDeck = (r: Row): Deck => ({ id: r.id as string, title: r.title as string, theme: r.theme as string, source: r.source as string, createdAt: r.created_at as string, slides: (r.n as number | null) ?? 0 })
+const toDeckSlide = (r: Row): DeckSlide => ({ id: r.id as string, deckId: r.deck_id as string, position: r.position as number, html: r.html as string, caption: r.caption as string })
 
 const toAsset = (r: Row): Asset => ({ hash: r.hash as string, mime: r.mime as string, size: r.size as number, createdAt: r.created_at as string })
 
@@ -517,10 +520,42 @@ export class Repo {
     for (const r of this.db.prepare('SELECT hash FROM assets').all() as Row[]) {
       const hash = r.hash as string
       const like = `%asset:${hash}%`
-      if (this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like)) continue
+      if (this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like)) continue
       this.db.prepare('DELETE FROM assets WHERE hash = ?').run(hash)
       gone.push(hash)
     }
     return gone
+  }
+
+  // ---- the slide pool -----------------------------------------------------------------------------------
+
+  listDecks(): Deck[] {
+    return (this.db.prepare('SELECT d.*, (SELECT COUNT(*) FROM deck_slides s WHERE s.deck_id = d.id) AS n FROM decks d ORDER BY title COLLATE NOCASE').all() as Row[]).map(toDeck)
+  }
+
+  getDeck(id: string): { deck: Deck; slides: DeckSlide[] } | null {
+    const r = this.db.prepare('SELECT d.*, (SELECT COUNT(*) FROM deck_slides s WHERE s.deck_id = d.id) AS n FROM decks d WHERE id = ?').get(id) as Row | undefined
+    if (!r) return null
+    return { deck: toDeck(r), slides: (this.db.prepare('SELECT * FROM deck_slides WHERE deck_id = ? ORDER BY position').all(id) as Row[]).map(toDeckSlide) }
+  }
+
+  createDeck(input: { title: string; theme: string; source: string; slides: { html: string; caption: string }[] }): { deck: Deck; slides: DeckSlide[] } {
+    const id = newId()
+    this.tx(() => {
+      this.db.prepare('INSERT INTO decks (id, title, theme, source, created_at) VALUES (?, ?, ?, ?, ?)').run(id, input.title, input.theme, input.source, now())
+      const insert = this.db.prepare('INSERT INTO deck_slides (id, deck_id, position, html, caption) VALUES (?, ?, ?, ?, ?)')
+      input.slides.forEach((s, i) => insert.run(newId(), id, i + 1, s.html, s.caption))
+    })
+    return this.getDeck(id)!
+  }
+
+  updateDeck(id: string, patch: { title?: string; theme?: string }): Deck | null {
+    const sets = Object.entries(patch).filter(([, v]) => v !== undefined)
+    if (sets.length && !this.db.prepare(`UPDATE decks SET ${sets.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...sets.map(([, v]) => v as string), id).changes) return null
+    return this.getDeck(id)?.deck ?? null
+  }
+
+  deleteDeck(id: string): boolean {
+    return this.db.prepare('DELETE FROM decks WHERE id = ?').run(id).changes > 0
   }
 }

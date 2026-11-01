@@ -11,7 +11,7 @@ import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
-import { BadRequest, safeMime, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
+import { BadRequest, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -104,7 +104,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   }
   app.use('/api/*', (c, next) => {
     const p = c.req.path
-    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/workshops\/[^/]+\/ops$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
+    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks)$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
     return limit(c, next)
   })
   app.use('/mcp', limits.json)
@@ -308,6 +308,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
   })
   app.delete('/api/library/:id', (c) => (repo.deleteLibraryEntry(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
+
+  // ---- the slide pool (owner only): decks uploaded once, slides picked from them as copies ----------------
+  app.use('/api/decks', ownerOnly)
+  app.use('/api/decks/*', ownerOnly)
+  app.get('/api/decks', (c) => c.json(repo.listDecks()))
+  app.post('/api/decks', async (c) => c.json(repo.createDeck(validateDeck(await jsonBody(c))), 201))
+  app.get('/api/decks/:id', (c) => {
+    const deck = repo.getDeck(c.req.param('id')!)
+    return deck ? c.json(deck) : c.json({ error: 'not_found' }, 404)
+  })
+  app.patch('/api/decks/:id', async (c) => {
+    const deck = repo.updateDeck(c.req.param('id')!, validateDeckPatch(await jsonBody(c)))
+    return deck ? c.json(deck) : c.json({ error: 'not_found' }, 404)
+  })
+  app.delete('/api/decks/:id', (c) => (repo.deleteDeck(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
 
   // ---- slide assets: pictures, once per content hash, shown inline ---------------------------------------
   // The file's own bytes decide the type (a renamed HTML file is refused); only raster images, so nothing can run.

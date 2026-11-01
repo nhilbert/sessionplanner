@@ -1,0 +1,23 @@
+/* How the app shows slides (src/slides): a frame keeps the 16:9 box, the slide inside is scaled from its design size. */
+@import "@fontsource/noto-sans-jp/400.css";
+
+.slide-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #000;
+  border-radius: 4px;
+  --s: 0.25;
+}
+.slide-frame > .slide-root > .slide {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  transform: scale(var(--s));
+}
+.slide-frame.is-button { cursor: pointer; }
+.slide-frame.is-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* presenting and printing: the slide at its design size, scaled by the stage */
+.slide-stage { width: 1280px; height: 720px; position: relative; transform-origin: 0 0; }
+.slide-stage > .slide-root > .slide { position: absolute; left: 0; top: 0; }

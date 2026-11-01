@@ -376,11 +376,14 @@ export default function PlannerPage() {
   const shownDays = focused ? days.filter((d) => d.id === focused) : days
   // One day gets one wide, centred column; two share the width; more scroll sideways.
   const dayWidth = shownDays.length === 1 ? 'w-full md:max-w-[760px]' : shownDays.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
-  const printItems = PRINT_VARIANTS.map((v) => ({
-    label: t(VARIANT_LABEL[v]),
-    icon: <Printer size={15} />,
-    onSelect: () => window.open(`/w/${data.workshop.id}/print/${v}`, '_blank', 'noopener'),
-  }))
+  const printItems = [
+    ...PRINT_VARIANTS.map((v) => ({
+      label: t(VARIANT_LABEL[v]),
+      icon: <Printer size={15} />,
+      onSelect: () => window.open(`/w/${data.workshop.id}/print/${v}`, '_blank', 'noopener'),
+    })),
+    { label: t('slides.printSlides'), icon: <Printer size={15} />, onSelect: () => window.open(`/w/${data.workshop.id}/print/slides`, '_blank', 'noopener') },
+  ]
   const zoomItems = [
     { value: 's', label: t('planner.zoomS'), icon: <Rows4 size={15} /> },
     { value: 'm', label: t('planner.zoomM'), icon: <Rows3 size={15} /> },

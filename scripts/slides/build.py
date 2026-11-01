@@ -13,11 +13,20 @@ Writes ROOT/format/ (stylesheets copied from here), ROOT/<deck>.html (grid, clic
 import html, json, os, re, shutil, sys
 
 here = os.path.dirname(os.path.abspath(__file__))
+repo = os.path.dirname(os.path.dirname(here))
 root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else '.')
 decks_dir = os.path.join(root, 'decks')
 fmt = os.path.join(root, 'format'); os.makedirs(os.path.join(fmt, 'themes'), exist_ok=True)
-for f in ('slides.css', 'preview.css'): shutil.copy(os.path.join(here, f), fmt)
-shutil.copy(os.path.join(here, 'themes', 'default.css'), os.path.join(fmt, 'themes'))
+shutil.copy(os.path.join(repo, 'src', 'slides', 'slides.css'), fmt)
+shutil.copy(os.path.join(here, 'preview.css'), fmt)
+shutil.copy(os.path.join(repo, 'src', 'slides', 'themes', 'default.css'), os.path.join(fmt, 'themes'))
+# the Japanese glyphs: Noto Sans JP, sliced by unicode range, from the app's dependency (npm install first)
+noto = os.path.join(repo, 'node_modules', '@fontsource', 'noto-sans-jp')
+if os.path.isdir(noto):
+    os.makedirs(os.path.join(fmt, 'noto', 'files'), exist_ok=True)
+    shutil.copy(os.path.join(noto, '400.css'), os.path.join(fmt, 'noto', '400.css'))
+    for f in os.listdir(os.path.join(noto, 'files')):
+        if f.endswith('-400-normal.woff2'): shutil.copy(os.path.join(noto, 'files', f), os.path.join(fmt, 'noto', 'files', f))
 
 JS = r'''
 (function () {
@@ -93,7 +102,7 @@ for deck in sorted(os.listdir(decks_dir)) if os.path.isdir(decks_dir) else []:
         items.append(f'<div class="item"><div class="frame" data-n="{n}">{frag}</div><div class="cap"><b>{n:02d}</b><span>{html.escape(f)}</span><span>{html.escape(layout)}</span>{todo}</div></div>')
     page = f'''<!doctype html>
 <html lang="de" data-theme="{meta["theme"]}"><head><meta charset="utf-8"><title>{html.escape(meta["title"])}</title>
-<link rel="stylesheet" href="format/slides.css"><link rel="stylesheet" href="{theme_href(meta["theme"])}"><link rel="stylesheet" href="format/preview.css"></head>
+<link rel="stylesheet" href="format/noto/400.css"><link rel="stylesheet" href="format/slides.css"><link rel="stylesheet" href="{theme_href(meta["theme"])}"><link rel="stylesheet" href="format/preview.css"></head>
 <body><div class="top"><a href="index.html">← Decks</a><h1>{html.escape(meta["title"])}</h1><span>{n} Folien · Theme {meta["theme"]}</span><span class="hint">Klick auf eine Folie zeigt sie groß · ← → blättern · Esc schließt</span></div>
 <main class="grid">{"".join(items)}</main>
 <div class="overlay"><div class="stage"></div></div>

@@ -9,6 +9,7 @@ import { Button, IconButton, PageHeader, SectionLabel, Segmented } from '@/compo
 import Swatches from '@/components/Swatches'
 import AgentConnections from '@/components/AgentConnections'
 import { TextField, TimeField } from '@/planner/fields'
+import { ThemeSelect } from '@/slides/ThemeSelect'
 
 const MAX_LOGO = 2 * 1024 * 1024
 
@@ -53,6 +54,12 @@ export default function SettingsPage() {
             <TimeField value={settings.dayEnd} nullable onChange={(v) => update({ dayEnd: v })} className="w-[72px]" aria-label={t('planner.end')} />
           </div>
           <p className="mt-2 text-[13px] text-ink-3">{t('settings.daysHint')}</p>
+        </section>
+
+        <section className="card mb-6 p-5">
+          <SectionLabel>{t('settings.theme')}</SectionLabel>
+          <ThemeSelect value={settings.theme} onChange={(theme) => update({ theme })} />
+          <p className="mt-2 text-[13px] text-ink-3">{t('settings.themeHint')}</p>
         </section>
 
         <section className="card mb-6 p-5">

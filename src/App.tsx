@@ -5,6 +5,8 @@ import PlannerPage from './pages/PlannerPage'
 import PrintPage from './pages/PrintPage'
 import SettingsPage from './pages/SettingsPage'
 import LibraryPage from './pages/LibraryPage'
+import DecksPage from './pages/DecksPage'
+import PresentPage from './pages/PresentPage'
 
 const router = createBrowserRouter([
   {
@@ -14,10 +16,12 @@ const router = createBrowserRouter([
       { index: true, element: <WorkshopsPage /> },
       { path: 'w/:id', element: <PlannerPage /> },
       { path: 'library', element: <LibraryPage /> },
+      { path: 'library/decks', element: <DecksPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
   },
   { path: '/w/:id/print/:variant', element: <PrintPage /> },
+  { path: '/w/:id/present', element: <PresentPage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ])
 

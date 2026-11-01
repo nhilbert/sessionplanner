@@ -2,7 +2,7 @@ import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, type Synthe
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { Flag, NotebookPen, Package, Paperclip, Pin, StickyNote } from 'lucide-react'
+import { Flag, NotebookPen, Package, Paperclip, Pin, Presentation, StickyNote } from 'lucide-react'
 import type { Item, PaletteKey } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime, parseClock, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
@@ -273,6 +273,12 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
                 <span className="inline-flex items-center gap-0.5 text-[11px]">
                   <Paperclip size={11} />
                   {item.attachmentIds.length}
+                </span>
+              )}
+              {item.slides.length > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[11px]">
+                  <Presentation size={11} />
+                  {item.slides.length}
                 </span>
               )}
               {item.lead && <span className="truncate text-[11px]">{item.lead}</span>}

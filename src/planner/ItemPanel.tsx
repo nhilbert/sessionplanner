@@ -14,6 +14,8 @@ import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/
 import { DEFAULT_DURATION, DurationField, TextField, TimeField, formatSize } from './fields'
 import NotesField from './NotesField'
 import { uploadFiles } from './upload'
+import { SlideStrip } from '@/slides/SlideStrip'
+import { themeOf } from '@/slides/SlideView'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
 
@@ -43,6 +45,7 @@ export default function ItemPanel({
 }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
+  const settings = useSettings((s) => s.settings)
   const saveToLibrary = useLibrary((s) => s.save)
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
@@ -152,6 +155,7 @@ export default function ItemPanel({
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
       {item.kind !== 'note' && <Files item={item} data={data} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
+      {(item.kind === 'block' || item.kind === 'break') && <SlideStrip slides={item.slides} onChange={(slides) => set({ slides })} scope={{ workshopId: data.workshop.id }} theme={themeOf(data.workshop, settings)} canEdit owner={owner} />}
 
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <Button size="sm" onClick={duplicate}>
