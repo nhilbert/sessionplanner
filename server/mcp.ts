@@ -8,6 +8,8 @@ import { Ops, type OpsOptions } from './ops.ts'
 import type { OAuthServer } from './oauth.ts'
 import { bearerToken, sameToken } from './guard.ts'
 import { PALETTE } from '../src/domain/types.ts'
+import { MAX_SLIDES } from '../src/domain/slides.ts'
+import { SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
 
 /**
  * MCP server: lets an AI agent (Claude, Claude Code, …) read workshops with their computed times, draft
@@ -54,7 +56,7 @@ const itemFields = {
   materials: z.array(material).optional().describe('Replaces the item\'s material'),
   category: z.string().nullable().optional().describe('Category id or name (settings_get lists them); null clears'),
   color: color.nullable().optional().describe('Overrides the category colour'),
-  slides: z.array(slideGiven).max(60).optional().describe('Replaces the item\'s slides: markup or pool copies, in order (the slide_* tools change single slides)'),
+  slides: z.array(slideGiven).max(MAX_SLIDES).optional().describe('Replaces the item\'s slides: markup or pool copies, in order (the slide_* tools change single slides)'),
 }
 const workshopFields = {
   client: z.string().optional(),
@@ -236,7 +238,7 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
   tool(
     'slide_format',
     'The slide format for writing markup: the rules, the common classes and every layout with its purpose, structure and a complete example. Read it before writing or changing slides; layout narrows the answer to one layout.',
-    { layout: z.string().optional().describe('One layout (title, section, agenda, break, closing, statement, quote, list, cards, split, figure, exercise, steps, matrix, acronym, canvas, model, table)') },
+    { layout: z.string().optional().describe(`One layout (${SLIDE_LAYOUTS.map((l) => l.layout).join(', ')})`) },
     (a) => ops.slideFormat(a as never),
     'read',
   )
@@ -251,7 +253,7 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
   tool(
     'slide_add',
     'Add slides to a step or library entry: one (html or pool) or several (slides), at a 0-based position, default at the end. Answers with the list and the numbers added.',
-    { ...target, ...slideGiven.shape, slides: z.array(slideGiven).min(1).max(60).optional().describe('Several slides in order, instead of html/pool'), at: slideAt },
+    { ...target, ...slideGiven.shape, slides: z.array(slideGiven).min(1).max(MAX_SLIDES).optional().describe('Several slides in order, instead of html/pool'), at: slideAt },
     (a) => ops.slideAdd(a as never),
   )
   tool(
@@ -262,16 +264,16 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
       slide: slideRef,
       html: z.string().optional().describe('New markup for the whole slide'),
       replace: z.array(z.object({ find: z.string().min(1), with: z.string() })).max(50).optional().describe('Exact text replacements in the markup, applied in order'),
-      at: z.number().int().min(0).optional().describe('New 0-based position'),
+      at: slideAt.describe('New 0-based position'),
     },
     (a) => ops.slideUpdate(a as never),
     'destructive',
   )
-  tool('slide_remove', 'Remove one slide (slide) or several (slides) of a step or library entry, by id or number (1 = first).', { ...target, slide: slideRef.optional(), slides: z.array(slideRef).max(60).optional() }, (a) => ops.slideRemove(a as never), 'destructive')
+  tool('slide_remove', 'Remove one slide (slide) or several (slides) of a step or library entry, by id or number (1 = first).', { ...target, slide: slideRef.optional(), slides: z.array(slideRef).max(MAX_SLIDES).optional() }, (a) => ops.slideRemove(a as never), 'destructive')
   tool(
     'slide_set',
     'Replace the slides of a step or library entry with the given list, in order: each entry is markup (html), a copy of a pool slide (pool), or one of the existing slides kept (keep: id or number). Reorder by listing kept slides in the new order; an empty list removes all.',
-    { ...target, slides: z.array(slideGiven.extend({ keep: slideRef.optional().describe('Keep this existing slide') })).max(60) },
+    { ...target, slides: z.array(slideGiven.extend({ keep: slideRef.optional().describe('Keep this existing slide') })).max(MAX_SLIDES) },
     (a) => ops.slideSet(a as never),
     'destructive',
   )

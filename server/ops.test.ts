@@ -267,6 +267,7 @@ describe('slides', () => {
     expect(ops.poolSearch({ query: 'nirgends' }).total).toBe(0)
     expect(ops.poolSearch({ layout: 'list' }).total).toBe(0)
     expect(ops.poolSearch({ deck: pool[0].deckId }).total).toBe(1)
+    expect(ops.poolSearch({ deck: ` ${pool[0].deckId} ` }).total).toBe(1)
     const outline = ops.deckOutline(id)
     expect(outline.theme).toBe('default')
     expect(outline.deck.map((d) => d.generated ?? d.item)).toEqual(['title', 'agenda', 'Begrüßung', 'break'])
@@ -305,6 +306,10 @@ describe('slides', () => {
     expect(removed).toMatchObject({ removed: 2, count: 1 })
     expect(removed.slides.map((s) => s.title)).toEqual(['Zwei'])
     expect(() => ops.slideRemove({ ...step })).toThrow(/give the slide/)
+    expect(() => ops.slideRemove({ ...step, slides: [] })).toThrow(/give the slide/)
+    // slide and slides together: both count.
+    ops.slideAdd({ ...step, html: heading('Drei') })
+    expect(ops.slideRemove({ ...step, slide: 1, slides: [2] })).toMatchObject({ removed: 2, count: 0 })
   })
 
   it('edits the slides of library entries, an item alone and one inside a group', () => {
@@ -364,5 +369,9 @@ describe('slides', () => {
     expect(themed.workshopUpdate(ws.id!, { theme: null }).theme).toBeUndefined()
     expect(() => themed.workshopUpdate(ws.id!, { theme: 'bfg' })).toThrow(/no theme "bfg" \(default, sr-light\)/)
     expect(themed.deckOutline('Klausur').theme).toBe('default')
+    // A refused theme on creation leaves no workshop behind.
+    expect(() => themed.workshopCreate({ title: 'Verwaist', theme: 'bfg' })).toThrow(/no theme/)
+    expect(themed.workshopList().map((w) => w.title)).toEqual(['Klausur'])
+    expect(() => themed.workshopCreate({ title: 'Verwaist', theme: 'Bad Name!' })).toThrow(/no theme/)
   })
 })

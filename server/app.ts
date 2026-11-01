@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { streamSSE } from 'hono/streaming'
-import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -11,6 +11,7 @@ import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
+import { listThemes, THEME_NAME } from './themes.ts'
 import { BadRequest, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
@@ -375,16 +376,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // ---- slide themes: folders in data/themes, each a theme.css with its fonts and logos ----------------------
-  const THEME_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
-  app.get('/api/themes', async (c) => {
-    const names: string[] = []
-    if (themesDir) {
-      for (const entry of await readdir(themesDir, { withFileTypes: true }).catch(() => []))
-        if (entry.isDirectory() && THEME_NAME.test(entry.name) && (await stat(path.join(themesDir, entry.name, 'theme.css')).catch(() => null))) names.push(entry.name)
-    }
-    return c.json(['default', ...names.sort()])
-  })
+  app.get('/api/themes', (c) => c.json(listThemes(themesDir)))
   app.get('/api/themes/:name/*', async (c) => {
     const name = c.req.param('name')!
     const rel = c.req.path.slice(`/api/themes/${name}/`.length).split('/')

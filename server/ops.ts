@@ -1,9 +1,9 @@
-import { existsSync, readdirSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { BadRequest, isCalendarDate, validateOps } from './validate.ts'
+import { listThemes, THEME_NAME } from './themes.ts'
 import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import { ZERO_KINDS } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
@@ -112,9 +112,6 @@ interface SlideTarget {
   /** Stores the new list (sanitised slides only). */
   save: (slides: Slide[]) => void
 }
-
-/** A theme folder's name, as the server accepts it (server/app.ts). */
-const THEME_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/
 
 /** The target part of a slide tool's input, without the slide fields (html there is markup, in slideList a switch). */
 const targetOf = (i: SlideTargetInput): SlideTargetInput => ({ workshop: i.workshop, entry: i.entry, item: i.item })
@@ -446,11 +443,11 @@ export class Ops {
     const start = minutes(input.start, 'start')
     const end = minutes(input.end, 'end')
     const first = input.date ?? this.today()
+    const theme = this.theme(input.theme)
     const state = this.repo.createWorkshop({ title: input.title, client: input.client, date: first })
     const id = state.workshop.id
     const ops: Op[] = []
     const fields = compact({ location: input.location, goal: input.goal, notes: input.notes ?? undefined, archived: input.archived }) as Record<string, unknown>
-    const theme = this.theme(input.theme)
     if (theme) fields.theme = theme
     if (Object.keys(fields).length) ops.push({ op: 'set', entity: 'workshop', id, fields })
     const dayFields: Record<string, unknown> = {}
@@ -717,13 +714,7 @@ export class Ops {
 
   /** The slide themes: the built-in default and the folders in data/themes that hold a theme.css. */
   themes(): string[] {
-    const names: string[] = []
-    if (this.themesDir && existsSync(this.themesDir)) {
-      for (const entry of readdirSync(this.themesDir, { withFileTypes: true })) {
-        if (entry.isDirectory() && THEME_NAME.test(entry.name) && existsSync(path.join(this.themesDir, entry.name, 'theme.css'))) names.push(entry.name)
-      }
-    }
-    return ['default', ...names.sort()]
+    return listThemes(this.themesDir)
   }
 
   /** A workshop's theme from the agent's input: null or '' follows the settings, 'default' is the built-in one, any other name must be a theme the server has. */
@@ -731,8 +722,11 @@ export class Ops {
     if (ref === undefined) return undefined
     const name = (ref ?? '').trim().toLowerCase()
     if (!name) return ''
-    if (name !== 'default' && this.themesDir && !this.themes().includes(name)) throw new BadRequest(`no theme "${ref}" (${this.themes().join(', ')})`)
     if (!THEME_NAME.test(name)) throw new BadRequest(`no theme "${ref}"`)
+    if (name !== 'default' && this.themesDir) {
+      const themes = this.themes()
+      if (!themes.includes(name)) throw new BadRequest(`no theme "${ref}" (${themes.join(', ')})`)
+    }
     return name
   }
 
@@ -819,7 +813,7 @@ export class Ops {
     if (input.pool !== undefined) {
       const slide = this.repo.getDeckSlide(input.pool)
       if (!slide) throw new BadRequest(`no pool slide "${input.pool}" (pool_search lists ids)`)
-      return compact({ pool: slide.id, deck: this.repo.getDeck(slide.deckId)?.deck.title, n: slide.position, layout: slideLayout(slide.html), title: slide.caption || slideTitle(slide.html), assets: slideAssets(slide.html), html: slide.html })
+      return compact({ pool: slide.id, deck: this.repo.listDecks().find((d) => d.id === slide.deckId)?.title, n: slide.position, layout: slideLayout(slide.html), title: slide.caption || slideTitle(slide.html), assets: slideAssets(slide.html), html: slide.html })
     }
     if (input.slide === undefined) throw new BadRequest('give the slide (id or number) or a pool slide id')
     const t = this.slideTarget(input)
@@ -872,7 +866,7 @@ export class Ops {
   /** Removes one slide (slide) or several (slides), by id or number. */
   slideRemove(input: SlideTargetInput & { slide?: string | number; slides?: (string | number)[] }) {
     const t = this.slideTarget(input, true)
-    const refs = input.slides ?? (input.slide !== undefined ? [input.slide] : [])
+    const refs = [...(input.slides ?? []), ...(input.slide !== undefined ? [input.slide] : [])]
     if (!refs.length) throw new BadRequest('give the slide (id or number) or slides to remove')
     const gone = new Set(refs.map((r) => t.slides[this.slideIndex(t, r)].id))
     t.save(t.slides.filter((x) => !gone.has(x.id)))
@@ -882,10 +876,11 @@ export class Ops {
   /** The decks of the pool, and the slides whose deck, caption or text match every word of the query (all of them without one), at most 60. */
   poolSearch(input: { query?: string; deck?: string; layout?: string } = {}) {
     const words = (input.query ?? '').toLowerCase().split(/\s+/).filter(Boolean)
-    const deck = input.deck?.trim().toLowerCase()
+    const deckRef = input.deck?.trim()
+    const deck = deckRef?.toLowerCase()
     const layout = input.layout?.trim().toLowerCase()
     const hits = this.repo.listDeckSlides().filter((x) => {
-      if (deck && x.deckId !== input.deck && !x.deck.toLowerCase().includes(deck)) return false
+      if (deck && x.deckId !== deckRef && !x.deck.toLowerCase().includes(deck)) return false
       if (layout && slideLayout(x.html) !== layout) return false
       const text = `${x.deck} ${x.caption} ${slideText(x.html)}`.toLowerCase()
       return words.every((w) => text.includes(w))
