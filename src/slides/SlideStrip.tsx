@@ -10,6 +10,7 @@ import Menu from '@/components/Menu'
 import { SlideView } from './SlideView'
 import { SlidePicker } from './SlidePicker'
 import { pictureSlide, TEMPLATES, template } from './templates'
+import { uploadProblem } from '@/planner/upload'
 
 /**
  * The slides of a step or a library entry (docs/slides.md): thumbnails in order, a click shows one large with its
@@ -48,8 +49,8 @@ export function SlideStrip({ slides, onChange, scope, theme, canEdit, owner }: {
       try {
         const asset = await api.uploadAsset(scope, file)
         html.push(pictureSlide(asset.hash, file.name.replace(/\.[a-z0-9]+$/i, '')))
-      } catch {
-        window.alert(t('files.failed', { name: file.name }))
+      } catch (err) {
+        window.alert(uploadProblem(err, file.name, t))
       }
     }
     setBusy(false)

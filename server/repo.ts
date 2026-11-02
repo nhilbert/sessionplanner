@@ -414,6 +414,11 @@ export class Repo {
     return { ...file, workshopId, createdAt }
   }
 
+  /** What the files of a workshop take up together, in bytes. */
+  attachmentBytes(workshopId: string): number {
+    return Number((this.db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM attachments WHERE workshop_id = ?').get(workshopId) as Row).n)
+  }
+
   getAttachment(id: string): Attachment | null {
     const r = this.db.prepare('SELECT * FROM attachments WHERE id = ?').get(id) as Row | undefined
     return r ? toAttachment(r) : null

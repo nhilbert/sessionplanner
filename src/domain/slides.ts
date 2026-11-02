@@ -123,10 +123,20 @@ export function sanitizeSlide(html: string): string {
   return out.join('').trim()
 }
 
-/** A slide as stored: sanitised, and always one section.slide at the root. */
+/**
+ * A slide as stored and as rendered: sanitised, and exactly one section.slide. Markup after the root is dropped:
+ * it would sit outside the slide's frame, over the app around it.
+ */
 export function normalizeSlideHtml(html: string): string {
   const clean = sanitizeSlide(html)
-  return /^<section class="slide[ "]/.test(clean) ? clean : `<section class="slide list">${clean}</section>`
+  if (!/^<section class="slide[ "]/.test(clean)) return `<section class="slide list">${clean}</section>`
+  // The sanitiser's output is well-formed and has no "<" or ">" in text or attribute values, so tags can be counted.
+  let depth = 0
+  for (const m of clean.matchAll(/<(\/?)section\b[^>]*>/g)) {
+    depth += m[1] ? -1 : 1
+    if (depth === 0) return clean.slice(0, m.index + m[0].length)
+  }
+  return clean
 }
 
 /** The assets a slide shows (content hashes). */

@@ -1,5 +1,5 @@
 import { type ComponentProps, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { esc, renderSlideHtml, sanitizeSlide } from '@/domain/slides'
+import { esc, normalizeSlideHtml, renderSlideHtml } from '@/domain/slides'
 import { type AssetScope, assetUrl } from '@/api'
 import { cx } from '@/components/ui'
 import './slides.css'
@@ -27,9 +27,12 @@ export function useTheme(name: string | undefined): string {
   return theme
 }
 
-/** The markup the host renders: sanitised again, pictures resolved, the footer line of themes that show one. */
+/**
+ * The markup the host renders: sanitised again and cut to its one root (slides stored before the cut may carry
+ * more), pictures resolved, the footer line of themes that show one.
+ */
 export function hostHtml(html: string, scope: AssetScope, chrome?: { label: string; n: number }): string {
-  let out = renderSlideHtml(sanitizeSlide(html), (hash) => assetUrl(scope, hash))
+  let out = renderSlideHtml(normalizeSlideHtml(html), (hash) => assetUrl(scope, hash))
   if (chrome) {
     const footer = `<footer class="chrome"><span>${esc(chrome.label)}</span><span>${chrome.n}</span></footer>`
     const at = out.lastIndexOf('</section>')
