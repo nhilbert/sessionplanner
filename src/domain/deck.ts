@@ -103,10 +103,12 @@ export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOp
 
 /** The code points above the Latin ranges that the deck's text uses (which Noto slices a standalone file needs). */
 export function cjkCodePoints(html: string): Set<number> {
+  return new Set([...codePoints(html)].filter((cp) => cp >= 0x2e80))
+}
+
+/** Every character of a deck's text (tags left out), for picking the font files it needs. */
+export function codePoints(html: string): Set<number> {
   const set = new Set<number>()
-  for (const ch of html.replace(/<[^>]+>/g, ' ')) {
-    const cp = ch.codePointAt(0)!
-    if (cp >= 0x2e80) set.add(cp)
-  }
+  for (const ch of html.replace(/<[^>]+>/g, ' ')) set.add(ch.codePointAt(0)!)
   return set
 }

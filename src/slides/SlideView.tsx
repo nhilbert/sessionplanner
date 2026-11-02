@@ -1,5 +1,5 @@
 import { type ComponentProps, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { renderSlideHtml, sanitizeSlide } from '@/domain/slides'
+import { esc, normalizeSlideHtml, renderSlideHtml } from '@/domain/slides'
 import { type AssetScope, api, assetUrl } from '@/api'
 import { cx } from '@/components/ui'
 import { useThemes } from '@/store/useThemes'
@@ -72,9 +72,12 @@ export function applyThemeCss(id: string, css: string | null) {
   if (style.textContent !== css) style.textContent = css
 }
 
-/** The markup the host renders: sanitised again, pictures resolved, the footer line of themes that show one. */
+/**
+ * The markup the host renders: sanitised again and cut to its one root (slides stored before the cut may carry
+ * more), pictures resolved, the footer line of themes that show one.
+ */
 export function hostHtml(html: string, scope: AssetScope, chrome?: { label: string; n: number }): string {
-  let out = renderSlideHtml(sanitizeSlide(html), (hash) => assetUrl(scope, hash))
+  let out = renderSlideHtml(normalizeSlideHtml(html), (hash) => assetUrl(scope, hash))
   if (chrome) {
     const footer = `<footer class="chrome"><span>${esc(chrome.label)}</span><span>${chrome.n}</span></footer>`
     const at = out.lastIndexOf('</section>')
@@ -83,7 +86,15 @@ export function hostHtml(html: string, scope: AssetScope, chrome?: { label: stri
   return out
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+/**
+ * hostHtml, worked out again only when what it depends on changes: callers pass scope and chrome as fresh objects
+ * on every render, and sanitising a whole deck on each keystroke elsewhere on the page is wasted work.
+ */
+export function useHostHtml(html: string, scope: AssetScope, chrome?: { label: string; n: number }): string {
+  const scopeKey = scope === 'library' ? 'library' : scope.workshopId
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => hostHtml(html, scope, chrome), [html, scopeKey, chrome?.label, chrome?.n])
+}
 
 /** The scale that fits a 1280-wide slide into an element, kept current while it resizes. */
 export function useFrameScale(ref: React.RefObject<HTMLElement | null>): number {
@@ -107,7 +118,7 @@ export function useFrameScale(ref: React.RefObject<HTMLElement | null>): number 
 export function SlideView({ html, theme, scope, chrome, className, onClick, label, ...rest }: { html: string; theme: string; scope: AssetScope; chrome?: { label: string; n: number }; className?: string; onClick?: () => void; label?: string } & Omit<ComponentProps<'div'>, 'onClick'>) {
   const ref = useRef<HTMLDivElement>(null)
   const scale = useFrameScale(ref)
-  const rendered = useMemo(() => hostHtml(html, scope, chrome), [html, scope, chrome])
+  const rendered = useHostHtml(html, scope, chrome)
   useTheme(theme)
   const button = !!onClick
   return (
@@ -129,7 +140,7 @@ export function SlideView({ html, theme, scope, chrome, className, onClick, labe
 
 /** A slide at its design size for a stage that scales it (presenting, printing). */
 export function SlideStage({ html, theme, scope, chrome, scale }: { html: string; theme: string; scope: AssetScope; chrome?: { label: string; n: number }; scale: number }) {
-  const rendered = useMemo(() => hostHtml(html, scope, chrome), [html, scope, chrome])
+  const rendered = useHostHtml(html, scope, chrome)
   useTheme(theme)
   return (
     <div className="slide-stage" style={{ transform: `scale(${scale})` }}>

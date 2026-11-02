@@ -19,7 +19,8 @@
     "download": "Download",
     "upload": "Upload file",
     "uploading": "Uploading…",
-    "signIn": "Sign in again"
+    "signIn": "Sign in again",
+    "failed": "That did not work ({{error}}). Please try again."
   },
   "workshops": {
     "title": "Workshops",
@@ -169,6 +170,8 @@
     "empty": "No files yet.",
     "tooLarge": "“{{name}}” is larger than 25 MB.",
     "failed": "“{{name}}” could not be uploaded.",
+    "quota": "“{{name}}” does not fit: the files of a workshop may take up 500 MB in all.",
+    "budget": "“{{name}}” was not uploaded: guests can upload up to 250 MB a day.",
     "deleteConfirm": "Delete “{{name}}”? It is unlinked from all items.",
     "linked_one": "linked to {{count}} item",
     "linked_other": "linked to {{count}} items"
@@ -253,6 +256,9 @@
     "agents": "AI agents (MCP)",
     "agentsHint": "Agents such as Claude connect through OAuth and can then read and change your workshops: agendas, notes, material, packing lists and the library. Disconnecting one stops its access at once.",
     "agentsOff": "Not enabled on the server. Set SP_MCP_OAUTH=1 (see docs/mcp.md) to let Claude connect.",
+    "agentsConnect": "Connect an agent",
+    "agentsConnectHint": "A new connection can be approved only within 10 minutes after you start it here, and only once. A consent link someone else sends you at any other time is refused.",
+    "agentsArmed": "Until {{time}} you can approve one new connection. Add it now in Claude (Settings → Connectors) with this address, or reconnect it there:",
     "agentsNone": "No agent connected.",
     "agentsSince": "connected {{date}} by {{user}}",
     "agentsLastUsed": "last used {{date}}",
@@ -375,6 +381,8 @@
   },
   "slides": {
     "title": "Slides",
+    "tooMany": "At most {{max}} slides per step: {{count}} were not added.",
+    "missingPictures": "Not found, taken over without the picture: {{names}}",
     "tab": "Slides",
     "count_one": "{{count}} slide",
     "count_other": "{{count}} slides",

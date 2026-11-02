@@ -9,6 +9,7 @@ import { type AssetScope, SlideView } from './SlideView'
 import { LayoutGrid } from './editor/LayoutPicker'
 import { blankSlide, pictureSlide } from './templates'
 import { tr } from './editor/fields'
+import { uploadProblem } from '@/planner/upload'
 
 type Tab = 'templates' | 'layouts' | 'picture'
 
@@ -40,8 +41,8 @@ export function NewSlidePicker({ open, onClose, onPick, onPool, theme, scope, ow
       try {
         const asset = await api.uploadAsset(scope, file)
         html.push(pictureSlide(asset.hash, file.name.replace(/\.[a-z0-9]+$/i, '')))
-      } catch {
-        window.alert(t('files.failed', { name: file.name }))
+      } catch (err) {
+        window.alert(uploadProblem(err, file.name, t))
       }
     }
     setBusy(false)

@@ -234,3 +234,6 @@ export interface Access {
   role: MemberRole
   showNotes: boolean
 }
+
+/** The time zone of a new workshop (the database's default, server/db/migrations/0001_init.sql): its days and "today" are counted there. */
+export const DEFAULT_TIMEZONE = 'Europe/Berlin'

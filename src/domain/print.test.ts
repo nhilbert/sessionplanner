@@ -109,7 +109,7 @@ describe('printOptions', () => {
 describe('workshopMarkdown', () => {
   it('renders the moderation plan as sections with fields, notes demoted and an at-a-glance table', () => {
     const md = workshopMarkdown(state, 'plan', PRINT_DEFAULTS.plan, labels, date)
-    expect(md).toContain('# Team day | Example Ltd\n\nPlan · Example Ltd · Room 2 · 2026-11-10\n\nAgree on three things.\n\n## Before\n- Projector')
+    expect(md).toContain('# Team day | Example Ltd\n\nPlan · Example Ltd · Room 2 · 2026-11-10\n\nAgree on three things.\n\n### Before\n- Projector')
     expect(md).toContain('## Tuesday 2026-11-10 · 09:00–11:00')
     expect(md).toContain('**At a glance**\n\n| Time | Duration | Content | Lead |')
     expect(md).toContain('**Arrival** · 09:00–09:45')

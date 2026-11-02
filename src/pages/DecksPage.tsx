@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Trash2, Upload } from 'lucide-react'
-import { api } from '@/api'
+import { api, reportFailure } from '@/api'
 import type { Deck, DeckSlide } from '@/domain/types'
 import { formatDate } from '@/i18n'
 import { useSettings } from '@/store/useSettings'
@@ -35,7 +35,14 @@ export default function DecksPage() {
 
   const show = async (id: string) => {
     setOpen(open === id ? null : id)
-    if (!slides[id]) setSlides({ ...slides, [id]: (await api.getDeck(id)).slides })
+    if (slides[id]) return
+    try {
+      const loaded = (await api.getDeck(id)).slides
+      // Another deck may have been opened while this one loaded: keep both.
+      setSlides((all) => ({ ...all, [id]: loaded }))
+    } catch (err) {
+      reportFailure(err)
+    }
   }
 
   const choose = async (files: File[]) => {
@@ -54,24 +61,44 @@ export default function DecksPage() {
     const total = picked.reduce((n, d) => n + d.fragments.length, 0)
     let before = 0
     let entries = 0
+    let imported = 0
+    const missing = new Set<string>()
     setProgress({ done: 0, total })
     const existing = new Set(library.entries.map((e) => e.title.toLowerCase()))
-    for (const d of picked) {
-      const result = await importDeck(d, { createEntries, existingTitles: existing, categories: settings.categories.map((c) => c.id) }, (done) => setProgress({ done: before + done, total }))
-      before += d.fragments.length
-      entries += result.entries
+    let failure: unknown = null
+    try {
+      for (const d of picked) {
+        const result = await importDeck(d, { createEntries, existingTitles: existing, categories: settings.categories.map((c) => c.id) }, (done) => setProgress({ done: before + done, total }))
+        before += d.fragments.length
+        entries += result.entries
+        imported++
+        result.missing.forEach((m) => missing.add(m))
+      }
+      setFound(null)
+    } catch (err) {
+      // The decks imported before the failure stay; the list below shows them.
+      failure = err
+    } finally {
+      setProgress(null)
+      forgetDecks()
+      await load()
+      if (entries) await library.load()
     }
-    setProgress(null)
-    setFound(null)
-    forgetDecks()
-    await load()
-    if (entries) await library.load()
-    setNotice([t('slides.imported', { count: picked.length }), entries ? t('slides.entriesCreated', { count: entries }) : ''].filter(Boolean).join(' · '))
+    setNotice(
+      [imported ? t('slides.imported', { count: imported }) : '', entries ? t('slides.entriesCreated', { count: entries }) : '', missing.size ? t('slides.missingPictures', { names: [...missing].join(', ') }) : '']
+        .filter(Boolean)
+        .join(' · ') || null,
+    )
+    if (failure) reportFailure(failure)
   }
 
   const remove = async (deck: Deck) => {
     if (!window.confirm(t('slides.deleteDeck', { title: deck.title }))) return
-    await api.deleteDeck(deck.id)
+    try {
+      await api.deleteDeck(deck.id)
+    } catch (err) {
+      return reportFailure(err)
+    }
     forgetDecks()
     await load()
   }

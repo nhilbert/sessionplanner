@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "Session Planner – plan workshop agendas by moving steps until the time works",
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "start": "node server/index.ts",

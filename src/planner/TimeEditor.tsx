@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Minus, Plus } from 'lucide-react'
 import type { Item } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
-import { formatDuration, formatTime, parseClock, parseDuration, SNAP } from '@/domain/time'
+import { formatDuration, formatTime, MAX_DURATION, parseClock, parseDuration, SNAP } from '@/domain/time'
 import { Button, cx, Segmented, Sheet } from '@/components/ui'
 import { useOverlay } from '@/components/overlay'
 
@@ -19,6 +19,8 @@ interface Props {
   anchor: DOMRect
   /** The item's start as the agenda computes it now (for "follows the agenda" and the quick times). */
   computedStart: number | null
+  /** Where the item would start without its fixed start: offered as a quick time to go back to the agenda's flow. */
+  flowStart: number | null
   phone: boolean
   /** Shown on the timeline while editing; null = back to the stored values. */
   onPreview: (fields: Partial<Pick<ItemFields, 'duration' | 'fixedStart'>> | null) => void
@@ -32,7 +34,7 @@ interface Props {
  * Escape discards. A popover beside the card on desktop, a bottom sheet with large targets on phones (a tap on
  * its backdrop saves, like a click elsewhere on desktop).
  */
-export default function TimeEditor({ item, mode, anchor, computedStart, phone, onPreview, onCommit, onClose }: Props) {
+export default function TimeEditor({ item, mode, anchor, computedStart, flowStart, phone, onPreview, onCommit, onClose }: Props) {
   const { t } = useTranslation()
   const [duration, setDuration] = useState(item.duration)
   const [fixed, setFixed] = useState(item.fixedStart !== null)
@@ -41,15 +43,27 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   // Closing can be asked for twice (a tap on the sheet's backdrop reaches two listeners): only the first counts.
   const closing = useRef(false)
+  /**
+   * A value typed but not applied yet: the field applies it when it is left, but a press elsewhere closes the
+   * editor before the field learns that it was left, so closing takes the typed value from here.
+   */
+  const draft = useRef<number | null>(null)
 
-  const fields = (): Partial<Pick<ItemFields, 'duration' | 'fixedStart'>> => (mode === 'duration' ? { duration } : { fixedStart: fixed ? start : null })
-  const changed = () => (mode === 'duration' ? duration !== item.duration : (fixed ? start : null) !== item.fixedStart)
+  const fields = (d = duration, s = start): Partial<Pick<ItemFields, 'duration' | 'fixedStart'>> => (mode === 'duration' ? { duration: d } : { fixedStart: fixed ? s : null })
+  const changed = (d = duration, s = start) => (mode === 'duration' ? d !== item.duration : (fixed ? s : null) !== item.fixedStart)
   const done = () => {
     if (closing.current) return
     closing.current = true
+    const d = mode === 'duration' ? (draft.current ?? duration) : duration
+    const s = mode === 'start' ? (draft.current ?? start) : start
     onPreview(null)
-    if (changed()) onCommit(fields())
+    if (changed(d, s)) onCommit(fields(d, s))
     onClose()
+  }
+  const setValue = (v: number) => {
+    draft.current = null
+    if (mode === 'duration') setDuration(v)
+    else setStart(v)
   }
   /** Enter in the typed field: take that value and close in one go. */
   const submit = (v: number) => {
@@ -97,7 +111,7 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
   }, [anchor, phone, mode, fixed])
 
   const step = (delta: number) => {
-    if (mode === 'duration') setDuration((d) => Math.min(1440, Math.max(SNAP, d + delta)))
+    if (mode === 'duration') setDuration((d) => Math.min(MAX_DURATION, Math.max(SNAP, d + delta)))
     else {
       setFixed(true)
       setStart((s) => Math.min(1435, Math.max(0, s + delta)))
@@ -147,9 +161,9 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
             <Minus size={phone ? 18 : 15} />
           </StepButton>
           {mode === 'duration' ? (
-            <TypedValue key={duration} value={formatDuration(duration)} edit={String(duration)} parse={parseDuration} onValue={setDuration} onSubmit={submit} phone={phone} label={t('item.duration')} />
+            <TypedValue key={duration} value={formatDuration(duration)} edit={String(duration)} parse={parseDuration} onValue={setValue} onDraft={(v) => (draft.current = v)} onSubmit={submit} phone={phone} label={t('item.duration')} />
           ) : (
-            <TypedValue key={start} value={formatTime(start)} edit={formatTime(start)} parse={(v) => parseClock(v) ?? undefined} onValue={setStart} onSubmit={submit} phone={phone} label={t('item.fixedStart')} />
+            <TypedValue key={start} value={formatTime(start)} edit={formatTime(start)} parse={(v) => parseClock(v) ?? undefined} onValue={setValue} onDraft={(v) => (draft.current = v)} onSubmit={submit} phone={phone} label={t('item.fixedStart')} />
           )}
           <StepButton label="+5" phone={phone} onClick={() => step(SNAP)}>
             <Plus size={phone ? 18 : 15} />
@@ -178,7 +192,7 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
                 {formatDuration(m)}
               </Chip>
             ))
-          : [...(computedStart !== null && item.fixedStart !== null && computedStart !== start ? [computedStart] : []), ...quarters].map((m) => (
+          : [...(flowStart !== null && item.fixedStart !== null && flowStart !== start && !quarters.includes(flowStart) ? [flowStart] : []), ...quarters].map((m) => (
               <Chip
                 key={m}
                 active={fixed && start === m}
@@ -248,6 +262,7 @@ function TypedValue({
   edit,
   parse,
   onValue,
+  onDraft,
   onSubmit,
   phone,
   label,
@@ -256,6 +271,8 @@ function TypedValue({
   edit: string
   parse: (v: string) => number | undefined
   onValue: (v: number) => void
+  /** The value as typed so far (null while it cannot be read). */
+  onDraft: (v: number | null) => void
   onSubmit: (v: number) => void
   phone: boolean
   label: string
@@ -264,7 +281,10 @@ function TypedValue({
   const apply = () => {
     const v = parse(text)
     if (v !== undefined) onValue(v)
-    else setText(value)
+    else {
+      setText(value)
+      onDraft(null)
+    }
   }
   return (
     <input
@@ -275,7 +295,10 @@ function TypedValue({
         setText(edit)
         requestAnimationFrame(() => e.target.select())
       }}
-      onChange={(e) => setText(e.target.value)}
+      onChange={(e) => {
+        setText(e.target.value)
+        onDraft(parse(e.target.value) ?? null)
+      }}
       onBlur={apply}
       onKeyDown={(e) => {
         // Enter takes the typed value and closes; something unreadable stays open with the old value.

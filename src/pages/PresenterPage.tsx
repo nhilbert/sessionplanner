@@ -1,18 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react'
 import { api } from '@/api'
 import type { WorkshopState } from '@/domain/types'
-import { deckOf } from '@/domain/deck'
 import { itemsIn, sortedDays } from '@/domain/order'
-import { formatTime, scheduleDay } from '@/domain/time'
+import { clockIn, formatTime, scheduleDay } from '@/domain/time'
 import { useSettings } from '@/store/useSettings'
 import { Button, cx, IconButton } from '@/components/ui'
 import Markdown from '@/components/Markdown'
-import { SlideView, themeOf, useTheme } from '@/slides/SlideView'
-import { deckLabels } from '@/slides/deckLabels'
-import { useDeckOptions } from '@/slides/deckOptions'
+import { SlideView } from '@/slides/SlideView'
+import { useDeck } from '@/slides/useDeck'
 import { presentChannel } from '@/slides/presentChannel'
 
 /**
@@ -27,10 +25,9 @@ export default function PresenterPage() {
   const { t } = useTranslation()
   const [data, setData] = useState<WorkshopState | null>(null)
   const [failed, setFailed] = useState(false)
-  const { settings, loaded, load } = useSettings()
-  const [options] = useDeckOptions()
+  const { loaded, load } = useSettings()
   const [now, setNow] = useState(() => new Date())
-  const theme = useTheme(data ? themeOf(data.workshop, settings) : 'default')
+  const { deck, theme } = useDeck(data)
 
   useEffect(() => {
     api.loadWorkshop(id).then(setData, () => setFailed(true))
@@ -42,15 +39,20 @@ export default function PresenterPage() {
     const timer = window.setInterval(() => setNow(new Date()), 10_000)
     return () => window.clearInterval(timer)
   }, [])
-  const deck = useMemo(() => (data ? deckOf(data, deckLabels(t), options) : []), [data, t, options])
   const n = Math.min(Math.max(parseInt(params.get('n') ?? '1', 10) || 1, 1), Math.max(deck.length, 1)) - 1
-  const go = (i: number) => {
-    const next = Math.min(Math.max(i, 0), deck.length - 1)
-    setParams({ n: String(next + 1) }, { replace: true })
-    presentChannel(id).postMessage({ n: next + 1 })
-  }
+  const go = (i: number) => setParams({ n: String(Math.min(Math.max(i, 0), deck.length - 1) + 1) }, { replace: true })
+  // One channel for the page's life; an open presentation window follows every change of the slide.
+  const channel = useRef<BroadcastChannel | null>(null)
   useEffect(() => {
-    if (deck.length) presentChannel(id).postMessage({ n: n + 1 })
+    const c = presentChannel(id)
+    channel.current = c
+    return () => {
+      c.close()
+      channel.current = null
+    }
+  }, [id])
+  useEffect(() => {
+    if (deck.length) channel.current?.postMessage({ n: n + 1 })
   }, [id, n, deck.length])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -88,8 +90,9 @@ export default function PresenterPage() {
   const scope = { workshopId: data.workshop.id }
   const slide = deck[n]
   const next = deck[n + 1]
-  const minutesNow = now.getHours() * 60 + now.getMinutes()
-  const today = sortedDays(data.days).find((d) => d.date === now.toISOString().slice(0, 10))
+  // The clock in the workshop's time zone, like its agenda.
+  const { date: todayDate, minutes: minutesNow } = clockIn(now, data.workshop.timezone)
+  const today = sortedDays(data.days).find((d) => d.date === todayDate)
   const sameDay = timing?.day && today?.id === timing.day.id
   const left = timing?.end !== null && timing?.end !== undefined && sameDay ? timing.end - minutesNow : null
   const notStarted = timing?.start !== null && timing?.start !== undefined && sameDay && minutesNow < timing.start

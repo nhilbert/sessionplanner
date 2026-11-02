@@ -62,17 +62,21 @@ def hsl_to_hex(h, s, l):
 
 class Colours:
     def __init__(self, z, master):
+        # A slide without a layout or master, or a theme without colour or font scheme, leaves these empty.
+        self.scheme = {}; self.fonts = ('', ''); self.name = ''; self.map = {}
+        if master is None: return
         mrel = rels(z, master)
         theme_part = next((resolve(master, v[1]) for v in mrel.values() if v[0] == 'theme'), None)
-        self.scheme = {}; self.fonts = ('', ''); self.name = ''
         if theme_part:
             t = ET.fromstring(z.read(theme_part)); self.name = t.get('name', '')
             cs = t.find('.//a:clrScheme', NS)
-            for c in cs:
+            for c in (cs if cs is not None else []):
                 s = c.find('a:srgbClr', NS); sy = c.find('a:sysClr', NS)
+                if s is None and sy is None: continue
                 self.scheme[c.tag.split('}')[-1]] = '#' + (s.get('val') if s is not None else sy.get('lastClr', '000000'))
             fs = t.find('.//a:fontScheme', NS)
-            self.fonts = (fs.find('a:majorFont/a:latin', NS).get('typeface'), fs.find('a:minorFont/a:latin', NS).get('typeface'))
+            face = lambda path: (fs.find(path, NS).get('typeface', '') if fs is not None and fs.find(path, NS) is not None else '')
+            self.fonts = (face('a:majorFont/a:latin'), face('a:minorFont/a:latin'))
         cm = ET.fromstring(z.read(master)).find('p:clrMap', NS)
         self.map = dict(cm.attrib) if cm is not None else {}
 
@@ -288,7 +292,7 @@ def main(src, outdir):
             deck['theme'] = {'name': colours.name, 'fonts': colours.fonts, 'colours': colours.scheme}
         # background: slide, else layout, else master
         bg = None
-        for node in (root, lroot, ET.fromstring(z.read(master))):
+        for node in (root, lroot, ET.fromstring(z.read(master)) if master else None):
             if node is None: continue
             b = node.find('.//p:bg//a:solidFill', NS)
             if b is not None: bg = colours.of(b); break

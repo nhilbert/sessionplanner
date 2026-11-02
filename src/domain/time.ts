@@ -42,6 +42,8 @@ export interface DaySchedule {
 export const BREAK_GAP = 10
 export const LONG_STRETCH = 90
 export const SNAP = 5
+/** The longest step: a whole day (the server refuses more). */
+export const MAX_DURATION = 1440
 
 export const durationOf = (item: Pick<Item, 'kind' | 'duration'>): number => (ZERO_KINDS.includes(item.kind) ? 0 : Math.max(0, item.duration))
 
@@ -78,7 +80,8 @@ export function scheduleDay(startMin: number, endMin: number | null, items: Time
   segments.push(segment)
 
   for (const s of segments) {
-    s.available = s.end === null ? null : s.end - s.start
+    // A fixed start earlier than the one before it (out of order) leaves no room, not negative room: it shows as an overlap.
+    s.available = s.end === null ? null : Math.max(0, s.end - s.start)
     if (s.end === null) continue
     for (const id of s.itemIds) if (slots[id].end > s.end) slots[id].late = true
   }
@@ -141,26 +144,52 @@ export function parseTime(value: string): number | null {
 }
 
 /**
- * A length typed by hand: "90", "90 min", "1:30", "1h30", "1 h 30 min", "1,5 h", "2h". Undefined when it is
- * not a length between 1 minute and 24 hours.
+ * A length typed by hand: "90", "90 min", "1:30", "1h30", "1 h 30 min", "1 h 30 Minuten", "1,5 h", "2h".
+ * Minutes are whole numbers; a decimal needs the hours ("1,5" alone is not a length). Blocks and breaks
+ * take at least SNAP minutes, so a shorter length counts as that. Undefined when it is not a length up to 24 hours.
  */
 export function parseDuration(value: string): number | undefined {
   const text = value.trim().toLowerCase().replace(',', '.')
+  const MIN = '(?:m|min|mins|minuten|minutes)'
+  const HOURS = '(?:h|std|stunden?|hours?)'
   let m: RegExpExecArray | null
   let minutes: number | undefined
-  if ((m = /^(\d+(?:\.\d+)?)\s*(m|min|mins|minuten|minutes)?$/.exec(text))) minutes = Number(m[1])
-  else if ((m = /^(\d+):(\d{1,2})$/.exec(text))) minutes = Number(m[1]) * 60 + Number(m[2])
-  else if ((m = /^(\d+(?:\.\d+)?)\s*(h|std|stunden|hours?)$/.exec(text))) minutes = Number(m[1]) * 60
-  else if ((m = /^(\d+)\s*(?:h|std)\s*(\d+)\s*(?:m|min)?$/.exec(text))) minutes = Number(m[1]) * 60 + Number(m[2])
+  if ((m = new RegExp(`^(\\d+)\\s*${MIN}?$`).exec(text))) minutes = Number(m[1])
+  else if ((m = /^(\d+):(\d{1,2})$/.exec(text))) minutes = Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : undefined
+  else if ((m = new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${HOURS}$`).exec(text))) minutes = Number(m[1]) * 60
+  else if ((m = new RegExp(`^(\\d+)\\s*${HOURS}\\s*(\\d+)\\s*${MIN}?$`).exec(text))) minutes = Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : undefined
   if (minutes === undefined || !Number.isFinite(minutes)) return undefined
   const rounded = Math.round(minutes)
-  return rounded >= 1 && rounded <= 1440 ? rounded : undefined
+  return rounded >= 1 && rounded <= MAX_DURATION ? Math.max(SNAP, rounded) : undefined
 }
 
-/** A clock time typed by hand: "9", "930", "0930", "9:30", "9.30", "9h30" → minutes after midnight; null for anything else. */
+/** A clock time typed by hand: "9", "930", "0930", "9:30", "9.30", "9h30", "9 Uhr", "9.30 h" → minutes after midnight; null for anything else. */
 export function parseClock(value: string): number | null {
-  const text = value.trim().toLowerCase().replace(/[.h]/, ':')
+  const text = value
+    .trim()
+    .toLowerCase()
+    .replace(/\s*(uhr|h)$/, '')
+    .replace(/[.h]/, ':')
   if (/^\d{1,2}$/.test(text)) return parseTime(`${text}:00`)
   if (/^\d{3,4}$/.test(text)) return parseTime(`${text.slice(0, -2)}:${text.slice(-2)}`)
   return parseTime(text)
+}
+
+/**
+ * The calendar date (YYYY-MM-DD) and the minutes after midnight of `at` in a time zone (the workshop's), so the
+ * clock matches the agenda wherever the device is set. An unknown zone falls back to the device's own.
+ */
+export function clockIn(at: Date, timeZone: string): { date: string; minutes: number } {
+  let parts: Record<string, string>
+  try {
+    parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(at)
+        .map((p) => [p.type, p.value]),
+    )
+  } catch {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return { date: `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`, minutes: at.getHours() * 60 + at.getMinutes() }
+  }
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, minutes: Number(parts.hour) * 60 + Number(parts.minute) }
 }

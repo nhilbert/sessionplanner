@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import type { AssetScope } from '@/api'
 import type { Slide } from '@/domain/types'
 import { newId } from '@/domain/ops'
-import { normalizeSlideHtml, slideAssets } from '@/domain/slides'
+import { MAX_SLIDES, normalizeSlideHtml, slideAssets } from '@/domain/slides'
 import { Button, SectionLabel } from '@/components/ui'
 import { SlideView } from './SlideView'
 import { SlidePicker } from './SlidePicker'
@@ -32,8 +32,12 @@ export function SlideStrip({ slides, onChange, scope, theme, canEdit, owner, ass
     setLocal(next)
     onChange(next)
   }
+  /** Adds slides after the one open in the editor (else at the end), as many as the limit allows (the server refuses more). */
   const add = (html: string[], edit: boolean) => {
-    const fresh = html.map((h) => ({ id: newId(), html: normalizeSlideHtml(h) }))
+    const room = Math.max(0, MAX_SLIDES - local.length)
+    if (html.length > room) window.alert(t('slides.tooMany', { max: MAX_SLIDES, count: html.length - room }))
+    if (!room) return
+    const fresh = html.slice(0, room).map((h) => ({ id: newId(), html: normalizeSlideHtml(h) }))
     const at = open !== null ? open + 1 : local.length
     change([...local.slice(0, at), ...fresh, ...local.slice(at)])
     if (edit) setOpen(at)

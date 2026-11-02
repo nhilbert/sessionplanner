@@ -49,11 +49,12 @@ Prerequisites: Session Planner is hosted behind Caddy and oauth2-proxy with the 
    ```
 
    The owners (`SP_OWNERS`, the addresses the login lets in as owners) are the people who may approve connections; guests cannot. Restart the container. The log shows `MCP: https://sessions.example.com/mcp (OAuth)`.
-2. In Claude: Settings → Connectors → **Add custom connector**, URL `https://sessions.example.com/mcp`. Leave client ID and secret empty.
-3. Claude opens Session Planner's consent page. Sign in with Microsoft if asked, check that it names Claude and `claude.ai` as the destination, press **Allow**.
-4. Session Planner → Settings → **AI agents (MCP)** now lists the connection.
+2. In Session Planner: Settings → **AI agents (MCP)** → **Connect an agent**. For the next 10 minutes one new connection can be approved; the page shows the address to enter.
+3. In Claude: Settings → Connectors → **Add custom connector**, URL `https://sessions.example.com/mcp`. Leave client ID and secret empty.
+4. Claude opens Session Planner's consent page. Sign in with Microsoft if asked, check that it names Claude and `claude.ai` as the destination, press **Allow**.
+5. Session Planner → Settings → **AI agents (MCP)** now lists the connection.
 
-Claude Code works against the same URL: `claude mcp add --transport http sessionplanner https://sessions.example.com/mcp`, then `/mcp` in Claude Code to sign in.
+Claude Code works against the same URL: `claude mcp add --transport http sessionplanner https://sessions.example.com/mcp`, then **Connect an agent** in Session Planner and `/mcp` in Claude Code to sign in. Reconnecting an agent whose refresh token ran out takes the same two steps.
 
 ### Local process (stdio)
 
@@ -81,7 +82,7 @@ Claude Desktop (`claude_desktop_config.json`):
 
 ### Local OAuth (Claude Code)
 
-With `SP_MCP_OAUTH=1` and no `SP_PUBLIC_URL`, the endpoint is `http://127.0.0.1:5175/mcp`. Approval is possible only from a browser on the same machine: both the connecting socket and the `Host` header must be loopback. claude.ai cannot use this, because its servers cannot reach your localhost.
+With `SP_MCP_OAUTH=1` and no `SP_PUBLIC_URL`, the endpoint is `http://127.0.0.1:5175/mcp`. Approval is possible only from a browser on the same machine: both the connecting socket and the `Host` header must be loopback. claude.ai cannot use this, because its servers cannot reach your localhost. **Connect an agent** is not needed here: a code can only go to a program on this machine.
 
 ### Static token
 
@@ -116,7 +117,9 @@ sessions.example.com {
 
 	@agent path /mcp /.well-known/oauth-protected-resource* /.well-known/oauth-authorization-server /oauth/register /oauth/token /oauth/revoke
 	handle @agent {
-		reverse_proxy sessionplanner:5175
+		reverse_proxy sessionplanner:5175 {
+			header_up X-SP-Proxy-Secret {env.SP_PROXY_SECRET}
+		}
 	}
 
 	handle {
@@ -124,10 +127,14 @@ sessions.example.com {
 			uri /oauth2/auth
 			copy_headers X-Auth-Request-Email
 		}
-		reverse_proxy sessionplanner:5175
+		reverse_proxy sessionplanner:5175 {
+			header_up X-SP-Proxy-Secret {env.SP_PROXY_SECRET}
+		}
 	}
 }
 ```
+
+`SP_PROXY_SECRET` is one value (`openssl rand -hex 32`) in the environment of both Caddy and Session Planner. `header_up` replaces whatever a client sent in that header, and Session Planner then trusts the e-mail header only on requests that carry the secret. Without it set, the server logs a warning at start and relies on the network alone: the container port must then be reachable through Caddy only.
 
 Checklist after deploying:
 
@@ -135,6 +142,7 @@ Checklist after deploying:
 - `curl https://sessions.example.com/.well-known/oauth-authorization-server` → JSON, no redirect to Microsoft.
 - `curl -i -H 'X-Auth-Request-Email: you@example.com' 'https://sessions.example.com/oauth/authorize?client_id=x'` → the proxy's answer (redirect to the Microsoft sign-in or `401`), **not** Session Planner's "Unknown client" page. If you get a Session Planner page, the consent route is outside the login and the header can be forged – fix the Caddyfile before enabling OAuth.
 - The container publishes no port: it must be reachable only through Caddy (`docker ps` shows no `0.0.0.0:5175->`).
+- From another container in the same network, past Caddy: `curl -i -H 'X-Auth-Request-Email: you@example.com' http://sessionplanner:5175/api/me` → `403` (the proxy secret is missing). A `200` means `SP_PROXY_SECRET` is not set.
 - If Entra conditional access or a firewall restricts by IP: allow Anthropic's published egress range for connectors (see Anthropic's MCP connector documentation).
 
 ## Configuration
@@ -144,6 +152,7 @@ Checklist after deploying:
 | `SP_MCP_OAUTH` | off | `1` enables OAuth and `/mcp`. Hosted (`SP_PUBLIC_URL` set) the server already requires `SP_OWNERS`. |
 | `SP_OWNERS` | – | The owners' e-mail addresses (case-insensitive); hosted, only they may approve connections. Empty = local mode (loopback browser only). |
 | `SP_OWNER_HEADER` | `x-auth-request-email` | Header carrying the signed-in e-mail from the login proxy. |
+| `SP_PROXY_SECRET` | – | Secret the login proxy adds to every request as `X-SP-Proxy-Secret`; with it set, the e-mail header counts only on requests that carry it (API and consent page). |
 | `SP_OAUTH_REDIRECTS` | – | Extra redirect URIs clients may register, comma-separated. Claude's callbacks and loopback are always allowed. |
 | `SP_MCP_TOKEN` | – | Static bearer token for `/mcp`; works with or without OAuth. |
 | `SP_PUBLIC_URL` | – | Public origin; becomes the OAuth issuer and the resource `…/mcp`. Must be exactly the URL entered in Claude. |
@@ -214,7 +223,7 @@ Conventions:
 | `library_get` | read | `entry` | One entry in full: its item, or the items of a group, with notes, material, category, colour and the slides (number, id, layout, title). |
 | `library_save` | write | `workshop`, `item` or `group`, `title` | Saves a copy to the library. |
 | `library_create` | write | `title`, the item fields (`kind`, `duration`, `description`, `goal`, `method`, `lead`, `notes`, `materials[]`, `category`, `color`, `slides[]`), or `items[]` (each `title` + the same fields) | A new entry from scratch: a single item, or with `items` a group (`title` is its heading) with those items in order. |
-| `library_update` | destructive | `entry`, `title`, the item fields, `appendNotes`; for a group entry `item` (the item inside, by title or number), `at`, `addItems[]`, `addAt`, `removeItems[]` | Changes an entry. An item entry: `title` and the fields change its item. A group entry: `title` alone renames the heading; with `item` the title and fields change that item and `at` moves it; `addItems` adds items (at `addAt`, default the end), `removeItems` takes items out. Copies placed in workshops stay as they are. |
+| `library_update` | destructive | `entry`, `title`, the item fields, `appendNotes`; for a group entry `item` (the item inside, by title or number), `at`, `addItems[]`, `addAt`, `removeItems[]` | Changes an entry. An item entry: `title` and the fields change its item. A group entry: `title` alone renames the heading; with `item` the title and fields change that item and `at` moves it; `addItems` adds items (at `addAt`, default the end), `removeItems` takes items out. Items are named as the entry was before the call; `at` and `addAt` count in the list after `removeItems`. An item cannot be changed and removed in one call. Copies placed in workshops stay as they are. |
 | `library_insert` | write | `workshop`, `entry`, `day`, `at`, `after` | Inserts a copy (an item, or a group with its items). |
 | `library_delete` | destructive | `entry` | Deletes the entry for good; placed copies stay. |
 
@@ -234,7 +243,7 @@ Slides live on a step of a workshop (`workshop` + `item`) or on a library entry 
 | `pool_search` | read | `query`, `deck`, `layout` | The decks of the pool, and the slides whose deck, caption or text contain every word; `deck` (title or id) and `layout` narrow it. Ids for `slide_get`, `slide_add` and `slide_set`. |
 | `deck_outline` | read | `workshop`, `agenda`, `breaks` | The deck as presented, with its theme: the generated title, agenda and break slides and the items' own, in order; `agenda` or `breaks` false leave the generated ones out, as the app can. |
 
-Markup is reduced to the slide format on write (`docs/slides.md`, section 2; `slide_format` serves the same rules and an example per layout to the agent): anything outside the allowlist is removed, a slide without a `section.slide` root gets one, and the answers show the slide as stored, so the agent sees what survived. Pictures are referenced as `asset:<hash>`; an agent cannot upload pictures, so it reuses hashes that pool slides or other slides already show (`slide_get` lists them) or writes slides without pictures. Markers and notes have no slides.
+Markup is reduced to the slide format on write (`docs/slides.md`, section 2; `slide_format` serves the same rules and an example per layout to the agent): anything outside the allowlist is removed, a slide without a `section.slide` root gets one, markup after the root is dropped, and the answers show the slide as stored, so the agent sees what survived. Pictures are referenced as `asset:<hash>`; an agent cannot upload pictures, so it reuses hashes that pool slides or other slides already show (`slide_get` lists them) or writes slides without pictures. Markers and notes have no slides.
 
 ### Settings
 
@@ -268,11 +277,11 @@ Co-facilitators and clients who see shared workshops are guests: their e-mail is
 
 | Asset / path | Protection |
 |---|---|
-| Web UI and `/api/*` | Login proxy (Microsoft Entra ID, MFA) plus the owner/guest model (`SP_OWNERS`, members) and the `x-sp` header on changes |
-| Approving an agent (`/oauth/authorize`) | Login proxy **and** `SP_OWNERS`; locally: loopback socket and Host |
+| Web UI and `/api/*` | Login proxy (Microsoft Entra ID, MFA) plus the owner/guest model (`SP_OWNERS`, members), the proxy secret (`SP_PROXY_SECRET`) and the `x-sp` header on changes |
+| Approving an agent (`/oauth/authorize`) | Login proxy, proxy secret **and** `SP_OWNERS`; locally: loopback socket and Host |
 | Calling tools (`/mcp`) | Bearer access token issued after your approval (or the static token) |
 | Obtaining tokens (`/oauth/token`) | Registered client + single-use 60-second code + S256 PKCE verifier, or a valid refresh token |
-| Listing and disconnecting agents (`/api/mcp/connections`) | Owner only |
+| Listing, starting and disconnecting agents (`/api/mcp/connections`, `/api/mcp/arm`) | Owner only, with the app's header on changes |
 | Stored credentials | Only SHA-256 hashes of tokens in `oauth_tokens`; no client secrets exist |
 | stdio | File system access to `data/` |
 
@@ -289,8 +298,8 @@ Not in cryptographic strength – both are 256-bit random values. The gain is in
 What OAuth adds in exposure:
 
 - Four endpoints reachable without login (metadata, register, token, revoke). They hand out nothing without your approval. Registration is open by design (Claude registers itself); idle registrations expire after 15 minutes and are capped, so a flood cannot block new connections.
-- **Consent phishing.** Someone could start a connection and get you to press Allow. The page names the application and the destination host and warns when the destination is a program on your computer. Approve only connections you just started yourself.
-- **Proxy configuration becomes part of the security.** If `/oauth/authorize` is reachable without the login, or the container port is reachable without Caddy, the e-mail header can be forged. The [checklist](#hosting-behind-caddy-and-oauth2-proxy) tests exactly this.
+- **Consent phishing.** Someone could start a connection in their own Claude and send you its consent link, so that your Allow connects *their* agent to your workshops. Hosted, a connection can therefore be approved only within 10 minutes after you pressed **Connect an agent** in Settings, and only once per press: a link that arrives at any other time is refused with a warning, and a second consent page opened meanwhile cannot be approved after the first. The page also names the application and the destination host and warns when the destination is a program on your computer. Approve only connections you just started yourself.
+- **Proxy configuration becomes part of the security.** If `/oauth/authorize` is reachable without the login, the e-mail header can be forged; without `SP_PROXY_SECRET`, the same holds for anyone who reaches the container port without Caddy. The [checklist](#hosting-behind-caddy-and-oauth2-proxy) tests both.
 
 What neither protects against:
 
@@ -312,11 +321,13 @@ What neither protects against:
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Claude: "Couldn't reach the MCP server", the log shows nothing | `/mcp` or the metadata is behind the login proxy, which answers with a redirect | Add the `@agent` route ([Hosting](#hosting-behind-caddy-and-oauth2-proxy)); check the first two checklist items |
-| Consent page says "Your account may not approve connections" | E-mail not in `SP_OWNERS`, or the proxy does not pass it | Check the address; `--set-xauthrequest=true`; `copy_headers X-Auth-Request-Email` |
+| Consent page says "Your account may not approve connections" | E-mail not in `SP_OWNERS`, or the proxy does not pass it or the proxy secret | Check the address; `--set-xauthrequest=true`; `copy_headers X-Auth-Request-Email`; the same `SP_PROXY_SECRET` for Caddy and Session Planner |
+| Every page says `forbidden`, the log shows "Refused a request without the proxy secret" | `SP_PROXY_SECRET` is set for Session Planner but Caddy does not send it | Add the `header_up` lines ([Hosting](#hosting-behind-caddy-and-oauth2-proxy)) and give Caddy the same value |
 | Consent page says "only … on the computer running Session Planner" while hosted | `SP_PUBLIC_URL` not set, so the server runs in local mode | Set `SP_PUBLIC_URL` and `SP_OWNERS` |
 | "Invalid redirect" on the consent page | The client registered a redirect URI that is not Claude's or loopback | Add it to `SP_OAUTH_REDIRECTS` if you trust that client |
 | Claude reports `invalid_target` | The URL entered in Claude differs from `SP_PUBLIC_URL` + `/mcp` (other host, `http`, trailing path) | Enter exactly `https://<SP_PUBLIC_URL host>/mcp` |
-| Connector worked, now asks to sign in again | Refresh token expired (30 days unused), was revoked in Settings, replayed, or the approving address left `SP_OWNERS` | Reconnect; if you did not disconnect it, look at who else might hold the token |
+| Connector worked, now asks to sign in again | Refresh token expired (30 days unused), was revoked in Settings, replayed, or the approving address left `SP_OWNERS` | **Connect an agent**, then reconnect; if you did not disconnect it, look at who else might hold the token |
+| Consent page says "Start the connection in Session Planner first" | No **Connect an agent** in the last 10 minutes, or it was used for another approval meanwhile | Settings → AI agents → **Connect an agent**, then start the connection in Claude again. If you did not start one, close the page |
 | Agent changes do not show in the browser | The agent runs over stdio (no live updates) or the window lost its stream | Reload the page |
 | "… matches several workshops" | Two workshops share the title | Give the id from `workshop_list`, or add the client to the query |
 
@@ -327,4 +338,4 @@ What neither protects against:
 - Files cannot be uploaded, downloaded or deleted through MCP; they are listed by name. Pictures for slides cannot be uploaded either, and decks are added to the pool in the app.
 - Sharing (guests) is managed in the app only.
 - Workshops cannot be deleted through MCP (archive instead).
-- Pending consent requests and authorization codes are kept in memory: a restart during sign-in means starting the connection again.
+- Pending consent requests, authorization codes and **Connect an agent** are kept in memory: a restart during sign-in means starting the connection again.

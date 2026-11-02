@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Copy, ExternalLink, Paperclip, Plus, Trash2, Upload, UserMinus, UserPlus, X } from 'lucide-react'
@@ -6,10 +6,11 @@ import type { Attachment, Member, MemberRole, PackingState, WorkshopState } from
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
 import { packingList } from '@/domain/packing'
-import { api } from '@/api'
+import { api, reportFailure } from '@/api'
+import { usePlanner } from '@/store/usePlanner'
 import { Button, Checkbox, cx, Field, IconButton, Input, Modal, Segmented } from '@/components/ui'
 import { sortedDays } from '@/domain/order'
-import { TextField, TimeField, formatSize } from './fields'
+import { QtyField, TextField, TimeField, formatSize } from './fields'
 import NotesField from './NotesField'
 import { uploadFiles } from './upload'
 import { ThemeSelect } from '@/slides/ThemeSelect'
@@ -61,8 +62,15 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
           variant="danger"
           onClick={async () => {
             if (!window.confirm(t('workshop.deleteConfirm', { title: w.title || t('workshops.untitled') }))) return
-            await api.deleteWorkshop(w.id)
-            navigate('/')
+            // Stop listening first: the deletion's own notice would show "this workshop does not exist" on the way out.
+            usePlanner.getState().close()
+            try {
+              await api.deleteWorkshop(w.id)
+              navigate('/')
+            } catch (err) {
+              usePlanner.getState().open(w.id)
+              reportFailure(err)
+            }
           }}
         >
           <Trash2 size={13} />
@@ -76,8 +84,7 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
 
 export function PackingPanel({ data, change }: { data: WorkshopState; change: (ops: Op[]) => void }) {
   const { t } = useTranslation()
-  const placed = agendaOrder(data.days, data)
-  const lines = packingList(placed, data.workshop.packing, data.workshop.materials)
+  const lines = useMemo(() => packingList(agendaOrder(data.days, data), data.workshop.packing, data.workshop.materials), [data])
   const w = data.workshop
   const update = (key: string, patch: PackingState) => {
     const packing = { ...w.packing, [key]: { ...w.packing[key], ...patch } }
@@ -110,17 +117,7 @@ export function PackingPanel({ data, change }: { data: WorkshopState; change: (o
                 ))}
               </div>
             </div>
-            <input
-              type="number"
-              min={0}
-              value={l.qty}
-              aria-label={t('item.qty')}
-              onChange={(e) => {
-                const qty = Math.round(Number(e.target.value))
-                if (qty >= 0) update(l.key, { qty })
-              }}
-              className="field tnum h-8 w-14 shrink-0 px-1.5 text-center text-[13px]"
-            />
+            <QtyField value={l.qty} aria-label={t('item.qty')} onChange={(qty) => update(l.key, { qty })} className="shrink-0" />
             {l.workshopMaterialIds.length > 0 && !l.itemIds.length ? (
               <IconButton label={t('item.removeMaterial')} onClick={() => removeWorkshopMaterial(l.workshopMaterialIds)}>
                 <X size={14} />
@@ -141,7 +138,7 @@ function AddMaterial({ data, change }: { data: WorkshopState; change: (ops: Op[]
   const [label, setLabel] = useState('')
   const [qty, setQty] = useState(1)
   const [target, setTarget] = useState('')
-  const items = agendaOrder(data.days, data).filter((i) => i.kind !== 'note')
+  const items = useMemo(() => agendaOrder(data.days, data).filter((i) => i.kind !== 'note'), [data])
   const add = () => {
     const text = label.trim()
     if (!text) return
@@ -226,8 +223,12 @@ export function FilesPanel({ data, onAttachment, onRemove, owner }: { data: Work
               label={t('common.delete')}
               onClick={async () => {
                 if (!window.confirm(t('files.deleteConfirm', { name: a.name }))) return
-                await api.deleteAttachment(a.id)
-                onRemove(a.id)
+                try {
+                  await api.deleteAttachment(a.id)
+                  onRemove(a.id)
+                } catch (err) {
+                  reportFailure(err)
+                }
               }}
             >
               <Trash2 size={14} />
@@ -271,6 +272,8 @@ function DuplicateButton({ data }: { data: WorkshopState }) {
               const copy = await api.duplicateWorkshop(data.workshop.id, { title: title.trim(), firstDate: date || undefined })
               setOpen(false)
               navigate(`/w/${copy.workshop.id}`)
+            } catch (err) {
+              reportFailure(err)
             } finally {
               setBusy(false)
             }
@@ -409,8 +412,12 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
                 label={t('access.remove')}
                 onClick={async () => {
                   if (!window.confirm(t('access.removeConfirm', { email: m.email }))) return
-                  await api.removeMember(id, m.email)
-                  setMembers((list) => (list ?? []).filter((x) => x.email !== m.email))
+                  try {
+                    await api.removeMember(id, m.email)
+                    setMembers((list) => (list ?? []).filter((x) => x.email !== m.email))
+                  } catch (err) {
+                    reportFailure(err)
+                  }
                 }}
               >
                 <UserMinus size={14} />
@@ -420,14 +427,14 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
               <Segmented<MemberRole>
                 size="sm"
                 value={m.role}
-                onChange={(r) => void save(m.email, r, m.showNotes)}
+                onChange={(r) => void save(m.email, r, m.showNotes).catch(reportFailure)}
                 options={[
                   { value: 'view', label: t('access.view') },
                   { value: 'edit', label: t('access.edit') },
                 ]}
               />
               <label className="flex items-center gap-1">
-                <input type="checkbox" checked={m.showNotes} disabled={m.role === 'edit'} onChange={(e) => void save(m.email, m.role, e.target.checked)} />
+                <input type="checkbox" checked={m.showNotes} disabled={m.role === 'edit'} onChange={(e) => void save(m.email, m.role, e.target.checked).catch(reportFailure)} />
                 {t('access.notes')}
               </label>
               <span className="ml-auto">{m.lastSeenAt ? t('access.lastSeen', { when: when(m.lastSeenAt) }) : t('access.never')}</span>

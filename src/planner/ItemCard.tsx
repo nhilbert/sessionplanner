@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Flag, NotebookPen, Package, Paperclip, Pin, Presentation, StickyNote } from 'lucide-react'
 import type { Item, PaletteKey } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
-import { durationOf, formatDuration, formatTime, parseClock, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
+import { durationOf, formatDuration, formatTime, MAX_DURATION, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
 import { cx } from '@/components/ui'
 import type { TimeMode } from './TimeEditor'
 
@@ -59,7 +59,10 @@ const shield = {
   onKeyDown: (e: KeyboardEvent) => e.stopPropagation(),
 }
 
-/** Text that turns into an input on click; Enter or leaving saves, Escape cancels. */
+/**
+ * Text that turns into an input on click; Enter or leaving saves, Escape cancels. Only a change typed here is
+ * saved: if another window changes the value meanwhile, leaving without typing keeps theirs.
+ */
 export function Inline({
   value,
   display,
@@ -82,6 +85,8 @@ export function Inline({
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(value)
   const done = useRef(false)
+  /** The value when editing began. */
+  const original = useRef(value)
   useEffect(() => {
     if (!editing) setText(value)
   }, [value, editing])
@@ -97,6 +102,8 @@ export function Inline({
           if (e.shiftKey || e.metaKey || e.ctrlKey) return
           e.stopPropagation()
           done.current = false
+          original.current = value
+          setText(value)
           setEditing(true)
         }}
         className={cx('cursor-text rounded px-0.5 underline decoration-transparent decoration-dotted underline-offset-2 hover:bg-ink/5 hover:decoration-current', className)}
@@ -108,7 +115,7 @@ export function Inline({
     if (done.current) return
     done.current = true
     setEditing(false)
-    if (!save || text === value) return
+    if (!save || text === original.current) return
     const parsed = parse ? parse(text) : text
     if (parsed !== undefined) onSave(parsed)
   }
@@ -131,7 +138,6 @@ export function Inline({
   )
 }
 
-// Empty start: the item flows again; anything unreadable is ignored.
 /** A start time or length on the card: one click opens the time editor right there; dragging still moves the card. */
 function TimeButton({ label, onOpen, className, children }: { label: string; onOpen: (anchor: DOMRect) => void; className?: string; children: React.ReactNode }) {
   return (
@@ -151,8 +157,6 @@ function TimeButton({ label, onOpen, className, children }: { label: string; onO
   )
 }
 
-const parseStart = (v: string): number | null | undefined => (v.trim() ? (parseClock(v) ?? undefined) : null)
-
 export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd }: CardProps) {
   const { t } = useTranslation()
   const minutes = duration ?? durationOf(item)
@@ -170,6 +174,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
       {item.fixedStart !== null && <Pin size={10} className="text-ink-3" />}
     </span>
   )
+  // On the timeline a slot always comes with the time editor; without one the time is only shown.
   const start =
     timed &&
     (onOpenTime ? (
@@ -177,15 +182,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
         {startLabel}
       </TimeButton>
     ) : (
-      <Inline
-        value={item.fixedStart !== null ? formatTime(item.fixedStart) : formatTime(slot.start)}
-        display={startLabel}
-        parse={parseStart}
-        label={t('item.fixedStart')}
-        onSave={onEdit && ((v) => onEdit({ fixedStart: v as number | null }))}
-        className="tnum shrink-0 text-ink-2"
-        inputClassName="tnum w-14"
-      />
+      <span className="tnum shrink-0 text-ink-2">{startLabel}</span>
     ))
 
   const notices = slot && (slot.gap > 0 || slot.overlap > 0) && (
@@ -300,7 +297,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
 function ResizeHandle({ minutes, ppm, onResize, onResizeEnd }: { minutes: number; ppm: number; onResize: (m: number | null) => void; onResizeEnd: (m: number) => void }) {
   const start = useRef<{ y: number; current: number } | null>(null)
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
-  const value = (y: number) => Math.max(SNAP, snap(minutes + (y - start.current!.y) / ppm))
+  const value = (y: number) => Math.min(MAX_DURATION, Math.max(SNAP, snap(minutes + (y - start.current!.y) / ppm)))
   return (
     <div
       role="separator"

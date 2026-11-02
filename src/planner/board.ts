@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { closestCenter, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent, pointerWithin } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { entriesIn, placeAt } from '@/domain/order'
+import { entriesIn, placeIn } from '@/domain/order'
 import type { Op } from '@/domain/ops'
 import type { WorkshopState } from '@/domain/types'
 
@@ -47,22 +47,13 @@ export function placeOf(data: WorkshopState, key: string): { dayId: string | nul
 
 /** Operations that put `id` (item or group) at `index` of list `to`, given the list's current entries (without `id`). */
 export function moveOps(data: WorkshopState, to: string, siblings: string[], id: string, index: number): Op[] {
-  const position = (x: string) => data.items.find((i) => i.id === x)?.position ?? data.groups.find((g) => g.id === x)?.position ?? 0
-  const placed = placeAt(
-    siblings.map((x) => ({ id: x, position: position(x) })),
-    id,
-    index,
-  )
+  const { position, ops } = placeIn(data, siblings, id, index)
   const { dayId, groupId } = placeOf(data, to)
-  const ops: Op[] = []
-  for (const p of placed) {
-    const group = data.groups.find((g) => g.id === p.id)
-    if (p.id !== id) ops.push(group ? { op: 'set', entity: 'group', id: p.id, fields: { position: p.position } } : { op: 'set', entity: 'item', id: p.id, fields: { position: p.position } })
-    else if (group) {
-      ops.push({ op: 'set', entity: 'group', id, fields: { dayId, position: p.position } })
-      if (group.dayId !== dayId) for (const m of data.items.filter((i) => i.groupId === id)) ops.push({ op: 'set', entity: 'item', id: m.id, fields: { dayId } })
-    } else ops.push({ op: 'set', entity: 'item', id, fields: { dayId, groupId, position: p.position } })
-  }
+  const group = data.groups.find((g) => g.id === id)
+  if (group) {
+    ops.push({ op: 'set', entity: 'group', id, fields: { dayId, position } })
+    if (group.dayId !== dayId) for (const m of data.items.filter((i) => i.groupId === id)) ops.push({ op: 'set', entity: 'item', id: m.id, fields: { dayId } })
+  } else ops.push({ op: 'set', entity: 'item', id, fields: { dayId, groupId, position } })
   return ops
 }
 

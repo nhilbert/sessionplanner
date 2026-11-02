@@ -1,31 +1,28 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, MonitorSpeaker, Play, Printer } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
-import { deckOf } from '@/domain/deck'
-import { useSettings } from '@/store/useSettings'
+import { reportFailure } from '@/api'
 import { Button, cx } from '@/components/ui'
 import { Option } from './Option'
-import { fileSlug } from '@/print/options'
-import { SlideView, themeOf, useTheme } from './SlideView'
-import { deckLabels } from './deckLabels'
-import { downloadBlob, exportDeckHtml } from './export'
-import { useDeckOptions } from './deckOptions'
+import { downloadBlob, fileSlug } from '@/print/options'
+import { SlideView } from './SlideView'
+import { exportDeckHtml } from './export'
+import { useDeck } from './useDeck'
 
 /** The whole deck in agenda order, with the generated slides; present, save as a file, print. */
 export function DeckPanel({ data, onSelect }: { data: WorkshopState; onSelect: (itemId: string) => void }) {
   const { t, i18n } = useTranslation()
-  const settings = useSettings((s) => s.settings)
-  const theme = useTheme(themeOf(data.workshop, settings))
-  const [options, update] = useDeckOptions()
+  const { deck, theme, options, update } = useDeck(data)
   const [busy, setBusy] = useState(false)
-  const deck = useMemo(() => deckOf(data, deckLabels(t), options), [data, t, options])
   const title = data.workshop.title || t('workshops.untitled')
   const scope = { workshopId: data.workshop.id }
   const save = async () => {
     setBusy(true)
     try {
       downloadBlob(`${fileSlug(title)}-folien.html`, await exportDeckHtml(deck, { title, theme, scope, chrome: title, lang: i18n.language }))
+    } catch (err) {
+      reportFailure(err)
     } finally {
       setBusy(false)
     }

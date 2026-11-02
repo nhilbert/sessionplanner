@@ -1,9 +1,9 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary } from '../src/domain/types.ts'
+import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE } from '../src/domain/types.ts'
 import { type Theme, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { itemsIn } from '../src/domain/order.ts'
-import { scheduleDay } from '../src/domain/time.ts'
+import { clockIn, scheduleDay } from '../src/domain/time.ts'
 import { BadRequest } from './validate.ts'
 
 type Codec = 'text' | 'num' | 'bool' | 'json'
@@ -231,7 +231,7 @@ export class Repo {
     }))
   }
 
-  /** A new workshop with one day (times from the settings) on `date`, or today. */
+  /** A new workshop with one day (times from the settings) on `date`, or today in the workshops' time zone. */
   createWorkshop(input: { title?: string; client?: string; date?: string }): WorkshopState {
     const id = newId()
     const t = now()
@@ -241,7 +241,7 @@ export class Repo {
         .run(id, input.title ?? '', input.client ?? '', t, t)
       this.db
         .prepare('INSERT INTO days (id, workshop_id, position, date, start_min, end_min) VALUES (?, ?, 1, ?, ?, ?)')
-        .run(newId(), id, input.date ?? t.slice(0, 10), this.getSettings().dayStart, this.getSettings().dayEnd)
+        .run(newId(), id, input.date ?? clockIn(new Date(t), DEFAULT_TIMEZONE).date, this.getSettings().dayStart, this.getSettings().dayEnd)
     })
     return this.loadWorkshop(id)!
   }
@@ -426,6 +426,11 @@ export class Repo {
     return { ...file, workshopId, createdAt }
   }
 
+  /** What the files of a workshop take up together, in bytes. */
+  attachmentBytes(workshopId: string): number {
+    return Number((this.db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM attachments WHERE workshop_id = ?').get(workshopId) as Row).n)
+  }
+
   getAttachment(id: string): Attachment | null {
     const r = this.db.prepare('SELECT * FROM attachments WHERE id = ?').get(id) as Row | undefined
     return r ? toAttachment(r) : null
@@ -490,6 +495,11 @@ export class Repo {
   saveSettings(settings: Settings): Settings {
     this.db.prepare("INSERT INTO settings (key, value) VALUES ('settings', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(settings))
     return settings
+  }
+
+  getLibraryEntry(id: string): LibraryEntry | null {
+    const r = this.db.prepare('SELECT * FROM library WHERE id = ?').get(id) as Row | undefined
+    return r ? toLibraryEntry(r) : null
   }
 
   listLibrary(): LibraryEntry[] {

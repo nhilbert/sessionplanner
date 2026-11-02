@@ -4,6 +4,7 @@ import { Image, Upload, X } from 'lucide-react'
 import { api, type AssetScope, assetUrl } from '@/api'
 import { Button, cx, IconButton, Modal } from '@/components/ui'
 import { fieldId } from './fields'
+import { uploadProblem } from '@/planner/upload'
 
 /** A picture field of the slide: the thumbnail of the asset it shows, and the way to choose or remove one. */
 export function PictureField({ path, value, onChange, onFocus, scope, known, label }: { path: string; value: string; onChange: (hash: string) => void; onFocus: (path: string) => void; scope: AssetScope; known: string[]; label?: string }) {
@@ -49,8 +50,8 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current }: 
       const asset = await api.uploadAsset(scope, file)
       onPick(asset.hash)
       onClose()
-    } catch {
-      setError(t('files.failed', { name: file.name }))
+    } catch (err) {
+      setError(uploadProblem(err, file.name, t))
     } finally {
       setBusy(false)
     }
