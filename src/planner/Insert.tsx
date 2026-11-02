@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next'
 import { Coffee, Flag, FolderOpen, Plus, Square, StickyNote } from 'lucide-react'
 import type { ItemKind } from '@/domain/types'
 import { cx, Sheet, SheetRow, useIsPhone } from '@/components/ui'
+import { useOverlay } from '@/components/overlay'
 
 export type InsertKind = ItemKind | 'group'
 
@@ -78,19 +79,10 @@ function Radial({ x, y, allowGroup, onPick, onClose }: { x: number; y: number; a
   const [hover, setHover] = useState<InsertKind | null>(null)
   useEffect(() => {
     const down = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && onClose()
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
     window.addEventListener('pointerdown', down, true)
-    window.addEventListener('keydown', key, true)
-    return () => {
-      window.removeEventListener('pointerdown', down, true)
-      window.removeEventListener('keydown', key, true)
-    }
+    return () => window.removeEventListener('pointerdown', down, true)
   }, [onClose])
+  useOverlay(true, onClose)
 
   const kinds = kindsOf(t, allowGroup)
   // Spread over a half circle opening to the right (the ⊕ sits at the left edge of the column).

@@ -7,11 +7,20 @@ import slidesCss from './slides.css?raw'
 import defaultThemeCss from './themes/default.css?raw'
 import notoCss from '@fontsource/noto-sans-jp/400.css?raw'
 import interCss from '@fontsource-variable/inter/index.css?raw'
+import manropeCss from '@fontsource-variable/manrope/index.css?raw'
+import serifCss from '@fontsource-variable/source-serif-4/index.css?raw'
 
 type FontFiles = Record<string, () => Promise<string>>
 const notoFiles = import.meta.glob('/node_modules/@fontsource/noto-sans-jp/files/*-400-normal.woff2', { query: '?url', import: 'default' }) as FontFiles
-// The built-in theme's font (Inter, as in the app), so the file breaks lines as the app and the printout do.
-const interFiles = import.meta.glob('/node_modules/@fontsource-variable/inter/files/inter-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles
+/**
+ * The fonts the app hosts for themes (src/domain/theme.ts; Inter is also the built-in theme's): the file carries the
+ * faces a theme names, so it breaks lines as the app and the printout do.
+ */
+const HOSTED: { family: string; css: string; files: FontFiles }[] = [
+  { family: 'Inter Variable', css: interCss, files: import.meta.glob('/node_modules/@fontsource-variable/inter/files/inter-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
+  { family: 'Manrope Variable', css: manropeCss, files: import.meta.glob('/node_modules/@fontsource-variable/manrope/files/manrope-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
+  { family: 'Source Serif 4 Variable', css: serifCss, files: import.meta.glob('/node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
+]
 
 const toDataUrl = async (url: string): Promise<string | null> => {
   const res = await fetch(url).catch(() => null)
@@ -32,9 +41,10 @@ async function themeCss(theme: string): Promise<string> {
   const res = await fetch(`${base}theme.css`).catch(() => null)
   if (!res?.ok) return defaultThemeCss
   let css = await res.text()
-  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:|\/)/.test(u)))]
+  // Relative addresses are files beside a folder theme; /api/… addresses are the logos of a data theme.
+  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:)/.test(u) && (!u.startsWith('/') || u.startsWith('/api/'))))]
   for (const ref of refs) {
-    const data = await toDataUrl(base + ref.replace(/^\.\//, ''))
+    const data = await toDataUrl(ref.startsWith('/') ? ref : base + ref.replace(/^\.\//, ''))
     if (data) css = css.split(`url(${ref})`).join(`url(${data})`).split(`url('${ref}')`).join(`url('${data}')`).split(`url("${ref}")`).join(`url("${data}")`)
   }
   return css
@@ -98,8 +108,11 @@ export async function exportDeckHtml(deck: DeckSlideRef[], options: { title: str
     sections.push(html)
   }
   const text = sections.join('')
-  const fonts = [options.theme === 'default' ? await inlineFontFaces(interCss, interFiles, codePoints(text)) : '', await inlineFontFaces(notoCss, notoFiles, cjkCodePoints(text))]
-  const css = [slidesCss.replace(/@import[^;]+;/g, ''), await themeCss(options.theme), ...fonts, STAGE_CSS].join('\n')
+  const theme = await themeCss(options.theme)
+  const points = codePoints(text)
+  const hosted = await Promise.all(HOSTED.filter((f) => theme.includes(`'${f.family}'`)).map((f) => inlineFontFaces(f.css, f.files, points)))
+  const fonts = [...hosted, await inlineFontFaces(notoCss, notoFiles, cjkCodePoints(text))]
+  const css = [slidesCss.replace(/@import[^;]+;/g, ''), theme, ...fonts, STAGE_CSS].join('\n')
   const doc = `<!doctype html>
 <html lang="${esc(options.lang)}" data-theme="${esc(options.theme)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(options.title)}</title>
 <style>${css}</style></head>

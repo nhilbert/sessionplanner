@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next'
 import { api } from '@/api'
 import type { Category, ItemContent, LibraryEntry } from '@/domain/types'
 import { categoryName } from './useSettings'
+import { inOrder } from './inOrder'
 
 /** What a library search looks through: titles, descriptions, goal, method, lead, the category and a group's items. */
 export function libraryText(e: LibraryEntry, categories: Category[], t: TFunction): string {
@@ -35,9 +36,23 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
     }
   },
   save: async (entry, id) => {
-    const saved = await api.saveLibraryEntry(entry, id)
-    set({ entries: sort([...get().entries.filter((e) => e.id !== saved.id), saved]) })
-    return saved
+    if (!id) {
+      const saved = await api.saveLibraryEntry(entry)
+      set({ entries: sort([...get().entries.filter((e) => e.id !== saved.id), saved]) })
+      return saved
+    }
+    // Shown at once; stored in the order of the changes; only the latest answer is taken over.
+    const before = get().entries.find((e) => e.id === id)
+    if (before) set({ entries: sort(get().entries.map((e) => (e.id === id ? ({ ...e, ...entry } as LibraryEntry) : e))) })
+    const { result, isLatest } = inOrder(`library:${id}`, () => api.saveLibraryEntry(entry, id))
+    try {
+      const saved = await result
+      if (isLatest()) set({ entries: sort([...get().entries.filter((e) => e.id !== saved.id), saved]) })
+      return saved
+    } catch (err) {
+      if (isLatest()) void get().load()
+      throw err
+    }
   },
   remove: async (id) => {
     await api.deleteLibraryEntry(id)

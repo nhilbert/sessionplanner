@@ -113,7 +113,8 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 3. **Sharing** – in progress: section 8.
 4. **Claude connector (MCP)** – done (2026-10-29): Claude reads and edits workshops (draft an agenda from a brief, adjust timings, group and park items, fill the packing list, use the library), over stdio locally and over `/mcp` with OAuth as in Zendo; see [mcp.md](mcp.md).
 5. **Import of the owner's sample sessions** into the hosted instance once the feature baseline stands (private material, never in this repository).
-6. **Slides** – in progress (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
+6. **Slides** – done (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
+7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7.
 
 **Backlog** (no order):
 
@@ -122,11 +123,24 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Minimum duration and "optional" per item, with fit suggestions for a stretch that is over.
 - Asking before saving the same item to the library twice.
 - Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far. The presentation view is its seed; a break slide could show the re-forecast end.
-- Slides: connector tools that read and write slides; a best-effort PPTX export from the format; moving a slide between items; updating placed copies from the library.
+- Slides: a best-effort PPTX export from the format; moving a slide between items; updating placed copies from the library; themes and templates through the connector.
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
+
+**2026-11-02, slides are looked at first**
+
+- A slide opens to look at it: large, without fields, paging by arrows, swipe or thumbnails. Editing is one step away (Edit, E, a double-click on a text, which opens its field); Done or Escape goes back. A slide just added and "Edit slides" open straight into editing; read-only slides stay in the viewer with their note. Undo works in both. "Present from here" in the planner opens the presentation at the slide shown.
+- Counter-argument considered: one more click for every change. Accepted because viewing is the common case, and the double-click on a text goes straight to its field.
+
+**2026-11-02, slides throughout the app**
+
+- One way to open a slide: a thumbnail outside a picker opens that slide in the editor, from a step, the slide count on an agenda card, the deck tab, the library, the templates and the pool; the editor pages within what it was opened from and says so in its header. Generated slides in the deck are shown with what they are made of and what can be done instead (details, hide, a slide of its own for a break); pool slides are read-only with "Save as template". Pickers keep selecting.
+- The editor has its own history: every change a step (typing in one field one step), Ctrl+Z inside the fields too, buttons in the header; a step changed elsewhere since is dropped, not forced. In the planner the whole editing session is one undo step.
+- Dialogs, sheets, menus and the editor take the focus, keep Tab inside and give it back to their opener.
+- The pool, the templates and the themes form one navigation entry, Slides, with tabs; a workshop's theme is chosen in its Slides tab; "Manage themes" and "Manage templates" sit wherever a theme or a template is chosen. Owner pages send guests to their workshops.
+- Accepted: presentation windows load the deck once (no editing while presenting); concurrent changes to different slides of one step resolve by the later save.
 
 **2026-11-02, after a review of the whole code**
 
@@ -135,6 +149,14 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Typed lengths: whole minutes, or hours with a decimal ("1,5 h"; "1,5" alone is not a length); blocks and breaks take at least 5 minutes, as every other control already enforced. Clock times also as "9 Uhr" or "9h".
 - The presenter view and "today" count in the workshop's time zone, not in UTC or the device's zone.
 - The connector takes calls as large as an operation batch (4 MB), so a whole agenda or deck fits in one call; a workshop it creates is checked like the app's and is not left half-made when its details are refused.
+
+**2026-11-01, slide editor** (revises "no slide editor" from the same morning)
+
+- Slides are edited in the app after all, but as content, never as pixels: fields for the words next to the live slide, the layout chosen from the catalogue, the appearance from the theme. Research into slide tools pointed the same way (Beautiful.ai's constraint templates, Gamma's cards, Marp's separation of content and style, the theme/master/layout split of PowerPoint and Google Slides); the catalogue of docs/slides.md is this app's constraint, the editor fills it. The source stays reachable for what the fields do not model, and no slide is locked.
+- Themes become data the owner edits in the app: ten colours, two hosted fonts, a few choices and the logo; the rest is derived in OKLab, the stylesheet is generated, the text contrast checked against WCAG 2.2. Theme folders stay for a brand that needs more than tokens. The reason to drop "themes live in the private setup": the owner should set a client's colours in minutes, not deploy a stylesheet.
+- Template slides are named slides to start from, shared like the library and copied on insert. They are not masters: the catalogue's layouts are the masters, and the stylesheet owns them.
+- No contentEditable on the slide. A click on the slide opens the field it shows, the field lights up its element; plain inputs behave the same on phones and with screen readers.
+- Guests with edit rights edit slides too; templates, themes and the pool stay the owner's.
 
 **2026-11-01, slides**
 
@@ -145,7 +167,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Nothing a guest does may fill the server: a guest uploads at most 250 MB a day (files and slide pictures together; a picture the server already has costs nothing) and holds at most 10 live-update streams at once (one per window); the files of a workshop take at most 500 MB, the owner's too. The day's count and the streams are kept in memory, so a restart starts afresh (`QUOTAS` in `server/app.ts`).
 - The app generates what the plan knows: title, agenda and break slides with the computed times; the facts panel of an exercise can come from the item later.
 - Glyphs on section slides need a CJK font; Noto Sans JP, sliced, loaded on demand, inlined into the standalone file when used.
-- No slide editor. A source field for small fixes; everything else happens outside, or through the connector later.
+- No slide editor. A source field for small fixes; everything else happens outside, or through the connector later. *(Revised the same day: see "slide editor" above.)*
 
 
 **2026-10-30, after trying it on a phone**

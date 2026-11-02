@@ -11,6 +11,10 @@ import { Option } from '@/slides/Option'
 import { SlideView } from '@/slides/SlideView'
 import { forgetDecks } from '@/slides/SlidePicker'
 import { findDecks, type FoundDeck, importDeck } from '@/slides/importDeck'
+import { SlideEditor } from '@/slides/editor/SlideEditor'
+import { poolSource } from '@/slides/editor/source'
+import { SlidesTabs } from '@/slides/SlidesTabs'
+import { slideAssets } from '@/domain/slides'
 
 /** The slide pool (docs/slides.md): translated decks, uploaded once as folders; slides are picked from here into items and library entries. */
 export default function DecksPage() {
@@ -19,6 +23,8 @@ export default function DecksPage() {
   const library = useLibrary()
   const [decks, setDecks] = useState<Deck[] | null>(null)
   const [open, setOpen] = useState<string | null>(null)
+  /** A pool slide opened in the slide editor: read-only, paged through its deck, "Save as template" at hand. */
+  const [viewing, setViewing] = useState<{ deck: Deck; key: string } | null>(null)
   const [slides, setSlides] = useState<Record<string, DeckSlide[]>>({})
   const [found, setFound] = useState<FoundDeck[] | null>(null)
   const [chosen, setChosen] = useState<string[]>([])
@@ -106,6 +112,7 @@ export default function DecksPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-10 md:py-10">
+        <SlidesTabs />
         <PageHeader
           title={t('slides.pool')}
           subtitle={t('slides.poolSubtitle')}
@@ -181,7 +188,7 @@ export default function DecksPage() {
                 <ul className={cx('grid grid-cols-2 gap-3 border-t border-line p-4 md:grid-cols-4')}>
                   {(slides[d.id] ?? []).map((s, i) => (
                     <li key={s.id}>
-                      <SlideView html={s.html} theme={d.theme || settings.theme || 'default'} scope="library" label={t('slides.slide', { n: i + 1 })} />
+                      <SlideView html={s.html} theme={d.theme || settings.theme || 'default'} scope="library" label={t('slides.slide', { n: i + 1 })} onClick={() => setViewing({ deck: d, key: s.id })} />
                       <div className="mt-1 truncate text-[11px] text-ink-3">{s.caption}</div>
                     </li>
                   ))}
@@ -190,6 +197,18 @@ export default function DecksPage() {
             </li>
           ))}
         </ul>
+        {viewing && slides[viewing.deck.id] && (
+          <SlideEditor
+            source={poolSource({ context: t('editor.ctx.pool'), deck: viewing.deck, slides: slides[viewing.deck.id] })}
+            start={viewing.key}
+            onClose={() => setViewing(null)}
+            theme={viewing.deck.theme || settings.theme || 'default'}
+            scope="library"
+            owner
+            canEdit={false}
+            known={[...new Set(slides[viewing.deck.id].flatMap((s) => slideAssets(s.html)))]}
+          />
+        )}
       </div>
     </div>
   )

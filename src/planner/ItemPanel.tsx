@@ -17,6 +17,8 @@ import NotesField from './NotesField'
 import { uploadFiles } from './upload'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
+import { usePlanner } from '@/store/usePlanner'
+import { useSlideEditing } from '@/slides/PlannerSlides'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
 
@@ -156,7 +158,17 @@ export default function ItemPanel({
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
       {item.kind !== 'note' && <Files item={item} data={data} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
-      {(item.kind === 'block' || item.kind === 'break') && <SlideStrip slides={item.slides} onChange={(slides) => set({ slides })} scope={{ workshopId: data.workshop.id }} theme={themeOf(data.workshop, settings)} canEdit owner={owner} />}
+      {(item.kind === 'block' || item.kind === 'break') && (
+        <SlideStrip
+          slides={item.slides}
+          list={{ get: () => usePlanner.getState().data?.items.find((i) => i.id === item.id)?.slides ?? [], set: (slides) => set({ slides }) }}
+          onOpen={(key, mode) => useSlideEditing.getState().open({ kind: 'step', itemId: item.id, key, mode })}
+          scope={{ workshopId: data.workshop.id }}
+          theme={themeOf(data.workshop, settings)}
+          canEdit
+          owner={owner}
+        />
+      )}
 
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <Button size="sm" onClick={duplicate}>

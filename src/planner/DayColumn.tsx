@@ -46,6 +46,8 @@ export interface BoardCtx {
   onDeleteGroup: (id: string) => void
   /** Absent for guests (the library is the owner's). */
   onSaveGroup?: (id: string) => void
+  /** Opens the slide editor on a step (the slide count on its card). */
+  onOpenSlides?: (id: string) => void
 }
 
 /** Not yet saved values the timeline already shows (dragging the lower edge, the time editor). */
@@ -86,6 +88,7 @@ export function Entries({ list, ids, schedule }: { list: string; ids: string[]; 
         selected={ctx.selected.has(id)}
         duration={ctx.preview?.id === id ? ctx.preview.fields.duration : undefined}
         inlineTitle={!ctx.phone}
+        onOpenSlides={ctx.onOpenSlides && (() => ctx.onOpenSlides!(id))}
         onSelect={(e) => ctx.onSelect(id, e)}
         onEdit={(fields) => ctx.onEditItem(id, fields)}
         onOpenTime={schedule ? (mode, anchor) => ctx.onOpenTime(id, mode, anchor) : undefined}

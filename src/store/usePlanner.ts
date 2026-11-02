@@ -18,6 +18,8 @@ const ERROR_RELOAD_MS = 10_000
 interface Entry {
   redo: Op[]
   undo: Op[]
+  /** Changes made under one session (the slide editor open on this workshop) share one entry. */
+  group?: string
 }
 
 type Status = 'idle' | 'loading' | 'ready' | 'missing' | 'login' | 'error'
@@ -34,6 +36,12 @@ interface PlannerStore {
   open: (id: string) => void
   close: () => void
   change: (ops: Op[]) => void
+  /**
+   * From here on until `endGroup`, every change joins one undo entry: the slide editor's session is one step in the
+   * planner's history (the editor has its own history for the steps inside).
+   */
+  beginGroup: (key: string) => void
+  endGroup: (key: string) => void
   undo: () => void
   redo: () => void
   addAttachment: (a: Attachment) => void
@@ -48,6 +56,8 @@ let sync: Sync | null = null
 let batchNo = 0
 let reloadQueued = false
 let lastErrorReload = 0
+/** The open session whose changes share one undo entry (beginGroup). */
+let group: string | null = null
 
 export const usePlanner = create<PlannerStore>((set, get) => {
   /** Shows the synced state. */
@@ -158,6 +168,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     open: (id) => {
       if (get().id === id) return
       sync = null
+      group = null
       reloadQueued = false
       set({ id, data: null, status: 'loading', live: false, past: [], future: [], syncError: false })
       // Nothing of this workshop is on its way yet: no need to wait for the queue.
@@ -176,8 +187,19 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       const data = get().data
       if (!data || !ops.length) return
       const undo = inverseOps(data, ops)
-      set({ past: [...get().past, { redo: ops, undo }].slice(-MAX_UNDO), future: [] })
+      const past = get().past
+      const last = past.at(-1)
+      if (group && last?.group === group) set({ past: [...past.slice(0, -1), { redo: [...last.redo, ...ops], undo: [...undo, ...last.undo], group }], future: [] })
+      else set({ past: [...past, { redo: ops, undo, ...(group ? { group } : {}) }].slice(-MAX_UNDO), future: [] })
       send(ops)
+    },
+
+    beginGroup: (key) => {
+      group = key
+    },
+
+    endGroup: (key) => {
+      if (group === key) group = null
     },
 
     undo: () => {
