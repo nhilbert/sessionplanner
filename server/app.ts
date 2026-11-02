@@ -45,7 +45,7 @@ export interface AppOptions extends GuardOptions {
   /** MCP endpoint for AI agents (server/mcp.ts), mounted at /mcp; it checks its own bearer token. */
   mcp?: Hono
   /** OAuth for the MCP endpoint (server/oauth.ts): discovery and /oauth/* at the root, connection admin under /api/mcp. */
-  oauth?: { routes: Hono; admin: Hono }
+  oauth?: { routes: Hono; admin: Hono<Env> }
   /** Token for GET /api/link/workshops (SP_LINK_TOKEN): another app (the CRM) reads the list to link to workshops. */
   linkToken?: string
   /** Other limits than QUOTAS (tests). */

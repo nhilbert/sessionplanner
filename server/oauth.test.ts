@@ -162,6 +162,7 @@ describe('OAuth for /mcp', () => {
 
   it('hosted, only allowed users from the login proxy header may approve', async () => {
     const ctx = setup({ baseUrl: new URL('https://sessions.example.com'), allowedUsers: ['Me@Example.com'], userHeader: 'X-Auth-Request-Email' })
+    ctx.oauth.arm('me@example.com') // started in Settings (see the next test)
     const reg = await ctx.app.request('/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: [CALLBACK] }) })
     const { client_id } = (await reg.json()) as { client_id: string }
     const host = { host: 'sessions.example.com' }
@@ -174,9 +175,57 @@ describe('OAuth for /mcp', () => {
     expect(new URL(res.headers.get('location')!).searchParams.get('error')).toBe('invalid_target')
   })
 
+  it('hosted, a new connection is approved only after the owner started it in Settings, and only once', async () => {
+    const pub = 'https://sessions.example.com'
+    const ctx = setup({ baseUrl: new URL(pub), allowedUsers: ['me@example.com'], userHeader: 'x-auth-request-email' }, ['me@example.com'])
+    const me = { host: 'sessions.example.com', 'x-auth-request-email': 'me@example.com' }
+    const api = (path: string, email: string, method = 'GET') => ctx.app.request(`${pub}/api/mcp${path}`, { method, headers: { 'x-auth-request-email': email, 'x-sp': '1' } })
+    const { body } = await register(ctx.app)
+    const consent = () => authorize(ctx.app, body.client_id, pkce().challenge, me, CALLBACK, `${pub}/mcp`)
+    // a consent link someone sends out of the blue is refused, with a warning
+    const cold = await ctx.app.request(`/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: body.client_id, redirect_uri: CALLBACK, code_challenge: pkce().challenge, code_challenge_method: 'S256' })}`, { headers: me })
+    expect(cold.status).toBe(403)
+    expect(await cold.text()).toContain('Start the connection in Session Planner first')
+    expect(await (await api('/connections', 'me@example.com')).json()).toMatchObject({ resource: `${pub}/mcp`, armRequired: true, armedUntil: null })
+    // only the owner starts one, and only with the app's header
+    expect((await api('/arm', 'guest@example.com', 'POST')).status).toBe(403)
+    expect((await ctx.app.request(`${pub}/api/mcp/arm`, { method: 'POST', headers: { 'x-auth-request-email': 'me@example.com' } })).status).toBe(403)
+    const armed = await api('/arm', 'me@example.com', 'POST')
+    expect(armed.status).toBe(200)
+    expect(await armed.json()).toMatchObject({ resource: `${pub}/mcp` })
+    expect((await (await api('/connections', 'me@example.com')).json()).armedUntil).not.toBeNull()
+    // one approval, then it is used up
+    expect((await consent()).status).toBe(302)
+    expect((await consent()).status).toBe(403)
+    // a page opened while it was armed cannot be approved after another approval used it
+    await api('/arm', 'me@example.com', 'POST')
+    const q = new URLSearchParams({ response_type: 'code', client_id: body.client_id, redirect_uri: CALLBACK, code_challenge: pkce().challenge, code_challenge_method: 'S256' })
+    const stale = /name="request" value="([^"]+)"/.exec(await (await ctx.app.request(`/oauth/authorize?${q}`, { headers: me })).text())![1]
+    expect((await consent()).status).toBe(302)
+    const late = await ctx.app.request('/oauth/authorize', { method: 'POST', headers: { ...me, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ request: stale, decision: 'allow' }).toString() })
+    expect(late.status).toBe(403)
+    // and a start runs out after ten minutes
+    await api('/arm', 'me@example.com', 'POST')
+    const realNow = Date.now
+    Date.now = () => realNow() + 11 * 60_000
+    try {
+      expect((await consent()).status).toBe(403)
+    } finally {
+      Date.now = realNow
+    }
+  })
+
+  it('locally needs no start in Settings', async () => {
+    const ctx = setup()
+    expect(await (await ctx.app.request('/api/mcp/connections', { headers: { 'x-sp': '1', host: '127.0.0.1:5175' } })).json()).toMatchObject({ armRequired: false, armedUntil: null })
+    const { body } = await register(ctx.app)
+    expect((await authorize(ctx.app, body.client_id, pkce().challenge)).status).toBe(302)
+  })
+
   it('hosted with a proxy secret, the login e-mail counts only together with it', async () => {
     const secret = 'a'.repeat(64)
     const ctx = setup({ baseUrl: new URL('https://sessions.example.com'), allowedUsers: ['me@example.com'], userHeader: 'x-auth-request-email', proxySecret: secret }, ['me@example.com'])
+    ctx.oauth.arm('me@example.com')
     const { body } = await register(ctx.app)
     const me = { host: 'sessions.example.com', 'x-auth-request-email': 'me@example.com' }
     const tryWith = (headers: Record<string, string>) => authorize(ctx.app, body.client_id, pkce().challenge, headers, CALLBACK, 'https://sessions.example.com/mcp')
@@ -216,6 +265,7 @@ describe('OAuth for /mcp', () => {
     const hosted = { baseUrl: new URL('https://sessions.example.com'), userHeader: 'x-auth-request-email' }
     const ctx = setup({ ...hosted, allowedUsers: ['me@example.com'] }, ['me@example.com'])
     const me = { host: 'sessions.example.com', 'x-auth-request-email': 'me@example.com' }
+    ctx.oauth.arm('me@example.com')
     const { body } = await register(ctx.app)
     const { verifier, challenge } = pkce()
     const { url } = await authorize(ctx.app, body.client_id, challenge, me, CALLBACK, 'https://sessions.example.com/mcp')

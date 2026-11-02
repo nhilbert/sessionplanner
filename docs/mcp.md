@@ -49,11 +49,12 @@ Prerequisites: Session Planner is hosted behind Caddy and oauth2-proxy with the 
    ```
 
    The owners (`SP_OWNERS`, the addresses the login lets in as owners) are the people who may approve connections; guests cannot. Restart the container. The log shows `MCP: https://sessions.example.com/mcp (OAuth)`.
-2. In Claude: Settings → Connectors → **Add custom connector**, URL `https://sessions.example.com/mcp`. Leave client ID and secret empty.
-3. Claude opens Session Planner's consent page. Sign in with Microsoft if asked, check that it names Claude and `claude.ai` as the destination, press **Allow**.
-4. Session Planner → Settings → **AI agents (MCP)** now lists the connection.
+2. In Session Planner: Settings → **AI agents (MCP)** → **Connect an agent**. For the next 10 minutes one new connection can be approved; the page shows the address to enter.
+3. In Claude: Settings → Connectors → **Add custom connector**, URL `https://sessions.example.com/mcp`. Leave client ID and secret empty.
+4. Claude opens Session Planner's consent page. Sign in with Microsoft if asked, check that it names Claude and `claude.ai` as the destination, press **Allow**.
+5. Session Planner → Settings → **AI agents (MCP)** now lists the connection.
 
-Claude Code works against the same URL: `claude mcp add --transport http sessionplanner https://sessions.example.com/mcp`, then `/mcp` in Claude Code to sign in.
+Claude Code works against the same URL: `claude mcp add --transport http sessionplanner https://sessions.example.com/mcp`, then **Connect an agent** in Session Planner and `/mcp` in Claude Code to sign in. Reconnecting an agent whose refresh token ran out takes the same two steps.
 
 ### Local process (stdio)
 
@@ -81,7 +82,7 @@ Claude Desktop (`claude_desktop_config.json`):
 
 ### Local OAuth (Claude Code)
 
-With `SP_MCP_OAUTH=1` and no `SP_PUBLIC_URL`, the endpoint is `http://127.0.0.1:5175/mcp`. Approval is possible only from a browser on the same machine: both the connecting socket and the `Host` header must be loopback. claude.ai cannot use this, because its servers cannot reach your localhost.
+With `SP_MCP_OAUTH=1` and no `SP_PUBLIC_URL`, the endpoint is `http://127.0.0.1:5175/mcp`. Approval is possible only from a browser on the same machine: both the connecting socket and the `Host` header must be loopback. claude.ai cannot use this, because its servers cannot reach your localhost. **Connect an agent** is not needed here: a code can only go to a program on this machine.
 
 ### Static token
 
@@ -280,7 +281,7 @@ Co-facilitators and clients who see shared workshops are guests: their e-mail is
 | Approving an agent (`/oauth/authorize`) | Login proxy, proxy secret **and** `SP_OWNERS`; locally: loopback socket and Host |
 | Calling tools (`/mcp`) | Bearer access token issued after your approval (or the static token) |
 | Obtaining tokens (`/oauth/token`) | Registered client + single-use 60-second code + S256 PKCE verifier, or a valid refresh token |
-| Listing and disconnecting agents (`/api/mcp/connections`) | Owner only |
+| Listing, starting and disconnecting agents (`/api/mcp/connections`, `/api/mcp/arm`) | Owner only, with the app's header on changes |
 | Stored credentials | Only SHA-256 hashes of tokens in `oauth_tokens`; no client secrets exist |
 | stdio | File system access to `data/` |
 
@@ -297,7 +298,7 @@ Not in cryptographic strength – both are 256-bit random values. The gain is in
 What OAuth adds in exposure:
 
 - Four endpoints reachable without login (metadata, register, token, revoke). They hand out nothing without your approval. Registration is open by design (Claude registers itself); idle registrations expire after 15 minutes and are capped, so a flood cannot block new connections.
-- **Consent phishing.** Someone could start a connection and get you to press Allow. The page names the application and the destination host and warns when the destination is a program on your computer. Approve only connections you just started yourself.
+- **Consent phishing.** Someone could start a connection in their own Claude and send you its consent link, so that your Allow connects *their* agent to your workshops. Hosted, a connection can therefore be approved only within 10 minutes after you pressed **Connect an agent** in Settings, and only once per press: a link that arrives at any other time is refused with a warning, and a second consent page opened meanwhile cannot be approved after the first. The page also names the application and the destination host and warns when the destination is a program on your computer. Approve only connections you just started yourself.
 - **Proxy configuration becomes part of the security.** If `/oauth/authorize` is reachable without the login, the e-mail header can be forged; without `SP_PROXY_SECRET`, the same holds for anyone who reaches the container port without Caddy. The [checklist](#hosting-behind-caddy-and-oauth2-proxy) tests both.
 
 What neither protects against:
@@ -325,7 +326,8 @@ What neither protects against:
 | Consent page says "only … on the computer running Session Planner" while hosted | `SP_PUBLIC_URL` not set, so the server runs in local mode | Set `SP_PUBLIC_URL` and `SP_OWNERS` |
 | "Invalid redirect" on the consent page | The client registered a redirect URI that is not Claude's or loopback | Add it to `SP_OAUTH_REDIRECTS` if you trust that client |
 | Claude reports `invalid_target` | The URL entered in Claude differs from `SP_PUBLIC_URL` + `/mcp` (other host, `http`, trailing path) | Enter exactly `https://<SP_PUBLIC_URL host>/mcp` |
-| Connector worked, now asks to sign in again | Refresh token expired (30 days unused), was revoked in Settings, replayed, or the approving address left `SP_OWNERS` | Reconnect; if you did not disconnect it, look at who else might hold the token |
+| Connector worked, now asks to sign in again | Refresh token expired (30 days unused), was revoked in Settings, replayed, or the approving address left `SP_OWNERS` | **Connect an agent**, then reconnect; if you did not disconnect it, look at who else might hold the token |
+| Consent page says "Start the connection in Session Planner first" | No **Connect an agent** in the last 10 minutes, or it was used for another approval meanwhile | Settings → AI agents → **Connect an agent**, then start the connection in Claude again. If you did not start one, close the page |
 | Agent changes do not show in the browser | The agent runs over stdio (no live updates) or the window lost its stream | Reload the page |
 | "… matches several workshops" | Two workshops share the title | Give the id from `workshop_list`, or add the client to the query |
 
@@ -336,4 +338,4 @@ What neither protects against:
 - Files cannot be uploaded, downloaded or deleted through MCP; they are listed by name. Pictures for slides cannot be uploaded either, and decks are added to the pool in the app.
 - Sharing (guests) is managed in the app only.
 - Workshops cannot be deleted through MCP (archive instead).
-- Pending consent requests and authorization codes are kept in memory: a restart during sign-in means starting the connection again.
+- Pending consent requests, authorization codes and **Connect an agent** are kept in memory: a restart during sign-in means starting the connection again.
