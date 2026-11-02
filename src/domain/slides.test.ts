@@ -37,6 +37,15 @@ describe('slide helpers', () => {
     expect(normalizeSlideHtml('<p>only text</p>')).toBe('<section class="slide list"><p>only text</p></section>')
     expect(normalizeSlideHtml('<section class="slide quote"><blockquote><p>q</p></blockquote></section>')).toBe('<section class="slide quote"><blockquote><p>q</p></blockquote></section>')
   })
+  it('keeps one slide: nothing after the root survives, which would sit over the app', () => {
+    const slide = '<section class="slide list"><section class="slide list"><p>inner</p></section><p>ok</p></section>'
+    expect(normalizeSlideHtml(`${slide}<div class="fixed inset-0 z-50">Sitzung abgelaufen</div>`)).toBe(slide)
+    expect(normalizeSlideHtml('<section class="slide list"><p>a</p></section><section class="slide list"><p>second</p></section>')).toBe('<section class="slide list"><p>a</p></section>')
+    // a stray closing tag ends the root early; what follows goes too
+    expect(normalizeSlideHtml('<section class="slide list"><svg><g></section><div class="fixed">x</div></g></svg>')).toBe('<section class="slide list"><svg><g></g></svg></section>')
+    // without a root at the start, everything goes inside the one that is added
+    expect(normalizeSlideHtml('<p>x</p><section class="slide list"><p>y</p></section>')).toBe('<section class="slide list"><p>x</p><section class="slide list"><p>y</p></section></section>')
+  })
   it('finds assets, layout, text and title', () => {
     const html = '<section class="slide split"><header><h2>Selbstwirksamkeit</h2></header><figure><img src="asset:0123456789abcdef"></figure><svg><text>hidden</text></svg></section>'
     expect(slideAssets(html)).toEqual(['0123456789abcdef'])
