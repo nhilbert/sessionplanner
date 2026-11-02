@@ -7,6 +7,29 @@ export interface GuardOptions {
   /** Hosted: the owner's e-mail address(es), as set by the login proxy in `ownerHeader`. Empty = everybody is the owner (local use). */
   owners: string[]
   ownerHeader: string
+  /** Hosted: the secret the login proxy adds to every request it forwards (SP_PROXY_SECRET); see fromProxy. */
+  proxySecret?: string
+}
+
+/** The header the login proxy carries its secret in (Caddy: header_up X-SP-Proxy-Secret …). */
+export const PROXY_SECRET_HEADER = 'x-sp-proxy-secret'
+
+let reportedMissingSecret = false
+
+/**
+ * Whether a request came through the login proxy: with a configured secret it must carry it, so the e-mail header
+ * cannot be forged by anyone who reaches this port some other way (a published port, another container in the same
+ * network). Without one, the network alone has to ensure that only the proxy reaches the port.
+ */
+export function fromProxy(headers: Headers, secret: string | undefined): boolean {
+  if (!secret) return true
+  const given = headers.get(PROXY_SECRET_HEADER)
+  if (given !== null && sameToken(given, secret)) return true
+  if (!reportedMissingSecret) {
+    reportedMissingSecret = true
+    console.warn(`Refused a request without the proxy secret (${PROXY_SECRET_HEADER}). If it came through the login proxy, it does not add the header yet (docs/mcp.md, Hosting). Further refusals are not logged.`)
+  }
+  return false
 }
 
 /**
@@ -44,8 +67,9 @@ export function userOf(headers: Headers, owners: string[], ownerHeader: string):
   return { email, owner: owners.includes(email) }
 }
 
-export function guard({ publicUrl, owners, ownerHeader }: GuardOptions) {
+export function guard({ publicUrl, owners, ownerHeader, proxySecret }: GuardOptions) {
   return async (c: Context<Env>, next: Next): Promise<Response | void> => {
+    if (!fromProxy(c.req.raw.headers, proxySecret)) return c.json({ error: 'forbidden' }, 403)
     if (!isTrusted(c.req.raw.headers, c.req.url, c.req.method, publicUrl)) return c.json({ error: 'forbidden' }, 403)
     const user = userOf(c.req.raw.headers, owners, ownerHeader)
     if (!user) return c.json({ error: 'login_required' }, 401)

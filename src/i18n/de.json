@@ -169,6 +169,8 @@
     "empty": "Noch keine Dateien.",
     "tooLarge": "„{{name}}“ ist größer als 25 MB.",
     "failed": "„{{name}}“ konnte nicht hochgeladen werden.",
+    "quota": "„{{name}}“ passt nicht mehr: Die Dateien eines Workshops dürfen zusammen 500 MB groß sein.",
+    "budget": "„{{name}}“ wurde nicht hochgeladen: Gäste können bis zu 250 MB am Tag hochladen.",
     "deleteConfirm": "„{{name}}“ löschen? Die Datei wird von allen Punkten gelöst.",
     "linked_one": "an {{count}} Punkt",
     "linked_other": "an {{count}} Punkten"
@@ -253,6 +255,9 @@
     "agents": "KI-Agenten (MCP)",
     "agentsHint": "Agenten wie Claude verbinden sich per OAuth und können dann Workshops lesen und ändern: Ablauf, Notizen, Material, Packliste und Bibliothek. Trennen beendet den Zugriff sofort.",
     "agentsOff": "Auf dem Server nicht aktiviert. Mit SP_MCP_OAUTH=1 (siehe docs/mcp.md) kann sich Claude verbinden.",
+    "agentsConnect": "Agent verbinden",
+    "agentsConnectHint": "Eine neue Verbindung lässt sich nur innerhalb von 10 Minuten freigeben, nachdem sie hier gestartet wurde, und nur einmal. Ein Freigabe-Link, den jemand anderes zu einem anderen Zeitpunkt schickt, wird abgelehnt.",
+    "agentsArmed": "Bis {{time}} lässt sich eine neue Verbindung freigeben. Jetzt in Claude (Einstellungen → Konnektoren) mit dieser Adresse hinzufügen oder dort neu verbinden:",
     "agentsNone": "Kein Agent verbunden.",
     "agentsSince": "verbunden am {{date}} von {{user}}",
     "agentsLastUsed": "zuletzt genutzt {{date}}",

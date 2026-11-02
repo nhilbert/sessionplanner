@@ -115,6 +115,17 @@ describe('slide assets', () => {
     expect(out.ops[0].fields.slides[0].html).toBe('<section class="slide list"><p>nur Text</p></section>')
   })
 
+  it('keeps nothing after the slide, even from a guest with edit access', async () => {
+    const { app, repo } = setup()
+    const ws = await workshop(app)
+    repo.setMember(ws.workshop.id, GUEST, 'edit', true)
+    const overlay = '<section class="slide list"><p>ok</p></section><div class="fixed inset-0 z-50 bg-black">Sitzung abgelaufen</div>'
+    const ops = { clientId: 'g', ops: [{ op: 'create', entity: 'item', record: item('i1', ws.workshop.id, ws.days[0].id, overlay) }] }
+    expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}/ops`, { method: 'POST', headers: H(GUEST), body: JSON.stringify(ops) })).status).toBe(200)
+    const state = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { headers: H() })).json()) as WorkshopState
+    expect(state.items[0].slides[0].html).toBe('<section class="slide list"><p>ok</p></section>')
+  })
+
   it('lists the themes that have a stylesheet and serves their files, nothing outside them', async () => {
     const { app } = setup()
     expect(await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()).toEqual(['default', 'demo'])

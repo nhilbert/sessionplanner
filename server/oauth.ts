@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import { getConnInfo } from '@hono/node-server/conninfo'
 import { createHash, randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import { type Env, fromProxy } from './guard.ts'
 
 /**
  * OAuth 2.1 authorization server for the MCP endpoint, as Claude's connectors expect it
@@ -13,6 +14,10 @@ import type { DatabaseSync } from 'node:sqlite'
  *    a header (SP_OWNER_HEADER); only the owners (SP_OWNERS) may approve.
  *  - local: only a browser on this machine (loopback host) may approve.
  * Discovery, /oauth/register, /oauth/token, /oauth/revoke and /mcp must be reachable without the login.
+ *
+ * Hosted, an owner approves a new connection only after starting it in Settings (arm, ARM_TTL_MS): a consent
+ * link someone else sends cannot connect their agent to the owner's workshops at any other time. Locally a code
+ * can only reach a program on this machine (loopback redirects; Claude's servers cannot reach it), so no arming.
  */
 
 export interface OAuthConfig {
@@ -22,6 +27,8 @@ export interface OAuthConfig {
   userHeader?: string
   /** Hosted: e-mail addresses allowed to approve connections. Empty = local mode (loopback only). */
   allowedUsers?: string[]
+  /** Hosted: the login proxy's secret (SP_PROXY_SECRET); with it, the e-mail header counts only together with it. */
+  proxySecret?: string
   /** Extra redirect URIs accepted at registration besides Claude's callbacks and loopback. */
   extraRedirects?: string[]
   accessTtlSeconds?: number
@@ -39,6 +46,8 @@ export const CLAUDE_CALLBACKS = ['https://claude.ai/api/mcp/auth_callback', 'htt
 const SCOPE = 'sessionplanner'
 const CODE_TTL_MS = 60_000
 const PENDING_TTL_MS = 10 * 60_000
+/** After an owner pressed "Connect an agent" in Settings, one connection may be approved within this time. */
+export const ARM_TTL_MS = 10 * 60_000
 /** A refresh token presented again within this window is a retry, not theft: refuse it, keep the family. */
 const REUSE_GRACE_MS = 30_000
 /** A registration is followed by sign-in within minutes; clients still without tokens after this are dropped. */
@@ -62,13 +71,15 @@ function socketAddress(c: Context): string | undefined {
  * Who is approving: the e-mail from the login proxy (hosted) or "local" for a browser on this machine.
  * Locally both the socket's peer and the Host header must be loopback: the Host header alone is set by
  * the client, and in a container (SP_HOST=0.0.0.0) other machines may reach the port. Hosted, the
- * header is only as trustworthy as the rule that the port is reachable through the proxy alone.
+ * header is only as trustworthy as the rule that the port is reachable through the proxy alone, unless the
+ * proxy also sends its secret (SP_PROXY_SECRET), which is then required.
  * An empty `allowedUsers` means local mode.
  */
 export function signedInUser(
   c: Context,
-  cfg: { allowedUsers: string[]; userHeader?: string; remoteAddress?: (c: Context) => string | undefined },
+  cfg: { allowedUsers: string[]; userHeader?: string; proxySecret?: string; remoteAddress?: (c: Context) => string | undefined },
 ): string | null {
+  if (!fromProxy(c.req.raw.headers, cfg.proxySecret)) return null
   if (cfg.allowedUsers.length) {
     const email = cfg.userHeader ? c.req.header(cfg.userHeader)?.trim().toLowerCase() : undefined
     return email && cfg.allowedUsers.includes(email) ? email : null
@@ -115,9 +126,11 @@ interface AuthRequest {
 
 export class OAuthServer {
   private db: DatabaseSync
-  private cfg: Required<Omit<OAuthConfig, 'userHeader' | 'remoteAddress'>> & { userHeader?: string; remoteAddress: (c: Context) => string | undefined }
+  private cfg: Required<Omit<OAuthConfig, 'userHeader' | 'proxySecret' | 'remoteAddress'>> & { userHeader?: string; proxySecret?: string; remoteAddress: (c: Context) => string | undefined }
   private pending = new Map<string, AuthRequest & { expires: number }>()
   private codes = new Map<string, AuthRequest & { expires: number }>()
+  /** Hosted: owners who started a connection in Settings, until when (see arm). */
+  private armed = new Map<string, number>()
 
   constructor(db: DatabaseSync, cfg: OAuthConfig) {
     this.db = db
@@ -253,10 +266,38 @@ export class OAuthServer {
     return Number(this.db.prepare('DELETE FROM oauth_clients WHERE id = ?').run(clientId).changes) > 0
   }
 
+  /** Hosted: lets `user` approve one new connection within ARM_TTL_MS (Settings → AI agents → Connect an agent). */
+  arm(user: string): string {
+    const until = Date.now() + ARM_TTL_MS
+    this.armed.set(user, until)
+    return new Date(until).toISOString()
+  }
+
+  /** Until when `user` may approve a new connection, or null; locally always (no arming). */
+  armedUntil(user: string): number | null {
+    if (this.local) return Number.POSITIVE_INFINITY
+    const until = this.armed.get(user)
+    if (until === undefined || until < Date.now()) {
+      this.armed.delete(user)
+      return null
+    }
+    return until
+  }
+
   // ---------- HTTP ----------
 
   private page(c: Context, title: string, body: string, status: 200 | 400 | 403 = 200) {
     return simplePage(c, title, body, status)
+  }
+
+  private notArmed(c: Context) {
+    return this.page(
+      c,
+      'Start the connection in Session Planner first',
+      `<p>A new connection can be approved only within ${ARM_TTL_MS / 60_000} minutes after you started it in Session Planner: Settings → AI agents → <strong>Connect an agent</strong>. Then add or reconnect it in your application again.</p>` +
+        '<p class="warn">If you did not just set up a connection yourself, close this page: someone may be trying to connect their own agent to your workshops.</p>',
+      403,
+    )
   }
 
   routes(): Hono {
@@ -330,6 +371,7 @@ export class OAuthServer {
       if (!user) {
         return this.page(c, 'Not allowed', this.local ? '<p>Connections can only be approved in a browser on the computer running Session Planner.</p>' : '<p>Your account may not approve connections to Session Planner.</p>', 403)
       }
+      if (this.armedUntil(user) === null) return this.notArmed(c)
       const id = randomToken()
       const now = Date.now()
       for (const [k, v] of this.pending) if (v.expires < now) this.pending.delete(k)
@@ -356,6 +398,9 @@ export class OAuthServer {
       if (this.approver(c) !== req.user) return this.page(c, 'Not allowed', '<p>The approval must come from the same signed-in user.</p>', 403)
       const u = new URL(req.redirectUri)
       if (form.decision === 'allow') {
+        // One approval per start in Settings: a second consent page opened meanwhile (someone else's link) is refused.
+        if (this.armedUntil(req.user) === null) return this.notArmed(c)
+        this.armed.delete(req.user)
         const code = randomToken()
         // A code is removed when it is exchanged; one that never is (closed tab, crashed client) would stay for the
         // life of the process, so the expired ones go whenever a new one is issued, as with the pending requests.
@@ -422,10 +467,19 @@ export class OAuthServer {
     return app
   }
 
-  /** Settings → connected agents (under /api/mcp, owner only). */
-  adminRoutes(): Hono {
-    const app = new Hono()
-    app.get('/connections', (c) => c.json({ connections: this.connections() }))
+  /**
+   * Settings → AI agents (under /api/mcp, behind the guard, owner only): the connections, disconnecting one, and
+   * starting a new one (arm). `armRequired` is false locally, where approving needs no start in Settings.
+   */
+  adminRoutes(): Hono<Env> {
+    const app = new Hono<Env>()
+    const who = (c: Context<Env>) => c.get('user').email ?? 'local'
+    const until = (user: string) => {
+      const t = this.local ? null : this.armedUntil(user)
+      return t === null ? null : new Date(t).toISOString()
+    }
+    app.get('/connections', (c) => c.json({ connections: this.connections(), resource: this.resource, armRequired: !this.local, armedUntil: until(who(c)) }))
+    app.post('/arm', (c) => c.json({ armedUntil: this.arm(who(c)), resource: this.resource }))
     app.delete('/connections/:id', (c) => c.json({ ok: this.disconnect(c.req.param('id')) }))
     return app
   }
