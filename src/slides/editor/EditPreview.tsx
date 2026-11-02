@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { type AssetScope, hostHtml, useFrameScale, useTheme } from '../SlideView'
 import { fieldSelectors, type SlideDoc } from '@/domain/slideDoc'
 import { cx } from '@/components/ui'
@@ -18,6 +18,7 @@ export function EditPreview({ doc, html, theme, scope, focus, onFocus, onOverflo
   const rendered = useMemo(() => hostHtml(html, scope), [html, scope])
   useTheme(theme)
   const selectors = useMemo(() => fieldSelectors(doc), [doc])
+  const [over, setOver] = useState(false)
 
   // Mark the elements after every render of the markup, then check the fit.
   useLayoutEffect(() => {
@@ -31,7 +32,9 @@ export function EditPreview({ doc, html, theme, scope, focus, onFocus, onOverflo
       }
     }
     // The section hides its overflow; its scroll size still tells whether the content runs past 1280 × 720.
-    onOverflow?.(section.scrollHeight > 720 + 2 || section.scrollWidth > 1280 + 2)
+    const runsOver = section.scrollHeight > 720 + 2 || section.scrollWidth > 1280 + 2
+    setOver(runsOver)
+    onOverflow?.(runsOver)
   }, [rendered, selectors, onOverflow])
 
   useLayoutEffect(() => {
@@ -54,7 +57,7 @@ export function EditPreview({ doc, html, theme, scope, focus, onFocus, onOverflo
   return (
     <div
       ref={ref}
-      className={cx('slide-frame slide-edit', className)}
+      className={cx('slide-frame slide-edit', over && 'is-overflow', className)}
       style={{ ...style, '--s': scale } as React.CSSProperties}
       onClick={(e) => {
         const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-f]')

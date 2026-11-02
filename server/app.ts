@@ -13,7 +13,7 @@ import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { BadRequest, isThemeId, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
-import { DARK_TOKENS, DEFAULT_TOKENS, themeCss, themeIdFrom, type ThemeLogo } from '../src/domain/theme.ts'
+import { DARK_TOKENS, DEFAULT_TOKENS, themeCss, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -246,7 +246,12 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   // ---- settings and logo -------------------------------------------------------------------------
   const logoPath = path.join(filesDir, 'logo')
   app.get('/api/settings', (c) => c.json(repo.getSettings()))
-  app.put('/api/settings', ownerOnly, async (c) => c.json(repo.saveSettings({ ...validateSettings(await jsonBody(c)), logo: repo.getSettings().logo })))
+  app.put('/api/settings', ownerOnly, async (c) => {
+    const settings = validateSettings(await jsonBody(c))
+    // A theme that is gone (deleted in another window) is not set as the default again.
+    if (settings.theme && !listThemes(themesDir, repo.listThemes()).some((t) => t.id === settings.theme)) settings.theme = ''
+    return c.json(repo.saveSettings({ ...settings, logo: repo.getSettings().logo }))
+  })
 
   app.post('/api/settings/logo', ownerOnly, async (c) => {
     const file = (await c.req.parseBody()).file
@@ -379,7 +384,6 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   // ---- slide themes: kept as data (colours, fonts, logo; the stylesheet is generated) or as folders in data/themes ----
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
   const themeLogoPath = (id: string, variant: 'logo' | 'logoLight') => path.join(filesDir, 'theme-logos', variant === 'logo' ? id : `${id}-light`)
-  const themeLogoUrl = (id: string, logo: ThemeLogo | null, variant: 'logo' | 'logoLight') => (logo ? `/api/themes/${encodeURIComponent(id)}/${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}` : null)
   app.get('/api/themes', (c) => c.json(listThemes(themesDir, repo.listThemes())))
   /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
   app.get('/api/themes/:id', ownerOnly, (c) => {
@@ -393,8 +397,9 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const data = repo.getTheme(name)
     if (data) {
       if (rel.length === 1 && rel[0] === 'theme.css') {
-        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data.id, data.logo, 'logo'), logoLightUrl: themeLogoUrl(data.id, data.logoLight, 'logoLight') })
-        return c.body(css, 200, { 'Content-Type': THEME_TYPES['.css'], 'Cache-Control': 'private, max-age=300' })
+        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo'), logoLightUrl: themeLogoUrl(data, 'logoLight') })
+        // Changed in the theme editor at any time: asked for again on every load (it is small).
+        return c.body(css, 200, { 'Content-Type': THEME_TYPES['.css'], 'Cache-Control': 'private, no-cache' })
       }
       if (rel.length === 1 && (rel[0] === 'logo' || rel[0] === 'logo-light')) {
         const variant = rel[0] === 'logo' ? 'logo' : 'logoLight'

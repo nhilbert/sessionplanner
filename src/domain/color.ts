@@ -81,8 +81,8 @@ export function mixHex(a: string, b: string, t: number): string {
   return toHex(mix(x, y, t))
 }
 
-/** Whether a colour reads as dark (the text on it should be light). */
+/** Whether a colour reads as dark (text on it should be light; a theme on it tints its surfaces a little more). */
 export const isDark = (hex: string): boolean => {
   const rgb = parseHex(hex)
-  return !!rgb && luminance(rgb) < 0.4
+  return !!rgb && luminance(rgb) < 0.18
 }

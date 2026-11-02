@@ -1,4 +1,4 @@
-import { isHex, mixHex } from './color.ts'
+import { isDark, isHex, mixHex, parseHex } from './color.ts'
 
 /**
  * Slide themes as data (docs/slides.md, section 4): a theme names a few colours, two fonts and a handful of
@@ -92,7 +92,7 @@ export const DARK_TOKENS: ThemeTokens = {
 /** The derived tones of a theme: tints of the text colour on the background, the deeper accent, the quieter text on the field. */
 export function derivedColors(tokens: ThemeTokens): Record<DerivedColorKey, string> {
   const c = tokens.colors
-  const dark = isDarkHex(c.bg)
+  const dark = isDark(c.bg)
   const derived: Record<DerivedColorKey, string> = {
     surface: mixHex(c.bg, c.fg, dark ? 0.08 : 0.06),
     surface2: mixHex(c.bg, c.fg, dark ? 0.05 : 0.03),
@@ -109,22 +109,13 @@ export function derivedColors(tokens: ThemeTokens): Record<DerivedColorKey, stri
   return derived
 }
 
-function isDarkHex(hex: string): boolean {
-  // a quick read of the background: dark themes tint their surfaces a little more
-  const v = hex.replace('#', '')
-  const n = v.length === 3 ? parseInt(v[0] + v[0] + v[1] + v[1] + v[2] + v[2], 16) : parseInt(v.slice(0, 6), 16)
-  const r = (n >> 16) & 255
-  const g = (n >> 8) & 255
-  const b = n & 255
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 110
-}
-
 /** Fills a partial token set (older data, an agent's input) with the defaults. */
 export function withDefaults(tokens: Partial<ThemeTokens> | undefined, base: ThemeTokens = DEFAULT_TOKENS): ThemeTokens {
   const t = tokens ?? {}
   return {
     colors: { ...base.colors, ...(t.colors ?? {}) },
-    overrides: { ...(t.overrides ?? {}) },
+    // Given overrides replace the base's (that is how one is removed); none given keeps the base's.
+    overrides: { ...(t.overrides ?? base.overrides ?? {}) },
     fonts: { ...base.fonts, ...(t.fonts ?? {}) },
     displayWeight: t.displayWeight ?? base.displayWeight,
     radius: t.radius ?? base.radius,
@@ -161,8 +152,8 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
   ]
   const lines = [`${sel} { ${vars.filter(Boolean).join(' ')} }`]
   if (tokens.titleScrim) {
-    const ink = isDarkHex(c.bg) ? c.bg : '#1F2428'
-    const rgb = hexToRgbList(ink)
+    const ink = isDark(c.bg) ? c.bg : '#1F2428'
+    const rgb = (parseHex(ink) ?? [31, 36, 40]).join(',')
     lines.push(`${sel} .slide.title > figure::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(${rgb},0.9) 0%, rgba(${rgb},0.7) 45%, rgba(${rgb},0.1) 100%); }`)
     lines.push(`${sel} .slide.title:has(figure) { color: #FFFFFF; }`)
     lines.push(`${sel} .slide.title:has(figure) h1, ${sel} .slide.title:has(figure) .subtitle, ${sel} .slide.title:has(figure) .meta { color: #FFFFFF; }`)
@@ -177,10 +168,10 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
   return lines.join('\n')
 }
 
-function hexToRgbList(hex: string): string {
-  const v = hex.replace('#', '')
-  const h = v.length === 3 ? [...v].map((x) => x + x).join('') : v.slice(0, 6)
-  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(',')
+/** The address of a theme's uploaded logo (or its light variant), versioned by the upload, or null without one. */
+export function themeLogoUrl(theme: Pick<Theme, 'id' | 'logo' | 'logoLight'>, variant: 'logo' | 'logoLight'): string | null {
+  const logo = variant === 'logo' ? theme.logo : theme.logoLight
+  return logo ? `/api/themes/${encodeURIComponent(theme.id)}/${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}` : null
 }
 
 /** The ids a theme may have: the same rule as theme folders (server/themes.ts). */

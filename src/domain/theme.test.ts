@@ -51,8 +51,12 @@ describe('theme', () => {
     expect(t.colors.bg).toBe('#FFFFFF')
     expect(t.radius).toBe(4)
     expect(t.fonts.display).toBe('inter')
-    expect(themeIdFrom('Supervision Rheinland – hell', () => 'abc123xyz')).toBe('supervision-rheinland-he-abc123')
+    expect(themeIdFrom('Beispiel Beratung Köln – hell', () => 'abc123xyz')).toBe('beispiel-beratung-koln-h-abc123')
     expect(themeIdFrom('', () => 'abc123xyz')).toBe('theme-abc123')
+    // a patch without overrides keeps those of the theme; given overrides replace them (that is how one is removed)
+    const base = { ...DEFAULT_TOKENS, overrides: { line: '#FF0000' } }
+    expect(withDefaults({ colors: { accent: '#123456' } } as never, base).overrides).toEqual({ line: '#FF0000' })
+    expect(withDefaults({ overrides: {} }, base).overrides).toEqual({})
   })
   it('lists the contrast pairs the editor checks', () => {
     const pairs = contrastPairs(DEFAULT_TOKENS)

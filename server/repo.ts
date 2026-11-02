@@ -623,6 +623,7 @@ export class Repo {
       this.db.prepare("UPDATE workshops SET theme = '' WHERE theme = ?").run(id)
       const settings = this.getSettings()
       if (settings.theme === id) this.saveSettings({ ...settings, theme: '' })
+      this.db.prepare("UPDATE decks SET theme = '' WHERE theme = ?").run(id)
       this.db.prepare('DELETE FROM themes WHERE id = ?').run(id)
       return { workshops }
     })

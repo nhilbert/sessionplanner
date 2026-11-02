@@ -95,8 +95,19 @@ export default function TemplatesPage() {
             onIndex={() => undefined}
             onChange={(slides) => {
               const s = slides.find((x) => x.id === current.id)
-              if (s) void saveTemplate({ name: current.name, html: s.html }, current.id)
-              else void removeTemplate(current.id)
+              if (!s) {
+                void removeTemplate(current.id)
+                return
+              }
+              if (s.html !== current.html) void saveTemplate({ name: current.name, html: s.html }, current.id)
+              // "Duplicate slide" in the editor: a new template, opened in the editor.
+              const copies = slides.filter((x) => x.id !== current.id)
+              if (copies.length)
+                void (async () => {
+                  let last: SlideTemplate | null = null
+                  for (const c of copies) last = await saveTemplate({ name: t('templates.copyName', { name: current.name }), html: c.html })
+                  if (last) setEditing(last.id)
+                })()
             }}
             onClose={() => setEditing(null)}
             theme={theme}

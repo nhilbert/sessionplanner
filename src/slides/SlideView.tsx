@@ -2,6 +2,7 @@ import { type ComponentProps, useLayoutEffect, useMemo, useRef, useState } from 
 import { renderSlideHtml, sanitizeSlide } from '@/domain/slides'
 import { type AssetScope, api, assetUrl } from '@/api'
 import { cx } from '@/components/ui'
+import { useThemes } from '@/store/useThemes'
 import './slides.css'
 import './themes/default.css'
 import './host.css'
@@ -19,17 +20,30 @@ export const PREVIEW_THEME = 'preview-theme'
 
 const links = new Map<string, HTMLLinkElement>()
 
-/** Adds the theme's stylesheet (/api/themes/<id>/theme.css) to the page once; the default theme is built in, preview themes are set by `applyThemeCss`. */
+/**
+ * Adds the theme's stylesheet (/api/themes/<id>/theme.css) to the page once, addressed by the theme's last change,
+ * so a theme edited elsewhere is loaded again once the list of themes says so; the default theme is built in,
+ * preview themes are set by `applyThemeCss`.
+ */
 export function useTheme(name: string | undefined): string {
   const theme = name && name !== 'default' ? name : 'default'
+  const version = useThemes((s) => s.themes.find((x) => x.id === theme)?.updatedAt)
+  const load = useThemes((s) => s.load)
   useLayoutEffect(() => {
-    if (theme === 'default' || theme === PREVIEW_THEME || links.has(theme)) return
+    if (theme === 'default' || theme === PREVIEW_THEME) return
+    void load()
+    const href = api.themeCssUrl(theme, version)
+    const known = links.get(theme)
+    if (known) {
+      if (version && !known.href.endsWith(href)) known.href = href
+      return
+    }
     const link = document.createElement('link')
     link.rel = 'stylesheet'
-    link.href = api.themeCssUrl(theme)
+    link.href = href
     document.head.appendChild(link)
     links.set(theme, link)
-  }, [theme])
+  }, [theme, version, load])
   return theme
 }
 

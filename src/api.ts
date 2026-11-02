@@ -1,6 +1,6 @@
 import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, SlideTemplate, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op } from './domain/ops'
-import type { Theme, ThemeInfo, ThemeTokens } from './domain/theme'
+import { type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
 
 /** Thin client for the server API (server/app.ts). Changes carry the app's header (server/guard.ts). */
 
@@ -97,10 +97,7 @@ export const api = {
     return call<Theme>(`/api/themes/${encodeURIComponent(id)}/logo${variant === 'logoLight' ? '?variant=light' : ''}`, { method: 'POST', body: form })
   },
   deleteThemeLogo: (id: string, variant: 'logo' | 'logoLight') => call<Theme>(`/api/themes/${encodeURIComponent(id)}/logo${variant === 'logoLight' ? '?variant=light' : ''}`, { method: 'DELETE' }),
-  themeLogoUrl: (theme: Theme, variant: 'logo' | 'logoLight') => {
-    const logo = variant === 'logo' ? theme.logo : theme.logoLight
-    return logo ? `/api/themes/${encodeURIComponent(theme.id)}/${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}` : null
-  },
+  themeLogoUrl: (theme: Theme, variant: 'logo' | 'logoLight') => themeLogoUrl(theme, variant),
   /** Template slides (docs/slides.md, section 7), the owner's. */
   listSlideTemplates: () => call<SlideTemplate[]>('/api/slide-templates'),
   saveSlideTemplate: (input: { name: string; html: string; position?: number }, id?: string) => call<SlideTemplate>(id ? `/api/slide-templates/${id}` : '/api/slide-templates', { method: id ? 'PUT' : 'POST', body: JSON.stringify(input) }),

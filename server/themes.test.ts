@@ -52,6 +52,8 @@ describe('slide themes as data', () => {
     expect(text).toContain(`[data-theme="${theme.id}"]`)
     expect(text).toContain('--accent: #AA3366;')
     expect(text).toContain('--radius: 4px;')
+    // edited at any time: never kept by the browser without asking
+    expect(css.headers.get('cache-control')).toBe('private, no-cache')
     // No logo yet: nothing placed, no logo route.
     expect(text).not.toContain('--logo:')
     expect((await app.request(`${BASE}/api/themes/${theme.id}/logo`, { headers: H() })).status).toBe(404)
@@ -104,6 +106,7 @@ describe('slide themes as data', () => {
     expect(dark.tokens.colors.bg).toBe('#15181B')
     expect((await post(app, '/api/themes', { name: 'x', from: 'nope' })).status).toBe(400)
 
+    const deck = repo.createDeck({ title: 'Pool', theme: theme.id, source: '', slides: [] })
     const ws = (await (await post(app, '/api/workshops', { title: 'W' })).json()) as WorkshopState
     await post(app, `/api/workshops/${ws.workshop.id}/ops`, { clientId: 'c', ops: [{ op: 'set', entity: 'workshop', id: ws.workshop.id, fields: { theme: theme.id } }] })
     await post(app, '/api/settings', { ...repo.getSettings(), logo: undefined, theme: theme.id }, OWNER, 'PUT')
@@ -112,6 +115,10 @@ describe('slide themes as data', () => {
     hub.subscribe(ws.workshop.id, (e) => events.push(e))
     expect((await app.request(`${BASE}/api/themes/${theme.id}`, { method: 'DELETE', headers: H() })).status).toBe(200)
     expect(repo.loadWorkshop(ws.workshop.id)?.workshop.theme).toBe('')
+    expect(repo.getSettings().theme).toBe('')
+    expect(repo.getDeck(deck.deck.id)?.deck.theme).toBe('')
+    // a window that still has the old settings cannot set the deleted theme as the default again
+    await post(app, '/api/settings', { ...repo.getSettings(), logo: undefined, theme: theme.id }, OWNER, 'PUT')
     expect(repo.getSettings().theme).toBe('')
     expect(events).toEqual([{ type: 'ops', clientId: 'server', ops: [{ op: 'set', entity: 'workshop', id: ws.workshop.id, fields: { theme: '' } }] }])
     expect((await app.request(`${BASE}/api/themes/${theme.id}/theme.css`, { headers: H() })).status).toBe(404)

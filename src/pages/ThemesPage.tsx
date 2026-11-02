@@ -11,6 +11,7 @@ import { useSettings } from '@/store/useSettings'
 import { Button, Chip, cx, Field, IconButton, Input, PageHeader, SectionLabel, Segmented, Select, useIsPhone } from '@/components/ui'
 import { applyThemeCss, PREVIEW_THEME, reloadTheme, SlideView } from '@/slides/SlideView'
 import { tr } from '@/slides/editor/fields'
+import { inOrder } from '@/store/inOrder'
 
 const MAX_LOGO = 2 * 1024 * 1024
 const SAMPLES = ['title', 'agenda', 'cards', 'exercise', 'section', 'closing']
@@ -56,7 +57,8 @@ export default function ThemesPage() {
   const remove = async () => {
     if (!theme || !window.confirm(t('themes.deleteConfirm', { name: theme.name }))) return
     await api.deleteTheme(theme.id)
-    await load(true)
+    // The server reset the default theme if it was this one: the settings here must not send it back.
+    await Promise.all([load(true), useSettings.getState().load()])
     select('default')
   }
 
@@ -157,6 +159,10 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const [advanced, setAdvanced] = useState(Object.keys(theme.tokens.overrides).length > 0)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  /** Changes not yet sent: name and tokens together, so one never cancels the other. */
+  const unsent = useRef<{ name?: string; tokens?: ThemeTokens }>({})
+  /** The name as the server has it. */
+  const savedName = useRef(theme.name)
   const logoUrl = api.themeLogoUrl({ ...theme, ...logos }, 'logo')
   const logoLightUrl = api.themeLogoUrl({ ...theme, ...logos }, 'logoLight')
 
@@ -166,20 +172,32 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
   }, [tokens, logoUrl, logoLightUrl])
   useEffect(() => () => applyThemeCss(PREVIEW_THEME, null), [])
 
-  const save = (next: { name?: string; tokens?: ThemeTokens }) => {
+  const flush = async () => {
     clearTimeout(timer.current)
-    setState('saving')
-    timer.current = setTimeout(async () => {
-      try {
-        await api.updateTheme(theme.id, next)
-        reloadTheme(theme.id)
-        if (next.name !== undefined) await load(true)
-        setState('saved')
-      } catch {
-        setState('failed')
-      }
-    }, 500)
+    const next = unsent.current
+    unsent.current = {}
+    if (next.name === undefined && next.tokens === undefined) return
+    try {
+      // One save after the other, so the server keeps the latest.
+      await inOrder(`theme:${theme.id}`, () => api.updateTheme(theme.id, next)).result
+      if (next.name !== undefined) savedName.current = next.name
+      reloadTheme(theme.id)
+      await load(true)
+      setState('saved')
+    } catch {
+      setState('failed')
+    }
   }
+  const save = (next: { name?: string; tokens?: ThemeTokens }) => {
+    unsent.current = { ...unsent.current, ...next }
+    setState('saving')
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => void flush(), 500)
+  }
+  // Switching to another theme or leaving the page sends what is still waiting.
+  const flushRef = useRef(flush)
+  flushRef.current = flush
+  useEffect(() => () => void flushRef.current(), [])
   const update = (patch: Partial<ThemeTokens>) => {
     const next = { ...tokens, ...patch }
     setTokens(next)
@@ -199,7 +217,7 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
     <div className="space-y-5">
       <div className="card p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== theme.name && save({ name: name.trim() })} aria-label={t('themes.name')} className="h-9 max-w-xs text-[16px] font-medium" />
+          <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name.trim() !== (unsent.current.name ?? savedName.current) && save({ name: name.trim() })} aria-label={t('themes.name')} className="h-9 max-w-xs text-[16px] font-medium" />
           <span className="text-[12px] text-ink-3">{state === 'saving' ? t('themes.saving') : state === 'saved' ? t('themes.saved') : state === 'failed' ? t('themes.failed') : ''}</span>
           <span className="flex-1" />
           <Button size="sm" onClick={onCopy}>
