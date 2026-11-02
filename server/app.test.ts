@@ -13,7 +13,7 @@ import type { Item, WorkshopState } from '../src/domain/types.ts'
 const BASE = 'http://127.0.0.1'
 const H = { 'content-type': 'application/json', 'x-sp': '1' }
 
-function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string } = {}) {
+function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string; proxySecret?: string } = {}) {
   const db = opts.db ?? openDb(':memory:')
   const repo = new Repo(db)
   const hub = new Hub()
@@ -26,6 +26,7 @@ function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; d
     publicUrl: opts.publicUrl,
     staticDir: opts.staticDir,
     linkToken: opts.linkToken,
+    proxySecret: opts.proxySecret,
   })
   return { app, repo, hub, db }
 }
@@ -81,6 +82,20 @@ describe('guard', () => {
     expect(guest.status).toBe(200)
     expect(await guest.json()).toEqual([])
     expect((await app.request(url, { headers: { 'x-auth-request-email': 'Me@Example.com' } })).status).toBe(200)
+  })
+
+  it('hosted with a proxy secret, trusts the login e-mail only together with it', async () => {
+    const secret = 'a'.repeat(64)
+    const { app } = setup({ owners: ['me@example.com'], publicUrl: new URL('https://sessions.example.com'), proxySecret: secret, linkToken: 'link-token' })
+    const url = 'https://sessions.example.com/api/workshops'
+    const me = { 'x-auth-request-email': 'me@example.com' }
+    // someone who reaches the port without the proxy can set the e-mail header, but not the secret
+    expect((await app.request(url, { headers: me })).status).toBe(403)
+    expect((await app.request(url, { headers: { ...me, 'x-sp-proxy-secret': 'b'.repeat(64) } })).status).toBe(403)
+    expect((await app.request(url, { headers: { ...me, 'x-sp-proxy-secret': secret } })).status).toBe(200)
+    // the health check (from inside the container) and the CRM's link list (its own token) do not need it
+    expect((await app.request('https://sessions.example.com/api/health')).status).toBe(200)
+    expect((await app.request('https://sessions.example.com/api/link/workshops', { headers: { authorization: 'Bearer link-token' } })).status).toBe(200)
   })
 })
 

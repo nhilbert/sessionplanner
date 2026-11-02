@@ -22,6 +22,7 @@ function setup(cfg: Partial<OAuthConfig> = {}, owners: string[] = [], db = openD
     filesDir: mkdtempSync(path.join(tmpdir(), 'sp-files-')),
     owners,
     ownerHeader: 'x-auth-request-email',
+    proxySecret: cfg.proxySecret,
     publicUrl: owners.length ? cfg.baseUrl : undefined,
     mcp: mcpRoutes(repo, { oauth }),
     oauth: { routes: oauth.routes(), admin: oauth.adminRoutes() },
@@ -171,6 +172,17 @@ describe('OAuth for /mcp', () => {
     const wrongResource = new URLSearchParams({ response_type: 'code', client_id, redirect_uri: CALLBACK, code_challenge: 'c'.repeat(43), code_challenge_method: 'S256', resource: 'https://other.example/mcp' })
     const res = await ctx.app.request(`/oauth/authorize?${wrongResource}`, { headers: { ...host, 'x-auth-request-email': 'me@example.com' } })
     expect(new URL(res.headers.get('location')!).searchParams.get('error')).toBe('invalid_target')
+  })
+
+  it('hosted with a proxy secret, the login e-mail counts only together with it', async () => {
+    const secret = 'a'.repeat(64)
+    const ctx = setup({ baseUrl: new URL('https://sessions.example.com'), allowedUsers: ['me@example.com'], userHeader: 'x-auth-request-email', proxySecret: secret }, ['me@example.com'])
+    const { body } = await register(ctx.app)
+    const me = { host: 'sessions.example.com', 'x-auth-request-email': 'me@example.com' }
+    const tryWith = (headers: Record<string, string>) => authorize(ctx.app, body.client_id, pkce().challenge, headers, CALLBACK, 'https://sessions.example.com/mcp')
+    expect((await tryWith(me)).status).toBe(403)
+    expect((await tryWith({ ...me, 'x-sp-proxy-secret': 'b'.repeat(64) })).status).toBe(403)
+    expect((await tryWith({ ...me, 'x-sp-proxy-secret': secret })).status).toBe(302)
   })
 
   it('lists connections for Settings and disconnects them', async () => {

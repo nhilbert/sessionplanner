@@ -36,6 +36,12 @@ if (PUBLIC_URL && !OWNERS.length) {
   console.error('SP_PUBLIC_URL is set but SP_OWNERS is empty: name the e-mail address(es) the login lets in.')
   process.exit(1)
 }
+// Hosted: the login proxy adds this secret to every request it forwards, so the e-mail header it sets cannot be
+// forged by whoever reaches the port some other way (docs/mcp.md, Hosting).
+const PROXY_SECRET = process.env.SP_PROXY_SECRET?.trim() || undefined
+if (PUBLIC_URL && !PROXY_SECRET) {
+  console.warn('SP_PROXY_SECRET is not set: the login e-mail header is trusted from anyone who reaches this port. Set it here and in the reverse proxy (docs/mcp.md, Hosting).')
+}
 
 const db = openDb(DB_FILE)
 const repo = new Repo(db)
@@ -54,7 +60,7 @@ const MCP_TOKEN = process.env.SP_MCP_TOKEN?.trim() || undefined
 const list = (v?: string) => (v ?? '').split(',').map((x) => x.trim()).filter(Boolean)
 const oauth =
   process.env.SP_MCP_OAUTH === '1'
-    ? new OAuthServer(db, { baseUrl: PUBLIC_URL ?? new URL(`http://127.0.0.1:${PORT}`), allowedUsers: OWNERS, userHeader: OWNER_HEADER, extraRedirects: list(process.env.SP_OAUTH_REDIRECTS) })
+    ? new OAuthServer(db, { baseUrl: PUBLIC_URL ?? new URL(`http://127.0.0.1:${PORT}`), allowedUsers: OWNERS, userHeader: OWNER_HEADER, proxySecret: PROXY_SECRET, extraRedirects: list(process.env.SP_OAUTH_REDIRECTS) })
     : undefined
 const mcp = MCP_TOKEN || oauth ? mcpRoutes(repo, { token: MCP_TOKEN, oauth }, { hub, filesDir, themesDir }) : undefined
 
@@ -68,6 +74,7 @@ const app = createApp({
   publicUrl: PUBLIC_URL,
   owners: OWNERS,
   ownerHeader: OWNER_HEADER,
+  proxySecret: PROXY_SECRET,
   guestsFile: process.env.SP_GUESTS_FILE?.trim() || undefined,
   mcp,
   oauth: oauth && { routes: oauth.routes(), admin: oauth.adminRoutes() },

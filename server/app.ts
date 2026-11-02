@@ -58,7 +58,7 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   }
 }
 
-export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile, mcp, oauth, linkToken }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const filePath = (id: string) => path.join(filesDir, id)
   const assetPath = (hash: string) => path.join(filesDir, 'assets', hash)
@@ -92,7 +92,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       return c.json(repo.listWorkshops().map(({ id, title, client, archived, firstDate, lastDate }) => ({ id, title, client, archived, firstDate, lastDate })))
     })
   }
-  app.use('/api/*', guard({ publicUrl, owners, ownerHeader }))
+  app.use('/api/*', guard({ publicUrl, owners, ownerHeader, proxySecret }))
   // Every request body is bounded, checked after the guard so that a foreign request is refused before its body is
   // read. Uploads and operation batches have their room; everything else (JSON of a few kilobytes, the agents'
   // JSON-RPC, the OAuth forms and registrations) gets a megabyte.

@@ -116,7 +116,9 @@ sessions.example.com {
 
 	@agent path /mcp /.well-known/oauth-protected-resource* /.well-known/oauth-authorization-server /oauth/register /oauth/token /oauth/revoke
 	handle @agent {
-		reverse_proxy sessionplanner:5175
+		reverse_proxy sessionplanner:5175 {
+			header_up X-SP-Proxy-Secret {env.SP_PROXY_SECRET}
+		}
 	}
 
 	handle {
@@ -124,10 +126,14 @@ sessions.example.com {
 			uri /oauth2/auth
 			copy_headers X-Auth-Request-Email
 		}
-		reverse_proxy sessionplanner:5175
+		reverse_proxy sessionplanner:5175 {
+			header_up X-SP-Proxy-Secret {env.SP_PROXY_SECRET}
+		}
 	}
 }
 ```
+
+`SP_PROXY_SECRET` is one value (`openssl rand -hex 32`) in the environment of both Caddy and Session Planner. `header_up` replaces whatever a client sent in that header, and Session Planner then trusts the e-mail header only on requests that carry the secret. Without it set, the server logs a warning at start and relies on the network alone: the container port must then be reachable through Caddy only.
 
 Checklist after deploying:
 
@@ -135,6 +141,7 @@ Checklist after deploying:
 - `curl https://sessions.example.com/.well-known/oauth-authorization-server` → JSON, no redirect to Microsoft.
 - `curl -i -H 'X-Auth-Request-Email: you@example.com' 'https://sessions.example.com/oauth/authorize?client_id=x'` → the proxy's answer (redirect to the Microsoft sign-in or `401`), **not** Session Planner's "Unknown client" page. If you get a Session Planner page, the consent route is outside the login and the header can be forged – fix the Caddyfile before enabling OAuth.
 - The container publishes no port: it must be reachable only through Caddy (`docker ps` shows no `0.0.0.0:5175->`).
+- From another container in the same network, past Caddy: `curl -i -H 'X-Auth-Request-Email: you@example.com' http://sessionplanner:5175/api/me` → `403` (the proxy secret is missing). A `200` means `SP_PROXY_SECRET` is not set.
 - If Entra conditional access or a firewall restricts by IP: allow Anthropic's published egress range for connectors (see Anthropic's MCP connector documentation).
 
 ## Configuration
@@ -144,6 +151,7 @@ Checklist after deploying:
 | `SP_MCP_OAUTH` | off | `1` enables OAuth and `/mcp`. Hosted (`SP_PUBLIC_URL` set) the server already requires `SP_OWNERS`. |
 | `SP_OWNERS` | – | The owners' e-mail addresses (case-insensitive); hosted, only they may approve connections. Empty = local mode (loopback browser only). |
 | `SP_OWNER_HEADER` | `x-auth-request-email` | Header carrying the signed-in e-mail from the login proxy. |
+| `SP_PROXY_SECRET` | – | Secret the login proxy adds to every request as `X-SP-Proxy-Secret`; with it set, the e-mail header counts only on requests that carry it (API and consent page). |
 | `SP_OAUTH_REDIRECTS` | – | Extra redirect URIs clients may register, comma-separated. Claude's callbacks and loopback are always allowed. |
 | `SP_MCP_TOKEN` | – | Static bearer token for `/mcp`; works with or without OAuth. |
 | `SP_PUBLIC_URL` | – | Public origin; becomes the OAuth issuer and the resource `…/mcp`. Must be exactly the URL entered in Claude. |
@@ -268,8 +276,8 @@ Co-facilitators and clients who see shared workshops are guests: their e-mail is
 
 | Asset / path | Protection |
 |---|---|
-| Web UI and `/api/*` | Login proxy (Microsoft Entra ID, MFA) plus the owner/guest model (`SP_OWNERS`, members) and the `x-sp` header on changes |
-| Approving an agent (`/oauth/authorize`) | Login proxy **and** `SP_OWNERS`; locally: loopback socket and Host |
+| Web UI and `/api/*` | Login proxy (Microsoft Entra ID, MFA) plus the owner/guest model (`SP_OWNERS`, members), the proxy secret (`SP_PROXY_SECRET`) and the `x-sp` header on changes |
+| Approving an agent (`/oauth/authorize`) | Login proxy, proxy secret **and** `SP_OWNERS`; locally: loopback socket and Host |
 | Calling tools (`/mcp`) | Bearer access token issued after your approval (or the static token) |
 | Obtaining tokens (`/oauth/token`) | Registered client + single-use 60-second code + S256 PKCE verifier, or a valid refresh token |
 | Listing and disconnecting agents (`/api/mcp/connections`) | Owner only |
@@ -290,7 +298,7 @@ What OAuth adds in exposure:
 
 - Four endpoints reachable without login (metadata, register, token, revoke). They hand out nothing without your approval. Registration is open by design (Claude registers itself); idle registrations expire after 15 minutes and are capped, so a flood cannot block new connections.
 - **Consent phishing.** Someone could start a connection and get you to press Allow. The page names the application and the destination host and warns when the destination is a program on your computer. Approve only connections you just started yourself.
-- **Proxy configuration becomes part of the security.** If `/oauth/authorize` is reachable without the login, or the container port is reachable without Caddy, the e-mail header can be forged. The [checklist](#hosting-behind-caddy-and-oauth2-proxy) tests exactly this.
+- **Proxy configuration becomes part of the security.** If `/oauth/authorize` is reachable without the login, the e-mail header can be forged; without `SP_PROXY_SECRET`, the same holds for anyone who reaches the container port without Caddy. The [checklist](#hosting-behind-caddy-and-oauth2-proxy) tests both.
 
 What neither protects against:
 
@@ -312,7 +320,8 @@ What neither protects against:
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Claude: "Couldn't reach the MCP server", the log shows nothing | `/mcp` or the metadata is behind the login proxy, which answers with a redirect | Add the `@agent` route ([Hosting](#hosting-behind-caddy-and-oauth2-proxy)); check the first two checklist items |
-| Consent page says "Your account may not approve connections" | E-mail not in `SP_OWNERS`, or the proxy does not pass it | Check the address; `--set-xauthrequest=true`; `copy_headers X-Auth-Request-Email` |
+| Consent page says "Your account may not approve connections" | E-mail not in `SP_OWNERS`, or the proxy does not pass it or the proxy secret | Check the address; `--set-xauthrequest=true`; `copy_headers X-Auth-Request-Email`; the same `SP_PROXY_SECRET` for Caddy and Session Planner |
+| Every page says `forbidden`, the log shows "Refused a request without the proxy secret" | `SP_PROXY_SECRET` is set for Session Planner but Caddy does not send it | Add the `header_up` lines ([Hosting](#hosting-behind-caddy-and-oauth2-proxy)) and give Caddy the same value |
 | Consent page says "only … on the computer running Session Planner" while hosted | `SP_PUBLIC_URL` not set, so the server runs in local mode | Set `SP_PUBLIC_URL` and `SP_OWNERS` |
 | "Invalid redirect" on the consent page | The client registered a redirect URI that is not Claude's or loopback | Add it to `SP_OAUTH_REDIRECTS` if you trust that client |
 | Claude reports `invalid_target` | The URL entered in Claude differs from `SP_PUBLIC_URL` + `/mcp` (other host, `http`, trailing path) | Enter exactly `https://<SP_PUBLIC_URL host>/mcp` |

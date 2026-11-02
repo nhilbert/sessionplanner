@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import { getConnInfo } from '@hono/node-server/conninfo'
 import { createHash, randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import { fromProxy } from './guard.ts'
 
 /**
  * OAuth 2.1 authorization server for the MCP endpoint, as Claude's connectors expect it
@@ -22,6 +23,8 @@ export interface OAuthConfig {
   userHeader?: string
   /** Hosted: e-mail addresses allowed to approve connections. Empty = local mode (loopback only). */
   allowedUsers?: string[]
+  /** Hosted: the login proxy's secret (SP_PROXY_SECRET); with it, the e-mail header counts only together with it. */
+  proxySecret?: string
   /** Extra redirect URIs accepted at registration besides Claude's callbacks and loopback. */
   extraRedirects?: string[]
   accessTtlSeconds?: number
@@ -62,13 +65,15 @@ function socketAddress(c: Context): string | undefined {
  * Who is approving: the e-mail from the login proxy (hosted) or "local" for a browser on this machine.
  * Locally both the socket's peer and the Host header must be loopback: the Host header alone is set by
  * the client, and in a container (SP_HOST=0.0.0.0) other machines may reach the port. Hosted, the
- * header is only as trustworthy as the rule that the port is reachable through the proxy alone.
+ * header is only as trustworthy as the rule that the port is reachable through the proxy alone, unless the
+ * proxy also sends its secret (SP_PROXY_SECRET), which is then required.
  * An empty `allowedUsers` means local mode.
  */
 export function signedInUser(
   c: Context,
-  cfg: { allowedUsers: string[]; userHeader?: string; remoteAddress?: (c: Context) => string | undefined },
+  cfg: { allowedUsers: string[]; userHeader?: string; proxySecret?: string; remoteAddress?: (c: Context) => string | undefined },
 ): string | null {
+  if (!fromProxy(c.req.raw.headers, cfg.proxySecret)) return null
   if (cfg.allowedUsers.length) {
     const email = cfg.userHeader ? c.req.header(cfg.userHeader)?.trim().toLowerCase() : undefined
     return email && cfg.allowedUsers.includes(email) ? email : null
@@ -115,7 +120,7 @@ interface AuthRequest {
 
 export class OAuthServer {
   private db: DatabaseSync
-  private cfg: Required<Omit<OAuthConfig, 'userHeader' | 'remoteAddress'>> & { userHeader?: string; remoteAddress: (c: Context) => string | undefined }
+  private cfg: Required<Omit<OAuthConfig, 'userHeader' | 'proxySecret' | 'remoteAddress'>> & { userHeader?: string; proxySecret?: string; remoteAddress: (c: Context) => string | undefined }
   private pending = new Map<string, AuthRequest & { expires: number }>()
   private codes = new Map<string, AuthRequest & { expires: number }>()
 
