@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Check, MoreHorizontal } from 'lucide-react'
 import { cx, Sheet, SheetRow, useIsPhone } from './ui'
+import { useOverlay } from './overlay'
 
 export interface MenuItem {
   label: string
@@ -32,18 +33,15 @@ export default function Menu({
   const [open, setOpen] = useState(false)
   const phone = useIsPhone()
   const ref = useRef<HTMLDivElement>(null)
+  // The sheet closes itself (backdrop, Escape); the dropdown closes on Escape (as an overlay) and on a click outside.
+  useOverlay(open && !phone, () => setOpen(false))
   useEffect(() => {
-    // The sheet closes itself (backdrop, Escape); the dropdown closes on a click outside and on Escape.
     if (!open || phone) return
     const close = (e: Event) => {
-      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false)
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
     }
     window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', close)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', close)
-    }
+    return () => window.removeEventListener('mousedown', close)
   }, [open, phone])
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
   const pick = (it: MenuItem) => {

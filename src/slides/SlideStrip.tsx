@@ -67,7 +67,7 @@ export function SlideStrip({ slides, onChange, scope, theme, canEdit, owner, ass
         </Button>
       )}
       {open !== null && local[open] && (
-        <SlideEditor slides={local} index={open} onIndex={setOpen} onChange={change} onClose={() => setOpen(null)} onAdd={canEdit ? () => setAdding(true) : undefined} theme={theme} scope={scope} owner={owner} canEdit={canEdit} known={known} onNotice={onNotice} paused={adding || pool} />
+        <SlideEditor slides={local} index={open} onIndex={setOpen} onChange={change} onClose={() => setOpen(null)} onAdd={canEdit ? () => setAdding(true) : undefined} theme={theme} scope={scope} owner={owner} canEdit={canEdit} known={known} onNotice={onNotice} />
       )}
       {/* After the editor in the tree, so these dialogs paint above it when opened from there. */}
       <NewSlidePicker open={adding} onClose={() => setAdding(false)} onPick={add} onPool={owner ? () => setPool(true) : undefined} theme={theme} scope={scope} owner={owner} />

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Image, Upload, X } from 'lucide-react'
 import { api, type AssetScope, assetUrl } from '@/api'
 import { Button, cx, IconButton, Modal } from '@/components/ui'
-import { fieldId, useSubDialog } from './fields'
+import { fieldId } from './fields'
 
 /** A picture field of the slide: the thumbnail of the asset it shows, and the way to choose or remove one. */
 export function PictureField({ path, value, onChange, onFocus, scope, known, label }: { path: string; value: string; onChange: (hash: string) => void; onFocus: (path: string) => void; scope: AssetScope; known: string[]; label?: string }) {
@@ -42,7 +42,6 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current }: 
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  useSubDialog(open)
   const upload = async (file: File) => {
     setBusy(true)
     setError('')

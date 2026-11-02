@@ -12,7 +12,8 @@ import { type AssetScope, SlideView } from '../SlideView'
 import { EditPreview } from './EditPreview'
 import { Inspector } from './Inspector'
 import { LayoutPicker } from './LayoutPicker'
-import { SubDialogs, tr, useSubDialog } from './fields'
+import { tr } from './fields'
+import { useOverlay } from '@/components/overlay'
 
 interface Props {
   slides: Slide[]
@@ -29,8 +30,6 @@ interface Props {
   /** Pictures the picker offers: those shown on slides nearby. */
   known: string[]
   onNotice?: (text: string) => void
-  /** A dialog of the caller (the new-slide picker) is open: the editor's keys stay quiet. */
-  paused?: boolean
 }
 
 const COMMIT_DELAY = 400
@@ -52,23 +51,37 @@ export function SlideEditor(p: Props) {
   const [source, setSource] = useState(false)
   const [overflow, setOverflow] = useState(false)
   const [previous, setPrevious] = useState<{ doc: SlideDoc; lost: string[] } | null>(null)
-  const pending = useRef<SlideDoc | null>(null)
+  /** What was typed and not yet stored, with the slide it was typed into (which need not be the one shown by then). */
+  const pending = useRef<{ id: string; doc: SlideDoc } | null>(null)
+  /** Markup typed in the source view and not yet applied. */
+  const sourceDraft = useRef<{ id: string; html: string } | null>(null)
+  /** The markup this editor stored lately: an older one coming back (a late answer to a save) is not a change from elsewhere. */
+  const own = useRef<string[]>([])
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const latest = useRef({ slides: p.slides, onChange: p.onChange, id: slide?.id })
-  latest.current = { slides: p.slides, onChange: p.onChange, id: slide?.id }
-  const depth = useRef(0)
+  const latest = useRef({ slides: p.slides, onChange: p.onChange })
+  latest.current = { slides: p.slides, onChange: p.onChange }
 
-  /** Writes what was typed into the slide (the planner stores it, other windows see it). */
+  /** Writes what was typed into its slide (the planner stores it, other windows see it). */
   const commit = useCallback(() => {
     clearTimeout(timer.current)
-    const doc = pending.current
+    if (sourceDraft.current) {
+      const { id, html } = sourceDraft.current
+      sourceDraft.current = null
+      pending.current = { id, doc: parseSlide(normalizeSlideHtml(html)) }
+    }
+    const edit = pending.current
     pending.current = null
-    const { slides, onChange, id } = latest.current
-    if (!doc || !id) return
-    const html = normalizeSlideHtml(serializeSlide(doc))
-    const current = slides.find((s) => s.id === id)
-    if (current && current.html !== html) onChange(slides.map((s) => (s.id === id ? { ...s, html } : s)))
-    setDraft((d) => (d && d.id === id ? { ...d, html } : d))
+    if (!edit) return
+    const { slides, onChange } = latest.current
+    const html = normalizeSlideHtml(serializeSlide(edit.doc))
+    const current = slides.find((s) => s.id === edit.id)
+    // A slide removed meanwhile (another window, an agent) takes what was typed with it.
+    if (!current) return
+    if (current.html !== html) {
+      own.current = [...own.current.slice(-30), html]
+      onChange(slides.map((s) => (s.id === edit.id ? { ...s, html } : s)))
+    }
+    setDraft((d) => (d && d.id === edit.id ? { id: edit.id, doc: edit.doc, html } : d))
   }, [])
 
   // A new slide under the editor: store what was typed in the previous one, read the new one.
@@ -81,8 +94,13 @@ export function SlideEditor(p: Props) {
   }, [slide?.id, commit])
   // The same slide changed elsewhere (another window, an agent): show it, unless the user is in the middle of typing.
   useEffect(() => {
-    if (!slide || pending.current) return
-    setDraft((d) => (d && d.id === slide.id && d.html !== slide.html ? { id: slide.id, doc: parseSlide(slide.html), html: slide.html } : d))
+    if (!slide || pending.current || sourceDraft.current) return
+    setDraft((d) => {
+      if (!d || d.id !== slide.id || d.html === slide.html) return d
+      // An answer to an earlier save of this editor, arriving after a later one: not news.
+      if (own.current.includes(slide.html)) return d
+      return { id: slide.id, doc: parseSlide(slide.html), html: slide.html }
+    })
   }, [slide?.html, slide])
   useEffect(() => () => commit(), [commit])
 
@@ -91,7 +109,7 @@ export function SlideEditor(p: Props) {
 
   const update = (next: SlideDoc) => {
     if (!slide || !p.canEdit) return
-    pending.current = next
+    pending.current = { id: slide.id, doc: next }
     setDraft({ id: slide.id, doc: next, html: draft?.html ?? slide.html })
     clearTimeout(timer.current)
     timer.current = setTimeout(commit, COMMIT_DELAY)
@@ -136,6 +154,7 @@ export function SlideEditor(p: Props) {
   const remove = () => {
     if (!slide || !window.confirm(t('slides.removeConfirm'))) return
     pending.current = null
+    sourceDraft.current = null
     clearTimeout(timer.current)
     const rest = latest.current.slides.filter((s) => s.id !== slide.id)
     p.onChange(rest)
@@ -157,21 +176,16 @@ export function SlideEditor(p: Props) {
     el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }
 
-  // Keys: arrows page (not while typing), Escape leaves a field, then a nested dialog, then the editor.
+  // Escape leaves a field first, then the editor; a picker or menu above the editor takes it before (overlay stack).
+  const onTop = useOverlay(true, () => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement && isTyping(active)) active.blur()
+    else close()
+  })
+  // The arrows page while nothing lies above the editor and no field has the focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (p.paused) return
-      if (e.key === 'Escape') {
-        if (depth.current > 0) return
-        if (isTyping(e.target)) {
-          ;(e.target as HTMLElement).blur()
-          return
-        }
-        e.preventDefault()
-        close()
-        return
-      }
-      if (isTyping(e.target) || depth.current > 0) return
+      if (!onTop() || isTyping(e.target)) return
       if (e.key === 'ArrowLeft') go(p.index - 1)
       else if (e.key === 'ArrowRight') go(p.index + 1)
     }
@@ -184,8 +198,17 @@ export function SlideEditor(p: Props) {
   const menuItems = [
     ...(p.canEdit ? [{ label: t('slides.duplicateSlide'), icon: <Copy size={15} />, onSelect: duplicate }] : []),
     ...(p.owner ? [{ label: t('slides.saveAsTemplate'), icon: <Save size={15} />, onSelect: () => void asTemplate() }] : []),
-    ...(p.canEdit ? [{ label: t('slides.left'), icon: <MoveLeft size={15} />, onSelect: () => move(-1) }, { label: t('slides.right'), icon: <MoveRight size={15} />, onSelect: () => move(1) }] : []),
-    { label: t('editor.sourceCode'), icon: <Code size={15} />, checked: source, onSelect: () => setSource((s) => !s) },
+    ...(p.canEdit && p.slides.length > 1 ? [{ label: t('slides.left'), icon: <MoveLeft size={15} />, onSelect: () => move(-1) }, { label: t('slides.right'), icon: <MoveRight size={15} />, onSelect: () => move(1) }] : []),
+    {
+      label: t('editor.sourceCode'),
+      icon: <Code size={15} />,
+      checked: source,
+      onSelect: () => {
+        // Leaving the source applies what was typed there.
+        commit()
+        setSource((s) => !s)
+      },
+    },
     ...(p.canEdit ? [{ label: t('slides.remove'), icon: <Trash2 size={15} />, danger: true, onSelect: remove }] : []),
   ]
   const lostText = previous?.lost.length
@@ -222,7 +245,12 @@ export function SlideEditor(p: Props) {
     </>
   )
   const inspector = source ? (
-    <SourceView html={html} onApply={(v) => update(parseSlide(normalizeSlideHtml(v)))} canEdit={p.canEdit} />
+    <SourceView
+      html={html}
+      canEdit={p.canEdit}
+      onDraft={(v) => (sourceDraft.current = v === html ? null : { id: slide.id, html: v })}
+      onApply={() => commit()}
+    />
   ) : (
     <Inspector doc={doc} onChange={update} onFocus={setFocus} scope={p.scope} known={p.known} />
   )
@@ -320,20 +348,19 @@ export function SlideEditor(p: Props) {
   )
 
   return (
-    <SubDialogs.Provider value={depth}>
+    <>
       {body}
-      <LayoutPickerGate open={layoutOpen} onClose={() => setLayoutOpen(false)} current={doc.layout} onPick={changeLayout} theme={p.theme} scope={p.scope} />
-    </SubDialogs.Provider>
+      <LayoutPicker open={layoutOpen} onClose={() => setLayoutOpen(false)} current={doc.layout} onPick={changeLayout} theme={p.theme} scope={p.scope} />
+    </>
   )
 }
 
-function LayoutPickerGate(props: Parameters<typeof LayoutPicker>[0]) {
-  useSubDialog(props.open)
-  return <LayoutPicker {...props} />
-}
-
-/** The slide's markup, for what the fields do not reach. Applied on request; what the format does not allow is removed. */
-function SourceView({ html, onApply, canEdit }: { html: string; onApply: (html: string) => void; canEdit: boolean }) {
+/**
+ * The slide's markup, for what the fields do not reach. What is typed here is applied when the field is left, on
+ * Apply, and before the editor pages, switches back to the fields or closes; what the format does not allow is
+ * removed.
+ */
+function SourceView({ html, onDraft, onApply, canEdit }: { html: string; onDraft: (html: string) => void; onApply: () => void; canEdit: boolean }) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState(html)
   const [base, setBase] = useState(html)
@@ -343,11 +370,22 @@ function SourceView({ html, onApply, canEdit }: { html: string; onApply: (html: 
   }
   return (
     <div>
-      <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} spellCheck={false} className="min-h-[320px] font-mono text-[12px] leading-snug" aria-label={t('editor.sourceCode')} readOnly={!canEdit} />
+      <Textarea
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          onDraft(e.target.value)
+        }}
+        onBlur={() => draft !== html && onApply()}
+        spellCheck={false}
+        className="min-h-[320px] font-mono text-[12px] leading-snug"
+        aria-label={t('editor.sourceCode')}
+        readOnly={!canEdit}
+      />
       <p className="mt-1 text-[12px] text-ink-3">{t('slides.sourceHint')}</p>
       {canEdit && (
         <div className="mt-2 flex justify-end">
-          <Button size="sm" onClick={() => draft !== html && onApply(draft)} disabled={draft === html}>
+          <Button size="sm" onClick={onApply} disabled={draft === html}>
             {t('slides.apply')}
           </Button>
         </div>

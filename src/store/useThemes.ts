@@ -3,6 +3,8 @@ import type { TFunction } from 'i18next'
 import { api } from '@/api'
 import type { ThemeInfo } from '@/domain/theme'
 import type { SlideTemplate } from '@/domain/types'
+import { slideLayout } from '@/domain/slides'
+import { inOrder } from './inOrder'
 
 /** The slide themes the server has and the owner's template slides (docs/slides.md, sections 4 and 7). */
 interface ThemesStore {
@@ -40,9 +42,22 @@ export const useThemes = create<ThemesStore>((set, get) => ({
     }
   },
   saveTemplate: async (input, id) => {
-    const saved = await api.saveSlideTemplate(input, id)
-    set({ templates: sortTemplates([...get().templates.filter((t) => t.id !== saved.id), saved]) })
-    return saved
+    if (!id) {
+      const saved = await api.saveSlideTemplate(input)
+      set({ templates: sortTemplates([...get().templates.filter((t) => t.id !== saved.id), saved]) })
+      return saved
+    }
+    // Shown at once; stored in the order of the changes; only the latest answer is taken over.
+    set({ templates: sortTemplates(get().templates.map((t) => (t.id === id ? { ...t, ...input, layout: slideLayout(input.html) || t.layout } : t))) })
+    const { result, isLatest } = inOrder(`template:${id}`, () => api.saveSlideTemplate(input, id))
+    try {
+      const saved = await result
+      if (isLatest()) set({ templates: sortTemplates([...get().templates.filter((t) => t.id !== saved.id), saved]) })
+      return saved
+    } catch (err) {
+      if (isLatest()) void get().loadTemplates(true)
+      throw err
+    }
   },
   removeTemplate: async (id) => {
     await api.deleteSlideTemplate(id)

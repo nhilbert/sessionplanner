@@ -1,4 +1,4 @@
-import { type ComponentProps, createContext, type ReactNode, useContext, useEffect, useLayoutEffect, useRef } from 'react'
+import { type ComponentProps, type ReactNode, useLayoutEffect, useRef } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react'
@@ -6,19 +6,6 @@ import { Button, cx, IconButton } from '@/components/ui'
 
 /** A translation by a key built at runtime (layout and option names); the typed t() wants literal keys. */
 export const tr = (t: TFunction, key: string, opts?: Record<string, unknown>): string => (t as unknown as (k: string, o?: Record<string, unknown>) => string)(key, opts)
-
-/** Nested dialogs (layout picker, picture picker) tell the editor they are open, so Escape closes them first. */
-export const SubDialogs = createContext<{ current: number }>({ current: 0 })
-export function useSubDialog(open: boolean) {
-  const depth = useContext(SubDialogs)
-  useEffect(() => {
-    if (!open) return
-    depth.current++
-    return () => {
-      depth.current--
-    }
-  }, [open, depth])
-}
 
 /** The id of the input that edits a field path, so the preview can focus it. */
 export const fieldId = (path: string) => `f-${path}`

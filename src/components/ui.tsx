@@ -2,6 +2,7 @@ import { type ComponentProps, type ReactNode, type SyntheticEvent, useEffect, us
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Check, Search, X } from 'lucide-react'
+import { useOverlay } from './overlay'
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ')
@@ -255,26 +256,8 @@ export function Segmented<T extends string>({
   )
 }
 
-/**
- * Closes on Escape while open. The handler is read through a ref: an effect keyed on the callback would re-subscribe
- * on every render, and a listener re-added while a keydown is being dispatched (another listener's state change
- * flushes a render in between) is never invoked for that key.
- */
-function useEscape(open: boolean, onClose: () => void) {
-  const close = useRef(onClose)
-  close.current = onClose
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close.current()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open])
-}
-
 export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-[max(1rem,env(safe-area-inset-top))] md:pt-[12vh]' }: { open: boolean; onClose: () => void; children: ReactNode; width?: string; top?: string }) {
-  useEscape(open, onClose)
+  useOverlay(open, onClose)
   if (!open) return null
   return (
     <div className={cx('fixed inset-0 z-50 flex items-start justify-center bg-ink/15 px-4 backdrop-blur-[2px]', top)} onMouseDown={onClose}>
@@ -291,7 +274,7 @@ export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-[
  * events so a sheet opened from a draggable card never starts a drag.
  */
 export function Sheet({ open, onClose, label, title, children, className }: { open: boolean; onClose: () => void; label?: string; title?: ReactNode; children: ReactNode; className?: string }) {
-  useEscape(open, onClose)
+  useOverlay(open, onClose)
   if (!open) return null
   const stop = (e: SyntheticEvent) => e.stopPropagation()
   return createPortal(

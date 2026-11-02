@@ -17,6 +17,7 @@ import type { Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types
 import { formatDate } from '@/i18n'
 import { Button, cx, IconButton, isTyping, Segmented, useIsPhone, useLocalState } from '@/components/ui'
 import Menu from '@/components/Menu'
+import { overlayOpen } from '@/components/overlay'
 import { BoardContext, type BoardCtx, DayColumn } from '@/planner/DayColumn'
 import { ItemCard } from '@/planner/ItemCard'
 import Toolbox, { type Tab } from '@/planner/Toolbox'
@@ -279,7 +280,8 @@ export default function PlannerPage() {
   const single = selected.size === 1 ? [...selected][0] : null
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target)) return
+      // A dialog, menu or the slide editor above the agenda takes the keys; the agenda behind it stays as it is.
+      if (isTyping(e.target) || overlayOpen() || e.defaultPrevented) return
       const mod = e.ctrlKey || e.metaKey
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()
@@ -288,10 +290,7 @@ export default function PlannerPage() {
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
-      } else if (e.key === 'Escape') {
-        // A dialog above the planner (the slide editor, a picker) takes its own Escape.
-        if (!document.querySelector('[role="dialog"]')) clearSelection()
-      }
+      } else if (e.key === 'Escape') clearSelection()
       else if (!mod && single && items[single] && (e.key === '+' || e.key === '=' || e.key === '-')) {
         e.preventDefault()
         resizeBy(items[single], e.key === '-' ? -SNAP : SNAP)

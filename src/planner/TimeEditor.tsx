@@ -5,6 +5,7 @@ import type { Item } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { formatDuration, formatTime, parseClock, parseDuration, SNAP } from '@/domain/time'
 import { Button, cx, Segmented, Sheet } from '@/components/ui'
+import { useOverlay } from '@/components/overlay'
 
 export type TimeMode = 'duration' | 'start'
 
@@ -80,19 +81,10 @@ export default function TimeEditor({ item, mode, anchor, computedStart, phone, o
     const onDown = (e: PointerEvent) => {
       if (!box.current?.contains(e.target as Node)) handlers.current.done()
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        handlers.current.cancel()
-      }
-    }
     if (!phone) window.addEventListener('pointerdown', onDown, true)
-    window.addEventListener('keydown', onKey, true)
-    return () => {
-      window.removeEventListener('pointerdown', onDown, true)
-      window.removeEventListener('keydown', onKey, true)
-    }
+    return () => window.removeEventListener('pointerdown', onDown, true)
   }, [phone])
+  useOverlay(true, () => handlers.current.cancel())
 
   // Desktop: below the clicked value, or above it when there is no room; always inside the window.
   useLayoutEffect(() => {
