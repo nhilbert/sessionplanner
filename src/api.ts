@@ -1,5 +1,6 @@
 import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op } from './domain/ops'
+import i18n from './i18n'
 
 /** Thin client for the server API (server/app.ts). Changes carry the app's header (server/guard.ts). */
 
@@ -13,6 +14,14 @@ export class ApiError extends Error {
 }
 
 export const LOGIN_REQUIRED = 'sp:login-required'
+
+/** Tells the user that an action failed, with the server's reason, where the action has no place of its own to show it. */
+export function reportFailure(err: unknown): void {
+  // An expired login has its own banner (components/AppShell.tsx).
+  if (err instanceof ApiError && err.status === 401) return
+  const reason = err instanceof Error ? err.message : String(err)
+  window.alert(i18n.t('common.failed', { error: reason }))
+}
 
 /** Where a slide's pictures come from: a workshop's own route (its guests may load them) or the owner's library. */
 export type AssetScope = { workshopId: string } | 'library'

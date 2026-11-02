@@ -1,22 +1,16 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Printer } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
-import { deckOf } from '@/domain/deck'
-import { useSettings } from '@/store/useSettings'
 import { Button } from '@/components/ui'
 import { Option } from './Option'
-import { SlideStage, themeOf, useTheme } from './SlideView'
-import { deckLabels } from './deckLabels'
-import { useDeckOptions } from './deckOptions'
+import { SlideStage } from './SlideView'
+import { useDeck } from './useDeck'
 
 /** The deck on 16:9 pages, one slide each: the browser's print makes the PDF. */
 export default function SlidesPrint({ data }: { data: WorkshopState }) {
   const { t } = useTranslation()
-  const settings = useSettings((s) => s.settings)
-  const theme = useTheme(themeOf(data.workshop, settings))
-  const [options, update] = useDeckOptions()
-  const deck = useMemo(() => deckOf(data, deckLabels(t), options), [data, t, options])
+  const { deck, theme, options, update } = useDeck(data)
   const title = data.workshop.title || t('workshops.untitled')
   useEffect(() => {
     document.title = `${title} – ${t('slides.title')}`

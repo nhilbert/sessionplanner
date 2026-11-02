@@ -16,6 +16,8 @@ export default function NotesField({ value, onCommit, label, hint }: { value: st
   const [preview, setPreview] = useState(false)
   const [large, setLarge] = useState(false)
   const typing = useRef(false)
+  /** Typed since the last save: a field merely visited never writes back the text it showed. */
+  const dirty = useRef(false)
   const stored = useRef(value)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   stored.current = value
@@ -27,9 +29,11 @@ export default function NotesField({ value, onCommit, label, hint }: { value: st
 
   const commit = (v: string) => {
     clearTimeout(timer.current)
+    dirty.current = false
     if (v !== stored.current) onCommit(v)
   }
   const change = (v: string) => {
+    dirty.current = true
     setLocal(v)
     clearTimeout(timer.current)
     timer.current = setTimeout(() => commit(v), 800)
@@ -44,7 +48,8 @@ export default function NotesField({ value, onCommit, label, hint }: { value: st
       onFocus={() => void (typing.current = true)}
       onBlur={() => {
         typing.current = false
-        commit(local)
+        if (dirty.current) commit(local)
+        else setLocal(stored.current)
       }}
     />
   )

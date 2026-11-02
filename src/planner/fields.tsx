@@ -8,6 +8,7 @@ import { cx } from '@/components/ui'
 /**
  * A text field bound to a stored value. It saves after a short pause and on leaving the field, and while
  * you type it is not overwritten by changes from other windows; once you leave it, it shows theirs again.
+ * Only what you typed is saved: a field you merely visited never writes back the text it showed.
  */
 export function TextField({
   value,
@@ -18,6 +19,8 @@ export function TextField({
 }: { value: string; onCommit: (value: string) => void; multiline?: boolean; className?: string } & Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'ref'>) {
   const [local, setLocal] = useState(value)
   const focused = useRef(false)
+  /** Typed since the last save. */
+  const dirty = useRef(false)
   const stored = useRef(value)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   stored.current = value
@@ -29,6 +32,7 @@ export function TextField({
 
   const commit = (v: string) => {
     clearTimeout(timer.current)
+    dirty.current = false
     if (v !== stored.current) onCommit(v)
   }
   const common = {
@@ -36,9 +40,11 @@ export function TextField({
     onFocus: () => void (focused.current = true),
     onBlur: () => {
       focused.current = false
-      commit(local)
+      if (dirty.current) commit(local)
+      else setLocal(stored.current)
     },
     onChange: (e: { target: { value: string } }) => {
+      dirty.current = true
       setLocal(e.target.value)
       clearTimeout(timer.current)
       const v = e.target.value
@@ -71,10 +77,15 @@ export function TimeField({
   const shown = value === null ? '' : formatTime(value)
   const [local, setLocal] = useState(shown)
   const focused = useRef(false)
+  const dirty = useRef(false)
   useEffect(() => {
     if (!focused.current) setLocal(shown)
   }, [shown])
   const commit = (cancel = false) => {
+    const typed = dirty.current
+    dirty.current = false
+    // Left without typing: show the stored time (another window may have changed it meanwhile).
+    if (!typed) return setLocal(shown)
     const text = cancel ? shown : local.trim()
     const v = parseClock(text)
     if (v !== null && v !== value) onChange(v)
@@ -92,7 +103,10 @@ export function TimeField({
         focused.current = true
         e.target.select()
       }}
-      onChange={(e) => setLocal(e.target.value)}
+      onChange={(e) => {
+        dirty.current = true
+        setLocal(e.target.value)
+      }}
       onBlur={() => {
         if (!focused.current) return
         focused.current = false
@@ -111,6 +125,48 @@ export function TimeField({
           onChange(next)
         }
       }}
+    />
+  )
+}
+
+/**
+ * A quantity (whole number, 0 or more). Saved on Enter or leaving the field, not on every keystroke (one change,
+ * one undo step); an empty or unreadable field goes back to the stored quantity.
+ */
+export function QtyField({ value, onChange, className, ...props }: { value: number; onChange: (v: number) => void; className?: string } & Omit<ComponentProps<'input'>, 'value' | 'onChange'>) {
+  const [local, setLocal] = useState(String(value))
+  const focused = useRef(false)
+  const dirty = useRef(false)
+  useEffect(() => {
+    if (!focused.current) setLocal(String(value))
+  }, [value])
+  const commit = () => {
+    const typed = dirty.current
+    dirty.current = false
+    const qty = Number(local)
+    if (typed && local.trim() !== '' && Number.isInteger(qty) && qty >= 0 && qty <= 100_000 && qty !== value) onChange(qty)
+    else setLocal(String(value))
+  }
+  return (
+    <input
+      type="number"
+      min={0}
+      inputMode="numeric"
+      {...props}
+      value={local}
+      onFocus={() => void (focused.current = true)}
+      onChange={(e) => {
+        dirty.current = true
+        setLocal(e.target.value)
+      }}
+      onBlur={() => {
+        focused.current = false
+        commit()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+      }}
+      className={cx('field tnum h-8 w-14 px-1.5 text-center text-[13px]', className)}
     />
   )
 }
@@ -152,11 +208,14 @@ export function formatSize(bytes: number): string {
 export function DurationField({ value, onChange, className, ...props }: { value: number; onChange: (v: number) => void; className?: string } & Omit<ComponentProps<'input'>, 'value' | 'onChange'>) {
   const [local, setLocal] = useState(formatDuration(value))
   const focused = useRef(false)
+  const dirty = useRef(false)
   useEffect(() => {
     if (!focused.current) setLocal(formatDuration(value))
   }, [value])
   const commit = () => {
-    const v = parseDuration(local)
+    const typed = dirty.current
+    dirty.current = false
+    const v = typed ? parseDuration(local) : undefined
     if (v !== undefined && v !== value) onChange(v)
     else setLocal(formatDuration(value))
   }
@@ -170,7 +229,10 @@ export function DurationField({ value, onChange, className, ...props }: { value:
         setLocal(String(value))
         requestAnimationFrame(() => e.target.select())
       }}
-      onChange={(e) => setLocal(e.target.value)}
+      onChange={(e) => {
+        dirty.current = true
+        setLocal(e.target.value)
+      }}
       onBlur={() => {
         focused.current = false
         commit()
@@ -178,6 +240,7 @@ export function DurationField({ value, onChange, className, ...props }: { value:
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur()
         if (e.key === 'Escape') {
+          dirty.current = false
           setLocal(String(value))
           e.currentTarget.blur()
         }

@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, Code, Image, LayoutTemplate, MoveLeft, MoveRight, Plus, Trash2 } from 'lucide-react'
 import { api, type AssetScope } from '@/api'
 import type { Slide } from '@/domain/types'
 import { newId } from '@/domain/ops'
-import { normalizeSlideHtml, slideLayout, slideTitle } from '@/domain/slides'
+import { MAX_SLIDES, normalizeSlideHtml, slideLayout, slideTitle } from '@/domain/slides'
 import { Button, IconButton, Modal, SectionLabel, Textarea } from '@/components/ui'
 import Menu from '@/components/Menu'
 import { SlideView } from './SlideView'
@@ -22,7 +22,15 @@ export function SlideStrip({ slides, onChange, scope, theme, canEdit, owner }: {
   const [picker, setPicker] = useState(false)
   const [busy, setBusy] = useState(false)
   const input = useRef<HTMLInputElement>(null)
-  const add = (html: string[]) => onChange([...slides, ...html.map((h) => ({ id: newId(), html: normalizeSlideHtml(h) }))])
+  // The list as it is now: an upload finishes after other changes (here or in another window) may have arrived.
+  const latest = useRef(slides)
+  latest.current = slides
+  /** Appends slides, as many as the limit allows (the server refuses more). */
+  const add = (html: string[]) => {
+    const room = Math.max(0, MAX_SLIDES - latest.current.length)
+    if (html.length > room) window.alert(t('slides.tooMany', { max: MAX_SLIDES, count: html.length - room }))
+    if (room) onChange([...latest.current, ...html.slice(0, room).map((h) => ({ id: newId(), html: normalizeSlideHtml(h) }))])
+  }
   const words = {
     title: t('slides.placeholder.title'),
     text: t('slides.placeholder.text'),
@@ -129,12 +137,20 @@ function Lightbox({ slide, index, count, theme, scope, canEdit, onPrev, onNext, 
   const [source, setSource] = useState(false)
   const [draft, setDraft] = useState(slide.html)
   const [editingId, setEditingId] = useState(slide.id)
+  const box = useRef<HTMLDivElement>(null)
   if (editingId !== slide.id) {
     setEditingId(slide.id)
     setDraft(slide.html)
   }
+  // The arrow keys work at once, not only after a click into the dialog.
+  useEffect(() => box.current?.focus({ preventScroll: true }), [])
+  /** The source as it would be stored; written only when that differs (leaving the field and Apply both ask). */
+  const stored = normalizeSlideHtml(draft)
+  const apply = () => {
+    if (stored !== slide.html) onSource(stored)
+  }
   return (
-    <div className="space-y-3" onKeyDown={(e) => {
+    <div ref={box} tabIndex={-1} className="space-y-3 outline-none" onKeyDown={(e) => {
       if (e.target instanceof HTMLTextAreaElement) return
       if (e.key === 'ArrowLeft') onPrev()
       if (e.key === 'ArrowRight') onNext()
@@ -167,13 +183,13 @@ function Lightbox({ slide, index, count, theme, scope, canEdit, onPrev, onNext, 
           </>
         )}
       </div>
-      <SlideView html={source ? draft : slide.html} theme={theme} scope={scope} />
+      <SlideView html={source ? stored : slide.html} theme={theme} scope={scope} />
       {source && canEdit && (
         <div>
-          <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft !== slide.html && onSource(draft)} spellCheck={false} className="min-h-[200px] font-mono text-[12px] leading-snug" aria-label={t('slides.source')} />
+          <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={apply} spellCheck={false} className="min-h-[200px] font-mono text-[12px] leading-snug" aria-label={t('slides.source')} />
           <p className="mt-1 text-[12px] text-ink-3">{t('slides.sourceHint')}</p>
           <div className="mt-2 flex justify-end">
-            <Button size="sm" onClick={() => draft !== slide.html && onSource(draft)}>
+            <Button size="sm" onClick={apply}>
               {t('slides.apply')}
             </Button>
           </div>

@@ -79,6 +79,9 @@ for deck in sorted(os.listdir(decks_dir)) if os.path.isdir(decks_dir) else []:
     d = os.path.join(decks_dir, deck)
     if not os.path.isdir(d) or not os.path.exists(os.path.join(d, 'deck.json')): continue
     meta = json.load(open(os.path.join(d, 'deck.json'), encoding='utf-8'))
+    # as in the app's import (src/slides/importDeck.ts): no theme is the built-in one
+    theme = str(meta.get('theme') or 'default').strip().lower()
+    theme_attr = html.escape(theme)
     files = sorted(f for f in os.listdir(d) if f.endswith('.html'))
     chrome = html.escape(meta.get('chrome', meta['title']))
     # the grid keeps the deck's order; a heading marks where a library entry starts
@@ -98,18 +101,21 @@ for deck in sorted(os.listdir(decks_dir)) if os.path.isdir(decks_dir) else []:
         m = re.search(r'<section class="slide ([^"]*)"', frag)
         layout = m.group(1) if m else '?'
         todo = ' <em>todo</em>' if 'class="todo"' in frag or ' todo"' in frag else ''
-        frag = frag[:frag.rfind('</section>')] + f'<footer class="chrome"><span>{chrome}</span><span>{n}</span></footer></section>'
+        footer = f'<footer class="chrome"><span>{chrome}</span><span>{n}</span></footer>'
+        at = frag.rfind('</section>')
+        # a fragment without its closing tag (the app closes it when it sanitises) gets the footer at its end
+        frag = frag[:at] + footer + frag[at:] if at != -1 else frag + footer
         items.append(f'<div class="item"><div class="frame" data-n="{n}">{frag}</div><div class="cap"><b>{n:02d}</b><span>{html.escape(f)}</span><span>{html.escape(layout)}</span>{todo}</div></div>')
     page = f'''<!doctype html>
-<html lang="de" data-theme="{meta["theme"]}"><head><meta charset="utf-8"><title>{html.escape(meta["title"])}</title>
-<link rel="stylesheet" href="format/noto/400.css"><link rel="stylesheet" href="format/slides.css"><link rel="stylesheet" href="{theme_href(meta["theme"])}"><link rel="stylesheet" href="format/preview.css"></head>
-<body><div class="top"><a href="index.html">← Decks</a><h1>{html.escape(meta["title"])}</h1><span>{n} Folien · Theme {meta["theme"]}</span><span class="hint">Klick auf eine Folie zeigt sie groß · ← → blättern · Esc schließt</span></div>
+<html lang="de" data-theme="{theme_attr}"><head><meta charset="utf-8"><title>{html.escape(meta["title"])}</title>
+<link rel="stylesheet" href="format/noto/400.css"><link rel="stylesheet" href="format/slides.css"><link rel="stylesheet" href="{html.escape(theme_href(theme))}"><link rel="stylesheet" href="format/preview.css"></head>
+<body><div class="top"><a href="index.html">← Decks</a><h1>{html.escape(meta["title"])}</h1><span>{n} Folien · Theme {theme_attr}</span><span class="hint">Klick auf eine Folie zeigt sie groß · ← → blättern · Esc schließt</span></div>
 <main class="grid">{"".join(items)}</main>
 <div class="overlay"><div class="stage"></div></div>
 <script>{JS}</script></body></html>'''
     open(os.path.join(root, deck + '.html'), 'w', encoding='utf-8').write(page)
-    index.append(f'<li><a href="{deck}.html">{html.escape(meta["title"])}</a><div class="meta">{n} Folien · Theme {meta["theme"]}{f" · {len(entries)} Bibliothekseinträge" if entries else ""}</div></li>')
-    print(f'{deck}.html: {n} slides ({meta["theme"]}){f", {len(entries)} entries" if entries else ""}')
+    index.append(f'<li><a href="{html.escape(deck)}.html">{html.escape(meta["title"])}</a><div class="meta">{n} Folien · Theme {theme_attr}{f" · {len(entries)} Bibliothekseinträge" if entries else ""}</div></li>')
+    print(f'{deck}.html: {n} slides ({theme}){f", {len(entries)} entries" if entries else ""}')
 open(os.path.join(root, 'index.html'), 'w', encoding='utf-8').write(f'''<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><title>Folien-Vorschau</title><link rel="stylesheet" href="format/preview.css"></head>
 <body><div class="top"><h1>Folien-Vorschau</h1></div><ul class="decks">{"".join(index)}</ul></body></html>''')

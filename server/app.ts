@@ -94,8 +94,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   }
   app.use('/api/*', guard({ publicUrl, owners, ownerHeader }))
   // Every request body is bounded, checked after the guard so that a foreign request is refused before its body is
-  // read. Uploads and operation batches have their room; everything else (JSON of a few kilobytes, the agents'
-  // JSON-RPC, the OAuth forms and registrations) gets a megabyte.
+  // read. Uploads, operation batches and the agents' JSON-RPC have their room; everything else (JSON of a few
+  // kilobytes, the OAuth forms and registrations) gets a megabyte.
   const tooLarge = (c: Context) => c.json({ error: 'too_large' }, 413)
   const limits = {
     upload: bodyLimit({ maxSize: MAX_FILE + 64 * 1024, onError: tooLarge }),
@@ -108,7 +108,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks)$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
     return limit(c, next)
   })
-  app.use('/mcp', limits.json)
+  // Agents write whole agendas and slide decks in one call, like the app's operation batches.
+  app.use('/mcp', limits.ops)
   app.use('/oauth/*', limits.json)
   app.onError((err, c) => {
     if (err instanceof BadRequest) return c.json({ error: err.message }, 400)

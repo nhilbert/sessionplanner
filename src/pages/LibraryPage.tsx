@@ -6,6 +6,7 @@ import { durationOf, formatDuration } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { categoryName, itemColor, useSettings } from '@/store/useSettings'
 import { cx, Empty, Field, IconButton, PageHeader, SearchField } from '@/components/ui'
+import { reportFailure } from '@/api'
 import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
 import { SlideStrip } from '@/slides/SlideStrip'
@@ -28,7 +29,23 @@ export default function LibraryPage() {
   const [open, setOpen] = useState<string | null>(null)
   useEffect(() => {
     void load()
+    // Back in this tab: an agent (or another window) may have changed entries meanwhile, and an edit here is laid
+    // over the entry as this page has it.
+    const again = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    window.addEventListener('focus', again)
+    document.addEventListener('visibilitychange', again)
+    return () => {
+      window.removeEventListener('focus', again)
+      document.removeEventListener('visibilitychange', again)
+    }
   }, [load])
+  /** A failed save or delete (the entry may be gone): say so, and show the library as it is now. */
+  const failed = (err: unknown) => {
+    reportFailure(err)
+    void load()
+  }
   const searching = query.trim() !== ''
   const shown = entries.filter((e) => !searching || matchesWords(libraryText(e, categories, t), query))
 
@@ -42,7 +59,7 @@ export default function LibraryPage() {
         <ul className="grid items-start gap-3 md:grid-cols-2">
           {shown.map((e) => (
             <li key={e.id} className={cx('card overflow-hidden', open === e.id && 'md:col-span-2')}>
-              <Row entry={e} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSave={(x) => void save(x, e.id)} onDelete={() => window.confirm(t('library.deleteConfirm', { title: e.title })) && void remove(e.id)} />
+              <Row entry={e} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSave={(x) => void save(x, e.id).catch(failed)} onDelete={() => window.confirm(t('library.deleteConfirm', { title: e.title })) && void remove(e.id).catch(failed)} />
             </li>
           ))}
         </ul>

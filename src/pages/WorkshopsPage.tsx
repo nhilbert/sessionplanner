@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { CalendarDays, Clock, MapPin, Plus } from 'lucide-react'
-import { api } from '@/api'
+import { api, reportFailure } from '@/api'
 import type { WorkshopSummary } from '@/domain/types'
 import { formatDuration } from '@/domain/time'
 import { formatDate } from '@/i18n'
@@ -124,6 +124,8 @@ function NewWorkshop({ open, onClose, onCreated }: { open: boolean; onClose: () 
     try {
       const ws = await api.createWorkshop({ title: title.trim(), client: client.trim(), date: date || undefined })
       onCreated(ws.workshop.id)
+    } catch (err) {
+      reportFailure(err)
     } finally {
       setBusy(false)
     }

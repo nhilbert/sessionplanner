@@ -19,7 +19,8 @@
     "download": "Herunterladen",
     "upload": "Datei hochladen",
     "uploading": "Lädt hoch …",
-    "signIn": "Neu anmelden"
+    "signIn": "Neu anmelden",
+    "failed": "Das hat nicht geklappt ({{error}}). Bitte erneut versuchen."
   },
   "workshops": {
     "title": "Workshops",
@@ -373,6 +374,8 @@
   },
   "slides": {
     "title": "Folien",
+    "tooMany": "Höchstens {{max}} Folien pro Schritt: {{count}} wurden nicht hinzugefügt.",
+    "missingPictures": "Nicht gefunden und ohne Bild übernommen: {{names}}",
     "tab": "Folien",
     "count_one": "{{count}} Folie",
     "count_other": "{{count}} Folien",
