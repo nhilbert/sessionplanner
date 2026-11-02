@@ -7,7 +7,7 @@ import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { createApp, MAX_FILE, type QUOTAS } from './app.ts'
-import { adjustedOps, type Op, type ServerEvent } from '../src/domain/ops.ts'
+import type { Op, ServerEvent } from '../src/domain/ops.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
@@ -157,22 +157,20 @@ describe('workshops and operations', () => {
     expect((await ops(app, a.workshop.id, { clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'x', fields: badLink }] })).status).toBe(400)
   })
 
-  it('echoes a batch so that nothing counts as adjusted, and marks what it did adjust', async () => {
-    const { app } = setup()
+  it('passes every batch on as stored, with the sender\'s tag, so each window takes the server\'s version', async () => {
+    const { app, hub } = setup()
     const ws = await create(app)
     const id = ws.workshop.id
-    const day = ws.days[0].id
-    const sent: Op[] = [
-      { op: 'create', entity: 'item', record: item('a', id, day) },
-      // the fields in an order of the browser's choosing, not the schema's
-      { op: 'set', entity: 'item', id: 'a', fields: { groupId: null, position: 2, dayId: day } },
-    ]
-    const echoed = ((await (await ops(app, id, { clientId: 'c', ops: sent })).json()) as { ops: Op[] }).ops
-    expect(echoed).toHaveLength(2)
-    expect(adjustedOps(sent, echoed)).toEqual([])
+    const seen: ServerEvent[] = []
+    hub.subscribe(id, (e) => seen.push(e))
     const parked: Op[] = [{ op: 'create', entity: 'item', record: item('b', id, 'gone-day') }]
-    const stored = ((await (await ops(app, id, { clientId: 'c', ops: parked })).json()) as { ops: Op[] }).ops
-    expect(adjustedOps(parked, stored)).toMatchObject([{ op: 'create', record: { id: 'b', dayId: null } }])
+    const stored = ((await (await ops(app, id, { clientId: 'window.7', ops: parked })).json()) as { ops: Op[] }).ops
+    expect(stored).toMatchObject([{ op: 'create', record: { id: 'b', dayId: null } }])
+    expect(seen).toEqual([{ type: 'ops', clientId: 'window.7', ops: stored }])
+    // A batch that changes nothing (its record is gone) is answered with no ops and passed to nobody.
+    const none = ((await (await ops(app, id, { clientId: 'window.8', ops: [{ op: 'set', entity: 'item', id: 'gone', fields: { title: 'x' } }] })).json()) as { ops: Op[] }).ops
+    expect(none).toEqual([])
+    expect(seen).toHaveLength(1)
   })
 
   it('refuses dates that are not calendar dates', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { entriesIn, itemsIn, placeAt } from './order.ts'
+import { entriesIn, itemsIn, placeAt, placeIn } from './order.ts'
 import { packingList } from './packing.ts'
-import { adjustedOps, applyOps, inverseOps, type Op } from './ops.ts'
+import { applyOps, inverseOps, type Op } from './ops.ts'
 import type { Item, WorkshopState } from './types.ts'
 
 const item = (id: string, over: Partial<Item> = {}): Item => ({
@@ -101,23 +101,18 @@ describe('ops', () => {
   })
 })
 
-describe('adjustedOps', () => {
-  const sent: Op[] = [
-    { op: 'set', entity: 'item', id: 'a', fields: { dayId: 'd1', groupId: null, position: 2 } },
-    { op: 'create', entity: 'item', record: item('c', { position: 3 }) },
-  ]
-  it('ignores the order of keys, which the server rebuilds from its schema', () => {
-    const { id, workshopId, ...rest } = item('c', { position: 3 })
-    const echoed: Op[] = [
-      { op: 'set', entity: 'item', id: 'a', fields: { dayId: 'd1', position: 2, groupId: null } },
-      { op: 'create', entity: 'item', record: { ...rest, id, workshopId } },
-    ]
-    expect(adjustedOps(sent, echoed)).toEqual([])
-  })
-  it('returns what the server stored differently or added', () => {
-    const parked: Op = { op: 'set', entity: 'item', id: 'a', fields: { dayId: null, position: 2, groupId: null } }
-    const added: Op = { op: 'set', entity: 'item', id: 'x', fields: { dayId: null } }
-    expect(adjustedOps(sent, [parked, sent[1], added])).toEqual([parked, added])
+describe('placeIn', () => {
+  const structure = { groups: [{ id: 'g', workshopId: 'w', dayId: 'd1', position: 2, title: 'G' }], items: [item('a', { position: 1 }), item('b', { position: 2 + 1e-7 })] }
+  it('gives the new position and renumbers items and groups alike when the list is too dense', () => {
+    expect(placeIn(structure, ['a', 'g'], 'x', 1)).toEqual({ position: 1.5, ops: [] })
+    expect(placeIn(structure, ['a', 'g', 'b'], 'x', 2)).toEqual({
+      position: 3,
+      ops: [
+        { op: 'set', entity: 'item', id: 'a', fields: { position: 1 } },
+        { op: 'set', entity: 'group', id: 'g', fields: { position: 2 } },
+        { op: 'set', entity: 'item', id: 'b', fields: { position: 4 } },
+      ],
+    })
   })
 })
 

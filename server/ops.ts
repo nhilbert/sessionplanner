@@ -2,13 +2,13 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
-import { BadRequest, isCalendarDate, validateLibraryEntry, validateOps } from './validate.ts'
+import { BadRequest, isCalendarDate, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
-import { ZERO_KINDS } from '../src/domain/types.ts'
+import { DEFAULT_TIMEZONE, ZERO_KINDS } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
-import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, sortedDays } from '../src/domain/order.ts'
-import { formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
+import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, placeIn, sortedDays } from '../src/domain/order.ts'
+import { clockIn, formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
 import { packingKey, packingList } from '../src/domain/packing.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
@@ -123,15 +123,9 @@ const targetOf = (i: SlideTargetInput): SlideTargetInput => ({ workshop: i.works
 
 type GroupEntry = Extract<LibraryEntry, { kind: 'group' }>
 
-/** The content fields an input carries (title and placement aside): whether the agent meant to change an item. */
-const CONTENT_KEYS = ['kind', 'duration', 'description', 'goal', 'method', 'lead', 'notes', 'appendNotes', 'materials', 'category', 'color', 'slides'] as const satisfies readonly (keyof ItemInput)[]
-const contentKeys = (input: ItemInput) => CONTENT_KEYS.filter((k) => input[k] !== undefined)
-
 const CLIENT_ID = 'mcp'
-const todayLocal = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// Today where the workshops take place, not on the server's clock (a container runs on UTC).
+const todayLocal = () => clockIn(new Date(), DEFAULT_TIMEZONE).date
 
 /** Drops undefined, null, empty strings and empty arrays so answers stay short. */
 function compact<T extends object>(o: T): Partial<T> {
@@ -188,6 +182,9 @@ export class Ops {
   }
 
   private state(ref: string): WorkshopState {
+    // An id is one lookup; only a title needs the list (which computes every workshop's length).
+    const direct = this.repo.loadWorkshop(ref)
+    if (direct) return direct
     const state = this.repo.loadWorkshop(this.summary(ref).id)
     if (!state) throw new BadRequest(`no workshop "${ref}"`)
     return state
@@ -269,14 +266,7 @@ export class Ops {
       )
       index = list.findIndex((x) => x.id === target.id) + 1
     } else if (p.at !== undefined) index = p.at
-    const placed = placeAt(list, moving, index)
-    const ops: Op[] = []
-    let position = 0
-    for (const x of placed) {
-      if (x.id === moving) position = x.position
-      else ops.push({ op: 'set', entity: list.find((y) => y.id === x.id)!.type, id: x.id, fields: { position: x.position } })
-    }
-    return { position, ops }
+    return placeIn(s, list.map((x) => x.id), moving, index)
   }
 
   private materials(input: MaterialInput[] | undefined): Material[] | undefined {
@@ -313,18 +303,23 @@ export class Ops {
     return this.itemFields({ ...input, fixedStart: undefined }, current)
   }
 
-  /** Fresh content with the defaults for the kind; the agent's fields are laid over it. */
-  private blankContent(input: ItemInput): ItemContent {
-    const kind = input.kind ?? 'block'
-    return { kind, title: input.title ?? '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : Math.round(input.duration ?? (kind === 'break' ? 15 : 30)), goal: '', method: '', lead: '', notes: '', materials: [], slides: [], categoryId: null, color: null }
+  /** Fresh content with the defaults for the kind (itemFields lays the agent's fields over it, a duration included). */
+  private blankContent(kind: ItemKind = 'block'): ItemContent {
+    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], slides: [], categoryId: null, color: null }
   }
 
+  /** The content fields an input carries, title aside: whether the agent meant to change an item's content. */
+  private hasContent(input: ItemInput): boolean {
+    return Object.keys(this.contentFields({ ...input, title: undefined })).length > 0
+  }
+
+  /** A library item from the agent's fields; its title trimmed like the entry's. */
   private newContent(input: ItemInput): ItemContent {
-    return { ...this.blankContent(input), ...this.contentFields(input) }
+    return { ...this.blankContent(input.kind), ...this.contentFields({ ...input, title: input.title?.trim() }) }
   }
 
   private newItem(workshopId: string, dayId: string | null, groupId: string | null, position: number, input: ItemInput): Item {
-    return { id: newId(), workshopId, dayId, position, groupId, fixedStart: null, attachmentIds: [], ...this.blankContent(input), ...this.itemFields(input) }
+    return { id: newId(), workshopId, dayId, position, groupId, fixedStart: null, attachmentIds: [], ...this.blankContent(input.kind), ...this.itemFields(input) }
   }
 
   // ---------- views ----------
@@ -463,6 +458,8 @@ export class Ops {
     const end = minutes(input.end, 'end')
     const first = input.date ?? this.today()
     const theme = this.theme(input.theme)
+    // The same limits as the app's "new workshop"; the rest is checked with the batch below.
+    validateNewWorkshop({ title: input.title, client: input.client, date: first })
     const state = this.repo.createWorkshop({ title: input.title, client: input.client, date: first })
     const id = state.workshop.id
     const ops: Op[] = []
@@ -477,7 +474,13 @@ export class Ops {
     for (let n = 1; n < count; n++) {
       ops.push({ op: 'create', entity: 'day', record: { id: newId(), workshopId: id, position: n + 1, date: addDays(first, n), startMin: start ?? state.days[0].startMin, endMin: end === undefined ? state.days[0].endMin : end } })
     }
-    this.apply(id, ops)
+    try {
+      this.apply(id, ops)
+    } catch (err) {
+      // Refused details (notes too long, …): no half-made workshop stays behind.
+      this.repo.deleteWorkshop(id)
+      throw err
+    }
     return this.workshopView(this.repo.loadWorkshop(id)!)
   }
 
@@ -773,7 +776,7 @@ export class Ops {
     const entry = this.entry(input.entry)
     if (entry.kind === 'item') {
       check(entry.data.kind)
-      return { where: { entry: entry.title }, slides: entry.data.slides ?? [], save: (slides) => this.repo.saveLibraryEntry(entry.id, { kind: 'item', title: entry.title, data: { ...entry.data, slides } }) }
+      return { where: { entry: entry.title }, slides: entry.data.slides ?? [], save: (slides) => void this.saveEntry(entry.id, { kind: 'item', title: entry.title, data: { ...entry.data, slides } }) }
     }
     if (input.item === undefined) throw new BadRequest(`"${entry.title}" is a group: give the item inside it, by title or number (${this.memberNames(entry)})`)
     const index = this.member(entry, input.item)
@@ -782,7 +785,7 @@ export class Ops {
     return {
       where: { entry: entry.title, item: content.title || String(index + 1) },
       slides: content.slides ?? [],
-      save: (slides) => this.repo.saveLibraryEntry(entry.id, { kind: 'group', title: entry.title, data: { items: entry.data.items.map((c, n) => (n === index ? { ...c, slides } : c)) } }),
+      save: (slides) => void this.saveEntry(entry.id, { kind: 'group', title: entry.title, data: { items: entry.data.items.map((c, n) => (n === index ? { ...c, slides } : c)) } }),
     }
   }
 
@@ -924,8 +927,9 @@ export class Ops {
 
   // ---------- library ----------
 
+  /** A library entry by id (one row), else by title (the whole list). */
   private entry(ref: string): LibraryEntry {
-    return this.byTitle(this.repo.listLibrary(), ref, 'library entry')
+    return this.repo.getLibraryEntry(ref) ?? this.byTitle(this.repo.listLibrary(), ref, 'library entry')
   }
 
   /** The index of an item inside a group entry, by title or number (1 = first). */
@@ -959,7 +963,7 @@ export class Ops {
     const title = input.title.trim()
     if (!title) throw new BadRequest('title must not be empty')
     if (input.items) {
-      if (contentKeys(input).length) throw new BadRequest('a group entry takes its fields per item: put them into items')
+      if (this.hasContent(input)) throw new BadRequest('a group entry takes its fields per item: put them into items')
       if (!input.items.length) throw new BadRequest('a group entry needs at least one item')
       return this.saveEntry(null, { kind: 'group', title, data: { items: input.items.map((i) => this.newContent(i)) } })
     }
@@ -970,7 +974,9 @@ export class Ops {
    * Changes an entry; copies placed in workshops stay as they are. An item entry: title and fields change its item
    * (entry and item share the title, as in the app's editor). A group entry: title alone renames the heading; with
    * `item` the title and fields change that item and `at` moves it; `addItems` adds (at `addAt`, default the end),
-   * `removeItems` takes items out. Items are resolved against the entry as it was before the call.
+   * `removeItems` takes items out. Items are named as the entry was before the call (title or number); the positions
+   * `at` and `addAt` count in the list after `removeItems` (`at` without the moved item itself). An item cannot be
+   * changed and removed in one call.
    */
   libraryUpdate(ref: string, input: ItemInput & { item?: string | number; at?: number; addItems?: LibraryItemInput[]; addAt?: number; removeItems?: (string | number)[] }) {
     const entry = this.entry(ref)
@@ -981,11 +987,12 @@ export class Ops {
       return this.saveEntry(entry.id, { kind: 'item', title: title ?? entry.title, data: { ...entry.data, ...this.contentFields({ ...input, title }, entry.data) } })
     }
     const index = input.item === undefined ? null : this.member(entry, input.item)
-    if (index === null && (contentKeys(input).length || input.at !== undefined)) throw new BadRequest(`"${entry.title}" is a group: give the item inside it whose fields change, by title or number (${this.memberNames(entry)})`)
+    if (index === null && (this.hasContent(input) || input.at !== undefined)) throw new BadRequest(`"${entry.title}" is a group: give the item inside it whose fields change, by title or number (${this.memberNames(entry)})`)
     const removed = new Set((input.removeItems ?? []).map((r) => this.member(entry, r)))
+    if (index !== null && removed.has(index)) throw new BadRequest(`"${entry.data.items[index].title || index + 1}" is both changed (item) and removed (removeItems): leave one out`)
     const edited = index === null ? null : { ...entry.data.items[index], ...this.contentFields({ ...input, title }, entry.data.items[index]) }
     let items = entry.data.items.map((c, n) => (n === index ? edited! : c)).filter((_, n) => !removed.has(n))
-    if (edited && input.at !== undefined && items.includes(edited)) {
+    if (edited && input.at !== undefined) {
       items = items.filter((c) => c !== edited)
       items.splice(Math.min(Math.max(0, input.at), items.length), 0, edited)
     }
@@ -1011,13 +1018,13 @@ export class Ops {
     const s = this.state(ref)
     if (input.item) {
       const item = this.item(s, input.item)
-      return this.libraryView(this.repo.saveLibraryEntry(null, { kind: 'item', title: input.title ?? item.title, data: this.content(item) })!)
+      return this.saveEntry(null, { kind: 'item', title: (input.title ?? item.title).trim() || item.title, data: this.content(item) })
     }
     if (input.group) {
       const group = this.group(s, input.group)
       const items = membersOf(s.items, group.id)
       if (!items.length) throw new BadRequest('the group has no items')
-      return this.libraryView(this.repo.saveLibraryEntry(null, { kind: 'group', title: input.title ?? group.title, data: { items: items.map((i) => this.content(i)) } })!)
+      return this.saveEntry(null, { kind: 'group', title: (input.title ?? group.title).trim() || group.title, data: { items: items.map((i) => this.content(i)) } })
     }
     throw new BadRequest('give an item or a group to save')
   }

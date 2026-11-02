@@ -62,7 +62,9 @@ const itemFields = {
 }
 // Library content has no fixed start: that belongs to a place in an agenda.
 const { fixedStart: _fixedStart, ...contentFields } = itemFields
-const libraryItem = z.object({ title: z.string().min(1), ...contentFields })
+// A new item has no notes to add to.
+const { appendNotes: _appendNotes, ...newContentFields } = contentFields
+const libraryItem = z.object({ title: z.string().min(1), ...newContentFields })
 const memberRef = z.union([z.string(), z.number().int().min(1)])
 const workshopFields = {
   client: z.string().optional(),
@@ -252,10 +254,10 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
       title: z.string().optional(),
       item: memberRef.optional().describe('Group entries: the item inside, by title or number (1 = first)'),
       ...contentFields,
-      at: z.number().int().min(0).optional().describe('With item: its new 0-based position in the group'),
+      at: z.number().int().min(0).optional().describe('With item: its new 0-based position in the group (counted after removeItems)'),
       addItems: z.array(libraryItem).max(100).optional().describe('Group entries: items to add, in order'),
-      addAt: z.number().int().min(0).optional().describe('0-based position for addItems; default the end'),
-      removeItems: z.array(memberRef).max(100).optional().describe('Group entries: items to take out, by title or number'),
+      addAt: z.number().int().min(0).optional().describe('0-based position for addItems, counted after removeItems; default the end'),
+      removeItems: z.array(memberRef).max(100).optional().describe('Group entries: items to take out, by title or number as the entry was before the call; not the item being changed'),
     },
     (a) => ops.libraryUpdate(a.entry as string, a as never),
     'destructive',

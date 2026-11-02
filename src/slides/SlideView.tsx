@@ -1,5 +1,5 @@
 import { type ComponentProps, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { normalizeSlideHtml, renderSlideHtml } from '@/domain/slides'
+import { esc, normalizeSlideHtml, renderSlideHtml } from '@/domain/slides'
 import { type AssetScope, assetUrl } from '@/api'
 import { cx } from '@/components/ui'
 import './slides.css'
@@ -41,7 +41,15 @@ export function hostHtml(html: string, scope: AssetScope, chrome?: { label: stri
   return out
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+/**
+ * hostHtml, worked out again only when what it depends on changes: callers pass scope and chrome as fresh objects
+ * on every render, and sanitising a whole deck on each keystroke elsewhere on the page is wasted work.
+ */
+function useHostHtml(html: string, scope: AssetScope, chrome?: { label: string; n: number }): string {
+  const scopeKey = scope === 'library' ? 'library' : scope.workshopId
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => hostHtml(html, scope, chrome), [html, scopeKey, chrome?.label, chrome?.n])
+}
 
 /**
  * One slide in a 16:9 frame that scales the slide to its width: a thumbnail in a strip, a card in a grid, a
@@ -59,7 +67,7 @@ export function SlideView({ html, theme, scope, chrome, className, onClick, labe
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  const rendered = useMemo(() => hostHtml(html, scope, chrome), [html, scope, chrome])
+  const rendered = useHostHtml(html, scope, chrome)
   useTheme(theme)
   const button = !!onClick
   return (
@@ -81,7 +89,7 @@ export function SlideView({ html, theme, scope, chrome, className, onClick, labe
 
 /** A slide at its design size for a stage that scales it (presenting, printing). */
 export function SlideStage({ html, theme, scope, chrome, scale }: { html: string; theme: string; scope: AssetScope; chrome?: { label: string; n: number }; scale: number }) {
-  const rendered = useMemo(() => hostHtml(html, scope, chrome), [html, scope, chrome])
+  const rendered = useHostHtml(html, scope, chrome)
   useTheme(theme)
   return (
     <div className="slide-stage" style={{ transform: `scale(${scale})` }}>

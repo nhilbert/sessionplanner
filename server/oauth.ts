@@ -192,6 +192,8 @@ export class OAuthServer {
     }
     if (u.protocol !== 'http:' || !isLoopbackHost(u.hostname)) return false
     return client.redirect_uris.some((r) => {
+      // Registered addresses passed redirectAllowed, but a configured extra (SP_OAUTH_REDIRECTS) need not parse.
+      if (!URL.canParse(r)) return false
       const v = new URL(r)
       return v.protocol === 'http:' && v.hostname === u.hostname && v.pathname === u.pathname && v.search === u.search
     })

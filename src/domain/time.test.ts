@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration, formatTime, parseClock, parseDuration, parseTime, scheduleDay, type TimedItem } from './time.ts'
+import { clockIn, formatDuration, formatTime, parseClock, parseDuration, parseTime, scheduleDay, type TimedItem } from './time.ts'
 
 const block = (id: string, duration: number, fixedStart: number | null = null): TimedItem => ({ id, kind: 'block', duration, fixedStart })
 const brk = (id: string, duration: number, fixedStart: number | null = null): TimedItem => ({ id, kind: 'break', duration, fixedStart })
@@ -91,10 +91,27 @@ describe('formatting', () => {
 describe('typed lengths and times', () => {
   it('reads lengths in every common form', () => {
     expect(['90', '90 min', '90min', '1:30', '1h30', '1 h 30 min', '1,5 h', '1.5h', '2h', '120 Minuten'].map(parseDuration)).toEqual([90, 90, 90, 90, 90, 90, 90, 90, 120, 120])
-    expect(['', 'abc', '0', '25 h', '-5'].map(parseDuration)).toEqual([undefined, undefined, undefined, undefined, undefined])
+    expect(['1 h 30 Minuten', '1 Std 30', '2 Stunden'].map(parseDuration)).toEqual([90, 90, 120])
+    expect(['', 'abc', '0', '25 h', '-5', '1,5', '1:60', '1h75'].map(parseDuration)).toEqual(Array(8).fill(undefined))
+  })
+  it('gives blocks and breaks at least five minutes', () => {
+    expect(['2', '1 min', '0:03'].map(parseDuration)).toEqual([5, 5, 5])
   })
   it('reads clock times in every common form', () => {
-    expect(['9', '930', '0930', '9:30', '9.30', '9h30', '14'].map(parseClock)).toEqual([540, 570, 570, 570, 570, 570, 840])
+    expect(['9', '930', '0930', '9:30', '9.30', '9h30', '14', '9 Uhr', '9h', '9.30 h', '9:30 Uhr'].map(parseClock)).toEqual([540, 570, 570, 570, 570, 570, 840, 540, 540, 570, 570])
     expect(['25', 'x', '9:75'].map(parseClock)).toEqual([null, null, null])
+  })
+})
+
+describe('clockIn', () => {
+  it('gives date and time in the workshop\'s zone, not in UTC or the device\'s', () => {
+    // 00:30 in Berlin (winter) is still the evening before in UTC and in New York.
+    const at = new Date('2026-11-01T23:30:00Z')
+    expect(clockIn(at, 'Europe/Berlin')).toEqual({ date: '2026-11-02', minutes: 30 })
+    expect(clockIn(at, 'America/New_York')).toEqual({ date: '2026-11-01', minutes: 18 * 60 + 30 })
+    expect(clockIn(new Date('2026-07-01T10:00:00Z'), 'Europe/Berlin')).toEqual({ date: '2026-07-01', minutes: 12 * 60 })
+  })
+  it('falls back to the device\'s clock for an unknown zone', () => {
+    expect(clockIn(new Date(2026, 10, 2, 9, 15), 'Nowhere/Else')).toEqual({ date: '2026-11-02', minutes: 555 })
   })
 })

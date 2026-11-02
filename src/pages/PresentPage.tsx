@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/api'
 import type { WorkshopState } from '@/domain/types'
-import { deckOf } from '@/domain/deck'
 import { useSettings } from '@/store/useSettings'
-import { SlideStage, themeOf, useTheme } from '@/slides/SlideView'
-import { deckLabels } from '@/slides/deckLabels'
-import { useDeckOptions } from '@/slides/deckOptions'
+import { SlideStage } from '@/slides/SlideView'
+import { useDeck } from '@/slides/useDeck'
 import { presentChannel } from '@/slides/presentChannel'
 
 /** Presenting from the app (docs/slides.md): the deck full screen, arrow keys, space and clicks to page, Escape to leave. */
@@ -18,13 +16,12 @@ export default function PresentPage() {
   const { t } = useTranslation()
   const [data, setData] = useState<WorkshopState | null>(null)
   const [failed, setFailed] = useState(false)
-  const { settings, loaded, load } = useSettings()
-  const [options] = useDeckOptions()
+  const { loaded, load } = useSettings()
   const [scale, setScale] = useState(1)
   const [hint, setHint] = useState(true)
   const hintTimer = useRef<number | null>(null)
   const touchX = useRef<number | null>(null)
-  const theme = useTheme(data ? themeOf(data.workshop, settings) : 'default')
+  const { deck, theme } = useDeck(data)
 
   useEffect(() => {
     api.loadWorkshop(id).then(setData, () => setFailed(true))
@@ -32,7 +29,6 @@ export default function PresentPage() {
   useEffect(() => {
     if (!loaded) void load()
   }, [loaded, load])
-  const deck = useMemo(() => (data ? deckOf(data, deckLabels(t), options) : []), [data, t, options])
   const n = Math.min(Math.max(parseInt(params.get('n') ?? '1', 10) || 1, 1), Math.max(deck.length, 1)) - 1
   const go = (i: number) => {
     setParams({ n: String(Math.min(Math.max(i, 0), deck.length - 1) + 1) }, { replace: true })
@@ -41,6 +37,9 @@ export default function PresentPage() {
     hintTimer.current = window.setTimeout(() => setHint(false), 1500)
   }
 
+  useEffect(() => () => {
+    if (hintTimer.current) window.clearTimeout(hintTimer.current)
+  }, [])
   useEffect(() => {
     const fit = () => setScale(Math.min(window.innerWidth / 1280, window.innerHeight / 720))
     fit()

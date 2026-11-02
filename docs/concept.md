@@ -75,9 +75,9 @@ Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 por
 
 ## 7. Working together
 
-- The server is the source of truth. Every change is a small operation (set these fields of this item, create, delete); each window applies its own changes at once and sends them; the server stores them and passes them to every other open window of the workshop (server-sent events).
-- Changes are per field, so two people editing different items or different fields never collide. On the same field, the later change wins; a field you are typing in is not overwritten by someone else's change while you type.
-- After a lost connection the window reloads the workshop from the server. No offline editing in the first stages (co-editing matters more than offline use).
+- The server is the source of truth. Every change is a small operation (set these fields of this item, create, delete); each window applies its own changes at once and sends them; the server stores them and passes them, as stored, to every open window of the workshop, the sender's included (server-sent events). Each window builds the server's state from that stream in the server's order and shows its own changes still on their way on top of it (`src/domain/sync.ts`).
+- Changes are per field, so two people editing different items or different fields never collide. On the same field, the change the server stored last wins, in every window; a field you are typing in is not overwritten by someone else's change while you type, and a field you only visited does not write back what it showed.
+- After a lost connection the window reloads the workshop from the server, once the changes it was sending are through. No offline editing in the first stages (co-editing matters more than offline use).
 - Undo works on your own changes in this window.
 
 ## 8. Access model (stage 3)
@@ -127,6 +127,14 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
+
+**2026-11-02, after a review of the whole code**
+
+- Every window applies the server's stream in order, its own changes included, and shows its pending changes on top (section 7). Before, a window skipped its own changes on the stream, so two windows that changed the same field at nearly the same time could end with different values; and a reload after a lost connection could undo a change that was still on its way.
+- A field saves only what was typed in it: a field merely visited no longer writes back the text it showed over a change from another window.
+- Typed lengths: whole minutes, or hours with a decimal ("1,5 h"; "1,5" alone is not a length); blocks and breaks take at least 5 minutes, as every other control already enforced. Clock times also as "9 Uhr" or "9h".
+- The presenter view and "today" count in the workshop's time zone, not in UTC or the device's zone.
+- The connector takes calls as large as an operation batch (4 MB), so a whole agenda or deck fits in one call; a workshop it creates is checked like the app's and is not left half-made when its details are refused.
 
 **2026-11-01, slides**
 
