@@ -224,9 +224,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!att || !accessTo(c, att.workshopId)) return c.json({ error: 'not_found' }, 404)
     const data = await readFile(filePath(att.id)).catch(() => null)
     if (!data) return c.json({ error: 'not_found' }, 404)
-    // Always a download, never rendered in the app's origin (an uploaded HTML or SVG file must not run).
+    // Always a download, never rendered in the app's origin (an uploaded HTML or SVG file must not run), and never
+    // of a type a page could load as script or stylesheet: with nosniff, <script src> refuses an octet-stream. The
+    // stored type stays in the list of files; the file name keeps its extension for the program that opens it.
     return c.body(new Uint8Array(data), 200, {
-      'Content-Type': safeMime(att.mime),
+      'Content-Type': 'application/octet-stream',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(att.name)}`,
       'Content-Security-Policy': 'sandbox',
       'Cache-Control': 'private, no-store',

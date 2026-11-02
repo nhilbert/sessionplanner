@@ -193,12 +193,28 @@ describe('attachments', () => {
     const down = await app.request(`${BASE}/api/attachments/${att.id}`)
     expect(down.headers.get('content-disposition')).toContain('attachment')
     expect(down.headers.get('content-security-policy')).toBe('sandbox')
+    expect(down.headers.get('content-type')).toBe('application/octet-stream')
+    expect(down.headers.get('x-content-type-options')).toBe('nosniff')
     expect(await down.text()).toBe('<script>alert(1)</script>')
 
     expect((await app.request(`${BASE}/api/attachments/${att.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
     const state = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
     expect(state.attachments).toEqual([])
     expect(state.items[0].attachmentIds).toEqual([])
+  })
+
+  it('never serves a file as something a page could run or style itself with', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    for (const [name, type] of [['x.js', 'text/javascript'], ['x.mjs', 'application/javascript'], ['x.css', 'text/css'], ['x.pdf', 'application/pdf']]) {
+      const form = new FormData()
+      form.append('file', new File(['x'], name, { type }))
+      const att = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()) as { id: string; mime: string }
+      expect(att.mime).toBe(type) // listed as what it is
+      const down = await app.request(`${BASE}/api/attachments/${att.id}`)
+      expect(down.headers.get('content-type')).toBe('application/octet-stream')
+      expect(down.headers.get('content-disposition')).toBe(`attachment; filename*=UTF-8''${name}`)
+    }
   })
 
   it('keeps only a well-formed media type, as sent or as stored', async () => {

@@ -62,7 +62,7 @@ Computing a day (pure function, `src/domain/time.ts`):
 
 - Material entries on an item: label, quantity, optional link.
 - **Packing list** of the workshop: entries grouped by label (case and spaces ignored). The quantity is the *largest* quantity of any single item, not the sum, because two steps with two flipcharts each need two flipcharts. The quantity can be overridden (e.g. cards are used up), each line can be ticked off, and marked "at the venue".
-- **Attachments**: upload files to the workshop (up to 25 MB each), link them to items, download them. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `nosniff`, sandbox CSP), so a file can never run as a page.
+- **Attachments**: upload files to the workshop (up to 25 MB each), link them to items, download them. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `Content-Type: application/octet-stream`, `nosniff`, sandbox CSP), so a file can never run as a page, nor be loaded by one as script or stylesheet.
 
 ## 6. Output
 
