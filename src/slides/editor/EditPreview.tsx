@@ -11,7 +11,7 @@ import './editor.css'
  * that – a plain input is the same on a phone, with a screen reader and in every browser, which contentEditable
  * is not. It also reports whether the content runs over the slide's edge.
  */
-export function EditPreview({ doc, html, theme, scope, focus, onFocus, onOverflow, className, style }: { doc: SlideDoc; html: string; theme: string; scope: AssetScope; focus: string | null; onFocus: (path: string) => void; onOverflow?: (over: boolean) => void; className?: string; style?: React.CSSProperties }) {
+export function EditPreview({ doc, html, theme, scope, focus, onFocus, onEdit, viewing, onOverflow, className, style }: { doc: SlideDoc; html: string; theme: string; scope: AssetScope; focus: string | null; onFocus: (path: string) => void; /** Looking: a double-click on a text asks to edit it. */ onEdit?: (path: string) => void; viewing?: boolean; onOverflow?: (over: boolean) => void; className?: string; style?: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null)
   const root = useRef<HTMLDivElement>(null)
   const scale = useFrameScale(ref)
@@ -57,7 +57,11 @@ export function EditPreview({ doc, html, theme, scope, focus, onFocus, onOverflo
   return (
     <div
       ref={ref}
-      className={cx('slide-frame slide-edit', over && 'is-overflow', className)}
+      className={cx('slide-frame slide-edit', over && 'is-overflow', viewing && 'is-view', className)}
+      onDoubleClick={(e) => {
+        const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-f]')
+        if (onEdit) onEdit(hit?.dataset.f ?? 'header.title')
+      }}
       style={{ ...style, '--s': scale } as React.CSSProperties}
       onClick={(e) => {
         const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-f]')

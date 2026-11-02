@@ -129,6 +129,11 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 
 ## 10. Decisions
 
+**2026-11-02, slides are looked at first**
+
+- A slide opens to look at it: large, without fields, paging by arrows, swipe or thumbnails. Editing is one step away (Edit, E, a double-click on a text, which opens its field); Done or Escape goes back. A slide just added and "Edit slides" open straight into editing; read-only slides stay in the viewer with their note. Undo works in both. "Present from here" in the planner opens the presentation at the slide shown.
+- Counter-argument considered: one more click for every change. Accepted because viewing is the common case, and the double-click on a text goes straight to its field.
+
 **2026-11-02, slides throughout the app**
 
 - One way to open a slide: a thumbnail outside a picker opens that slide in the editor, from a step, the slide count on an agenda card, the deck tab, the library, the templates and the pool; the editor pages within what it was opened from and says so in its header. Generated slides in the deck are shown with what they are made of and what can be done instead (details, hide, a slide of its own for a break); pool slides are read-only with "Save as template". Pickers keep selecting.

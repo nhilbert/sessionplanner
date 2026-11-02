@@ -21,7 +21,9 @@ export default function TemplatesPage() {
   const { templates, templatesLoaded, loadTemplates, saveTemplate, removeTemplate } = useThemes()
   const theme = useSettings((s) => s.settings.theme) || 'default'
   const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditingRaw] = useState<string | null>(null)
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
+  const setEditing = (id: string | null, m: 'view' | 'edit' = 'view') => (setMode(m), setEditingRaw(id))
   const [notice, setNotice] = useState('')
   useEffect(() => {
     void loadTemplates(true)
@@ -38,7 +40,7 @@ export default function TemplatesPage() {
     if (last) {
       // A fresh template takes the layout's name until it is renamed.
       last = await saveTemplate({ name: tr(t, `slides.layouts.${last.layout}`, { defaultValue: last.layout }), html: last.html }, last.id)
-      setEditing(last.id)
+      setEditing(last.id, 'edit')
     }
   }
   const move = async (tpl: SlideTemplate, dir: -1 | 1) => {
@@ -71,7 +73,7 @@ export default function TemplatesPage() {
               <SlideView html={tpl.html} theme={theme} scope="library" onClick={() => setEditing(tpl.id)} label={tpl.name} className="rounded-none" />
               <div className="flex items-center gap-1 px-2 py-1.5">
                 <TextField value={tpl.name} onCommit={(name) => void saveTemplate({ name, html: tpl.html }, tpl.id)} placeholder={t('templates.untitled')} aria-label={t('templates.name')} className="field-bare h-8 min-w-0 flex-1 px-2 text-[14px] font-medium" />
-                <IconButton label={t('templates.edit')} onClick={() => setEditing(tpl.id)}>
+                <IconButton label={t('templates.edit')} onClick={() => setEditing(tpl.id, 'edit')}>
                   <Pencil size={14} />
                 </IconButton>
                 <Menu
@@ -102,6 +104,7 @@ export default function TemplatesPage() {
               nameFor: (html) => slideTitle(html) || tr(t, `slides.layouts.${slideLayout(html)}`, { defaultValue: t('templates.untitled') }),
             })}
             start={editing}
+            mode={mode}
             onClose={() => setEditing(null)}
             theme={theme}
             scope="library"

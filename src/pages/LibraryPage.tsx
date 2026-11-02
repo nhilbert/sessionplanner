@@ -24,7 +24,7 @@ const KIND_ICON: Record<ItemKind, ReactNode> = {
 }
 const GROUP_PREVIEW = 6
 
-/** The shared library: cards with what each entry holds; a tap opens it for editing. Inserting happens in a workshop (library tab). */
+/** The shared library: cards with what each entry holds; a tap opens it; its slides open to look at, with editing a click away. Inserting happens in a workshop (library tab). */
 export default function LibraryPage() {
   const { t } = useTranslation()
   const { entries, loaded, load, save, remove } = useLibrary()
@@ -32,7 +32,7 @@ export default function LibraryPage() {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
   /** The slide editor on an entry's slides (from a thumbnail on its card or in its details). */
-  const [editing, setEditing] = useState<{ entryId: string; key: string } | null>(null)
+  const [editing, setEditing] = useState<{ entryId: string; key: string; mode: 'view' | 'edit' } | null>(null)
   useEffect(() => {
     void load()
     // Back in this tab: an agent (or another window) may have changed entries meanwhile, and an edit here is laid
@@ -65,11 +65,11 @@ export default function LibraryPage() {
         <ul className="grid items-start gap-3 md:grid-cols-2">
           {shown.map((e) => (
             <li key={e.id} className={cx('card overflow-hidden', open === e.id && 'md:col-span-2')}>
-              <Row entry={e} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSave={(x) => void save(x, e.id).catch(failed)} onDelete={() => window.confirm(t('library.deleteConfirm', { title: e.title })) && void remove(e.id).catch(failed)} onOpenSlide={(key) => setEditing({ entryId: e.id, key })} list={slideList(e.id, failed)} />
+              <Row entry={e} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSave={(x) => void save(x, e.id).catch(failed)} onDelete={() => window.confirm(t('library.deleteConfirm', { title: e.title })) && void remove(e.id).catch(failed)} onOpenSlide={(key, mode) => setEditing({ entryId: e.id, key, mode })} list={slideList(e.id, failed)} />
             </li>
           ))}
         </ul>
-        {editing && <LibrarySlideEditor key={editing.entryId} entryId={editing.entryId} start={editing.key} onClose={() => setEditing(null)} onFailed={failed} />}
+        {editing && <LibrarySlideEditor key={editing.entryId} entryId={editing.entryId} start={editing.key} mode={editing.mode} onClose={() => setEditing(null)} onFailed={failed} />}
       </div>
     </div>
   )
@@ -91,7 +91,7 @@ function slideList(entryId: string, failed: (err: unknown) => void) {
 }
 
 /** The slide editor on one library entry. */
-function LibrarySlideEditor({ entryId, start, onClose, onFailed }: { entryId: string; start: string; onClose: () => void; onFailed: (err: unknown) => void }) {
+function LibrarySlideEditor({ entryId, start, mode, onClose, onFailed }: { entryId: string; start: string; mode: 'view' | 'edit'; onClose: () => void; onFailed: (err: unknown) => void }) {
   const { t } = useTranslation()
   const entry = useLibrary((s) => s.entries.find((e) => e.id === entryId))
   const theme = useSettings((s) => s.settings.theme) || 'default'
@@ -99,7 +99,7 @@ function LibrarySlideEditor({ entryId, start, onClose, onFailed }: { entryId: st
   const list = slideList(entryId, onFailed)
   const source = listSource({ context: t('editor.ctx.library'), label: entry.title, get: list.get, set: list.set, editable: true })
   const known = [...new Set(entry.data.slides.flatMap((s) => slideAssets(s.html)))]
-  return <SlideEditor source={source} start={start} onClose={onClose} theme={theme} scope="library" owner canEdit known={known} />
+  return <SlideEditor source={source} start={start} mode={mode} onClose={onClose} theme={theme} scope="library" owner canEdit known={known} />
 }
 
 /** A small coloured dot with the category's name (or the colour alone when the item has its own colour only). */
@@ -215,7 +215,7 @@ function EntryCard({ entry, slides = true }: { entry: LibraryEntry; /** Thumbnai
   )
 }
 
-function Row({ entry, open, onToggle, onSave, onDelete, onOpenSlide, list }: { entry: LibraryEntry; open: boolean; onToggle: () => void; onSave: (e: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) => void; onDelete: () => void; onOpenSlide: (key: string) => void; list: { get(): Slide[]; set(slides: Slide[]): void } }) {
+function Row({ entry, open, onToggle, onSave, onDelete, onOpenSlide, list }: { entry: LibraryEntry; open: boolean; onToggle: () => void; onSave: (e: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) => void; onDelete: () => void; onOpenSlide: (key: string, mode: 'view' | 'edit') => void; list: { get(): Slide[]; set(slides: Slide[]): void } }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
   const theme = useSettings((s) => s.settings.theme) || 'default'
@@ -230,7 +230,7 @@ function Row({ entry, open, onToggle, onSave, onDelete, onOpenSlide, list }: { e
       {!open && entry.kind === 'item' && entry.data.slides.length > 0 && (
         <div className="-mt-1 grid grid-cols-3 gap-1.5 px-4 pb-3 pl-[30px]">
           {entry.data.slides.slice(0, 3).map((s, n) => (
-            <SlideView key={s.id} html={s.html} theme={theme} scope="library" onClick={() => onOpenSlide(s.id)} label={t('slides.slide', { n: n + 1 })} />
+            <SlideView key={s.id} html={s.html} theme={theme} scope="library" onClick={() => onOpenSlide(s.id, 'view')} label={t('slides.slide', { n: n + 1 })} />
           ))}
         </div>
       )}

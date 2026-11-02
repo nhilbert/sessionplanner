@@ -162,7 +162,7 @@ export default function ItemPanel({
         <SlideStrip
           slides={item.slides}
           list={{ get: () => usePlanner.getState().data?.items.find((i) => i.id === item.id)?.slides ?? [], set: (slides) => set({ slides }) }}
-          onOpen={(key) => useSlideEditing.getState().open({ kind: 'step', itemId: item.id, key })}
+          onOpen={(key, mode) => useSlideEditing.getState().open({ kind: 'step', itemId: item.id, key, mode })}
           scope={{ workshopId: data.workshop.id }}
           theme={themeOf(data.workshop, settings)}
           canEdit

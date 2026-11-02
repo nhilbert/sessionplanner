@@ -18,7 +18,10 @@ import { tr } from './editor/fields'
  * Where the planner opens the slide editor: on a step (from its details or the slide count on its card) or on the
  * whole deck (from the deck tab). One editor for the page, opened from anywhere through this store.
  */
-export type SlideTarget = { kind: 'step'; itemId: string; key: string } | { kind: 'deck'; key: string }
+export type SlideTarget = ({ kind: 'step'; itemId: string; key: string } | { kind: 'deck'; key: string }) & {
+  /** Opens to look at (the default) or straight into editing (a slide just added, "Folien bearbeiten"). */
+  mode?: 'view' | 'edit'
+}
 
 export const useSlideEditing = create<{ target: SlideTarget | null; open: (target: SlideTarget) => void; close: () => void }>((set) => ({
   target: null,
@@ -53,15 +56,25 @@ export function PlannerSlideEditor({ owner, onDetails }: { owner: boolean; onDet
     const item = itemOf(id)
     return item?.title || (item ? tr(t, `kinds.${item.kind}`) : '')
   }
-  const source =
+  const deckNow = () => {
+    const state = now()
+    return state ? deckOf(state, deckLabels(t), deckOptionsNow()) : []
+  }
+  // Present from here: the position in the deck as the presentation shows it; a parked step is not in it.
+  const presenting = {
+    presentAt: (key: string) => {
+      const deckKey = target.kind === 'step' ? `${target.itemId}:${key}` : key
+      const at = deckNow().findIndex((r) => r.key === deckKey)
+      return at === -1 ? null : at + 1
+    },
+    present: (n: number) => window.open(`/w/${data.workshop.id}/present?n=${n}`, '_blank', 'noopener'),
+  }
+  const base =
     target.kind === 'step'
       ? listSource({ context: t('editor.ctx.step'), label: label(target.itemId), get: () => itemOf(target.itemId)?.slides ?? [], set: (s) => setSlides(target.itemId, s), editable: true, session: sessionHooks })
       : deckSource({
           context: t('editor.ctx.deck'),
-          deck: () => {
-            const state = now()
-            return state ? deckOf(state, deckLabels(t), deckOptionsNow()) : []
-          },
+          deck: deckNow,
           title: label,
           generatedLabel: (kind) => tr(t, `slides.generated.${kind}`, { n: '' }).trim(),
           slidesOf: (id) => itemOf(id)?.slides,
@@ -71,5 +84,6 @@ export function PlannerSlideEditor({ owner, onDetails }: { owner: boolean; onDet
           openDetails: onDetails,
           hide: (kind) => updateDeckOptions(kind === 'agenda' ? { agenda: false } : { breaks: false }),
         })
-  return <SlideEditor key={session.current.id} source={source} start={target.key} onClose={close} theme={theme} scope={{ workshopId: data.workshop.id }} owner={owner} canEdit known={known} />
+  const source = { ...base, ...presenting }
+  return <SlideEditor key={session.current.id} source={source} start={target.key} mode={target.mode} onClose={close} theme={theme} scope={{ workshopId: data.workshop.id }} owner={owner} canEdit known={known} />
 }

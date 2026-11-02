@@ -675,7 +675,13 @@
       "library": "Bibliothek",
       "templates": "Vorlagen",
       "pool": "Foliensammlung"
-    }
+    },
+    "edit": "Bearbeiten",
+    "done": "Fertig",
+    "editHint": "Bearbeiten (E) – oder Doppelklick auf einen Text",
+    "viewHint": "Zurück zur Ansicht (Esc)",
+    "viewing": "Folie ansehen",
+    "presentHere": "Präsentieren ab hier"
   },
   "themes": {
     "title": "Folien-Themes",

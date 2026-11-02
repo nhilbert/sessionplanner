@@ -42,6 +42,10 @@ export interface SlideSource {
   /** The deck: what can be done about a generated slide. */
   openDetails?(): void
   hide?(kind: 'agenda' | 'break'): void
+  /** The planner: where a slide stands in the deck as presented (1-based), or null when it is not in it (a parked step). */
+  presentAt?(key: string): number | null
+  /** Opens the presentation at that slide. */
+  present?(n: number): void
 }
 
 /** The slides of one step or library entry: one list, read and written through the caller's store. */

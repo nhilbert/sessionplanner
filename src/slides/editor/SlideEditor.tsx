@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, ChevronLeft, ChevronRight, Code, Copy, Info, LayoutTemplate, MoveLeft, MoveRight, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Code, Copy, Info, LayoutTemplate, MoveLeft, MoveRight, Pencil, Play, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react'
 import { normalizeSlideHtml, slideTitle } from '@/domain/slides'
 import { convertLayout, parseSlide, serializeSlide, type SlideDoc } from '@/domain/slideDoc'
 import { Button, cx, IconButton, isTyping, Textarea, useIsPhone } from '@/components/ui'
@@ -30,6 +30,8 @@ interface Props {
   /** Pictures the picker offers: those shown on slides nearby. */
   known: string[]
   onNotice?: (text: string) => void
+  /** How it opens: looking (the default) or editing (a new slide, "Edit slides"). */
+  mode?: 'view' | 'edit'
 }
 
 const COMMIT_DELAY = 400
@@ -57,6 +59,9 @@ export function SlideEditor(p: Props) {
   if (found !== -1) lastIndex.current = found
   const slide: EditorSlide | undefined = slides[index]
   const editable = p.canEdit && !!slide?.editable && !!p.source.write
+  /** Looking at slides is the usual case; the fields come with "Edit" (E, a double-click on a text). */
+  const [editMode, setEditMode] = useState(p.mode === 'edit')
+  const editing = editMode && editable
 
   const [draft, setDraft] = useState<{ key: string; doc: SlideDoc; html: string } | null>(null)
   const [focus, setFocusPath] = useState<string | null>(null)
@@ -200,7 +205,10 @@ export function SlideEditor(p: Props) {
       if (keys.length < htmls.length) window.alert(t('slides.tooMany', { max: 60, count: htmls.length - keys.length }))
       if (!keys.length) return
       setHistory(record(seal(history.current), { kind: 'insert', group, at, keys, html: htmls.slice(0, keys.length) }))
-      if (open) setKey(keys[0])
+      if (open) {
+        setKey(keys[0])
+        setEditMode(true)
+      }
     })
   /** New slides go after the one shown, in its group; a generated slide has none (its step takes slides, see "own slide"). */
   const addTarget = slide && slide.editable ? placeOf(slide.key) : null
@@ -331,6 +339,13 @@ export function SlideEditor(p: Props) {
       }
     })
 
+  /** Back to looking; what was typed (in the fields or the source) is stored. */
+  function leaveEdit() {
+    commit()
+    setSourceView(false)
+    setEditMode(false)
+  }
+
   // ---- keys and focus -------------------------------------------------------------------------------------------
 
   // Escape leaves a field first (back to the editor itself), then closes; whatever lies above takes it before.
@@ -340,6 +355,9 @@ export function SlideEditor(p: Props) {
       const active = document.activeElement
       if (active instanceof HTMLElement && isTyping(active)) {
         active.blur()
+        root.current?.focus({ preventScroll: true })
+      } else if (editing) {
+        leaveEdit()
         root.current?.focus({ preventScroll: true })
       } else close()
     },
@@ -363,6 +381,11 @@ export function SlideEditor(p: Props) {
         return
       }
       if (isTyping(e.target)) return
+      if ((e.key === 'e' || e.key === 'E') && !mod && !e.altKey && !editing && editable) {
+        e.preventDefault()
+        setEditMode(true)
+        return
+      }
       if (e.key === 'ArrowLeft') go(index - 1)
       else if (e.key === 'ArrowRight') go(index + 1)
     }
@@ -385,26 +408,32 @@ export function SlideEditor(p: Props) {
   }
   const groupSize = slides.filter((s) => s.group === slide.group).length
   const groupAt = slides.filter((s) => s.group === slide.group).findIndex((s) => s.key === slide.key)
+  const presentAt = src.current.presentAt?.(slide.key) ?? null
   const menuItems = [
-    ...(editable && src.current.insert ? [{ label: t('slides.duplicateSlide'), icon: <Copy size={15} />, onSelect: duplicate }] : []),
+    ...(presentAt ? [{ label: t('editor.presentHere'), icon: <Play size={15} />, onSelect: () => (commit(), src.current.present!(presentAt)) }] : []),
+    ...(editing && src.current.insert ? [{ label: t('slides.duplicateSlide'), icon: <Copy size={15} />, onSelect: duplicate }] : []),
     ...(p.owner ? [{ label: t('slides.saveAsTemplate'), icon: <Save size={15} />, onSelect: () => void asTemplate() }] : []),
-    ...(editable && src.current.move && groupSize > 1
+    ...(editing && src.current.move && groupSize > 1
       ? [
           { label: t('slides.left'), icon: <MoveLeft size={15} />, onSelect: () => move(-1) },
           { label: t('slides.right'), icon: <MoveRight size={15} />, onSelect: () => move(1) },
         ]
       : []),
-    {
-      label: t('editor.sourceCode'),
-      icon: <Code size={15} />,
-      checked: sourceView,
-      onSelect: () => {
-        // Leaving the source applies what was typed there.
-        commit()
-        setSourceView((s) => !s)
-      },
-    },
-    ...(editable && src.current.remove ? [{ label: t('slides.remove'), icon: <Trash2 size={15} />, danger: true, onSelect: remove }] : []),
+    ...(editing
+      ? [
+          {
+            label: t('editor.sourceCode'),
+            icon: <Code size={15} />,
+            checked: sourceView,
+            onSelect: () => {
+              // Leaving the source applies what was typed there.
+              commit()
+              setSourceView((s) => !s)
+            },
+          },
+        ]
+      : []),
+    ...(editing && src.current.remove ? [{ label: t('slides.remove'), icon: <Trash2 size={15} />, danger: true, onSelect: remove }] : []),
   ]
   const lostText = lost?.length
     ? lost
@@ -436,7 +465,19 @@ export function SlideEditor(p: Props) {
       </IconButton>
     </>
   )
-  const addButton = p.canEdit && src.current.insert && (
+  /** Between looking and editing: the one control that changes what the editor shows. */
+  const modeButton = editable && (
+    <Button
+      size="sm"
+      variant={editMode ? 'default' : 'primary'}
+      onClick={() => (editMode ? leaveEdit() : setEditMode(true))}
+      title={editMode ? t('editor.viewHint') : t('editor.editHint')}
+    >
+      {editMode ? <Check size={13} /> : <Pencil size={13} />}
+      {editMode ? t('editor.done') : t('editor.edit')}
+    </Button>
+  )
+  const addButton = editing && src.current.insert && (
     <Button size="sm" variant="ghost" onClick={() => setAdding(true)} disabled={!addTarget} title={addTarget ? undefined : t('editor.addHere')}>
       <Plus size={13} />
       {t('slides.new')}
@@ -464,7 +505,7 @@ export function SlideEditor(p: Props) {
   )
   const panel = sourceView ? (
     <SourceView html={html} canEdit={editable} onDraft={(v) => (sourceDraft.current = v === html ? null : { key: slide.key, html: v })} onApply={() => commit()} />
-  ) : editable ? (
+  ) : editing ? (
     <Inspector doc={doc} onChange={(next) => update(next)} onFocus={setFocus} scope={p.scope} known={p.known} />
   ) : (
     <ReadOnly
@@ -497,17 +538,44 @@ export function SlideEditor(p: Props) {
       {index + 1} / {slides.length}
     </span>
   )
-  const preview = (style?: React.CSSProperties, className?: string) => <EditPreview doc={doc} html={html} theme={p.theme} scope={p.scope} focus={focus} onFocus={editable ? focusField : () => undefined} onOverflow={setOverflow} className={className} style={style} />
-  function focusField(path: string) {
+  const preview = (style?: React.CSSProperties, className?: string) => (
+    <EditPreview
+      doc={doc}
+      html={html}
+      theme={p.theme}
+      scope={p.scope}
+      focus={editing ? focus : null}
+      viewing={!editing}
+      onFocus={editing ? focusField : () => undefined}
+      // Looking: a double-click on a text opens the editor at its field.
+      onEdit={
+        editable && !editing
+          ? (path) => {
+              setEditMode(true)
+              requestAnimationFrame(() => requestAnimationFrame(() => focusField(path, true)))
+            }
+          : undefined
+      }
+      onOverflow={setOverflow}
+      className={className}
+      style={style}
+    />
+  )
+  /** Looking at a slide that is not edited here: what it is and what can be done, under the slide. */
+  const viewInfo = !editing && !editable && <div className="border-t border-line bg-surface px-4 py-3">{panel}</div>
+  const dialogLabel = editing ? t('slides.edit') : t('editor.viewing')
+  /** Moves to a field; from a double-click on the slide the caret goes to the end of its text, ready to go on typing. */
+  function focusField(path: string, atEnd = false) {
     setFocus(path)
     const el = document.getElementById(`f-${path}`) ?? document.querySelector<HTMLElement>(`[id^="f-${path}."]`)
     if (!el) return
     el.focus()
+    if (atEnd && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) el.setSelectionRange(el.value.length, el.value.length)
     el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }
 
   const body = phone ? (
-    <div ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('slides.edit')} className="fixed inset-0 z-50 flex flex-col bg-paper pt-[env(safe-area-inset-top)] outline-none">
+    <div ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label={dialogLabel} className="fixed inset-0 z-50 flex flex-col bg-paper pt-[env(safe-area-inset-top)] outline-none">
       <header className="flex items-center gap-1 border-b border-line px-2 py-1.5">
         <IconButton label={t('common.close')} onClick={close}>
           <X size={18} />
@@ -515,17 +583,31 @@ export function SlideEditor(p: Props) {
         {context}
         {position}
         {historyButtons}
+        {modeButton}
         <Menu label={t('planner.actions')} items={[...(canRedo ? [{ label: t('editor.redo'), icon: <Redo2 size={15} />, onSelect: redo }] : []), ...menuItems]} />
       </header>
-      <div className="shrink-0 bg-black/90 p-2">{preview(undefined, 'mx-auto w-full')}</div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-3">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {layoutButton}
-          {addButton}
+      {editing ? (
+        <>
+          <div className="shrink-0 bg-black/90 p-2">{preview(undefined, 'mx-auto w-full')}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-3">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {layoutButton}
+              {addButton}
+            </div>
+            <div className="mb-3 space-y-2 empty:hidden">{notices}</div>
+            {panel}
+          </div>
+        </>
+      ) : (
+        // Looking: the slide as large as the screen allows; a swipe pages.
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-20">
+          <Swipe onPrev={() => go(index - 1)} onNext={() => go(index + 1)} className="flex flex-1 items-center bg-black/90 p-2">
+            {preview(undefined, 'w-full')}
+          </Swipe>
+          {notice && <div className="px-4 pt-3 text-[12px] text-ink-2" role="status">{notice}</div>}
+          {viewInfo}
         </div>
-        <div className="mb-3 space-y-2 empty:hidden">{notices}</div>
-        {panel}
-      </div>
+      )}
       <nav className="fixed inset-x-0 bottom-0 flex items-center gap-2 border-t border-line bg-surface/95 px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur">
         <Button size="sm" className="flex-1" onClick={() => go(index - 1)} disabled={index === 0}>
           <ChevronLeft size={15} />
@@ -539,7 +621,7 @@ export function SlideEditor(p: Props) {
     </div>
   ) : (
     <div className="fixed inset-0 z-50 flex bg-ink/30 p-3 backdrop-blur-[2px] md:p-5" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('slides.edit')} className="card flex min-h-0 w-full overflow-hidden shadow-[var(--shadow)] outline-none">
+      <div ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label={dialogLabel} className="card flex min-h-0 w-full overflow-hidden shadow-[var(--shadow)] outline-none">
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center gap-1 border-b border-line px-3 py-2">
             <IconButton label={t('common.close')} onClick={close}>
@@ -555,21 +637,26 @@ export function SlideEditor(p: Props) {
             <span className="ml-2 flex min-w-0 flex-1">{context}</span>
             {historyButtons}
             {addButton}
+            {modeButton}
             <Menu label={t('planner.actions')} items={menuItems} />
           </header>
           <Stage>{(width) => preview({ width }, 'shadow-[0_12px_40px_-12px_rgba(0,0,0,0.5)]')}</Stage>
+          {!editing && notice && <div className="border-t border-line px-4 py-2 text-[12px] text-ink-2" role="status">{notice}</div>}
+          {viewInfo}
           <Thumbs slides={slides} current={slide.key} groupAt={groupAt} theme={p.theme} scope={p.scope} onPick={goKey} />
         </div>
-        <aside className="flex w-[380px] shrink-0 flex-col border-l border-line lg:w-[420px]">
-          <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-            <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{t('editor.layout')}</span>
-            {layoutButton}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
-            <div className="mb-3 space-y-2 empty:hidden">{notices}</div>
-            {panel}
-          </div>
-        </aside>
+        {editing && (
+          <aside className="flex w-[380px] shrink-0 flex-col border-l border-line lg:w-[420px]">
+            <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+              <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{t('editor.layout')}</span>
+              {layoutButton}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+              <div className="mb-3 space-y-2 empty:hidden">{notices}</div>
+              {panel}
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   )
@@ -673,6 +760,26 @@ function SourceView({ html, onDraft, onApply, canEdit }: { html: string; onDraft
           </Button>
         </div>
       )}
+    </div>
+  )
+}
+
+/** A horizontal swipe pages (phones, while looking); a tap or a vertical move does nothing. */
+function Swipe({ onPrev, onNext, className, children }: { onPrev: () => void; onNext: () => void; className?: string; children: React.ReactNode }) {
+  const start = useRef<{ x: number; y: number } | null>(null)
+  return (
+    <div
+      className={className}
+      onTouchStart={(e) => (start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
+      onTouchEnd={(e) => {
+        if (!start.current) return
+        const dx = e.changedTouches[0].clientX - start.current.x
+        const dy = e.changedTouches[0].clientY - start.current.y
+        start.current = null
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? onNext : onPrev)()
+      }}
+    >
+      {children}
     </div>
   )
 }

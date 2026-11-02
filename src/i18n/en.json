@@ -675,7 +675,13 @@
       "library": "Library",
       "templates": "Templates",
       "pool": "Slide pool"
-    }
+    },
+    "edit": "Edit",
+    "done": "Done",
+    "editHint": "Edit (E) – or double-click a text",
+    "viewHint": "Back to viewing (Esc)",
+    "viewing": "View slide",
+    "presentHere": "Present from here"
   },
   "themes": {
     "title": "Slide themes",
