@@ -78,7 +78,7 @@ describe('slide document', () => {
     expect(ex.steps?.length).toBe(3)
     expect(ex.facts).toEqual([
       { term: 'Dauer', value: '30 Minuten' },
-      { term: 'Sozialform', value: 'Dreiergruppen' },
+      { term: 'Format', value: 'Dreiergruppen' },
       { term: 'Material', value: 'Beobachtungsbogen' },
     ])
     const brk = parseSlide(SLIDE_LAYOUTS.find((l) => l.layout === 'break')!.example)
