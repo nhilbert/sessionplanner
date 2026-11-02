@@ -20,16 +20,24 @@ interface ThemesStore {
 
 const sortTemplates = (list: SlideTemplate[]) => [...list].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 
+/** The list being fetched: every slide on a page asks for it at once, one request answers them all. */
+let loading: Promise<void> | null = null
+
 export const useThemes = create<ThemesStore>((set, get) => ({
   themes: [{ id: 'default', name: 'default', kind: 'builtin' }],
   loaded: false,
-  load: async (force) => {
-    if (get().loaded && !force) return
-    try {
-      set({ themes: await api.listThemes(), loaded: true })
-    } catch {
-      set({ loaded: true })
-    }
+  load: (force) => {
+    if (get().loaded && !force) return Promise.resolve()
+    if (loading && !force) return loading
+    const run = api.listThemes().then(
+      (themes) => set({ themes, loaded: true }),
+      () => set({ loaded: true }),
+    )
+    const done = run.finally(() => {
+      if (loading === done) loading = null
+    })
+    loading = done
+    return done
   },
   templates: [],
   templatesLoaded: false,
