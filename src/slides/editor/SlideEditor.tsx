@@ -190,12 +190,14 @@ export function SlideEditor(p: Props) {
   ]
   const lostText = previous?.lost.length
     ? previous.lost
-        .map((l) => (l.startsWith('items:') ? t('editor.lost', { count: Number(l.slice(6)) }) : l === 'figure' ? t('editor.lostFigure') : l === 'svg' ? t('editor.lostSvg') : t('editor.lostSource')))
+        .map((l) =>
+          l.startsWith('items:') ? t('editor.lost', { count: Number(l.slice(6)) }) : l.startsWith('images:') ? t('editor.lostImages', { count: Number(l.slice(7)) }) : l === 'figure' ? t('editor.lostFigure') : l === 'svg' ? t('editor.lostSvg') : l === 'other' ? t('editor.lostOther') : t('editor.lostSource'),
+        )
         .join(' ')
     : ''
 
   const layoutButton = (
-    <Button size="sm" onClick={() => setLayoutOpen(true)} disabled={!p.canEdit} className="max-w-[220px]" aria-label={`${t('editor.changeLayout')}: ${layoutName}`} title={t('editor.changeLayout')}>
+    <Button size="sm" onClick={() => setLayoutOpen(true)} disabled={!p.canEdit || doc.raw !== undefined} className="max-w-[220px]" aria-label={`${t('editor.changeLayout')}: ${layoutName}`} title={doc.raw !== undefined ? t('editor.layoutLocked') : t('editor.changeLayout')}>
       <LayoutTemplate size={13} />
       <span className="truncate">{layoutName}</span>
     </Button>

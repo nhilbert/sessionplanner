@@ -1,4 +1,5 @@
 import { type El, type Node, classes, el, elements, hasClass, inlineToText, isBlank, isEl, parseTree, serializeNode, serializeNodes, textOf, textToInline, txt } from './slideTree.ts'
+import { normalizeSlideHtml } from './slides.ts'
 
 /**
  * The structured view of a slide (docs/slides.md, section 7): what the editor shows as fields, read from the
@@ -19,6 +20,8 @@ export interface Header {
   lead: string
   /** The pill in front of an exercise title. */
   tag: string
+  /** A quiet note after the title (h2 small), e.g. "1/2" on a continued agenda. */
+  small: string
 }
 /** The text block of title, section, statement, break and closing slides. */
 export interface TextBlock {
@@ -40,6 +43,7 @@ export interface Point {
 export interface Card {
   /** Asset hash of the picture, or ''. */
   image: string
+  alt: string
   eyebrow: string
   title: string
   text: string
@@ -88,14 +92,21 @@ export interface Letter {
 export interface Box {
   title: string
   text: string
+  points: string[]
   wide: boolean
   tall: boolean
   accent: boolean
 }
 export type Tone = '' | 'good' | 'bad'
+export interface TableCell {
+  text: string
+  tone: Tone
+  /** A heading cell inside the body (th): the row's label. */
+  head?: boolean
+}
 export interface Table {
   head: string[]
-  rows: { text: string; tone: Tone }[][]
+  rows: TableCell[][]
 }
 export interface Glyph {
   char: string
@@ -125,8 +136,12 @@ export interface SlideDoc {
   /** Closing slide: the theme's logo above the title. */
   logo?: boolean
   source?: string
-  /** The body as markup when its structure is not the catalogue's. */
+  /** The body as markup when its structure is not the catalogue's (with `whole`, the header and footer too). */
   raw?: string
+  /** Raw only: the header and footer are part of `raw`, not fields. */
+  whole?: boolean
+  /** Raw only: the classes of the section as they were (modifiers the editor does not model). */
+  root?: string
 }
 
 // ---- the catalogue as a schema ----------------------------------------------------------------------------------
@@ -174,11 +189,11 @@ export const LAYOUTS: LayoutSpec[] = [
 export const LAYOUT_IDS = LAYOUTS.map((l) => l.id)
 export const layoutSpec = (id: string): LayoutSpec | undefined => LAYOUTS.find((l) => l.id === id)
 
-const emptyHeader = (): Header => ({ eyebrow: '', title: '', lead: '', tag: '' })
+const emptyHeader = (): Header => ({ eyebrow: '', title: '', lead: '', tag: '', small: '' })
 const emptyText = (): TextBlock => ({ eyebrow: '', title: '', subtitle: '', meta: '', lead: '', big: '', sub: '', until: '', body: '' })
-export const emptyCard = (): Card => ({ image: '', eyebrow: '', title: '', text: '', points: [] })
+export const emptyCard = (): Card => ({ image: '', alt: '', eyebrow: '', title: '', text: '', points: [] })
 export const emptyStep = (): Step => ({ eyebrow: '', title: '', text: '' })
-export const emptyBox = (): Box => ({ title: '', text: '', wide: false, tall: false, accent: false })
+export const emptyBox = (): Box => ({ title: '', text: '', points: [], wide: false, tall: false, accent: false })
 export const emptyCell = (): Cell => ({ title: '', text: '', accent: false })
 export const emptyLetter = (): Letter => ({ letter: '', term: '', text: '' })
 export const emptyFigure = (): Figure => ({ image: '', alt: '', caption: '' })
@@ -207,8 +222,11 @@ function readHeader(h: El): Header {
         out.tag = inline(tag)
         kids.shift()
       }
-      out.title = inlineToText(kids.filter((n) => !(isEl(n) && n.tag === 'small')))
+      const small = kids.find((n): n is El => isEl(n) && n.tag === 'small')
+      if (small) out.small = inline(small)
+      out.title = inlineToText(kids.filter((n) => n !== small))
     } else if (c.tag === 'p' && hasClass(c, 'lead')) out.lead = inline(c)
+    // anything else in the header is checked by the round trip in parseSlide
   }
   return out
 }
@@ -297,7 +315,7 @@ const readers: Record<string, BodyReader> = {
     return readText(t, doc)
   },
   closing: (body, doc) => {
-    if (!onlyOf(body, (e) => (e.tag === 'div' && hasClass(e, 'logo')) || e.tag === 'h1' || e.tag === 'p')) return false
+    if (!onlyOf(body, (e) => (e.tag === 'div' && hasClass(e, 'logo')) || e.tag === 'h1' || (e.tag === 'p' && !classes(e).length))) return false
     const text = emptyText()
     doc.logo = !!only(body, 'div', 'logo')
     text.title = inline(only(body, 'h1'))
@@ -335,8 +353,10 @@ const readers: Record<string, BodyReader> = {
     for (const li of elements(list).filter((e) => e.tag === 'li')) {
       const card = emptyCard()
       for (const c of elements(li)) {
-        if (c.tag === 'img') card.image = hash(c)
-        else if (c.tag === 'div' && hasClass(c, 'eyebrow')) card.eyebrow = inline(c)
+        if (c.tag === 'img') {
+          card.image = hash(c)
+          card.alt = c.attrs.alt ?? ''
+        } else if (c.tag === 'div' && hasClass(c, 'eyebrow')) card.eyebrow = inline(c)
         else if (c.tag === 'h3') card.title = inline(c)
         else if (c.tag === 'p') card.text = card.text ? `${card.text}\n\n${inline(c)}` : inline(c)
         else if (c.tag === 'ul') card.points = elements(c).filter((e) => e.tag === 'li').map(inline)
@@ -441,7 +461,7 @@ const readers: Record<string, BodyReader> = {
     doc.options.cols = cols ? Number(cols.slice(5)) : 3
     doc.boxes = elements(body[0])
       .filter((e) => e.tag === 'div' && hasClass(e, 'box'))
-      .map((b) => ({ title: inline(only(elements(b), 'h3')), text: paragraphs(elements(b)), wide: hasClass(b, 'wide'), tall: hasClass(b, 'tall'), accent: hasClass(b, 'accent') }))
+      .map((b) => ({ title: inline(only(elements(b), 'h3')), text: paragraphs(elements(b)), points: elements(only(elements(b), 'ul') ?? el('ul')).filter((e) => e.tag === 'li').map(inline), wide: hasClass(b, 'wide'), tall: hasClass(b, 'tall'), accent: hasClass(b, 'accent') }))
     return true
   },
   model: (body, doc) => {
@@ -460,18 +480,26 @@ const readers: Record<string, BodyReader> = {
     const bodyRows = [...rowsOf(only(parts, 'tbody')), ...rowsOf(table).filter((r) => !elements(r).some((c) => c.tag === 'th'))]
     doc.table = {
       head: headRows.length ? elements(headRows[0]).map(inline) : [],
-      rows: bodyRows.map((r) => elements(r).map((c) => ({ text: inline(c), tone: hasClass(c, 'good') ? 'good' : hasClass(c, 'bad') ? 'bad' : '' }))),
+      rows: bodyRows.map((r) => elements(r).map((c): TableCell => ({ text: inline(c), tone: hasClass(c, 'good') ? 'good' : hasClass(c, 'bad') ? 'bad' : '', ...(c.tag === 'th' ? { head: true } : {}) }))),
     }
     return true
   },
 }
 
-/** The slide's markup as a document. The layout is the root's second class; an unknown structure keeps its body as source. */
+/**
+ * The slide's markup as a document. The layout is the root's second class. The document is checked against the
+ * markup it came from (`sameContent`): only when writing it back gives the same slide is it offered as fields. A
+ * body the fields cannot hold stays as source with header and footer as fields; when even those cannot be held
+ * (an extra paragraph in the header, emphasis inside a word), the whole slide is source. So opening a slide in
+ * the editor and changing one field never changes anything else.
+ */
 export function parseSlide(html: string): SlideDoc {
   const tree = parseTree(html)
   const root = tree.find((n): n is El => isEl(n) && n.tag === 'section')
-  if (!root) return { layout: '', options: {}, raw: html }
+  if (!root) return { layout: '', options: {}, raw: html, whole: true }
+  const rootClass = classes(root).join(' ')
   const [layout = ''] = classes(root).filter((c) => c !== 'slide')
+  const whole: SlideDoc = { layout, options: {}, raw: serializeNodes(root.children).trim(), whole: true, root: rootClass }
   const doc: SlideDoc = { layout, options: {} }
   const header = elements(root).find((e) => e.tag === 'header')
   const footer = elements(root).find((e) => e.tag === 'footer' && !hasClass(e, 'chrome'))
@@ -481,15 +509,67 @@ export function parseSlide(html: string): SlideDoc {
   const body = bodyNodes.filter(isEl)
   const clean = bodyNodes.every((n) => isEl(n) || isBlank(n))
   const reader = readers[layout]
-  if (!clean || !reader || !reader(body, doc, root)) {
-    // Not the catalogue's structure: keep the body as it is, but drop the parts a partial read may have set.
-    const keep: SlideDoc = { layout, options: {}, raw: serializeNodes(bodyNodes).trim() }
-    if (doc.header) keep.header = doc.header
-    if (doc.source !== undefined) keep.source = doc.source
-    return keep
-  }
-  return doc
+  if (clean && reader && reader(body, doc, root) && sameContent(html, serializeSlide(doc))) return doc
+  // The body as source, the header and footer as fields.
+  const partial: SlideDoc = { layout, options: {}, raw: serializeNodes(bodyNodes).trim(), root: rootClass }
+  if (doc.header) partial.header = doc.header
+  if (doc.source !== undefined) partial.source = doc.source
+  if (sameContent(html, serializeSlide(partial))) return partial
+  return whole
 }
+
+// ---- comparing two slides by what they show -----------------------------------------------------------------------
+
+/** Elements whose whitespace between children does not show. */
+const BLOCK = new Set(['section', 'header', 'footer', 'div', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'h1', 'h2', 'h3', 'p', 'figure', 'figcaption', 'blockquote', 'cite', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'aside', 'br', 'img'])
+const KEEP_EMPTY = new Set(['td', 'th', 'br', 'img'])
+/** Classes the writer sets from the content or as the default: no difference on the slide. */
+const BENIGN: Record<string, string[]> = { ul: ['cols-3'], div: ['cols-3'], ol: ['many'] }
+
+function canonNodes(nodes: Node[], parent: string, inSvg: boolean): Node[] {
+  const out: Node[] = []
+  for (const n of nodes) {
+    if (n.type === 'text') {
+      out.push(inSvg ? n : { type: 'text', text: n.text.replace(/\s+/g, ' ') })
+      continue
+    }
+    const svg = inSvg || n.tag === 'svg'
+    const attrs: Record<string, string> = {}
+    for (const k of Object.keys(n.attrs).sort()) {
+      if (k !== 'class') attrs[k] = n.attrs[k]
+      else {
+        const cls = [...new Set(n.attrs.class.split(/\s+/).filter((c) => c && !(BENIGN[n.tag] ?? []).includes(c)))].sort()
+        if (cls.length) attrs.class = cls.join(' ')
+      }
+    }
+    const children = canonNodes(n.children, n.tag, svg)
+    const empty = !children.some((c) => c.type === 'el' || c.text.trim())
+    // An element without content and without a meaning of its own (an empty paragraph) shows nothing.
+    if (empty && !svg && !KEEP_EMPTY.has(n.tag) && !(n.tag === 'div' && /\blogo\b/.test(attrs.class ?? '')) && n.tag !== 'section') continue
+    out.push({ type: 'el', tag: n.tag, attrs, children })
+  }
+  void parent
+  return out
+}
+
+/** The slide as a string that is equal for two slides that show the same thing (whitespace, attribute order and default classes aside). */
+export function canonicalSlide(html: string): string {
+  let s = serializeNodes(canonNodes(parseTree(html), '#root', false))
+  const block = [...BLOCK].join('|')
+  for (let k = 0; k < 3; k++) {
+    s = s
+      .replace(/\s+/g, ' ')
+      // spaces next to block boundaries do not show
+      .replace(new RegExp(`\\s*(<\\/?(?:${block})\\b[^>]*>)\\s*`, 'g'), '$1')
+      // a space at the inside edge of an inline element shows as one outside it
+      .replace(/<(strong|em|code|span|small|sub|sup)((?: [^>]*)?)> /g, ' <$1$2>')
+      .replace(/ <\/(strong|em|code|span|small|sub|sup)>/g, '</$1> ')
+  }
+  return s.trim()
+}
+
+/** Whether two slides show the same content. */
+export const sameContent = (a: string, b: string): boolean => canonicalSlide(normalizeSlideHtml(a)) === canonicalSlide(normalizeSlideHtml(b))
 
 // ---- writing ------------------------------------------------------------------------------------------------------
 
@@ -506,10 +586,11 @@ function writeHeader(hd: Header | undefined, tag = false): El[] {
   if (!hd) return []
   const kids: Node[] = []
   kids.push(...div('eyebrow', hd.eyebrow))
-  if (hd.title.trim() || (tag && hd.tag.trim())) {
+  if (hd.title.trim() || (tag && hd.tag.trim()) || hd.small?.trim()) {
     const h2: Node[] = []
     if (tag && hd.tag.trim()) h2.push(el('span', { class: 'tag' }, [txt(hd.tag.trim())]), txt(' '))
     h2.push(...textToInline(hd.title.trim()))
+    if (hd.small?.trim()) h2.push(txt(' '), el('small', {}, textToInline(hd.small.trim())))
     kids.push(el('h2', {}, h2))
   }
   kids.push(...p('lead', hd.lead))
@@ -575,7 +656,7 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
       el(
         'ul',
         { class: cls('cards', `cols-${cols}`, ...['numbered', 'plain', 'contain', 'picture'].filter((o) => d.options[o])) },
-        cards.map((c) => el('li', {}, [...img(c.image, '', 'icon'), ...div('eyebrow', c.eyebrow), ...h('h3', c.title), ...ps('', c.text), ...ul('list', c.points)])),
+        cards.map((c) => el('li', {}, [...img(c.image, c.alt ?? '', 'icon'), ...div('eyebrow', c.eyebrow), ...h('h3', c.title), ...ps('', c.text), ...ul('list', c.points)])),
       ),
     ]
   },
@@ -618,13 +699,14 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
     ]
   },
   canvas: (d) => {
-    const boxes = (d.boxes ?? []).filter((b) => b.title.trim() || b.text.trim())
+    const boxes = (d.boxes ?? []).filter((b) => b.title.trim() || b.text.trim() || (b.points ?? []).some((x) => x.trim()))
     if (!boxes.length) return []
     const cols = Number(d.options.cols ?? 3)
-    return [el('div', { class: cls('canvas', `cols-${cols}`) }, boxes.map((b) => el('div', { class: cls('box', b.wide && 'wide', b.tall && 'tall', b.accent && 'accent') }, [...h('h3', b.title), ...ps('', b.text)])))]
+    return [el('div', { class: cls('canvas', `cols-${cols}`) }, boxes.map((b) => el('div', { class: cls('box', b.wide && 'wide', b.tall && 'tall', b.accent && 'accent') }, [...h('h3', b.title), ...ps('', b.text), ...ul('list', b.points ?? [])])))]
   },
   model: (d) => {
     const kids: Node[] = d.svg ? parseTree(d.svg).filter(isEl) : []
+    kids.push(...img(d.figure?.image ?? '', d.figure?.alt ?? ''))
     if (d.figure?.caption.trim()) kids.push(el('figcaption', {}, textToInline(d.figure.caption.trim())))
     return [el('figure', { class: 'model' }, kids)]
   },
@@ -633,7 +715,7 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
     const kids: El[] = []
     if (t.head.some((x) => x.trim())) kids.push(el('thead', {}, [el('tr', {}, t.head.map((x) => el('th', {}, textToInline(x.trim()))))]))
     const rows = t.rows.filter((r) => r.some((c) => c.text.trim()))
-    if (rows.length) kids.push(el('tbody', {}, rows.map((r) => el('tr', {}, r.map((c) => el('td', c.tone ? { class: c.tone } : {}, textToInline(c.text.trim())))))))
+    if (rows.length) kids.push(el('tbody', {}, rows.map((r) => el('tr', {}, r.map((c) => el(c.head ? 'th' : 'td', c.tone ? { class: c.tone } : {}, textToInline(c.text.trim())))))))
     return [el('table', d.options.compact ? { class: 'compact' } : {}, kids)]
   },
 }
@@ -641,13 +723,23 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
 /** The document as markup in the slide format: one section.slide with header, body and footer. */
 export function serializeSlide(doc: SlideDoc): string {
   const spec = layoutSpec(doc.layout)
-  const rootClass = cls('slide', doc.layout, doc.layout === 'figure' && doc.options.full && 'full')
+  const rootClass = doc.raw !== undefined && doc.root ? withLayout(doc.root, doc.layout) : cls('slide', doc.layout, doc.layout === 'figure' && doc.options.full && 'full')
+  if (doc.raw !== undefined && doc.whole) return `<section class="${rootClass}">${doc.raw}</section>`
   const parts: string[] = []
   if (spec?.parts.includes('header') || (doc.raw !== undefined && doc.header)) parts.push(serializeNodes(writeHeader(doc.header, doc.layout === 'exercise')))
   if (doc.raw !== undefined) parts.push(doc.raw)
   else if (writers[doc.layout]) parts.push(serializeNodes(writers[doc.layout](doc)))
   if (doc.source?.trim()) parts.push(`<footer><span class="source">${serializeNodes(textToInline(doc.source.trim()))}</span></footer>`)
   return `<section class="${rootClass}">${parts.join('')}</section>`
+}
+
+/** The section's classes with the layout (its second class) replaced. */
+function withLayout(root: string, layout: string): string {
+  const list = root.split(/\s+/).filter(Boolean)
+  const at = list.findIndex((c) => c !== 'slide')
+  if (at === -1) return cls('slide', layout)
+  list[at] = layout
+  return list.join(' ')
 }
 
 // ---- blank slides ------------------------------------------------------------------------------------------------
@@ -746,27 +838,33 @@ interface Pool {
   eyebrow: string
   title: string
   lead: string
-  items: { title: string; text: string }[]
+  small: string
+  items: { title: string; text: string; image?: string; alt?: string }[]
   figure?: Figure
   svg?: string
   source: string
+  /** What the pool could not place anywhere else (a quote's attribution next to a source line). */
+  extra: string[]
 }
 
 function poolOf(doc: SlideDoc): Pool {
   const t = doc.text
   const items: Pool['items'] = []
-  const pool: Pool = { eyebrow: doc.header?.eyebrow || t?.eyebrow || '', title: doc.header?.title || t?.title || t?.big || doc.quote?.text || '', lead: doc.header?.lead || t?.lead || t?.sub || t?.subtitle || t?.body || doc.quote?.sub || '', items, figure: doc.figure, svg: doc.svg, source: doc.source ?? '' }
+  const pool: Pool = { eyebrow: doc.header?.eyebrow || t?.eyebrow || '', title: doc.header?.title || t?.title || t?.big || doc.quote?.text || '', lead: doc.header?.lead || t?.lead || t?.sub || t?.subtitle || t?.body || doc.quote?.sub || '', small: doc.header?.small ?? '', items, figure: doc.figure, svg: doc.svg, source: doc.source ?? '', extra: [] }
   if (doc.points) for (const pt of doc.points) items.push({ title: '', text: [pt.text, ...pt.children].filter(Boolean).join('\n') })
-  if (doc.cards) for (const c of doc.cards) items.push({ title: c.title, text: [c.text, ...c.points].filter(Boolean).join('\n') })
+  if (doc.cards) for (const c of doc.cards) items.push({ title: c.title, text: [c.text, ...c.points].filter(Boolean).join('\n'), image: c.image || undefined, alt: c.alt })
   if (doc.steps) for (const s of doc.steps) items.push({ title: s.title, text: s.text })
   if (doc.facts) for (const f of doc.facts) items.push({ title: f.term, text: f.value })
   if (doc.blocks) for (const b of doc.blocks) items.push(...(b.kind === 'list' ? b.points.map((x) => ({ title: '', text: x })) : b.kind === 'lead' && !pool.lead ? ((pool.lead = b.text), []) : [{ title: b.kind === 'h3' ? b.text : '', text: b.kind === 'h3' ? '' : b.text }]))
   if (doc.rows) for (const r of doc.rows) items.push({ title: r.when, text: r.text })
   if (doc.matrix) for (const c of doc.matrix.cells) items.push({ title: c.title, text: c.text })
   if (doc.letters) for (const l of doc.letters) items.push({ title: l.term || l.letter, text: l.text })
-  if (doc.boxes) for (const b of doc.boxes) items.push({ title: b.title, text: b.text })
+  if (doc.boxes) for (const b of doc.boxes) items.push({ title: b.title, text: [b.text, ...(b.points ?? [])].filter(Boolean).join('\n') })
   if (doc.table) for (const r of doc.table.rows) items.push({ title: r[0]?.text ?? '', text: r.slice(1).map((c) => c.text).filter(Boolean).join(' · ') })
-  if (doc.quote && doc.quote.cite) pool.source = pool.source || doc.quote.cite
+  if (doc.quote?.cite) {
+    if (!pool.source) pool.source = doc.quote.cite
+    else pool.extra.push(doc.quote.cite)
+  }
   return pool
 }
 
@@ -782,7 +880,8 @@ const rest = (item: { title: string; text: string }): string => (item.title ? it
 export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; lost: string[] } {
   if (doc.layout === layout) return { doc, lost: [] }
   const spec = layoutSpec(layout)
-  if (!spec || doc.raw !== undefined) return { doc: { ...doc, layout, options: {} }, lost: [] }
+  // A slide kept as source is not converted: its markup belongs to its layout (the editor does not offer it).
+  if (!spec || doc.raw !== undefined) return { doc, lost: [] }
   const pool = poolOf(doc)
   const lost: string[] = []
   const out: SlideDoc = { layout, options: {} }
@@ -791,7 +890,8 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
     if (max !== undefined && items.length > max) lost.push(`items:${items.length - max}`)
     return max === undefined ? items : items.slice(0, max)
   }
-  if (spec.parts.includes('header')) out.header = { ...emptyHeader(), eyebrow: pool.eyebrow, title: pool.title, lead: layout === 'exercise' ? pool.lead : spec.parts.includes('blocks') ? '' : pool.lead }
+  if (spec.parts.includes('header')) out.header = { ...emptyHeader(), eyebrow: pool.eyebrow, title: pool.title, small: pool.small, lead: layout === 'exercise' ? pool.lead : spec.parts.includes('blocks') ? '' : pool.lead }
+  else if (pool.small) pool.extra.push(pool.small)
   if (spec.textFields) {
     out.text = emptyText()
     const f = spec.textFields
@@ -835,7 +935,7 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
       break
     case 'cards':
       out.options.cols = Math.min(5, Math.max(2, Math.min(items.length, 3) || 3))
-      out.cards = take(spec.max).map((i) => ({ ...emptyCard(), title: headline(i), text: rest(i) }))
+      out.cards = take(spec.max).map((i) => ({ ...emptyCard(), title: headline(i), text: rest(i), image: i.image ?? '', alt: i.alt ?? '' }))
       break
     case 'split':
       out.blocks = [...(pool.lead ? [{ kind: 'lead' as const, text: pool.lead }] : []), ...(items.length ? [{ kind: 'list' as const, points: items.map((i) => [i.title, i.text].filter(Boolean).join(': ')) }] : [])]
@@ -873,6 +973,10 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
       out.rows = take(spec.max).map((i) => ({ when: /^\d{1,2}:\d{2}$/.test(i.title) ? i.title : '', text: /^\d{1,2}:\d{2}$/.test(i.title) ? i.text : headline(i), isBreak: false }))
       break
   }
+  // Pictures of cards have a place only on cards; elsewhere they are named as lost.
+  const pictures = layout === 'cards' ? 0 : items.filter((i) => i.image).length
+  if (pictures) lost.push(`images:${pictures}`)
+  if (pool.extra.length) lost.push('other')
   return { doc: out, lost }
 }
 
@@ -890,6 +994,7 @@ export function fieldSelectors(doc: SlideDoc): { path: string; selector: string 
     add('header.eyebrow', ':scope > header > .eyebrow')
     add('header.title', ':scope > header > h2')
     add('header.lead', ':scope > header > .lead')
+    add('header.small', ':scope > header > h2 > small')
   }
   if (doc.text) {
     const base = doc.layout === 'closing' ? ':scope' : ':scope > .text'

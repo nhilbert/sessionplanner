@@ -104,50 +104,158 @@ export function textOf(nodes: Node[]): string {
 
 /**
  * Inline content as the editor shows it: a small markup instead of a rich-text widget. **bold** for strong,
- * *italic* for em, ==accent== for span.accent, `code` for code, a line break for br. Any other element is
- * unwrapped (its text stays); the formats a slide can carry are these.
+ * *italic* for em, ==accent== for span.accent, `code` for code, a line break for br.
+ *
+ * A marker only counts at a word's edge, as emphasis does in Markdown for the underscore: it opens after a space,
+ * punctuation or the start and before a non-space, and closes after a non-space and before a space, punctuation or
+ * the end. A star inside a word is a star, so gender stars ("Teilnehmer*innen und Kolleg*innen"), "a==b" and
+ * "2 * 3" stay as they are. Where a literal marker would count, it is written with a backslash ("\*") and read
+ * back without it.
+ *
+ * Other inline elements (small, sub, sup, span.muted …) have no markup: they are unwrapped here, and the slide
+ * document (slideDoc.ts) notices the change and keeps such a slide as source instead.
  */
+
+const ALNUM = /[\p{L}\p{N}]/u
+const SPACE = /\s/
+/** Whether a marker of `len` characters at `i` can open or close emphasis (word-edge rule above). */
+function flanking(text: string, i: number, len: number): { open: boolean; close: boolean } {
+  const before = i > 0 ? text[i - 1] : ''
+  const after = i + len < text.length ? text[i + len] : ''
+  const open = !!after && !SPACE.test(after) && !(before && ALNUM.test(before))
+  const close = !!before && !SPACE.test(before) && !(after && ALNUM.test(after))
+  return { open, close }
+}
+
+/** Escapes the markers in literal text that would otherwise be read as markup; `prev` and `next` are the characters around it. */
+function escapeLiteral(text: string, prev: string, next: string): string {
+  const full = prev + text + next
+  const off = prev.length
+  let out = ''
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '\\' && /[\\*=`]/.test(full[off + i + 1] ?? '')) out += '\\\\'
+    else if (ch === '*' || ch === '`') {
+      const { open, close } = flanking(full, off + i, 1)
+      out += open || close ? `\\${ch}` : ch
+    } else if (ch === '=' && (text[i + 1] === '=' || text[i - 1] === '=')) {
+      // a run of two or more: escape it when it stands at a word's edge
+      let a = i
+      while (a > 0 && text[a - 1] === '=') a--
+      let b = i
+      while (b + 1 < text.length && text[b + 1] === '=') b++
+      const { open, close } = flanking(full, off + a, b - a + 1)
+      out += open || close ? '\\=' : '='
+    } else out += ch
+  }
+  return out
+}
+
+const MARK: Record<string, string> = { strong: '**', b: '**', em: '*', i: '*', code: '`' }
+
 export function inlineToText(nodes: Node[]): string {
-  return nodes
-    .map((n): string => {
-      if (n.type === 'text') return n.text
-      if (n.tag === 'br') return '\n'
-      const inner = inlineToText(n.children)
-      if (n.tag === 'strong' || n.tag === 'b') return inner ? `**${inner}**` : ''
-      if (n.tag === 'em' || n.tag === 'i') return inner ? `*${inner}*` : ''
-      if (n.tag === 'code') return inner ? `\`${inner}\`` : ''
-      if (n.tag === 'span' && hasClass(n, 'accent')) return inner ? `==${inner}==` : ''
-      return inner
-    })
-    .join('')
-    .replace(/[ \t]+/g, ' ')
-    .trim()
+  return inlineRaw(nodes).trim()
+}
+
+/** inlineToText without the trim at the ends, for the inside of an element. */
+function inlineRaw(nodes: Node[]): string {
+  // First each node on its own, then literal text escaped with the neighbours it ends up next to.
+  type Part = { literal: true; text: string } | { literal: false; text: string }
+  const parts: Part[] = nodes.map((n): Part => {
+    if (n.type === 'text') return { literal: true, text: n.text.replace(/\s+/g, ' ') }
+    if (n.tag === 'br') return { literal: false, text: '\n' }
+    const raw = inlineRaw(n.children)
+    const mark = MARK[n.tag] ?? (n.tag === 'span' && hasClass(n, 'accent') ? '==' : '')
+    if (!mark || !raw.trim()) return { literal: false, text: raw }
+    // Spaces at the inside edges of an element go outside its markers, where the markers can still count.
+    const lead = /^\s*/.exec(raw)![0]
+    const trail = /\s*$/.exec(raw)![0]
+    return { literal: false, text: `${lead ? ' ' : ''}${mark}${raw.trim()}${mark}${trail ? ' ' : ''}` }
+  })
+  let out = ''
+  parts.forEach((p, k) => {
+    if (!p.literal) {
+      out += p.text
+      return
+    }
+    const next = parts[k + 1]?.text[0] ?? ''
+    out += escapeLiteral(p.text, out.slice(-1), next)
+  })
+  return out.replace(/ +/g, ' ').replace(/ ?\n ?/g, '\n')
 }
 
 /** The inverse of inlineToText: the editor's text back into inline nodes. */
 export function textToInline(text: string): Node[] {
   const out: Node[] = []
-  const lines = text.split('\n')
-  lines.forEach((line, i) => {
+  text.split('\n').forEach((line, i) => {
     if (i > 0) out.push(el('br'))
     out.push(...inlineSpans(line))
   })
+  return merge(out)
+}
+
+/** Neighbouring text nodes as one. */
+function merge(nodes: Node[]): Node[] {
+  const out: Node[] = []
+  for (const n of nodes) {
+    const last = out[out.length - 1]
+    if (n.type === 'text' && last?.type === 'text') last.text += n.text
+    else if (n.type !== 'text' || n.text) out.push(n)
+  }
   return out
 }
 
-const INLINE = /(\*\*(.+?)\*\*|==(.+?)==|`(.+?)`|\*(.+?)\*)/g
+const MARKERS: { mark: string; make: (inner: string) => Node }[] = [
+  { mark: '**', make: (inner) => el('strong', {}, inlineSpans(inner)) },
+  { mark: '==', make: (inner) => el('span', { class: 'accent' }, inlineSpans(inner)) },
+  { mark: '`', make: (inner) => el('code', {}, [txt(unescape(inner))]) },
+  { mark: '*', make: (inner) => el('em', {}, inlineSpans(inner)) },
+]
 
+const unescape = (s: string) => s.replace(/\\([\\*=`])/g, '$1')
+
+/** One line: markers that open at a word's edge and close at one, innermost content read again; backslash escapes kept literal. */
 function inlineSpans(line: string): Node[] {
   const out: Node[] = []
-  let last = 0
-  for (const m of line.matchAll(INLINE)) {
-    if (m.index > last) out.push(txt(line.slice(last, m.index)))
-    last = m.index + m[0].length
-    if (m[2] !== undefined) out.push(el('strong', {}, inlineSpans(m[2])))
-    else if (m[3] !== undefined) out.push(el('span', { class: 'accent' }, inlineSpans(m[3])))
-    else if (m[4] !== undefined) out.push(el('code', {}, [txt(m[4])]))
-    else if (m[5] !== undefined) out.push(el('em', {}, inlineSpans(m[5])))
+  let buf = ''
+  let i = 0
+  while (i < line.length) {
+    const ch = line[i]
+    if (ch === '\\' && /[\\*=`]/.test(line[i + 1] ?? '')) {
+      buf += line[i + 1]
+      i += 2
+      continue
+    }
+    const hit = MARKERS.find((m) => line.startsWith(m.mark, i) && !(m.mark === '*' && line[i + 1] === '*') && flanking(line, i, m.mark.length).open)
+    const end = hit ? closing(line, i + hit.mark.length, hit.mark) : -1
+    if (hit && end > i + hit.mark.length) {
+      if (buf) out.push(txt(buf))
+      buf = ''
+      out.push(hit.make(line.slice(i + hit.mark.length, end)))
+      i = end + hit.mark.length
+      continue
+    }
+    buf += ch
+    i++
   }
-  if (last < line.length) out.push(txt(line.slice(last)))
+  if (buf) out.push(txt(buf))
   return out
+}
+
+/** Where the marker opened before `from` closes: the first unescaped occurrence that can close (for `*`, not part of `**`). */
+function closing(line: string, from: number, mark: string): number {
+  for (let j = from; j < line.length; j++) {
+    if (line[j] === '\\') {
+      j++
+      continue
+    }
+    if (!line.startsWith(mark, j)) continue
+    if (mark === '*' && (line[j + 1] === '*' || line[j - 1] === '*')) {
+      // a star of a ** pair inside the italic text: step over the pair
+      if (line[j + 1] === '*') j++
+      continue
+    }
+    if (flanking(line, j, mark.length).close) return j
+  }
+  return -1
 }

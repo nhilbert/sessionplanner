@@ -603,7 +603,9 @@
       "toneNone": "keine",
       "addRow": "Zeile hinzufügen",
       "addColumn": "Spalte hinzufügen",
-      "removeColumn": "Spalte entfernen"
+      "removeColumn": "Spalte entfernen",
+      "small": "Zusatz (klein)",
+      "headCell": "Zeilenkopf"
     },
     "o": {
       "ordered": "Nummeriert",
@@ -635,7 +637,12 @@
     "knownPictures": "Bisher verwendete Bilder",
     "noPictures": "Noch keine Bilder – lade eines hoch.",
     "svgHint": "Inline-SVG mit den Theme-Klassen (f-accent, s-line, t …), viewBox etwa 0 0 1152 470. Farben nie als Werte.",
-    "position": "{{n}} von {{count}}"
+    "position": "{{n}} von {{count}}",
+    "lostImages_one": "{{count}} Bild hat in diesem Layout keinen Platz.",
+    "lostImages_other": "{{count}} Bilder haben in diesem Layout keinen Platz.",
+    "lostOther": "Weitere Teile (Zusatz, Zitatquelle) haben in diesem Layout keinen Platz.",
+    "rawWhole": "Diese Folie enthält Formatierungen, die die Felder nicht abbilden (etwa Hervorhebung mitten im Wort oder Zusätze im Kopf). Damit nichts unbemerkt verloren geht, wird sie als Quelltext bearbeitet.",
+    "layoutLocked": "Folien, die als Quelltext bearbeitet werden, behalten ihr Layout."
   },
   "themes": {
     "title": "Folien-Themes",

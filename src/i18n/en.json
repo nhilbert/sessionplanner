@@ -603,7 +603,9 @@
       "toneNone": "none",
       "addRow": "Add row",
       "addColumn": "Add column",
-      "removeColumn": "Remove column"
+      "removeColumn": "Remove column",
+      "small": "Note (small)",
+      "headCell": "Row heading"
     },
     "o": {
       "ordered": "Numbered",
@@ -635,7 +637,12 @@
     "knownPictures": "Pictures used so far",
     "noPictures": "No pictures yet – upload one.",
     "svgHint": "Inline SVG with the theme classes (f-accent, s-line, t …), viewBox about 0 0 1152 470. Colours never as literal values.",
-    "position": "{{n}} of {{count}}"
+    "position": "{{n}} of {{count}}",
+    "lostImages_one": "{{count}} picture has no place in this layout.",
+    "lostImages_other": "{{count}} pictures have no place in this layout.",
+    "lostOther": "Other parts (note, quotation source) have no place in this layout.",
+    "rawWhole": "This slide has formatting the fields cannot show (emphasis inside a word, extras in the header, for instance). So that nothing is lost unnoticed, it is edited as source.",
+    "layoutLocked": "Slides edited as source keep their layout."
   },
   "themes": {
     "title": "Slide themes",

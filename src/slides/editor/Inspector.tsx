@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { AssetScope } from '@/api'
-import { type Block, emptyBox, emptyCard, emptyCell, emptyLetter, emptyStep, type LayoutSpec, layoutSpec, type SlideDoc, type Tone } from '@/domain/slideDoc'
+import { type Block, emptyBox, emptyCard, emptyCell, emptyLetter, emptyStep, type LayoutSpec, layoutSpec, type SlideDoc, type TableCell, type Tone } from '@/domain/slideDoc'
 import { Segmented, Select, SectionLabel } from '@/components/ui'
 import { Area, Entries, Row, Text, Toggle, tr } from './fields'
 import { PictureField } from './PicturePicker'
@@ -24,13 +24,23 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
   const spec = layoutSpec(doc.layout)
   const set = (patch: Partial<SlideDoc>) => onChange({ ...doc, ...patch })
   const parts = new Set(spec?.parts ?? [])
-  const lines = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean)
+  // Kept as typed (spaces, empty lines) while editing; the slide drops empty lines and outer spaces when it is written.
+  const lines = (s: string) => s.split('\n')
   const f = (key: string, opts?: Record<string, unknown>) => tr(t, `editor.f.${key}`, opts)
   const markup = <span className="font-normal normal-case tracking-normal text-ink-3">{t('slides.markup')}</span>
 
+  const structured = doc.raw === undefined
+  if (doc.whole)
+    return (
+      <section>
+        <SectionLabel>{t('editor.sourceCode')}</SectionLabel>
+        <p className="mb-1.5 text-[12px] leading-snug text-ink-3">{t('editor.rawWhole')}</p>
+        <Area path="raw" value={doc.raw ?? ''} onChange={(raw) => set({ raw })} onFocus={onFocus} label={t('editor.sourceCode')} mono rows={8} />
+      </section>
+    )
   return (
     <div className="space-y-5">
-      {spec && spec.options.length > 0 && <Options spec={spec} doc={doc} onChange={(options) => set({ options })} />}
+      {structured && spec && spec.options.length > 0 && <Options spec={spec} doc={doc} onChange={(options) => set({ options })} />}
 
       {doc.raw === undefined && spec?.generated && <p className="rounded-md bg-amber-soft px-2.5 py-1.5 text-[12px] leading-snug text-amber">{t('slides.generatedHint')}</p>}
 
@@ -42,11 +52,12 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
             <Text path="header.eyebrow" value={doc.header?.eyebrow ?? ''} onChange={(eyebrow) => set({ header: { ...header(doc), eyebrow } })} onFocus={onFocus} placeholder={f('eyebrow')} label={f('eyebrow')} />
             <Area path="header.title" value={doc.header?.title ?? ''} onChange={(title) => set({ header: { ...header(doc), title } })} onFocus={onFocus} placeholder={f('title')} label={f('title')} className="font-medium text-[15px]" />
             <Area path="header.lead" value={doc.header?.lead ?? ''} onChange={(lead) => set({ header: { ...header(doc), lead } })} onFocus={onFocus} placeholder={f('lead')} label={f('lead')} />
+            {(doc.header?.small || doc.layout === 'agenda') && <Text path="header.small" value={doc.header?.small ?? ''} onChange={(small) => set({ header: { ...header(doc), small } })} onFocus={onFocus} placeholder={f('small')} label={f('small')} className="w-40" />}
           </div>
         </section>
       )}
 
-      {parts.has('text') && spec?.textFields && (
+      {structured && parts.has('text') && spec?.textFields && (
         <section>
           <SectionLabel right={markup}>{t('editor.content')}</SectionLabel>
           <div className="space-y-1.5">
@@ -66,7 +77,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         </section>
       )}
 
-      {parts.has('quote') && (
+      {structured && parts.has('quote') && (
         <section>
           <SectionLabel right={markup}>{t('editor.content')}</SectionLabel>
           <div className="space-y-1.5">
@@ -77,7 +88,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         </section>
       )}
 
-      {parts.has('points') && (
+      {structured && parts.has('points') && (
         <Entries
           label={f('points')}
           items={doc.points ?? []}
@@ -93,7 +104,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('cards') && (
+      {structured && parts.has('cards') && (
         <Entries
           label={f('cards')}
           items={doc.cards ?? []}
@@ -103,6 +114,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
           render={(c, setC, i) => (
             <>
               <PictureField path={`cards.${i}.image`} value={c.image} onChange={(image) => setC({ ...c, image })} onFocus={onFocus} scope={scope} known={known} />
+              {c.image && <Text path={`cards.${i}.alt`} value={c.alt} onChange={(v) => setC({ ...c, alt: v })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} className="text-[12px]" />}
               <Text path={`cards.${i}.eyebrow`} value={c.eyebrow} onChange={(v) => setC({ ...c, eyebrow: v })} onFocus={onFocus} placeholder={f('eyebrow')} label={f('eyebrow')} />
               <Area path={`cards.${i}.title`} value={c.title} onChange={(v) => setC({ ...c, title: v })} onFocus={onFocus} placeholder={f('title')} label={f('title')} className="font-medium" />
               <Area path={`cards.${i}.text`} value={c.text} onChange={(v) => setC({ ...c, text: v })} onFocus={onFocus} placeholder={f('text')} label={f('text')} />
@@ -112,7 +124,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('steps') && (
+      {structured && parts.has('steps') && (
         <Entries
           label={f('steps')}
           items={doc.steps ?? []}
@@ -133,7 +145,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('facts') && (
+      {structured && parts.has('facts') && (
         <Entries
           label={f('facts')}
           items={doc.facts ?? []}
@@ -148,7 +160,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('blocks') && (
+      {structured && parts.has('blocks') && (
         <Entries
           label={f('blocks')}
           items={doc.blocks ?? []}
@@ -181,7 +193,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('rows') && (
+      {structured && parts.has('rows') && (
         <Entries
           label={f('rows')}
           items={doc.rows ?? []}
@@ -200,7 +212,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('matrix') && doc.matrix && (
+      {structured && parts.has('matrix') && doc.matrix && (
         <section className="space-y-2">
           <Row label={f('axisY')}>
             <div className="grid grid-cols-2 gap-1.5">
@@ -234,9 +246,9 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
           </Row>
         </section>
       )}
-      {parts.has('matrix') && !doc.matrix && <Toggle checked={false} onChange={() => set({ matrix: { axisY: ['', ''], axisX: ['', ''], cells: [emptyCell(), emptyCell(), emptyCell(), emptyCell()] } })}>{f('matrix')}</Toggle>}
+      {structured && parts.has('matrix') && !doc.matrix && <Toggle checked={false} onChange={() => set({ matrix: { axisY: ['', ''], axisX: ['', ''], cells: [emptyCell(), emptyCell(), emptyCell(), emptyCell()] } })}>{f('matrix')}</Toggle>}
 
-      {parts.has('letters') && (
+      {structured && parts.has('letters') && (
         <Entries
           label={f('letters')}
           items={doc.letters ?? []}
@@ -255,7 +267,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('boxes') && (
+      {structured && parts.has('boxes') && (
         <Entries
           label={f('boxes')}
           items={doc.boxes ?? []}
@@ -266,6 +278,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
             <>
               <Text path={`boxes.${i}.title`} value={b.title} onChange={(v) => setB({ ...b, title: v })} onFocus={onFocus} placeholder={f('title')} label={f('title')} className="font-medium" />
               <Area path={`boxes.${i}`} value={b.text} onChange={(v) => setB({ ...b, text: v })} onFocus={onFocus} placeholder={f('text')} label={f('text')} />
+              <Area path={`boxes.${i}.points`} value={(b.points ?? []).join('\n')} onChange={(v) => setB({ ...b, points: lines(v) })} onFocus={onFocus} placeholder={f('children')} label={f('children')} className="text-[12px] text-ink-2" />
               <div className="flex flex-wrap gap-1.5">
                 <Toggle checked={b.wide} onChange={(wide) => setB({ ...b, wide })}>
                   {f('wide')}
@@ -282,26 +295,26 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         />
       )}
 
-      {parts.has('table') && <TableFields doc={doc} set={set} onFocus={onFocus} />}
+      {structured && parts.has('table') && <TableFields doc={doc} set={set} onFocus={onFocus} />}
 
-      {parts.has('svg') && (
+      {structured && parts.has('svg') && (
         <Row label={f('svg')} hint={<span className="normal-case">{t('editor.svgHint')}</span>}>
           <Area path="svg" value={doc.svg ?? ''} onChange={(svg) => set({ svg })} onFocus={onFocus} label={f('svg')} mono rows={4} />
         </Row>
       )}
 
-      {parts.has('figure') && (
+      {structured && parts.has('figure') && (
         <section>
           <SectionLabel>{f('figure')}</SectionLabel>
           <div className="space-y-1.5">
             <PictureField path="figure.image" value={doc.figure?.image ?? ''} onChange={(image) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), image } })} onFocus={onFocus} scope={scope} known={known} />
-            {(doc.figure?.image || doc.layout === 'model') && doc.layout !== 'model' && <Text path="figure.alt" value={doc.figure?.alt ?? ''} onChange={(alt) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), alt } })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} />}
+            {doc.figure?.image && <Text path="figure.alt" value={doc.figure?.alt ?? ''} onChange={(alt) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), alt } })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} />}
             {doc.layout !== 'title' && doc.layout !== 'break' && <Text path="figure.caption" value={doc.figure?.caption ?? ''} onChange={(caption) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), caption } })} onFocus={onFocus} placeholder={f('caption')} label={f('caption')} />}
           </div>
         </section>
       )}
 
-      {parts.has('glyph') && (
+      {structured && parts.has('glyph') && (
         <section>
           <SectionLabel>{f('glyph')}</SectionLabel>
           <div className="grid grid-cols-[72px_1fr] gap-1.5">
@@ -329,7 +342,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
   )
 }
 
-const header = (doc: SlideDoc) => doc.header ?? { eyebrow: '', title: '', lead: '', tag: '' }
+const header = (doc: SlideDoc) => doc.header ?? { eyebrow: '', title: '', lead: '', tag: '', small: '' }
 const text = (doc: SlideDoc) => doc.text ?? { eyebrow: '', title: '', subtitle: '', meta: '', lead: '', big: '', sub: '', until: '', body: '' }
 
 /** The layout's options as switches and a column count. */
@@ -363,7 +376,7 @@ function TableFields({ doc, set, onFocus }: { doc: SlideDoc; set: (patch: Partia
   const table = doc.table ?? { head: [], rows: [] }
   const cols = Math.max(table.head.length, ...table.rows.map((r) => r.length), 1)
   const setHead = (i: number, v: string) => set({ table: { ...table, head: Array.from({ length: cols }, (_, k) => (k === i ? v : (table.head[k] ?? ''))) } })
-  const setCell = (r: number, c: number, patch: Partial<{ text: string; tone: Tone }>) => set({ table: { ...table, rows: table.rows.map((row, k) => (k === r ? Array.from({ length: cols }, (_, j) => (j === c ? { ...(row[j] ?? { text: '', tone: '' }), ...patch } : (row[j] ?? { text: '', tone: '' }))) : row)) } })
+  const setCell = (r: number, c: number, patch: Partial<TableCell>) => set({ table: { ...table, rows: table.rows.map((row, k) => (k === r ? Array.from({ length: cols }, (_, j) => (j === c ? { ...(row[j] ?? { text: '', tone: '' }), ...patch } : (row[j] ?? { text: '', tone: '' }))) : row)) } })
   const addRow = () => set({ table: { ...table, rows: [...table.rows, Array.from({ length: cols }, () => ({ text: '', tone: '' as Tone }))] } })
   const removeRow = (r: number) => set({ table: { ...table, rows: table.rows.filter((_, k) => k !== r) } })
   const addCol = () => set({ table: { head: table.head.length ? [...table.head, ''] : table.head, rows: table.rows.map((row) => [...row, { text: '', tone: '' as Tone }]) } })
@@ -383,10 +396,16 @@ function TableFields({ doc, set, onFocus }: { doc: SlideDoc; set: (patch: Partia
               {Array.from({ length: cols }, (_, c) => (
                 <div key={c} className="min-w-0 space-y-1">
                   <Area path={`table.${r}.${c}`} value={row[c]?.text ?? ''} onChange={(v) => setCell(r, c, { text: v })} onFocus={onFocus} placeholder={f('text')} label={f('row', { n: r + 1 })} />
-                  <Select value={row[c]?.tone ?? ''} onChange={(e) => setCell(r, c, { tone: e.target.value as Tone })} className="h-6 w-auto px-1.5 text-[11px]" aria-label={f('tone')}>
+                  <Select
+                    value={row[c]?.head ? 'head' : (row[c]?.tone ?? '')}
+                    onChange={(e) => setCell(r, c, e.target.value === 'head' ? { tone: '', head: true } : { tone: e.target.value as Tone, head: false })}
+                    className="h-6 w-auto px-1.5 text-[11px]"
+                    aria-label={f('tone')}
+                  >
                     <option value="">{f('toneNone')}</option>
                     <option value="good">{f('toneGood')}</option>
                     <option value="bad">{f('toneBad')}</option>
+                    <option value="head">{f('headCell')}</option>
                   </Select>
                 </div>
               ))}
