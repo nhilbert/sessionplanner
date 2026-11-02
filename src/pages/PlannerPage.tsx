@@ -28,6 +28,7 @@ import TimeEditor, { type TimeMode } from '@/planner/TimeEditor'
 import type { InsertKind } from '@/planner/Insert'
 import type { Preview } from '@/planner/DayColumn'
 import AgendaView from './AgendaView'
+import { PlannerSlideEditor, useSlideEditing } from '@/slides/PlannerSlides'
 
 const ZOOM: Record<string, number> = { s: 1, m: 1.6, l: 2.6 }
 const EMPTY = { workshop: { id: '' }, days: [], groups: [], items: [], attachments: [] } as unknown as WorkshopState
@@ -61,7 +62,10 @@ export default function PlannerPage() {
   useEffect(() => {
     open(id)
     setFocusDay(null)
-    return () => close()
+    return () => {
+      useSlideEditing.getState().close()
+      close()
+    }
   }, [id, open, close])
   useEffect(() => {
     document.title = data?.workshop.title ? `${data.workshop.title} · Session Planner` : 'Session Planner'
@@ -356,6 +360,10 @@ export default function PlannerPage() {
     onUngroup: ungroup,
     onDeleteGroup: deleteGroup,
     onSaveGroup: owner ? (gid) => void saveGroup(gid) : undefined,
+    onOpenSlides: (itemId) => {
+      const first = items[itemId]?.slides[0]
+      if (first) useSlideEditing.getState().open({ kind: 'step', itemId, key: first.id })
+    },
   }
 
   /** Where an item would start if it flowed with the agenda (its fixed start taken away). */
@@ -579,6 +587,15 @@ export default function PlannerPage() {
           onClose={() => setTimeEdit(null)}
         />
       )}
+      <PlannerSlideEditor
+        owner={owner}
+        onDetails={() => {
+          setTab('details')
+          setDetailsId(null)
+          setToolboxOpen('1')
+          if (phone) setMobileToolbox(true)
+        }}
+      />
       {notice && <div className="no-print fade-in fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-ink px-4 py-2 text-[13px] text-paper shadow-[var(--shadow)] md:bottom-6">{notice}</div>}
     </BoardContext.Provider>
   )

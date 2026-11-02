@@ -84,7 +84,7 @@ export function NewSlidePicker({ open, onClose, onPick, onPool, theme, scope, ow
             ))}
           </ul>
           <p className="mt-3 text-[12px] text-ink-3">
-            <Link to="/templates" className="hover:text-ink hover:underline" onClick={onClose}>
+            <Link to="/slides/templates" className="hover:text-ink hover:underline" onClick={onClose}>
               {t('slides.manageTemplates')}
             </Link>
           </p>

@@ -32,6 +32,8 @@ export interface CardProps {
   onOpenTime?: (mode: TimeMode, anchor: DOMRect) => void
   onResize?: (minutes: number | null) => void
   onResizeEnd?: (minutes: number) => void
+  /** The slide count on the card opens the slide editor on the step. */
+  onOpenSlides?: () => void
 }
 
 export function SortableItem({ after, ...props }: CardProps & { after?: React.ReactNode }) {
@@ -157,7 +159,7 @@ function TimeButton({ label, onOpen, className, children }: { label: string; onO
   )
 }
 
-export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd }: CardProps) {
+export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd, onOpenSlides }: CardProps) {
   const { t } = useTranslation()
   const minutes = duration ?? durationOf(item)
   const timed = slot !== undefined
@@ -272,12 +274,26 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
                   {item.attachmentIds.length}
                 </span>
               )}
-              {item.slides.length > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-[11px]">
-                  <Presentation size={11} />
-                  {item.slides.length}
-                </span>
-              )}
+              {item.slides.length > 0 &&
+                (onOpenSlides ? (
+                  <button
+                    type="button"
+                    // Pointer and click stay here (no drag, no details); of the keys only Enter and Space, which would start a
+                    // keyboard drag of the card – Ctrl+Z and the other shortcuts reach the planner.
+                    onPointerDown={shield.onPointerDown}
+                    onMouseDown={shield.onMouseDown}
+                    onTouchStart={shield.onTouchStart}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && e.stopPropagation()}
+                    onClick={(e) => (e.stopPropagation(), onOpenSlides())} className="tap -mx-1 inline-flex items-center gap-0.5 rounded px-1 text-[11px] hover:bg-surface-2 hover:text-ink" title={t('slides.openSlides')} aria-label={`${t('slides.openSlides')}: ${item.slides.length}`}>
+                    <Presentation size={11} />
+                    {item.slides.length}
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-0.5 text-[11px]">
+                    <Presentation size={11} />
+                    {item.slides.length}
+                  </span>
+                ))}
               {item.lead && <span className="truncate text-[11px]">{item.lead}</span>}
             </div>
           )}

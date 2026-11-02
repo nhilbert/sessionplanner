@@ -11,6 +11,9 @@ import { SlideView } from '@/slides/SlideView'
 import { NewSlidePicker } from '@/slides/NewSlidePicker'
 import { SlideEditor } from '@/slides/editor/SlideEditor'
 import { tr } from '@/slides/editor/fields'
+import { templatesSource } from '@/slides/editor/source'
+import { slideAssets, slideLayout, slideTitle } from '@/domain/slides'
+import { SlidesTabs } from '@/slides/SlidesTabs'
 
 /** The owner's template slides (docs/slides.md, section 7): named slides to start new slides from, in the order the picker shows them. */
 export default function TemplatesPage() {
@@ -45,11 +48,12 @@ export default function TemplatesPage() {
     await saveTemplate({ name: tpl.name, html: tpl.html, position: other.position }, tpl.id)
     await saveTemplate({ name: other.name, html: other.html, position: tpl.position }, other.id)
   }
-  const current = editing ? templates.find((x) => x.id === editing) : undefined
+  const known = [...new Set(templates.flatMap((x) => slideAssets(x.html)))]
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-10 md:py-10">
+        <SlidesTabs />
         <PageHeader
           title={t('templates.title')}
           subtitle={t('templates.subtitle')}
@@ -88,33 +92,22 @@ export default function TemplatesPage() {
           ))}
         </ul>
         <NewSlidePicker open={adding} onClose={() => setAdding(false)} onPick={(html) => void add(html)} theme={theme} scope="library" owner />
-        {current && (
+        {editing && templates.some((x) => x.id === editing) && (
           <SlideEditor
-            slides={[{ id: current.id, html: current.html }]}
-            index={0}
-            onIndex={() => undefined}
-            onChange={(slides) => {
-              const s = slides.find((x) => x.id === current.id)
-              if (!s) {
-                void removeTemplate(current.id)
-                return
-              }
-              if (s.html !== current.html) void saveTemplate({ name: current.name, html: s.html }, current.id)
-              // "Duplicate slide" in the editor: a new template, opened in the editor.
-              const copies = slides.filter((x) => x.id !== current.id)
-              if (copies.length)
-                void (async () => {
-                  let last: SlideTemplate | null = null
-                  for (const c of copies) last = await saveTemplate({ name: t('templates.copyName', { name: current.name }), html: c.html })
-                  if (last) setEditing(last.id)
-                })()
-            }}
+            source={templatesSource({
+              context: t('editor.ctx.templates'),
+              get: () => useThemes.getState().templates,
+              save: saveTemplate,
+              remove: removeTemplate,
+              nameFor: (html) => slideTitle(html) || tr(t, `slides.layouts.${slideLayout(html)}`, { defaultValue: t('templates.untitled') }),
+            })}
+            start={editing}
             onClose={() => setEditing(null)}
             theme={theme}
             scope="library"
             owner
             canEdit
-            known={[]}
+            known={known}
             onNotice={setNotice}
           />
         )}

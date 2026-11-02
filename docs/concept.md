@@ -129,6 +129,14 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 
 ## 10. Decisions
 
+**2026-11-02, slides throughout the app**
+
+- One way to open a slide: a thumbnail outside a picker opens that slide in the editor, from a step, the slide count on an agenda card, the deck tab, the library, the templates and the pool; the editor pages within what it was opened from and says so in its header. Generated slides in the deck are shown with what they are made of and what can be done instead (details, hide, a slide of its own for a break); pool slides are read-only with "Save as template". Pickers keep selecting.
+- The editor has its own history: every change a step (typing in one field one step), Ctrl+Z inside the fields too, buttons in the header; a step changed elsewhere since is dropped, not forced. In the planner the whole editing session is one undo step.
+- Dialogs, sheets, menus and the editor take the focus, keep Tab inside and give it back to their opener.
+- The pool, the templates and the themes form one navigation entry, Slides, with tabs; a workshop's theme is chosen in its Slides tab; "Manage themes" and "Manage templates" sit wherever a theme or a template is chosen. Owner pages send guests to their workshops.
+- Accepted: presentation windows load the deck once (no editing while presenting); concurrent changes to different slides of one step resolve by the later save.
+
 **2026-11-02, after a review of the whole code**
 
 - Every window applies the server's stream in order, its own changes included, and shows its pending changes on top (section 7). Before, a window skipped its own changes on the stream, so two windows that changed the same field at nearly the same time could end with different values; and a reload after a lost connection could undo a change that was still on its way.

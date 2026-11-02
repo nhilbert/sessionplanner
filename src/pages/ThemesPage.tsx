@@ -12,6 +12,7 @@ import { Button, Chip, cx, Field, IconButton, Input, PageHeader, SectionLabel, S
 import { applyThemeCss, PREVIEW_THEME, reloadTheme, SlideView } from '@/slides/SlideView'
 import { tr } from '@/slides/editor/fields'
 import { inOrder } from '@/store/inOrder'
+import { SlidesTabs } from '@/slides/SlidesTabs'
 
 const MAX_LOGO = 2 * 1024 * 1024
 const SAMPLES = ['title', 'agenda', 'cards', 'exercise', 'section', 'closing']
@@ -91,6 +92,7 @@ export default function ThemesPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-6xl px-4 py-8 md:px-10 md:py-10">
+        <SlidesTabs />
         <PageHeader title={t('themes.title')} subtitle={t('themes.subtitle')} right={!phone ? actions : undefined} />
         {error && <p className="mb-3 text-[13px] text-rose">{error}</p>}
         <div className="md:grid md:grid-cols-[240px_1fr] md:gap-8">

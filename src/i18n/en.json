@@ -235,7 +235,8 @@
     "pool": "Slide pool",
     "settings": "Settings",
     "collapse": "Collapse",
-    "expand": "Expand"
+    "expand": "Expand",
+    "slides": "Slides"
   },
   "settings": {
     "language": "Language",
@@ -266,10 +267,10 @@
     "agentsDisconnectConfirm": "Disconnect {{name}}? It loses access immediately and has to be approved again.",
     "agentsError": "Could not load or change the connections ({{error}}). Try again; until then they stay as they were.",
     "theme": "Slide theme",
-    "themeHint": "The slide theme of new workshops; each workshop can choose another in its details. Your own themes are made under “Manage themes”; theme folders under data/themes (theme.css, fonts, logos) still work.",
-    "sweepHint": "Pictures no slide shows any more (in workshops, the library or the pool) are deleted.",
+    "themeHint": "The slide theme of new workshops; each workshop can choose another in its Slides tab. Theme folders under data/themes (theme.css, fonts, logos) appear in the choice too.",
+    "sweepHint": "Pictures no slide shows any more (in workshops, the library, the pool or templates) are deleted.",
     "slides": "Slides",
-    "slidesHint": "Themes carry colours, fonts and logo; templates are slides to start from. Both are shared by all workshops."
+    "slidesHint": "Themes and templates are under “Slides” in the navigation."
   },
   "categories": {
     "input": "Input",
@@ -531,7 +532,9 @@
     "templateSaved": "Template “{{name}}” saved",
     "overflow": "The content runs over the edge of the slide: shorten it or pick another layout.",
     "markup": "**bold** · *italic* · ==accent==",
-    "generatedHint": "The app generates this kind of slide from the plan; write one only for a special case."
+    "generatedHint": "The app generates this kind of slide from the plan; write one only for a special case.",
+    "openSlides": "Open slides",
+    "deckTheme": "Theme of this workshop"
   },
   "editor": {
     "layout": "Layout",
@@ -650,7 +653,29 @@
     "lostImages_other": "{{count}} pictures have no place in this layout.",
     "lostOther": "Other parts (note, quotation source) have no place in this layout.",
     "rawWhole": "This slide has formatting the fields cannot show (emphasis inside a word, extras in the header, for instance). So that nothing is lost unnoticed, it is edited as source.",
-    "layoutLocked": "Slides edited as source keep their layout."
+    "layoutLocked": "Slides edited as source keep their layout.",
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Shift+Z)",
+    "changedElsewhere": "This step was changed elsewhere meanwhile and is not taken back.",
+    "addHere": "This slide comes from the plan; new slides go into a step.",
+    "generated": {
+      "title": "The title slide comes from the workshop: title, date, client and location. Change them there and the slide follows.",
+      "agenda": "The agenda slide comes from the day's plan with the computed times and follows every change.",
+      "break": "The break slide comes from the break: title, length and end come from the plan. With a slide of your own for this break, yours is shown instead."
+    },
+    "openDetails": "Open workshop details",
+    "adoptBreak": "Own slide for this break",
+    "hideAgenda": "Hide agenda slides",
+    "hideBreaks": "Hide break slides",
+    "poolNote": "Slides of the pool stay as they are. Take them into a step with “New slide” → “From the slide pool”, or save them as a template.",
+    "viewOnly": "View only.",
+    "ctx": {
+      "step": "Step",
+      "deck": "Slides of the workshop",
+      "library": "Library",
+      "templates": "Templates",
+      "pool": "Slide pool"
+    }
   },
   "themes": {
     "title": "Slide themes",
@@ -756,5 +781,11 @@
     "down": "Move back",
     "count_one": "{{count}} template",
     "count_other": "{{count}} templates"
+  },
+  "slidesNav": {
+    "label": "Slides",
+    "pool": "Pool",
+    "templates": "Templates",
+    "themes": "Themes"
   }
 }

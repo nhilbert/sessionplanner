@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Archive, BookmarkPlus, Copy, Minus, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, Material, WorkshopState } from '@/domain/types'
@@ -17,7 +17,8 @@ import NotesField from './NotesField'
 import { uploadFiles } from './upload'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
-import { slideAssets } from '@/domain/slides'
+import { usePlanner } from '@/store/usePlanner'
+import { useSlideEditing } from '@/slides/PlannerSlides'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
 
@@ -29,7 +30,6 @@ export default function ItemPanel({
   onClose,
   onSelect,
   onSaved,
-  onNotice,
   computedStart,
   owner,
 }: {
@@ -45,8 +45,6 @@ export default function ItemPanel({
   onSelect: (id: string) => void
   /** Saved to the library: a short confirmation. */
   onSaved: (title: string) => void
-  /** A short confirmation (a template saved). */
-  onNotice?: (text: string) => void
 }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
@@ -54,8 +52,6 @@ export default function ItemPanel({
   const saveToLibrary = useLibrary((s) => s.save)
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
-  // The pictures the workshop's slides show, offered by the slide editor's picture picker.
-  const assets = useMemo(() => [...new Set(data.items.flatMap((i) => i.slides.flatMap((s) => slideAssets(s.html))))], [data.items])
 
   const setKind = (kind: ItemKind) => {
     const fields: Partial<ItemFields> = { kind }
@@ -163,7 +159,15 @@ export default function ItemPanel({
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
       {item.kind !== 'note' && <Files item={item} data={data} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
       {(item.kind === 'block' || item.kind === 'break') && (
-        <SlideStrip slides={item.slides} onChange={(slides) => set({ slides })} scope={{ workshopId: data.workshop.id }} theme={themeOf(data.workshop, settings)} canEdit owner={owner} assets={assets} onNotice={onNotice} />
+        <SlideStrip
+          slides={item.slides}
+          list={{ get: () => usePlanner.getState().data?.items.find((i) => i.id === item.id)?.slides ?? [], set: (slides) => set({ slides }) }}
+          onOpen={(key) => useSlideEditing.getState().open({ kind: 'step', itemId: item.id, key })}
+          scope={{ workshopId: data.workshop.id }}
+          theme={themeOf(data.workshop, settings)}
+          canEdit
+          owner={owner}
+        />
       )}
 
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">

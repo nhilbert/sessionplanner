@@ -257,11 +257,12 @@ export function Segmented<T extends string>({
 }
 
 export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-[max(1rem,env(safe-area-inset-top))] md:pt-[12vh]' }: { open: boolean; onClose: () => void; children: ReactNode; width?: string; top?: string }) {
-  useOverlay(open, onClose)
+  const panel = useRef<HTMLDivElement>(null)
+  useOverlay(open, onClose, { root: panel })
   if (!open) return null
   return (
     <div className={cx('fixed inset-0 z-50 flex items-start justify-center bg-ink/15 px-4 backdrop-blur-[2px]', top)} onMouseDown={onClose}>
-      <div role="dialog" aria-modal="true" className={cx('card fade-in max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain p-5 shadow-[var(--shadow)]', width)} onMouseDown={(e) => e.stopPropagation()}>
+      <div ref={panel} role="dialog" aria-modal="true" tabIndex={-1} className={cx('card fade-in max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain p-5 shadow-[var(--shadow)] outline-none', width)} onMouseDown={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -274,19 +275,23 @@ export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-[
  * events so a sheet opened from a draggable card never starts a drag.
  */
 export function Sheet({ open, onClose, label, title, children, className }: { open: boolean; onClose: () => void; label?: string; title?: ReactNode; children: ReactNode; className?: string }) {
-  useOverlay(open, onClose)
+  const panel = useRef<HTMLDivElement>(null)
+  useOverlay(open, onClose, { root: panel })
   if (!open) return null
   const stop = (e: SyntheticEvent) => e.stopPropagation()
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-ink/15" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div
+        ref={panel}
+        tabIndex={-1}
+        aria-modal="true"
         role="dialog"
         aria-label={label}
         onPointerDown={stop}
         onMouseDown={stop}
         onTouchStart={stop}
         onClick={stop}
-        className={cx('fade-in max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-line bg-surface px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-[var(--shadow)]', className)}
+        className={cx('fade-in max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-line bg-surface px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-[var(--shadow)] outline-none', className)}
       >
         <span aria-hidden className="mx-auto mb-3 block h-1 w-9 rounded-full bg-line-2" />
         {title && <div className="mb-2 truncate text-[13px] font-medium text-ink-2">{title}</div>}

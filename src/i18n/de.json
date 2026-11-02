@@ -235,7 +235,8 @@
     "pool": "Foliensammlung",
     "settings": "Einstellungen",
     "collapse": "Einklappen",
-    "expand": "Ausklappen"
+    "expand": "Ausklappen",
+    "slides": "Folien"
   },
   "settings": {
     "language": "Sprache",
@@ -266,10 +267,10 @@
     "agentsDisconnectConfirm": "{{name}} trennen? Der Zugriff endet sofort und muss neu freigegeben werden.",
     "agentsError": "Verbindungen konnten nicht geladen oder geändert werden ({{error}}). Bitte erneut versuchen; bis dahin bleiben sie unverändert.",
     "theme": "Folien-Theme",
-    "themeHint": "Das Theme der Folien neuer Workshops; jeder Workshop kann in seinen Details ein anderes wählen. Eigene Themes entstehen unter „Themes verwalten“; Theme-Ordner unter data/themes (theme.css, Schriften, Logos) funktionieren weiterhin.",
-    "sweepHint": "Bilder, die keine Folie mehr zeigt (in Workshops, Bibliothek oder Foliensammlung), werden gelöscht.",
+    "themeHint": "Das Theme der Folien neuer Workshops; jeder Workshop kann im Tab „Folien“ ein anderes wählen. Theme-Ordner unter data/themes (theme.css, Schriften, Logos) erscheinen ebenfalls in der Auswahl.",
+    "sweepHint": "Bilder, die keine Folie mehr zeigt (in Workshops, Bibliothek, Foliensammlung oder Vorlagen), werden gelöscht.",
     "slides": "Folien",
-    "slidesHint": "Themes tragen Farben, Schriften und Logo; Vorlagen sind Folien zum Weiterarbeiten. Beides teilen alle Workshops."
+    "slidesHint": "Themes und Vorlagen findest du unter „Folien“ in der Navigation."
   },
   "categories": {
     "input": "Input",
@@ -531,7 +532,9 @@
     "templateSaved": "Vorlage „{{name}}“ gespeichert",
     "overflow": "Der Inhalt läuft über den Folienrand: kürzen oder ein anderes Layout wählen.",
     "markup": "**fett** · *kursiv* · ==Akzent==",
-    "generatedHint": "Diese Art Folie erzeugt die App aus dem Plan; schreib sie nur für einen Sonderfall selbst."
+    "generatedHint": "Diese Art Folie erzeugt die App aus dem Plan; schreib sie nur für einen Sonderfall selbst.",
+    "openSlides": "Folien öffnen",
+    "deckTheme": "Theme dieses Workshops"
   },
   "editor": {
     "layout": "Layout",
@@ -650,7 +653,29 @@
     "lostImages_other": "{{count}} Bilder haben in diesem Layout keinen Platz.",
     "lostOther": "Weitere Teile (Zusatz, Zitatquelle) haben in diesem Layout keinen Platz.",
     "rawWhole": "Diese Folie enthält Formatierungen, die die Felder nicht abbilden (etwa Hervorhebung mitten im Wort oder Zusätze im Kopf). Damit nichts unbemerkt verloren geht, wird sie als Quelltext bearbeitet.",
-    "layoutLocked": "Folien, die als Quelltext bearbeitet werden, behalten ihr Layout."
+    "layoutLocked": "Folien, die als Quelltext bearbeitet werden, behalten ihr Layout.",
+    "undo": "Rückgängig (Strg+Z)",
+    "redo": "Wiederholen (Strg+Umschalt+Z)",
+    "changedElsewhere": "Dieser Schritt wurde inzwischen anderswo geändert und wird nicht zurückgenommen.",
+    "addHere": "Diese Folie entsteht aus dem Ablauf; neue Folien kommen in einen Schritt.",
+    "generated": {
+      "title": "Die Titelfolie entsteht aus dem Workshop: Titel, Datum, Kunde und Ort. Ändere sie dort, die Folie folgt.",
+      "agenda": "Die Agenda-Folie entsteht aus dem Ablauf des Tages mit den berechneten Zeiten und folgt jeder Änderung.",
+      "break": "Die Pausenfolie entsteht aus der Pause: Titel, Dauer und Ende kommen aus dem Ablauf. Mit einer eigenen Folie für diese Pause gilt deine Folie statt der erzeugten."
+    },
+    "openDetails": "Workshop-Details öffnen",
+    "adoptBreak": "Eigene Folie für diese Pause",
+    "hideAgenda": "Agenda-Folien ausblenden",
+    "hideBreaks": "Pausenfolien ausblenden",
+    "poolNote": "Folien der Sammlung bleiben unverändert. Übernimm sie über „Neue Folie“ → „Aus der Foliensammlung“ in einen Schritt oder speichere sie als Vorlage.",
+    "viewOnly": "Nur ansehen.",
+    "ctx": {
+      "step": "Schritt",
+      "deck": "Folien des Workshops",
+      "library": "Bibliothek",
+      "templates": "Vorlagen",
+      "pool": "Foliensammlung"
+    }
   },
   "themes": {
     "title": "Folien-Themes",
@@ -756,5 +781,11 @@
     "down": "Nach hinten",
     "count_one": "{{count}} Vorlage",
     "count_other": "{{count}} Vorlagen"
+  },
+  "slidesNav": {
+    "label": "Folien",
+    "pool": "Sammlung",
+    "templates": "Vorlagen",
+    "themes": "Themes"
   }
 }

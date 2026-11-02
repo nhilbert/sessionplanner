@@ -11,6 +11,10 @@ import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { SlideView } from '@/slides/SlideView'
+import { SlideEditor } from '@/slides/editor/SlideEditor'
+import { listSource } from '@/slides/editor/source'
+import { slideAssets } from '@/domain/slides'
+import type { Slide } from '@/domain/types'
 
 const KIND_ICON: Record<ItemKind, ReactNode> = {
   block: <Square size={12} />,
@@ -27,6 +31,8 @@ export default function LibraryPage() {
   const categories = useSettings((s) => s.settings.categories)
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  /** The slide editor on an entry's slides (from a thumbnail on its card or in its details). */
+  const [editing, setEditing] = useState<{ entryId: string; key: string } | null>(null)
   useEffect(() => {
     void load()
     // Back in this tab: an agent (or another window) may have changed entries meanwhile, and an edit here is laid
@@ -59,13 +65,41 @@ export default function LibraryPage() {
         <ul className="grid items-start gap-3 md:grid-cols-2">
           {shown.map((e) => (
             <li key={e.id} className={cx('card overflow-hidden', open === e.id && 'md:col-span-2')}>
-              <Row entry={e} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSave={(x) => void save(x, e.id).catch(failed)} onDelete={() => window.confirm(t('library.deleteConfirm', { title: e.title })) && void remove(e.id).catch(failed)} />
+              <Row entry={e} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSave={(x) => void save(x, e.id).catch(failed)} onDelete={() => window.confirm(t('library.deleteConfirm', { title: e.title })) && void remove(e.id).catch(failed)} onOpenSlide={(key) => setEditing({ entryId: e.id, key })} list={slideList(e.id, failed)} />
             </li>
           ))}
         </ul>
+        {editing && <LibrarySlideEditor key={editing.entryId} entryId={editing.entryId} start={editing.key} onClose={() => setEditing(null)} onFailed={failed} />}
       </div>
     </div>
   )
+}
+
+/** An entry's slides as the store has them now, and how to store a new list (shown at once, saved in order). */
+function slideList(entryId: string, failed: (err: unknown) => void) {
+  const entryNow = () => {
+    const e = useLibrary.getState().entries.find((x) => x.id === entryId)
+    return e?.kind === 'item' ? e : undefined
+  }
+  return {
+    get: (): Slide[] => entryNow()?.data.slides ?? [],
+    set: (slides: Slide[]) => {
+      const e = entryNow()
+      if (e) void useLibrary.getState().save({ kind: 'item', title: e.title, data: { ...e.data, slides } }, entryId).catch(failed)
+    },
+  }
+}
+
+/** The slide editor on one library entry. */
+function LibrarySlideEditor({ entryId, start, onClose, onFailed }: { entryId: string; start: string; onClose: () => void; onFailed: (err: unknown) => void }) {
+  const { t } = useTranslation()
+  const entry = useLibrary((s) => s.entries.find((e) => e.id === entryId))
+  const theme = useSettings((s) => s.settings.theme) || 'default'
+  if (!entry || entry.kind !== 'item') return null
+  const list = slideList(entryId, onFailed)
+  const source = listSource({ context: t('editor.ctx.library'), label: entry.title, get: list.get, set: list.set, editable: true })
+  const known = [...new Set(entry.data.slides.flatMap((s) => slideAssets(s.html)))]
+  return <SlideEditor source={source} start={start} onClose={onClose} theme={theme} scope="library" owner canEdit known={known} />
 }
 
 /** A small coloured dot with the category's name (or the colour alone when the item has its own colour only). */
@@ -83,7 +117,7 @@ function CategoryTag({ item, categories }: { item: ItemContent; categories: Cate
 }
 
 /** The face of an entry: everything worth knowing before inserting it. */
-function EntryCard({ entry }: { entry: LibraryEntry }) {
+function EntryCard({ entry, slides = true }: { entry: LibraryEntry; /** Thumbnails inside the card (off where they are shown beside it, as buttons). */ slides?: boolean }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
   const theme = useSettings((s) => s.settings.theme) || 'default'
@@ -152,7 +186,7 @@ function EntryCard({ entry }: { entry: LibraryEntry }) {
             ))}
           </dl>
         )}
-        {i.slides.length > 0 && (
+        {slides && i.slides.length > 0 && (
           <div className="mt-2 grid grid-cols-3 gap-1.5">
             {i.slides.slice(0, 3).map((s) => (
               <SlideView key={s.id} html={s.html} theme={theme} scope="library" />
@@ -181,7 +215,7 @@ function EntryCard({ entry }: { entry: LibraryEntry }) {
   )
 }
 
-function Row({ entry, open, onToggle, onSave, onDelete }: { entry: LibraryEntry; open: boolean; onToggle: () => void; onSave: (e: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) => void; onDelete: () => void }) {
+function Row({ entry, open, onToggle, onSave, onDelete, onOpenSlide, list }: { entry: LibraryEntry; open: boolean; onToggle: () => void; onSave: (e: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) => void; onDelete: () => void; onOpenSlide: (key: string) => void; list: { get(): Slide[]; set(slides: Slide[]): void } }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
   const theme = useSettings((s) => s.settings.theme) || 'default'
@@ -190,8 +224,16 @@ function Row({ entry, open, onToggle, onSave, onDelete }: { entry: LibraryEntry;
   return (
     <div>
       <button type="button" onClick={onToggle} aria-expanded={open} className="block w-full px-4 py-3 text-left transition-colors hover:bg-surface-2/60">
-        <EntryCard entry={entry} />
+        <EntryCard entry={entry} slides={false} />
       </button>
+      {/* The first slides: each opens the slide editor, as thumbnails do everywhere (the card itself opens the details). */}
+      {!open && entry.kind === 'item' && entry.data.slides.length > 0 && (
+        <div className="-mt-1 grid grid-cols-3 gap-1.5 px-4 pb-3 pl-[30px]">
+          {entry.data.slides.slice(0, 3).map((s, n) => (
+            <SlideView key={s.id} html={s.html} theme={theme} scope="library" onClick={() => onOpenSlide(s.id)} label={t('slides.slide', { n: n + 1 })} />
+          ))}
+        </div>
+      )}
       {open && (
         <div className="space-y-3 border-t border-line px-4 py-4">
           {entry.kind === 'group' ? (
@@ -239,7 +281,7 @@ function Row({ entry, open, onToggle, onSave, onDelete }: { entry: LibraryEntry;
               <Field label={t('item.notes')}>
                 <TextField multiline value={entry.data.notes} onCommit={(notes) => setItem({ notes })} />
               </Field>
-              <SlideStrip slides={entry.data.slides} onChange={(slides) => setItem({ slides })} scope="library" theme={theme} canEdit owner />
+              <SlideStrip slides={entry.data.slides} list={list} onOpen={onOpenSlide} scope="library" theme={theme} canEdit owner />
             </>
           )}
           <div className="flex justify-end">

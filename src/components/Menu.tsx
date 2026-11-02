@@ -34,7 +34,8 @@ export default function Menu({
   const phone = useIsPhone()
   const ref = useRef<HTMLDivElement>(null)
   // The sheet closes itself (backdrop, Escape); the dropdown closes on Escape (as an overlay) and on a click outside.
-  useOverlay(open && !phone, () => setOpen(false))
+  const list = useRef<HTMLDivElement>(null)
+  useOverlay(open && !phone, () => setOpen(false), { root: list, focus: 'first' })
   useEffect(() => {
     if (!open || phone) return
     const close = (e: Event) => {
@@ -70,7 +71,19 @@ export default function Menu({
           ))}
         </Sheet>
       ) : open ? (
-        <div role="menu" className={cx('card absolute z-40 mt-1 min-w-52 p-1 shadow-[var(--shadow)]', align === 'left' ? 'left-0' : 'right-0')}>
+        <div
+          ref={list}
+          role="menu"
+          className={cx('card absolute z-40 mt-1 min-w-52 p-1 shadow-[var(--shadow)]', align === 'left' ? 'left-0' : 'right-0')}
+          onKeyDown={(e) => {
+            // Up and down move through the items, as in any menu.
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+            e.preventDefault()
+            const items = [...(list.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+            const at = items.indexOf(document.activeElement as HTMLElement)
+            items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
+          }}
+        >
           {items.map((it) => (
             <button
               key={it.label}
