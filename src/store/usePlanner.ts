@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api, ApiError } from '@/api'
-import { inverseOps, type Op, type ServerEvent } from '@/domain/ops'
+import { inverseOps, type Op, type PresentPosition, type ServerEvent } from '@/domain/ops'
 import { addLocal, applyRemote, fromSnapshot, markSent, patchConfirmed, settle, type Sync, syncView } from '@/domain/sync'
 import type { Attachment, WorkshopState } from '@/domain/types'
 
@@ -24,11 +24,19 @@ interface Entry {
 
 type Status = 'idle' | 'loading' | 'ready' | 'missing' | 'login' | 'error'
 
+/** The server's latest word on the workshop's presentation: on connecting (`hello`, null when none runs) and on every paging. */
+export interface PresentNews {
+  position: PresentPosition | null
+  hello: boolean
+}
+
 interface PlannerStore {
   id: string | null
   data: WorkshopState | null
   status: Status
   live: boolean
+  /** Only for those who can edit; a new object for every message, so listeners see each one. */
+  presenting: PresentNews | null
   /** A change the server refused; the workshop was reloaded. */
   syncError: boolean
   past: Entry[]
@@ -121,8 +129,14 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     source?.close()
     let connectedBefore = false
     source = new EventSource(api.eventsUrl(id))
-    source.addEventListener('hello', () => {
+    source.addEventListener('hello', (e: MessageEvent<string>) => {
       set({ live: true })
+      try {
+        const hello = e.data ? (JSON.parse(e.data) as { present?: PresentPosition | null }) : {}
+        if (hello.present !== undefined && get().id === id) set({ presenting: { position: hello.present, hello: true } })
+      } catch {
+        // an older server says hello without data
+      }
       // Back after a lost connection: changes may have been missed meanwhile.
       if (connectedBefore) reload()
       connectedBefore = true
@@ -139,6 +153,10 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       try {
         event = JSON.parse(e.data) as ServerEvent
       } catch {
+        return
+      }
+      if (event.type === 'present') {
+        if (get().id === id) set({ presenting: { position: { key: event.key, n: event.n, tag: event.tag }, hello: false } })
         return
       }
       if (!sync || get().id !== id) return
@@ -161,6 +179,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     data: null,
     status: 'idle',
     live: false,
+    presenting: null,
     syncError: false,
     past: [],
     future: [],
@@ -170,7 +189,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       sync = null
       group = null
       reloadQueued = false
-      set({ id, data: null, status: 'loading', live: false, past: [], future: [], syncError: false })
+      set({ id, data: null, status: 'loading', live: false, presenting: null, past: [], future: [], syncError: false })
       // Nothing of this workshop is on its way yet: no need to wait for the queue.
       void load(id)
       connect(id)
@@ -180,7 +199,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       source?.close()
       source = null
       sync = null
-      set({ id: null, data: null, status: 'idle', live: false, past: [], future: [] })
+      set({ id: null, data: null, status: 'idle', live: false, presenting: null, past: [], future: [] })
     },
 
     change: (ops) => {

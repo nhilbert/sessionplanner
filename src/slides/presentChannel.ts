@@ -1,2 +1,2 @@
-/** The presenter view and the presentation window of one workshop talk over this channel: { n } = show slide n (1-based). */
+/** The windows of one workshop's presentation in this browser, when the server is out of reach (src/slides/follower.ts): { key, n } = show that slide. */
 export const presentChannel = (workshopId: string): BroadcastChannel => new BroadcastChannel(`sp-present:${workshopId}`)

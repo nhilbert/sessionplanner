@@ -491,7 +491,8 @@
     "over_other": "{{count}} minutes over",
     "notYet": "starts {{time}}",
     "generatedSlide": "Generated slide",
-    "presenterHint": "← → to page · Esc to leave · the presentation follows this view",
+    "presenterHint": "← → to page · Esc to leave · every window of the presentation pages along",
+    "liveSync": "Connected: presentation, presenter view and phone page together, changes show at once",
     "noNotes": "No notes.",
     "layoutUse": {
       "title": "the first slide of a workshop or day",

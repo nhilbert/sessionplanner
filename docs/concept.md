@@ -129,6 +129,12 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 
 ## 10. Decisions
 
+**2026-11-02, presenting together** (revises "presentation windows load the deck once" from the same day)
+
+- The server keeps the slide each workshop's presentation shows (in memory, forgotten after six hours without paging). Every window of the presentation pages it and follows it over the live stream: the full-screen presentation, the presenter view, a phone as remote. A window opened later joins at that slide, so closing and reopening one no longer drifts. Its own paging wins over news from before it (the server's order decides); without the server, the windows of one browser still page together over a broadcast channel and tell the server where they stand once it is back. Owner and edit guests lead; view guests are not told.
+- The presentation and the presenter view run on the planner's live store: a slide changed anywhere shows at once. The presenter view edits the slide shown, the next one or any other through the planner's slide editor on the deck; paging in the editor leaves the audience where it is, "Present from here" there moves it.
+- On a phone the presenter view is a remote: large buttons at the thumb, a swipe on the slide, the screen kept on.
+
 **2026-11-02, slides are looked at first**
 
 - A slide opens to look at it: large, without fields, paging by arrows, swipe or thumbnails. Editing is one step away (Edit, E, a double-click on a text, which opens its field); Done or Escape goes back. A slide just added and "Edit slides" open straight into editing; read-only slides stay in the viewer with their note. Undo works in both. "Present from here" in the planner opens the presentation at the slide shown.
@@ -140,7 +146,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - The editor has its own history: every change a step (typing in one field one step), Ctrl+Z inside the fields too, buttons in the header; a step changed elsewhere since is dropped, not forced. In the planner the whole editing session is one undo step.
 - Dialogs, sheets, menus and the editor take the focus, keep Tab inside and give it back to their opener.
 - The pool, the templates and the themes form one navigation entry, Slides, with tabs; a workshop's theme is chosen in its Slides tab; "Manage themes" and "Manage templates" sit wherever a theme or a template is chosen. Owner pages send guests to their workshops.
-- Accepted: presentation windows load the deck once (no editing while presenting); concurrent changes to different slides of one step resolve by the later save.
+- Accepted: concurrent changes to different slides of one step resolve by the later save.
 
 **2026-11-02, after a review of the whole code**
 

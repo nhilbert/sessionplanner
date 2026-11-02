@@ -29,8 +29,11 @@ export const useSlideEditing = create<{ target: SlideTarget | null; open: (targe
   close: () => set({ target: null }),
 }))
 
-/** The editor of the open workshop, on a step or on the deck; every change goes through the planner (live, one undo step per session). */
-export function PlannerSlideEditor({ owner, onDetails }: { owner: boolean; onDetails: () => void }) {
+/**
+ * The editor of the open workshop, on a step or on the deck; every change goes through the planner (live, one undo step
+ * per session). In the presenter view "Present from here" shows the slide at once (`onPresent`) instead of opening a window.
+ */
+export function PlannerSlideEditor({ owner, onDetails, onPresent }: { owner: boolean; onDetails?: () => void; onPresent?: (n: number) => void }) {
   const { t } = useTranslation()
   const target = useSlideEditing((s) => s.target)
   const close = useSlideEditing((s) => s.close)
@@ -67,7 +70,7 @@ export function PlannerSlideEditor({ owner, onDetails }: { owner: boolean; onDet
       const at = deckNow().findIndex((r) => r.key === deckKey)
       return at === -1 ? null : at + 1
     },
-    present: (n: number) => window.open(`/w/${data.workshop.id}/present?n=${n}`, '_blank', 'noopener'),
+    present: onPresent ?? ((n: number) => window.open(`/w/${data.workshop.id}/present?from=${n}`, '_blank', 'noopener')),
   }
   const base =
     target.kind === 'step'

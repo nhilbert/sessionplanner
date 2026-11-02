@@ -491,7 +491,8 @@
     "over_other": "{{count}} Minuten über",
     "notYet": "beginnt {{time}}",
     "generatedSlide": "Generierte Folie",
-    "presenterHint": "← → blättern · Esc beenden · die Präsentation folgt dieser Ansicht",
+    "presenterHint": "← → blättern · Esc beenden · alle Fenster der Präsentation blättern mit",
+    "liveSync": "Verbunden: Präsentation, Moderationsansicht und Handy blättern gemeinsam, Änderungen erscheinen sofort",
     "noNotes": "Keine Notizen.",
     "layoutUse": {
       "title": "die erste Folie eines Workshops oder Tages",

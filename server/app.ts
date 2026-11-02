@@ -5,18 +5,20 @@ import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
-import { newId } from '../src/domain/ops.ts'
+import { newId, type PresentPosition } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, isThemeId, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
+import { BadRequest, isThemeId, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, themeCss, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
+/** A presentation nobody paged for this long is over: windows opened afterwards start where their link says. */
+export const PRESENT_HOURS = 6
 /** A picture on a slide (docs/slides.md): stored once per content hash, shown inline. */
 export const MAX_ASSET = 10 * 1024 * 1024
 /** Limits that keep the disk and the server's connections from being filled, by guests in particular. */
@@ -98,6 +100,14 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return true
   }
   const streams = new Map<string, number>()
+  // The slide each workshop's presentation shows now (docs/slides.md, Presenting): every window that joins starts there,
+  // unless nobody paged for PRESENT_HOURS (the next day's presentation starts afresh).
+  const positions = new Map<string, PresentPosition & { at: number }>()
+  const positionOf = (id: string): PresentPosition | null => {
+    const p = positions.get(id)
+    if (!p || Date.now() - p.at > PRESENT_HOURS * 3_600_000) return null
+    return { key: p.key, n: p.n, tag: p.tag }
+  }
 
   app.use('*', async (c, next) => {
     await next()
@@ -165,6 +175,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const files = repo.deleteWorkshop(id)
     if (!files) return c.json({ error: 'not_found' }, 404)
     await Promise.all(files.map((f) => rm(filePath(f), { force: true })))
+    positions.delete(id)
     hub.publish(id, { type: 'workshop-deleted' })
     return c.json({ ok: true })
   })
@@ -192,6 +203,18 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ ok: true, ops: stored })
   })
 
+  // Paging in a presentation, presenter view or remote: those who can edit lead it, and all their windows follow.
+  app.post('/api/workshops/:id/present', async (c) => {
+    const id = c.req.param('id')!
+    const access = accessTo(c, id)
+    if (!access || !repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
+    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
+    const position = validatePresent(await jsonBody(c))
+    positions.set(id, { ...position, at: Date.now() })
+    hub.publish(id, { type: 'present', ...position })
+    return c.json({ ok: true })
+  })
+
   app.get('/api/workshops/:id/events', (c) => {
     const id = c.req.param('id')!
     let access = accessTo(c, id)
@@ -217,6 +240,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
           return
         }
         if (event.type === 'members-changed') return
+        if (event.type === 'present' && !canEdit(access)) return
         // Without the notes, guests only learn that something changed and load their filtered copy again.
         const filtered = access !== 'owner' && access!.role === 'view' && !access!.showNotes && event.type !== 'workshop-deleted'
         void stream.writeSSE({ data: JSON.stringify(filtered ? { type: 'changed' } : event) })
@@ -233,7 +257,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       }
       stream.onAbort(release)
       try {
-        await stream.writeSSE({ event: 'hello', data: '' })
+        // Those who lead presentations learn where one stands as they connect (null: none yet since the server started).
+        await stream.writeSSE({ event: 'hello', data: canEdit(access) ? JSON.stringify({ present: positionOf(id) }) : '' })
         while (!stream.aborted && !stream.closed) {
           await stream.sleep(pingSeconds * 1000)
           if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: '' })

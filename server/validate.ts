@@ -167,6 +167,14 @@ export function validateDuplicate(body: unknown): z.infer<typeof duplicateBody> 
   return parsed.data
 }
 
+const presentBody = z.strictObject({ key: text(300), n: z.number().int().min(1).max(10_000), tag: text(100) })
+
+export function validatePresent(body: unknown): z.infer<typeof presentBody> {
+  const parsed = presentBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest('invalid position')
+  return parsed.data
+}
+
 const memberBody = z.strictObject({ role: z.enum(['view', 'edit']), showNotes: z.boolean() })
 
 export function validateMember(body: unknown): z.infer<typeof memberBody> {

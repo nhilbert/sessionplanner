@@ -56,6 +56,15 @@ export type ServerEvent =
   | { type: 'changed' }
   /** For guests: their access to this workshop has ended. */
   | { type: 'revoked' }
+  /** The slide a presentation of this workshop shows now, for every window that presents or leads it (docs/slides.md). */
+  | ({ type: 'present' } & PresentPosition)
+
+/** Where a presentation stands: the deck key of the slide, its number as fallback, and the tag of the window that moved it. */
+export interface PresentPosition {
+  key: string
+  n: number
+  tag: string
+}
 
 const pick = <T extends object, K extends keyof T>(record: T, keys: K[]): Pick<T, K> => {
   const out = {} as Pick<T, K>

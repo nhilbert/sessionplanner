@@ -1,5 +1,5 @@
 import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, SlideTemplate, WorkshopState, WorkshopSummary } from './domain/types'
-import type { Op } from './domain/ops'
+import type { Op, PresentPosition } from './domain/ops'
 import { type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
 import i18n from './i18n'
 
@@ -98,6 +98,8 @@ export const api = {
     call<LibraryEntry>(id ? `/api/library/${id}` : '/api/library', { method: id ? 'PUT' : 'POST', body: JSON.stringify(entry) }),
   deleteLibraryEntry: (id: string) => call<{ ok: true }>(`/api/library/${id}`, { method: 'DELETE' }),
   eventsUrl: (id: string) => `/api/workshops/${id}/events`,
+  /** Pages the presentation of a workshop: every window that presents or leads it follows (docs/slides.md, Presenting). */
+  present: (id: string, position: PresentPosition) => call<{ ok: true }>(`/api/workshops/${id}/present`, { method: 'POST', body: JSON.stringify(position) }),
   /** A picture for slides, stored once by its content (docs/slides.md). */
   uploadAsset: (scope: AssetScope, file: File) => {
     const form = new FormData()
