@@ -36,6 +36,13 @@ function teamDay(ops: Ops) {
 }
 
 describe('workshops and days', () => {
+  it('leaves no half-made workshop behind when its details are refused', () => {
+    const { ops } = setup()
+    expect(() => ops.workshopCreate({ title: 'x'.repeat(301) })).toThrow(/invalid workshop/)
+    expect(() => ops.workshopCreate({ title: 'Zu lang', notes: 'x'.repeat(100_001) })).toThrow(/invalid ops/)
+    expect(ops.workshopList({ includeArchived: true })).toEqual([])
+  })
+
   it('creates a workshop with consecutive days and the given times', () => {
     const { ops } = setup()
     const ws = ops.workshopCreate({ title: 'Klausur', days: 2, start: '10:00', end: null, location: 'Bonn' })
@@ -257,6 +264,25 @@ describe('packing list and library', () => {
     expect(ops.libraryList().map((e) => e.title)).toEqual(['Einstieg'])
     expect(() => ops.libraryGet('Ankommen')).toThrow(/no library entry/)
   })
+
+  it('refuses an item both changed and removed, counts positions after removal and trims the titles inside a group', () => {
+    const { ops } = setup()
+    const entry = ops.libraryCreate({ title: 'Block', items: [{ title: ' A ' }, { title: 'B' }, { title: 'C' }, { title: 'D' }] })
+    expect(entry.items?.map((i) => i.title)).toEqual(['A', 'B', 'C', 'D'])
+    expect(() => ops.libraryUpdate('Block', { item: 2, duration: 60, removeItems: [2] })).toThrow(/both changed .* and removed/)
+    // A taken out; D moved to position 1 of what is left (B, C) lands between them.
+    expect(ops.libraryUpdate('Block', { item: 'D', at: 1, removeItems: ['A'] }).items?.map((i) => i.title)).toEqual(['B', 'D', 'C'])
+    expect(ops.libraryUpdate('Block', { addItems: [{ title: '  E  ' }] }).items?.map((i) => i.title)).toEqual(['B', 'D', 'C', 'E'])
+    // An entry is found by its id directly.
+    expect(ops.libraryGet(entry.id!).title).toBe('Block')
+  })
+
+  it('saves a workshop step to the library in full, as library_create answers', () => {
+    const { ops } = setup()
+    const id = teamDay(ops)
+    ops.itemUpdate(id, 'Rollen', { notes: 'Rollenkarten' })
+    expect(ops.librarySave(id, { item: 'Rollen' })).toMatchObject({ kind: 'item', title: 'Rollen', item: { notes: 'Rollenkarten', category: 'discussion' } })
+  })
 })
 
 describe('duplicate and settings', () => {
@@ -409,7 +435,7 @@ describe('slides', () => {
     writeFileSync(path.join(themesDir, 'sr-light', 'theme.css'), ':root {}')
     mkdirSync(path.join(themesDir, 'broken'))
     const themed = new Ops(new Repo(openDb(':memory:')), { themesDir, today: () => '2026-11-10' })
-    expect(themed.settingsGet()).toMatchObject({ theme: 'default', themes: ['default', 'sr-light'] })
+    expect(themed.settingsGet()).toMatchObject({ theme: 'default', themes: [{ id: 'default', name: 'default' }, { id: 'sr-light', name: 'sr-light' }] })
     const ws = themed.workshopCreate({ title: 'Klausur', theme: 'sr-light' })
     expect(ws.theme).toBe('sr-light')
     expect(themed.workshopUpdate(ws.id!, { theme: 'default' }).theme).toBe('default')

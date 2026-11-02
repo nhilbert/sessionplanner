@@ -113,7 +113,7 @@ export default function Toolbox(p: Props) {
   ) : tab === 'files' ? (
     <FilesPanel data={p.data} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} owner={p.owner} />
   ) : tab === 'deck' ? (
-    <DeckPanel data={p.data} onSelect={p.onSelect} />
+    <DeckPanel data={p.data} change={p.change} owner={p.owner} />
   ) : tab === 'access' ? (
     <AccessPanel data={p.data} />
   ) : (

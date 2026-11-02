@@ -6,14 +6,14 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
-import { createApp, MAX_FILE } from './app.ts'
-import { adjustedOps, type Op, type ServerEvent } from '../src/domain/ops.ts'
+import { createApp, MAX_FILE, type QUOTAS } from './app.ts'
+import type { Op, ServerEvent } from '../src/domain/ops.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
 const H = { 'content-type': 'application/json', 'x-sp': '1' }
 
-function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string } = {}) {
+function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string; proxySecret?: string; quotas?: Partial<typeof QUOTAS>; pingSeconds?: number } = {}) {
   const db = opts.db ?? openDb(':memory:')
   const repo = new Repo(db)
   const hub = new Hub()
@@ -26,6 +26,9 @@ function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; d
     publicUrl: opts.publicUrl,
     staticDir: opts.staticDir,
     linkToken: opts.linkToken,
+    proxySecret: opts.proxySecret,
+    quotas: opts.quotas,
+    pingSeconds: opts.pingSeconds,
   })
   return { app, repo, hub, db }
 }
@@ -81,6 +84,20 @@ describe('guard', () => {
     expect(guest.status).toBe(200)
     expect(await guest.json()).toEqual([])
     expect((await app.request(url, { headers: { 'x-auth-request-email': 'Me@Example.com' } })).status).toBe(200)
+  })
+
+  it('hosted with a proxy secret, trusts the login e-mail only together with it', async () => {
+    const secret = 'a'.repeat(64)
+    const { app } = setup({ owners: ['me@example.com'], publicUrl: new URL('https://sessions.example.com'), proxySecret: secret, linkToken: 'link-token' })
+    const url = 'https://sessions.example.com/api/workshops'
+    const me = { 'x-auth-request-email': 'me@example.com' }
+    // someone who reaches the port without the proxy can set the e-mail header, but not the secret
+    expect((await app.request(url, { headers: me })).status).toBe(403)
+    expect((await app.request(url, { headers: { ...me, 'x-sp-proxy-secret': 'b'.repeat(64) } })).status).toBe(403)
+    expect((await app.request(url, { headers: { ...me, 'x-sp-proxy-secret': secret } })).status).toBe(200)
+    // the health check (from inside the container) and the CRM's link list (its own token) do not need it
+    expect((await app.request('https://sessions.example.com/api/health')).status).toBe(200)
+    expect((await app.request('https://sessions.example.com/api/link/workshops', { headers: { authorization: 'Bearer link-token' } })).status).toBe(200)
   })
 })
 
@@ -140,22 +157,20 @@ describe('workshops and operations', () => {
     expect((await ops(app, a.workshop.id, { clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'x', fields: badLink }] })).status).toBe(400)
   })
 
-  it('echoes a batch so that nothing counts as adjusted, and marks what it did adjust', async () => {
-    const { app } = setup()
+  it('passes every batch on as stored, with the sender\'s tag, so each window takes the server\'s version', async () => {
+    const { app, hub } = setup()
     const ws = await create(app)
     const id = ws.workshop.id
-    const day = ws.days[0].id
-    const sent: Op[] = [
-      { op: 'create', entity: 'item', record: item('a', id, day) },
-      // the fields in an order of the browser's choosing, not the schema's
-      { op: 'set', entity: 'item', id: 'a', fields: { groupId: null, position: 2, dayId: day } },
-    ]
-    const echoed = ((await (await ops(app, id, { clientId: 'c', ops: sent })).json()) as { ops: Op[] }).ops
-    expect(echoed).toHaveLength(2)
-    expect(adjustedOps(sent, echoed)).toEqual([])
+    const seen: ServerEvent[] = []
+    hub.subscribe(id, (e) => seen.push(e))
     const parked: Op[] = [{ op: 'create', entity: 'item', record: item('b', id, 'gone-day') }]
-    const stored = ((await (await ops(app, id, { clientId: 'c', ops: parked })).json()) as { ops: Op[] }).ops
-    expect(adjustedOps(parked, stored)).toMatchObject([{ op: 'create', record: { id: 'b', dayId: null } }])
+    const stored = ((await (await ops(app, id, { clientId: 'window.7', ops: parked })).json()) as { ops: Op[] }).ops
+    expect(stored).toMatchObject([{ op: 'create', record: { id: 'b', dayId: null } }])
+    expect(seen).toEqual([{ type: 'ops', clientId: 'window.7', ops: stored }])
+    // A batch that changes nothing (its record is gone) is answered with no ops and passed to nobody.
+    const none = ((await (await ops(app, id, { clientId: 'window.8', ops: [{ op: 'set', entity: 'item', id: 'gone', fields: { title: 'x' } }] })).json()) as { ops: Op[] }).ops
+    expect(none).toEqual([])
+    expect(seen).toHaveLength(1)
   })
 
   it('refuses dates that are not calendar dates', async () => {
@@ -193,12 +208,28 @@ describe('attachments', () => {
     const down = await app.request(`${BASE}/api/attachments/${att.id}`)
     expect(down.headers.get('content-disposition')).toContain('attachment')
     expect(down.headers.get('content-security-policy')).toBe('sandbox')
+    expect(down.headers.get('content-type')).toBe('application/octet-stream')
+    expect(down.headers.get('x-content-type-options')).toBe('nosniff')
     expect(await down.text()).toBe('<script>alert(1)</script>')
 
     expect((await app.request(`${BASE}/api/attachments/${att.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
     const state = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
     expect(state.attachments).toEqual([])
     expect(state.items[0].attachmentIds).toEqual([])
+  })
+
+  it('never serves a file as something a page could run or style itself with', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    for (const [name, type] of [['x.js', 'text/javascript'], ['x.mjs', 'application/javascript'], ['x.css', 'text/css'], ['x.pdf', 'application/pdf']]) {
+      const form = new FormData()
+      form.append('file', new File(['x'], name, { type }))
+      const att = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()) as { id: string; mime: string }
+      expect(att.mime).toBe(type) // listed as what it is
+      const down = await app.request(`${BASE}/api/attachments/${att.id}`)
+      expect(down.headers.get('content-type')).toBe('application/octet-stream')
+      expect(down.headers.get('content-disposition')).toBe(`attachment; filename*=UTF-8''${name}`)
+    }
   })
 
   it('keeps only a well-formed media type, as sent or as stored', async () => {
@@ -576,6 +607,60 @@ describe('guests', () => {
     expect((await app.request(`${pub}/api/attachments/${shared}`, { headers: ANNA })).status).toBe(200)
     expect((await app.request(`${pub}/api/attachments/${mine}`, { headers: ANNA })).status).toBe(404)
     expect((await app.request(`${pub}/api/attachments/${shared}`, { method: 'DELETE', headers: ANNA })).status).toBe(403)
+  })
+})
+
+describe('limits', () => {
+  const pub = 'https://sessions.example.com'
+  const as = (email: string) => ({ 'x-auth-request-email': email, 'x-sp': '1' })
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+  async function prepared(quotas: Partial<typeof QUOTAS>, pingSeconds?: number) {
+    const ctx = setup({ owners: ['me@example.com'], publicUrl: new URL(pub), quotas, pingSeconds })
+    const id = ctx.repo.createWorkshop({ title: 'Geteilt' }).workshop.id
+    ctx.repo.setMember(id, 'anna@example.com', 'edit', true)
+    const send = async (url: string, bytes: Buffer | string, email: string, name = 'x.txt') => {
+      const form = new FormData()
+      form.append('file', new File([bytes], name, { type: 'application/octet-stream' }))
+      const res = await ctx.app.request(`${pub}${url}`, { method: 'POST', headers: as(email), body: form })
+      return { status: res.status, body: (await res.json()) as { error?: string } }
+    }
+    return { ...ctx, id, file: (bytes: Buffer | string, email: string) => send(`/api/workshops/${id}/attachments`, bytes, email), picture: (bytes: Buffer, email: string) => send(`/api/workshops/${id}/assets`, bytes, email, 'p.png') }
+  }
+
+  it('keeps the files of a workshop under their limit, for the owner too', async () => {
+    const { file } = await prepared({ workshopFiles: 10 })
+    expect((await file('123456', 'me@example.com')).status).toBe(201)
+    expect(await file('123456', 'me@example.com')).toEqual({ status: 413, body: { error: 'quota' } })
+    expect((await file('1234', 'anna@example.com')).status).toBe(201)
+  })
+
+  it('lets a guest upload so much a day, files and slide pictures together; the owner is not counted', async () => {
+    const { file, picture } = await prepared({ guestUploadsPerDay: PNG.length + 6 })
+    expect((await file('123456', 'anna@example.com')).status).toBe(201)
+    expect((await picture(PNG, 'anna@example.com')).status).toBe(201)
+    expect(await picture(Buffer.concat([PNG, Buffer.from([0])]), 'anna@example.com')).toEqual({ status: 429, body: { error: 'upload_budget' } })
+    expect((await file('1', 'anna@example.com')).status).toBe(429)
+    // a picture the server already has takes no room, and the owner uploads as before
+    expect((await picture(PNG, 'anna@example.com')).status).toBe(201)
+    expect((await file('123456', 'me@example.com')).status).toBe(201)
+  })
+
+  it('lets a guest hold so many live-update streams; closing one frees its place, the owner is not counted', async () => {
+    const { app, id } = await prepared({ guestStreams: 2 }, 0.02)
+    const open = (email: string) => app.request(`${pub}/api/workshops/${id}/events`, { headers: as(email) })
+    const first = await open('anna@example.com')
+    const second = await open('anna@example.com')
+    expect([first.status, second.status]).toEqual([200, 200])
+    const third = await open('anna@example.com')
+    expect(third.status).toBe(429)
+    expect(await third.json()).toEqual({ error: 'too_many_streams' })
+    const owners = [await open('me@example.com'), await open('me@example.com'), await open('me@example.com')]
+    expect(owners.map((r) => r.status)).toEqual([200, 200, 200])
+    await first.body!.cancel()
+    await new Promise((r) => setTimeout(r, 30))
+    const again = await open('anna@example.com')
+    expect(again.status).toBe(200)
+    await Promise.all([second, again, ...owners].map((r) => r.body!.cancel()))
   })
 })
 

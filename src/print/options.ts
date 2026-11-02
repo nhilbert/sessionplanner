@@ -73,14 +73,17 @@ export function printLabels(t: TFunction, variant: PrintVariant, categories: Cat
 }
 
 /** Offers a text as a file to save. */
-export function downloadText(name: string, text: string, type = 'text/markdown;charset=utf-8') {
-  const url = URL.createObjectURL(new Blob([text], { type }))
+/** Saves a file the app made (a Markdown twin, a deck as HTML) under `name`. */
+export function downloadBlob(name: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = name
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+export const downloadText = (name: string, text: string, type = 'text/markdown;charset=utf-8') => downloadBlob(name, new Blob([text], { type }))
 
 /** "Teamklausur Bereich Service" → "teamklausur-bereich-service". */
 export const fileSlug = (title: string): string =>

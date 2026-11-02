@@ -191,7 +191,8 @@ export function workshopMarkdown(state: WorkshopState, variant: PrintVariant, o:
   const out: string[] = [`# ${w.title.trim() || l.untitled}`, '', [l.variant, w.client, w.location, dateRange(days, formatDate)].filter((x) => x.trim()).join(' · ')]
   if (variant === 'packing') return finish([...out, '', ...packingLines(state, l)])
   if (o.workshopGoal && w.goal.trim()) out.push('', w.goal.trim())
-  if (o.workshopNotes && variant !== 'agenda' && w.notes.trim()) out.push('', demote(w.notes.trim(), 1))
+  // Below the days' level (##), so a heading in the notes reads as part of the introduction, not as a day.
+  if (o.workshopNotes && variant !== 'agenda' && w.notes.trim()) out.push('', demote(w.notes.trim(), 2))
   days.forEach((day, i) => {
     const { schedule, rows } = dayRows(state, day, variant, o)
     out.push('', `## ${days.length > 1 ? `${l.day(i + 1)} · ` : ''}${formatDate(day.date, true)} · ${formatTime(day.startMin)}–${formatTime(schedule.end)}`, '')

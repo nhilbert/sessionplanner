@@ -1,12 +1,26 @@
 import { type AssetScope, assetUrl } from '@/api'
 import type { DeckSlideRef } from '@/domain/deck'
-import { cjkCodePoints } from '@/domain/deck'
+import { cjkCodePoints, codePoints } from '@/domain/deck'
+import { esc } from '@/domain/slides'
 import { hostHtml } from './SlideView'
 import slidesCss from './slides.css?raw'
 import defaultThemeCss from './themes/default.css?raw'
 import notoCss from '@fontsource/noto-sans-jp/400.css?raw'
+import interCss from '@fontsource-variable/inter/index.css?raw'
+import manropeCss from '@fontsource-variable/manrope/index.css?raw'
+import serifCss from '@fontsource-variable/source-serif-4/index.css?raw'
 
-const notoFiles = import.meta.glob('/node_modules/@fontsource/noto-sans-jp/files/*-400-normal.woff2', { query: '?url', import: 'default' }) as Record<string, () => Promise<string>>
+type FontFiles = Record<string, () => Promise<string>>
+const notoFiles = import.meta.glob('/node_modules/@fontsource/noto-sans-jp/files/*-400-normal.woff2', { query: '?url', import: 'default' }) as FontFiles
+/**
+ * The fonts the app hosts for themes (src/domain/theme.ts; Inter is also the built-in theme's): the file carries the
+ * faces a theme names, so it breaks lines as the app and the printout do.
+ */
+const HOSTED: { family: string; css: string; files: FontFiles }[] = [
+  { family: 'Inter Variable', css: interCss, files: import.meta.glob('/node_modules/@fontsource-variable/inter/files/inter-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
+  { family: 'Manrope Variable', css: manropeCss, files: import.meta.glob('/node_modules/@fontsource-variable/manrope/files/manrope-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
+  { family: 'Source Serif 4 Variable', css: serifCss, files: import.meta.glob('/node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
+]
 
 const toDataUrl = async (url: string): Promise<string | null> => {
   const res = await fetch(url).catch(() => null)
@@ -27,35 +41,38 @@ async function themeCss(theme: string): Promise<string> {
   const res = await fetch(`${base}theme.css`).catch(() => null)
   if (!res?.ok) return defaultThemeCss
   let css = await res.text()
-  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:|\/)/.test(u)))]
+  // Relative addresses are files beside a folder theme; /api/… addresses are the logos of a data theme.
+  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:)/.test(u) && (!u.startsWith('/') || u.startsWith('/api/'))))]
   for (const ref of refs) {
-    const data = await toDataUrl(base + ref.replace(/^\.\//, ''))
+    const data = await toDataUrl(ref.startsWith('/') ? ref : base + ref.replace(/^\.\//, ''))
     if (data) css = css.split(`url(${ref})`).join(`url(${data})`).split(`url('${ref}')`).join(`url('${data}')`).split(`url("${ref}")`).join(`url("${data}")`)
   }
   return css
 }
 
-/** The slices of Noto Sans JP the deck's glyphs need, inlined. */
-async function notoFontFaces(points: Set<number>): Promise<string> {
+/** Whether a unicode-range ("U+0000-00FF,U+0131") covers one of the code points. */
+const covers = (ranges: string, points: Set<number>): boolean =>
+  ranges.split(',').some((r) => {
+    const m = /U\+([0-9a-f]+)(?:-([0-9a-f]+))?/i.exec(r.trim())
+    if (!m) return false
+    const lo = parseInt(m[1], 16)
+    const hi = m[2] ? parseInt(m[2], 16) : lo
+    for (const p of points) if (p >= lo && p <= hi) return true
+    return false
+  })
+
+/** The @font-face rules of a font package that the deck's characters need, with their files inlined. */
+async function inlineFontFaces(css: string, files: FontFiles, points: Set<number>): Promise<string> {
   if (!points.size) return ''
   const out: string[] = []
-  for (const block of notoCss.split('@font-face').slice(1)) {
+  for (const block of css.match(/@font-face\s*\{[^}]*\}/g) ?? []) {
     const ranges = /unicode-range:\s*([^;]+);/.exec(block)?.[1]
     const file = /url\(\.\/files\/([^)]+\.woff2)\)/.exec(block)?.[1]
-    if (!ranges || !file) continue
-    const hit = ranges.split(',').some((r) => {
-      const m = /U\+([0-9a-f]+)(?:-([0-9a-f]+))?/i.exec(r.trim())
-      if (!m) return false
-      const lo = parseInt(m[1], 16)
-      const hi = m[2] ? parseInt(m[2], 16) : lo
-      for (const p of points) if (p >= lo && p <= hi) return true
-      return false
-    })
-    if (!hit) continue
-    const loader = Object.entries(notoFiles).find(([p]) => p.endsWith(`/${file}`))?.[1]
+    if (!file || (ranges && !covers(ranges, points))) continue
+    const loader = Object.entries(files).find(([p]) => p.endsWith(`/${file}`))?.[1]
     const url = loader && (await loader().catch(() => null))
     const data = url && (await toDataUrl(url))
-    if (data) out.push(`@font-face { font-family: 'Noto Sans JP'; font-style: normal; font-weight: 400; src: url(${data}) format('woff2'); unicode-range: ${ranges}; }`)
+    if (data) out.push(block.replace(/url\(\.\/files\/[^)]+\)/, `url(${data})`))
   }
   return out.join('\n')
 }
@@ -90,21 +107,15 @@ export async function exportDeckHtml(deck: DeckSlideRef[], options: { title: str
     }
     sections.push(html)
   }
-  const fonts = await notoFontFaces(cjkCodePoints(sections.join('')))
-  const css = [slidesCss.replace(/@import[^;]+;/g, ''), await themeCss(options.theme), fonts, STAGE_CSS].join('\n')
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const text = sections.join('')
+  const theme = await themeCss(options.theme)
+  const points = codePoints(text)
+  const hosted = await Promise.all(HOSTED.filter((f) => theme.includes(`'${f.family}'`)).map((f) => inlineFontFaces(f.css, f.files, points)))
+  const fonts = [...hosted, await inlineFontFaces(notoCss, notoFiles, cjkCodePoints(text))]
+  const css = [slidesCss.replace(/@import[^;]+;/g, ''), theme, ...fonts, STAGE_CSS].join('\n')
   const doc = `<!doctype html>
 <html lang="${esc(options.lang)}" data-theme="${esc(options.theme)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(options.title)}</title>
 <style>${css}</style></head>
 <body><div class="deck">${sections.join('\n')}</div><div class="hint"></div><script>${SCRIPT}</script></body></html>`
   return new Blob([doc], { type: 'text/html;charset=utf-8' })
-}
-
-export function downloadBlob(name: string, blob: Blob) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

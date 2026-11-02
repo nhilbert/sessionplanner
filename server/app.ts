@@ -12,12 +12,22 @@ import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken }
 import type { Access, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validEmail } from './validate.ts'
+import { BadRequest, isThemeId, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
+import { DARK_TOKENS, DEFAULT_TOKENS, themeCss, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
 /** A picture on a slide (docs/slides.md): stored once per content hash, shown inline. */
 export const MAX_ASSET = 10 * 1024 * 1024
+/** Limits that keep the disk and the server's connections from being filled, by guests in particular. */
+export const QUOTAS = {
+  /** The files of one workshop together, in bytes. */
+  workshopFiles: 500 * 1024 * 1024,
+  /** What one guest may upload per day, files and slide pictures together, in bytes. The owner has no such limit. */
+  guestUploadsPerDay: 250 * 1024 * 1024,
+  /** Live-update streams one guest may hold open at once (one per open window). */
+  guestStreams: 10,
+}
 const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 
 export interface AppOptions extends GuardOptions {
@@ -36,9 +46,11 @@ export interface AppOptions extends GuardOptions {
   /** MCP endpoint for AI agents (server/mcp.ts), mounted at /mcp; it checks its own bearer token. */
   mcp?: Hono
   /** OAuth for the MCP endpoint (server/oauth.ts): discovery and /oauth/* at the root, connection admin under /api/mcp. */
-  oauth?: { routes: Hono; admin: Hono }
+  oauth?: { routes: Hono; admin: Hono<Env> }
   /** Token for GET /api/link/workshops (SP_LINK_TOKEN): another app (the CRM) reads the list to link to workshops. */
   linkToken?: string
+  /** Other limits than QUOTAS (tests). */
+  quotas?: Partial<typeof QUOTAS>
 }
 
 // The built UI loads only its own files; nothing a user typed can run as script.
@@ -58,8 +70,9 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   }
 }
 
-export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, pingSeconds = 25, guestsFile, mcp, oauth, linkToken }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, quotas }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
+  const quota = { ...QUOTAS, ...quotas }
   const filePath = (id: string) => path.join(filesDir, id)
   const assetPath = (hash: string) => path.join(filesDir, 'assets', hash)
   /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
@@ -70,6 +83,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return member ? { role: member.role, showNotes: member.showNotes } : null
   }
   const canEdit = (a: 'owner' | Access | null) => a === 'owner' || a?.role === 'edit'
+
+  // Guests' uploads per day and their open live-update streams, kept in memory: a restart starts afresh.
+  const uploaded = new Map<string, { day: string; bytes: number }>()
+  /** Books an upload of a guest against the day's budget; false when it would go over. The owner has none. */
+  const guestUpload = (c: Context<Env>, access: 'owner' | Access, size: number): boolean => {
+    if (access === 'owner') return true
+    const email = c.get('user').email ?? ''
+    const day = new Date().toISOString().slice(0, 10)
+    const before = uploaded.get(email)
+    const bytes = before?.day === day ? before.bytes : 0
+    if (bytes + size > quota.guestUploadsPerDay) return false
+    uploaded.set(email, { day, bytes: bytes + size })
+    return true
+  }
+  const streams = new Map<string, number>()
 
   app.use('*', async (c, next) => {
     await next()
@@ -92,10 +120,10 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       return c.json(repo.listWorkshops().map(({ id, title, client, archived, firstDate, lastDate }) => ({ id, title, client, archived, firstDate, lastDate })))
     })
   }
-  app.use('/api/*', guard({ publicUrl, owners, ownerHeader }))
+  app.use('/api/*', guard({ publicUrl, owners, ownerHeader, proxySecret }))
   // Every request body is bounded, checked after the guard so that a foreign request is refused before its body is
-  // read. Uploads and operation batches have their room; everything else (JSON of a few kilobytes, the agents'
-  // JSON-RPC, the OAuth forms and registrations) gets a megabyte.
+  // read. Uploads, operation batches and the agents' JSON-RPC have their room; everything else (JSON of a few
+  // kilobytes, the OAuth forms and registrations) gets a megabyte.
   const tooLarge = (c: Context) => c.json({ error: 'too_large' }, 413)
   const limits = {
     upload: bodyLimit({ maxSize: MAX_FILE + 64 * 1024, onError: tooLarge }),
@@ -105,10 +133,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   }
   app.use('/api/*', (c, next) => {
     const p = c.req.path
-    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks)$/.test(p) ? limits.ops : p === '/api/settings/logo' ? limits.logo : limits.json
+    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : limits.json
     return limit(c, next)
   })
-  app.use('/mcp', limits.json)
+  // Agents write whole agendas and slide decks in one call, like the app's operation batches.
+  app.use('/mcp', limits.ops)
   app.use('/oauth/*', limits.json)
   app.onError((err, c) => {
     if (err instanceof BadRequest) return c.json({ error: err.message }, 400)
@@ -168,6 +197,10 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     let access = accessTo(c, id)
     if (!access || !repo.loadWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     const email = c.get('user').email
+    // A guest holds a bounded number of streams; the owner is not counted.
+    const guest = access === 'owner' ? null : (email ?? '')
+    if (guest !== null && (streams.get(guest) ?? 0) >= quota.guestStreams) return c.json({ error: 'too_many_streams' }, 429)
+    if (guest !== null) streams.set(guest, (streams.get(guest) ?? 0) + 1)
     c.header('Cache-Control', 'no-store')
     c.header('X-Accel-Buffering', 'no')
     return streamSSE(c, async (stream) => {
@@ -188,13 +221,26 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
         const filtered = access !== 'owner' && access!.role === 'view' && !access!.showNotes && event.type !== 'workshop-deleted'
         void stream.writeSSE({ data: JSON.stringify(filtered ? { type: 'changed' } : event) })
       })
-      stream.onAbort(unsubscribe)
-      await stream.writeSSE({ event: 'hello', data: '' })
-      while (!stream.aborted && !stream.closed) {
-        await stream.sleep(pingSeconds * 1000)
-        if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: '' })
+      let released = false
+      const release = () => {
+        if (released) return
+        released = true
+        unsubscribe()
+        if (guest === null) return
+        const left = (streams.get(guest) ?? 1) - 1
+        if (left > 0) streams.set(guest, left)
+        else streams.delete(guest)
       }
-      unsubscribe()
+      stream.onAbort(release)
+      try {
+        await stream.writeSSE({ event: 'hello', data: '' })
+        while (!stream.aborted && !stream.closed) {
+          await stream.sleep(pingSeconds * 1000)
+          if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: '' })
+        }
+      } finally {
+        release()
+      }
     })
   })
 
@@ -206,6 +252,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const file = body.file
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (file.size > MAX_FILE) return c.json({ error: 'too_large' }, 413)
+    if (repo.attachmentBytes(c.req.param('id')!) + file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
+    if (!guestUpload(c, access, file.size)) return c.json({ error: 'upload_budget' }, 429)
     const id = newId()
     await mkdir(filesDir, { recursive: true })
     await writeFile(filePath(id), Buffer.from(await file.arrayBuffer()))
@@ -224,9 +272,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!att || !accessTo(c, att.workshopId)) return c.json({ error: 'not_found' }, 404)
     const data = await readFile(filePath(att.id)).catch(() => null)
     if (!data) return c.json({ error: 'not_found' }, 404)
-    // Always a download, never rendered in the app's origin (an uploaded HTML or SVG file must not run).
+    // Always a download, never rendered in the app's origin (an uploaded HTML or SVG file must not run), and never
+    // of a type a page could load as script or stylesheet: with nosniff, <script src> refuses an octet-stream. The
+    // stored type stays in the list of files; the file name keeps its extension for the program that opens it.
     return c.body(new Uint8Array(data), 200, {
-      'Content-Type': safeMime(att.mime),
+      'Content-Type': 'application/octet-stream',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(att.name)}`,
       'Content-Security-Policy': 'sandbox',
       'Cache-Control': 'private, no-store',
@@ -245,7 +295,12 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   // ---- settings and logo -------------------------------------------------------------------------
   const logoPath = path.join(filesDir, 'logo')
   app.get('/api/settings', (c) => c.json(repo.getSettings()))
-  app.put('/api/settings', ownerOnly, async (c) => c.json(repo.saveSettings({ ...validateSettings(await jsonBody(c)), logo: repo.getSettings().logo })))
+  app.put('/api/settings', ownerOnly, async (c) => {
+    const settings = validateSettings(await jsonBody(c))
+    // A theme that is gone (deleted in another window) is not set as the default again.
+    if (settings.theme && !listThemes(themesDir, repo.listThemes()).some((t) => t.id === settings.theme)) settings.theme = ''
+    return c.json(repo.saveSettings({ ...settings, logo: repo.getSettings().logo }))
+  })
 
   app.post('/api/settings/logo', ownerOnly, async (c) => {
     const file = (await c.req.parseBody()).file
@@ -335,7 +390,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return null
   }
   const HASH = /^[0-9a-f]{64}$/
-  const storeAsset = async (c: Context<Env>) => {
+  const storeAsset = async (c: Context<Env>, access: 'owner' | Access) => {
     const file = (await c.req.parseBody()).file
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (file.size > MAX_ASSET) return c.json({ error: 'too_large' }, 413)
@@ -343,6 +398,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const mime = sniff(data)
     if (!mime) throw new BadRequest('png, jpeg, webp or gif only')
     const hash = createHash('sha256').update(data).digest('hex')
+    // A picture the server has already takes no more room.
+    if (!repo.getAsset(hash) && !guestUpload(c, access, data.length)) return c.json({ error: 'upload_budget' }, 429)
     await mkdir(path.join(filesDir, 'assets'), { recursive: true })
     await writeFile(assetPath(hash), data)
     return c.json(repo.addAsset({ hash, mime, size: data.length }), 201)
@@ -358,7 +415,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const access = accessTo(c, c.req.param('id')!)
     if (!access) return c.json({ error: 'not_found' }, 404)
     if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
-    return storeAsset(c)
+    return storeAsset(c, access)
   })
   app.get('/api/workshops/:id/assets/:hash', (c) => {
     const id = c.req.param('id')!
@@ -367,7 +424,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!accessTo(c, id) || !HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
     return sendAsset(c, hash)
   })
-  app.post('/api/library/assets', storeAsset)
+  app.post('/api/library/assets', (c) => storeAsset(c, 'owner'))
   app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!))
   app.post('/api/assets/sweep', ownerOnly, async (c) => {
     const gone = repo.sweepAssets()
@@ -375,18 +432,109 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ removed: gone.length })
   })
 
-  // ---- slide themes: folders in data/themes, each a theme.css with its fonts and logos ----------------------
+  // ---- slide themes: kept as data (colours, fonts, logo; the stylesheet is generated) or as folders in data/themes ----
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
-  app.get('/api/themes', (c) => c.json(listThemes(themesDir)))
+  const themeLogoPath = (id: string, variant: 'logo' | 'logoLight') => path.join(filesDir, 'theme-logos', variant === 'logo' ? id : `${id}-light`)
+  app.get('/api/themes', (c) => c.json(listThemes(themesDir, repo.listThemes())))
+  /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
+  app.get('/api/themes/:id', ownerOnly, (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    return theme ? c.json(theme) : c.json({ error: 'not_found' }, 404)
+  })
   app.get('/api/themes/:name/*', async (c) => {
     const name = c.req.param('name')!
     const rel = c.req.path.slice(`/api/themes/${name}/`.length).split('/')
-    if (!themesDir || !THEME_NAME.test(name) || !rel.length || rel.some((s) => !/^[A-Za-z0-9._-]+$/.test(s) || s === '..')) return c.json({ error: 'not_found' }, 404)
+    if (!THEME_NAME.test(name) || !rel.length || rel.some((s) => !/^[A-Za-z0-9._-]+$/.test(s) || s === '..')) return c.json({ error: 'not_found' }, 404)
+    const data = repo.getTheme(name)
+    if (data) {
+      if (rel.length === 1 && rel[0] === 'theme.css') {
+        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo'), logoLightUrl: themeLogoUrl(data, 'logoLight') })
+        // Changed in the theme editor at any time: asked for again on every load (it is small).
+        return c.body(css, 200, { 'Content-Type': THEME_TYPES['.css'], 'Cache-Control': 'private, no-cache' })
+      }
+      if (rel.length === 1 && (rel[0] === 'logo' || rel[0] === 'logo-light')) {
+        const variant = rel[0] === 'logo' ? 'logo' : 'logoLight'
+        const logo = variant === 'logo' ? data.logo : data.logoLight
+        const bytes = logo && (await readFile(themeLogoPath(data.id, variant)).catch(() => null))
+        if (!logo || !bytes) return c.json({ error: 'not_found' }, 404)
+        return c.body(new Uint8Array(bytes), 200, { 'Content-Type': logo.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
+      }
+      return c.json({ error: 'not_found' }, 404)
+    }
+    if (!themesDir) return c.json({ error: 'not_found' }, 404)
     const type = THEME_TYPES[path.extname(rel[rel.length - 1]).toLowerCase()]
-    const data = type && (await readFile(path.join(themesDir, name, ...rel)).catch(() => null))
-    if (!type || !data) return c.json({ error: 'not_found' }, 404)
-    return c.body(new Uint8Array(data), 200, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
+    const bytes = type && (await readFile(path.join(themesDir, name, ...rel)).catch(() => null))
+    if (!type || !bytes) return c.json({ error: 'not_found' }, 404)
+    return c.body(new Uint8Array(bytes), 200, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
   })
+  app.post('/api/themes', ownerOnly, async (c) => {
+    const input = validateTheme(await jsonBody(c))
+    // Copied from another theme, started dark, or the neutral default.
+    const from = input.from ? repo.getTheme(input.from) : null
+    if (input.from && !from && input.from !== 'default' && input.from !== 'dark') throw new BadRequest(`no theme "${input.from}" to copy`)
+    const tokens = input.tokens ?? from?.tokens ?? (input.from === 'dark' ? DARK_TOKENS : DEFAULT_TOKENS)
+    let id = themeIdFrom(input.name, newId)
+    while (repo.getTheme(id) || listThemes(themesDir).some((t) => t.id === id)) id = themeIdFrom(input.name, newId)
+    repo.createTheme({ id, name: input.name, tokens })
+    if (from) {
+      // The logos come along with a copy.
+      await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
+      for (const variant of ['logo', 'logoLight'] as const) {
+        const logo = from[variant]
+        if (!logo) continue
+        await copyFile(themeLogoPath(from.id, variant), themeLogoPath(id, variant)).catch(() => undefined)
+        repo.setThemeLogo(id, variant, { ...logo, updatedAt: new Date().toISOString() })
+      }
+    }
+    return c.json(repo.getTheme(id), 201)
+  })
+  app.put('/api/themes/:id', ownerOnly, async (c) => {
+    const current = repo.getTheme(c.req.param('id')!)
+    if (!current) return c.json({ error: 'not_found' }, 404)
+    const theme = repo.updateTheme(current.id, validateThemePatch(await jsonBody(c), current.tokens))
+    return c.json(theme)
+  })
+  app.delete('/api/themes/:id', ownerOnly, async (c) => {
+    const id = c.req.param('id')!
+    if (!isThemeId(id)) return c.json({ error: 'not_found' }, 404)
+    const result = repo.deleteTheme(id)
+    if (!result) return c.json({ error: 'not_found' }, 404)
+    await Promise.all([rm(themeLogoPath(id, 'logo'), { force: true }), rm(themeLogoPath(id, 'logoLight'), { force: true })])
+    // Workshops that used the theme fall back to the default: the open windows learn it like any other change.
+    for (const w of result.workshops) hub.publish(w, { type: 'ops', clientId: 'server', ops: [{ op: 'set', entity: 'workshop', id: w, fields: { theme: '' } }] })
+    return c.json({ ok: true })
+  })
+  const logoVariant = (c: Context): 'logo' | 'logoLight' => (c.req.query('variant') === 'light' ? 'logoLight' : 'logo')
+  app.post('/api/themes/:id/logo', ownerOnly, async (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    if (!theme) return c.json({ error: 'not_found' }, 404)
+    const file = (await c.req.parseBody()).file
+    if (!(file instanceof File)) throw new BadRequest('file required')
+    if (!LOGO_TYPES.includes(file.type)) throw new BadRequest('png, jpeg, webp or svg only')
+    if (file.size > MAX_LOGO) return c.json({ error: 'too_large' }, 413)
+    const variant = logoVariant(c)
+    await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
+    await writeFile(themeLogoPath(theme.id, variant), Buffer.from(await file.arrayBuffer()))
+    return c.json(repo.setThemeLogo(theme.id, variant, { mime: file.type, updatedAt: new Date().toISOString() }))
+  })
+  app.delete('/api/themes/:id/logo', ownerOnly, async (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    if (!theme) return c.json({ error: 'not_found' }, 404)
+    const variant = logoVariant(c)
+    await rm(themeLogoPath(theme.id, variant), { force: true })
+    return c.json(repo.setThemeLogo(theme.id, variant, null))
+  })
+
+  // ---- template slides (owner only): named slides to start from, shared by all workshops --------------------------
+  app.use('/api/slide-templates', ownerOnly)
+  app.use('/api/slide-templates/*', ownerOnly)
+  app.get('/api/slide-templates', (c) => c.json(repo.listSlideTemplates()))
+  app.post('/api/slide-templates', async (c) => c.json(repo.saveSlideTemplate(null, validateSlideTemplate(await jsonBody(c))), 201))
+  app.put('/api/slide-templates/:id', async (c) => {
+    const saved = repo.saveSlideTemplate(c.req.param('id')!, validateSlideTemplate(await jsonBody(c)))
+    return saved ? c.json(saved) : c.json({ error: 'not_found' }, 404)
+  })
+  app.delete('/api/slide-templates/:id', (c) => (repo.deleteSlideTemplate(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
 
   // ---- AI agents (owner only): connections approved over OAuth, each can be disconnected ------------------
   if (oauth) {

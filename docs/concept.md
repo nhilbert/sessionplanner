@@ -62,7 +62,7 @@ Computing a day (pure function, `src/domain/time.ts`):
 
 - Material entries on an item: label, quantity, optional link.
 - **Packing list** of the workshop: entries grouped by label (case and spaces ignored). The quantity is the *largest* quantity of any single item, not the sum, because two steps with two flipcharts each need two flipcharts. The quantity can be overridden (e.g. cards are used up), each line can be ticked off, and marked "at the venue".
-- **Attachments**: upload files to the workshop (up to 25 MB each), link them to items, download them. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `nosniff`, sandbox CSP), so a file can never run as a page.
+- **Attachments**: upload files to the workshop (up to 25 MB each, 500 MB per workshop), link them to items, download them. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `Content-Type: application/octet-stream`, `nosniff`, sandbox CSP), so a file can never run as a page, nor be loaded by one as script or stylesheet.
 
 ## 6. Output
 
@@ -75,9 +75,9 @@ Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 por
 
 ## 7. Working together
 
-- The server is the source of truth. Every change is a small operation (set these fields of this item, create, delete); each window applies its own changes at once and sends them; the server stores them and passes them to every other open window of the workshop (server-sent events).
-- Changes are per field, so two people editing different items or different fields never collide. On the same field, the later change wins; a field you are typing in is not overwritten by someone else's change while you type.
-- After a lost connection the window reloads the workshop from the server. No offline editing in the first stages (co-editing matters more than offline use).
+- The server is the source of truth. Every change is a small operation (set these fields of this item, create, delete); each window applies its own changes at once and sends them; the server stores them and passes them, as stored, to every open window of the workshop, the sender's included (server-sent events). Each window builds the server's state from that stream in the server's order and shows its own changes still on their way on top of it (`src/domain/sync.ts`).
+- Changes are per field, so two people editing different items or different fields never collide. On the same field, the change the server stored last wins, in every window; a field you are typing in is not overwritten by someone else's change while you type, and a field you only visited does not write back what it showed.
+- After a lost connection the window reloads the workshop from the server, once the changes it was sending are through. No offline editing in the first stages (co-editing matters more than offline use).
 - Undo works on your own changes in this window.
 
 ## 8. Access model (stage 3)
@@ -113,7 +113,8 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 3. **Sharing** – in progress: section 8.
 4. **Claude connector (MCP)** – done (2026-10-29): Claude reads and edits workshops (draft an agenda from a brief, adjust timings, group and park items, fill the packing list, use the library), over stdio locally and over `/mcp` with OAuth as in Zendo; see [mcp.md](mcp.md).
 5. **Import of the owner's sample sessions** into the hosted instance once the feature baseline stands (private material, never in this repository).
-6. **Slides** – in progress (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
+6. **Slides** – done (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
+7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7.
 
 **Backlog** (no order):
 
@@ -122,11 +123,40 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Minimum duration and "optional" per item, with fit suggestions for a stretch that is over.
 - Asking before saving the same item to the library twice.
 - Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far. The presentation view is its seed; a break slide could show the re-forecast end.
-- Slides: connector tools that read and write slides; a best-effort PPTX export from the format; moving a slide between items; updating placed copies from the library.
+- Slides: a best-effort PPTX export from the format; moving a slide between items; updating placed copies from the library; themes and templates through the connector.
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
+
+**2026-11-02, slides are looked at first**
+
+- A slide opens to look at it: large, without fields, paging by arrows, swipe or thumbnails. Editing is one step away (Edit, E, a double-click on a text, which opens its field); Done or Escape goes back. A slide just added and "Edit slides" open straight into editing; read-only slides stay in the viewer with their note. Undo works in both. "Present from here" in the planner opens the presentation at the slide shown.
+- Counter-argument considered: one more click for every change. Accepted because viewing is the common case, and the double-click on a text goes straight to its field.
+
+**2026-11-02, slides throughout the app**
+
+- One way to open a slide: a thumbnail outside a picker opens that slide in the editor, from a step, the slide count on an agenda card, the deck tab, the library, the templates and the pool; the editor pages within what it was opened from and says so in its header. Generated slides in the deck are shown with what they are made of and what can be done instead (details, hide, a slide of its own for a break); pool slides are read-only with "Save as template". Pickers keep selecting.
+- The editor has its own history: every change a step (typing in one field one step), Ctrl+Z inside the fields too, buttons in the header; a step changed elsewhere since is dropped, not forced. In the planner the whole editing session is one undo step.
+- Dialogs, sheets, menus and the editor take the focus, keep Tab inside and give it back to their opener.
+- The pool, the templates and the themes form one navigation entry, Slides, with tabs; a workshop's theme is chosen in its Slides tab; "Manage themes" and "Manage templates" sit wherever a theme or a template is chosen. Owner pages send guests to their workshops.
+- Accepted: presentation windows load the deck once (no editing while presenting); concurrent changes to different slides of one step resolve by the later save.
+
+**2026-11-02, after a review of the whole code**
+
+- Every window applies the server's stream in order, its own changes included, and shows its pending changes on top (section 7). Before, a window skipped its own changes on the stream, so two windows that changed the same field at nearly the same time could end with different values; and a reload after a lost connection could undo a change that was still on its way.
+- A field saves only what was typed in it: a field merely visited no longer writes back the text it showed over a change from another window.
+- Typed lengths: whole minutes, or hours with a decimal ("1,5 h"; "1,5" alone is not a length); blocks and breaks take at least 5 minutes, as every other control already enforced. Clock times also as "9 Uhr" or "9h".
+- The presenter view and "today" count in the workshop's time zone, not in UTC or the device's zone.
+- The connector takes calls as large as an operation batch (4 MB), so a whole agenda or deck fits in one call; a workshop it creates is checked like the app's and is not left half-made when its details are refused.
+
+**2026-11-01, slide editor** (revises "no slide editor" from the same morning)
+
+- Slides are edited in the app after all, but as content, never as pixels: fields for the words next to the live slide, the layout chosen from the catalogue, the appearance from the theme. Research into slide tools pointed the same way (Beautiful.ai's constraint templates, Gamma's cards, Marp's separation of content and style, the theme/master/layout split of PowerPoint and Google Slides); the catalogue of docs/slides.md is this app's constraint, the editor fills it. The source stays reachable for what the fields do not model, and no slide is locked.
+- Themes become data the owner edits in the app: ten colours, two hosted fonts, a few choices and the logo; the rest is derived in OKLab, the stylesheet is generated, the text contrast checked against WCAG 2.2. Theme folders stay for a brand that needs more than tokens. The reason to drop "themes live in the private setup": the owner should set a client's colours in minutes, not deploy a stylesheet.
+- Template slides are named slides to start from, shared like the library and copied on insert. They are not masters: the catalogue's layouts are the masters, and the stylesheet owns them.
+- No contentEditable on the slide. A click on the slide opens the field it shows, the field lights up its element; plain inputs behave the same on phones and with screen readers.
+- Guests with edit rights edit slides too; templates, themes and the pool stay the owner's.
 
 **2026-11-01, slides**
 
@@ -134,9 +164,10 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Existing decks are translated once, by Claude with the `deck-translate` skill, against the catalogue; the result is reviewed in a static preview before it is uploaded. The translated decks form a slide pool in the app; slides are copied from the pool into items and library entries, so the pool is a source, not a dependency.
 - Slides are item content and travel with the library, copies and duplicates; the library's "no files" rule now reads "no attachments". Pictures are assets stored once by content hash, served through the API with the workshop's access check.
 - Nothing a guest writes may run: slides are sanitised on write and on render with an allowlist, SVG included; assets are raster only.
+- Nothing a guest does may fill the server: a guest uploads at most 250 MB a day (files and slide pictures together; a picture the server already has costs nothing) and holds at most 10 live-update streams at once (one per window); the files of a workshop take at most 500 MB, the owner's too. The day's count and the streams are kept in memory, so a restart starts afresh (`QUOTAS` in `server/app.ts`).
 - The app generates what the plan knows: title, agenda and break slides with the computed times; the facts panel of an exercise can come from the item later.
 - Glyphs on section slides need a CJK font; Noto Sans JP, sliced, loaded on demand, inlined into the standalone file when used.
-- No slide editor. A source field for small fixes; everything else happens outside, or through the connector later.
+- No slide editor. A source field for small fixes; everything else happens outside, or through the connector later. *(Revised the same day: see "slide editor" above.)*
 
 
 **2026-10-30, after trying it on a phone**
@@ -206,8 +237,8 @@ The same app, not a reduced one; what differs follows the device, consistently:
 - **Domain logic** in `src/domain/` without UI or clock (time rules, ordering, packing list, operations), shared by browser and server and tested in isolation.
 - **API**: `GET /api/workshops`, `POST /api/workshops`, `GET|DELETE /api/workshops/:id`, `POST /api/workshops/:id/ops` (a batch of operations, applied in one transaction), `GET /api/workshops/:id/events` (server-sent events), attachments under `/api/workshops/:id/attachments` and `/api/attachments/:id`.
 - **Order** by a fractional position per day / parking lot; renumbered when two positions get too close.
-- **Guard** as in Zendo: changes only with the app's header, from its own host and origin; hosted, the owner's e-mail header must be present and listed (`SP_OWNERS`).
-- **MCP** (`/mcp`, outside `/api`, only with `SP_MCP_OAUTH=1` or `SP_MCP_TOKEN`): MCP over Streamable HTTP for AI agents, authenticated with `Authorization: Bearer` (an OAuth access token or the static token). `server/oauth.ts` serves the OAuth discovery and `/oauth/*` endpoints (clients and token hashes in `oauth_clients` / `oauth_tokens`, migration 0004); `GET/DELETE /api/mcp/connections` (owner only) backs Settings → AI agents. The tools (`server/mcp.ts`) wrap `server/ops.ts`, which turns an agent's request into a batch of operations, validates it like the browser's, applies it through `Repo.applyOps` and publishes it on the hub. The same tools run over stdio (`npm run mcp`). See [mcp.md](mcp.md).
+- **Guard** as in Zendo: changes only with the app's header, from its own host and origin; hosted, the owner's e-mail header must be present and listed (`SP_OWNERS`), and with `SP_PROXY_SECRET` it counts only on requests that carry the login proxy's secret, so reaching the container port past the proxy is not enough to forge it.
+- **MCP** (`/mcp`, outside `/api`, only with `SP_MCP_OAUTH=1` or `SP_MCP_TOKEN`): MCP over Streamable HTTP for AI agents, authenticated with `Authorization: Bearer` (an OAuth access token or the static token). `server/oauth.ts` serves the OAuth discovery and `/oauth/*` endpoints (clients and token hashes in `oauth_clients` / `oauth_tokens`, migration 0004); `GET/DELETE /api/mcp/connections` and `POST /api/mcp/arm` (owner only) back Settings → AI agents; hosted, a new connection can be approved only within 10 minutes after **Connect an agent** there, once, so a consent link someone else sends cannot connect their agent. The tools (`server/mcp.ts`) wrap `server/ops.ts`, which turns an agent's request into a batch of operations, validates it like the browser's, applies it through `Repo.applyOps` and publishes it on the hub. The same tools run over stdio (`npm run mcp`). See [mcp.md](mcp.md).
 - **Link list** (`GET /api/link/workshops`, only with `SP_LINK_TOKEN`): the CRM links its deliveries to workshops. It authenticates with `Authorization: Bearer` and its own token, outside the login's guard, and gets id, title, client, first and last date and the archived flag of all workshops – no agendas, notes, people or files, and nothing it could change. Hosted, it is meant to be reachable only inside the server (the reverse proxy serves it on an internal port and refuses it on the public address); the token is a second line, not the only one. The CRM keeps the workshop id and title on the delivery and links to `/w/:id`, which opens behind the login as usual.
 - **One container**, data in `/data` (`sessions.db`, `files/`, daily `VACUUM INTO` copies in `backups/`).
 - **Server setup** in a private setup repository, never here (reverse-proxy block, compose file, redirect URI of the login, deploy entry).

@@ -36,13 +36,18 @@ describe('MCP endpoint', () => {
     await expect(ready).rejects.toThrow()
   })
 
-  it('refuses a request body over a megabyte', async () => {
-    const res = await app.request('/mcp', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${TOKEN}` },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'workshop_create', arguments: { title: 'x'.repeat(1.5 * 1024 * 1024) } } }),
-    })
-    expect(res.status).toBe(413)
+  it('takes calls as large as an operation batch, refuses larger bodies, and checks a new workshop like the app', async () => {
+    const call = (title: string) =>
+      app.request('/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${TOKEN}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'workshop_create', arguments: { title } } }),
+      })
+    expect((await call('x'.repeat(4.5 * 1024 * 1024))).status).toBe(413)
+    // Within the limit the body is read, and the title is refused as too long for a workshop.
+    const res = await call('x'.repeat(1.5 * 1024 * 1024))
+    expect(res.status).toBe(200)
+    expect(JSON.stringify(await res.json())).toContain('isError')
   })
 
   it('lists the tools, creates a workshop and drafts an agenda with computed times', async () => {
@@ -92,7 +97,7 @@ describe('MCP endpoint', () => {
     expect(one).toMatchObject({ n: 1, layout: 'statement', html: edited.updated.html })
     const outline = json(await client.callTool({ name: 'deck_outline', arguments: { workshop: 'Strategietag', agenda: false } }))
     expect(outline.deck.map((d: { generated?: string; item?: string }) => d.generated ?? d.item)).toEqual(['title', 'Check-in'])
-    expect(json(await client.callTool({ name: 'settings_get', arguments: {} })).themes).toEqual(['default'])
+    expect(json(await client.callTool({ name: 'settings_get', arguments: {} })).themes).toEqual([{ id: 'default', name: 'default' }])
     await client.close()
   })
 

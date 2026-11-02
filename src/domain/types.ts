@@ -154,6 +154,18 @@ export interface DeckSlide {
   caption: string
 }
 
+/** A named slide to start new slides from (docs/slides.md, section 7), shared by all workshops; inserting makes a copy. */
+export interface SlideTemplate {
+  id: string
+  name: string
+  /** The layout of its markup, for grouping in the picker. */
+  layout: string
+  html: string
+  position: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Attachment {
   id: string
   workshopId: string
@@ -222,3 +234,6 @@ export interface Access {
   role: MemberRole
   showNotes: boolean
 }
+
+/** The time zone of a new workshop (the database's default, server/db/migrations/0001_init.sql): its days and "today" are counted there. */
+export const DEFAULT_TIMEZONE = 'Europe/Berlin'

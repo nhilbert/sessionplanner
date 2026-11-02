@@ -10,6 +10,7 @@ import Swatches from '@/components/Swatches'
 import AgentConnections from '@/components/AgentConnections'
 import { TextField, TimeField } from '@/planner/fields'
 import { ThemeSelect } from '@/slides/ThemeSelect'
+import { ManageThemes } from '@/slides/DeckPanel'
 
 const MAX_LOGO = 2 * 1024 * 1024
 
@@ -58,9 +59,14 @@ export default function SettingsPage() {
         </section>
 
         <section className="card mb-6 p-5">
-          <SectionLabel>{t('settings.theme')}</SectionLabel>
-          <ThemeSelect value={settings.theme} onChange={(theme) => update({ theme })} />
+          <SectionLabel>{t('settings.slides')}</SectionLabel>
+          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+            <span className="text-ink-2">{t('settings.theme')}</span>
+            <ThemeSelect value={settings.theme} onChange={(theme) => update({ theme })} />
+            <ManageThemes />
+          </div>
           <p className="mt-2 text-[13px] text-ink-3">{t('settings.themeHint')}</p>
+          <p className="mt-1 text-[13px] text-ink-3">{t('settings.slidesHint')}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Button size="sm" onClick={() => void api.sweepAssets().then((r) => setSwept(r.removed))}>
               {t('slides.sweep')}

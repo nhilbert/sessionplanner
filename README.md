@@ -11,13 +11,14 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - **Library** shared by all workshops: save a step or a group, drag it into any agenda as a copy.
 - Per step: short description, goal, method, lead, notes, material and files.
 - **Packing list** from all material (largest quantity of any single step, not the sum), tick off, mark "at the venue", override quantities, add material right there.
-- **Files** (up to 25 MB) attached to the workshop and linked to steps.
+- **Files** (up to 25 MB each, 500 MB per workshop) attached to the workshop and linked to steps.
 - **Print views** on A4 portrait with your logo: planning overview (a table with the columns you choose), moderation plan (one card per step with the time large in the margin, tick boxes, goal, method, material and notes, a day-at-a-glance list first), client agenda, packing list. Every view has a Markdown twin to copy or save.
 - **Live updates** between open windows and devices; undo/redo (`Ctrl+Z`, `Ctrl+Shift+Z`).
 - German and English, light and dark.
 - **On a phone**: days stack, the sidebar fills the screen, menus and the time editor come up as bottom sheets, a tap opens an item, press and hold drags it, a tap on the length changes it.
 - **Workshops list** with search (title, client, location), each workshop's dates, agenda length and location.
 - **Slides** on steps and library entries: text in a small slide format with a fixed catalogue of layouts, one stylesheet, themes as data; a slide pool of translated decks to pick from; the deck of a workshop with generated title, agenda and break slides; present from the app with a presenter view that follows the clock, save as one HTML file, print 16:9 – see [docs/slides.md](docs/slides.md).
+- **Slide editor**: a slide opens to look at – large, paged by arrows, swipe or thumbnails, "Present from here" in the planner; Edit, E or a double-click on a text brings the fields. Editing shows the slide live on one side, its content as fields on the other; a click on the slide opens the field it shows. The layout is chosen from the catalogue and carries the content along; the editor says what no longer fits. A slide thumbnail anywhere – a step, the slide count on an agenda card, the deck, the library, the templates, the pool – opens the same editor, paging through what it came from; generated slides explain where they come from. The editor has its own undo and redo (in the planner one undo step per session) and keeps the keyboard focus where it belongs. **Themes** (colours, fonts, logo, with WCAG contrast checks) and **template slides** live with the pool under Slides in the navigation, shared by all workshops. Works the same on a phone: the slide on top, the fields below.
 - **AI agents** (Claude, Claude Code …) work with the same data through the built-in MCP server: draft an agenda from a brief, rework timings, fill the packing list, write and edit slides – see [docs/mcp.md](docs/mcp.md).
 
 The concept, decisions and the next stages (planning comfort, sharing by link, live mode) are in [docs/concept.md](docs/concept.md).

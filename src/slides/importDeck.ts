@@ -56,10 +56,12 @@ const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
 
 /**
  * Uploads one translated deck into the pool: its pictures once by content, its slides sanitised; optionally the
- * library entries its manifest proposes (existing titles are skipped). Reports progress in slides.
+ * library entries its manifest proposes (existing titles are skipped). Reports progress in slides, and the pictures
+ * a slide refers to that are not in the chosen folder (those slides come without them).
  */
-export async function importDeck(found: FoundDeck, options: { createEntries: boolean; existingTitles: Set<string>; categories: string[] }, progress?: (done: number, total: number) => void): Promise<{ deck: Deck; entries: number }> {
+export async function importDeck(found: FoundDeck, options: { createEntries: boolean; existingTitles: Set<string>; categories: string[] }, progress?: (done: number, total: number) => void): Promise<{ deck: Deck; entries: number; missing: string[] }> {
   const hashes = new Map<string, string>()
+  const missing = new Set<string>()
   const slides: { file: string; html: string; caption: string }[] = []
   let done = 0
   for (const file of found.fragments) {
@@ -69,7 +71,10 @@ export async function importDeck(found: FoundDeck, options: { createEntries: boo
       let hash = hashes.get(name)
       if (!hash) {
         const picture = assetFile(found, name)
-        if (!picture) continue
+        if (!picture) {
+          missing.add(name)
+          continue
+        }
         hash = (await api.uploadAsset('library', picture)).hash
         hashes.set(name, hash)
       }
@@ -79,7 +84,8 @@ export async function importDeck(found: FoundDeck, options: { createEntries: boo
     slides.push({ file: pathOf(file).slice(found.folder.length), html, caption: slideTitle(html) })
     progress?.(++done, found.fragments.length)
   }
-  const { deck } = await api.createDeck({ title: found.meta.title, theme: found.meta.theme ?? '', source: found.meta.source ?? found.folder.replace(/\/$/, ''), slides: slides.map(({ html, caption }) => ({ html, caption })) })
+  // Theme names are folder names in lower case (server/themes.ts).
+  const { deck } = await api.createDeck({ title: found.meta.title, theme: (found.meta.theme ?? '').trim().toLowerCase(), source: found.meta.source ?? found.folder.replace(/\/$/, ''), slides: slides.map(({ html, caption }) => ({ html, caption })) })
   let entries = 0
   if (options.createEntries) {
     const byFile = new Map(slides.map((s) => [s.file, s.html]))
@@ -105,5 +111,5 @@ export async function importDeck(found: FoundDeck, options: { createEntries: boo
       entries++
     }
   }
-  return { deck, entries }
+  return { deck, entries, missing: [...missing] }
 }

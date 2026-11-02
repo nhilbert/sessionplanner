@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
 import { PALETTE, type ItemContent, type Settings } from '../src/domain/types.ts'
-import { normalizeSlideHtml } from '../src/domain/slides.ts'
+import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
+import { DERIVED_COLOR_KEYS, FONT_KEYS, THEME_COLOR_KEYS, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
 export class BadRequest extends Error {}
 
@@ -188,4 +189,47 @@ const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*(?:\s*;\s*[
 export function safeMime(value: string): string {
   const mime = value.trim().toLowerCase()
   return mime.length <= 255 && MIME.test(mime) ? mime : 'application/octet-stream'
+}
+
+// ---- slide themes as data and template slides (docs/slides.md) -------------------------------------------------
+
+const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'a colour as #rrggbb')
+const colorKey = z.enum(THEME_COLOR_KEYS)
+const derivedKey = z.enum(DERIVED_COLOR_KEYS)
+const tokensBody = z.strictObject({
+  colors: z.partialRecord(colorKey, hex).optional(),
+  overrides: z.partialRecord(derivedKey, hex).optional(),
+  fonts: z.strictObject({ display: z.enum(FONT_KEYS).optional(), body: z.enum(FONT_KEYS).optional() }).optional(),
+  displayWeight: z.union([z.literal(500), z.literal(600), z.literal(700)]).optional(),
+  radius: z.number().int().min(0).max(40).optional(),
+  chrome: z.boolean().optional(),
+  titleScrim: z.boolean().optional(),
+  logo: z.enum(['none', 'title', 'all']).optional(),
+})
+const themeBody = z.strictObject({ name: text(100), tokens: tokensBody.optional(), from: text(60).optional() })
+const themePatch = z.strictObject({ name: text(100).optional(), tokens: tokensBody.optional() })
+
+/** A new theme: its name, and either tokens or the id of a theme to copy them from (`from`). */
+export function validateTheme(body: unknown): { name: string; tokens?: ThemeTokens; from?: string } {
+  const parsed = themeBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid theme: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return { name: parsed.data.name.trim(), tokens: parsed.data.tokens ? withDefaults(parsed.data.tokens as Partial<ThemeTokens>) : undefined, from: parsed.data.from }
+}
+
+export function validateThemePatch(body: unknown, current: ThemeTokens): { name?: string; tokens?: ThemeTokens } {
+  const parsed = themePatch.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid theme: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  // The patch is complete tokens as the editor sends them: what it leaves out keeps the current value.
+  return { name: parsed.data.name?.trim(), tokens: parsed.data.tokens ? withDefaults(parsed.data.tokens as Partial<ThemeTokens>, current) : undefined }
+}
+
+export const isThemeId = (value: string): boolean => THEME_ID.test(value)
+
+const templateBody = z.strictObject({ name: text(200), html: text(200_000).transform(normalizeSlideHtml), position: z.number().finite().optional() })
+
+/** A template slide: its name, its markup (sanitised like every slide; the layout is read from it) and an optional position. */
+export function validateSlideTemplate(body: unknown): { name: string; layout: string; html: string; position?: number } {
+  const parsed = templateBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid template: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return { name: parsed.data.name.trim(), layout: slideLayout(parsed.data.html), html: parsed.data.html, position: parsed.data.position }
 }

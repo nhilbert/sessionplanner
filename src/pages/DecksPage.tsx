@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Trash2, Upload } from 'lucide-react'
-import { api } from '@/api'
+import { api, reportFailure } from '@/api'
 import type { Deck, DeckSlide } from '@/domain/types'
 import { formatDate } from '@/i18n'
 import { useSettings } from '@/store/useSettings'
@@ -11,6 +11,10 @@ import { Option } from '@/slides/Option'
 import { SlideView } from '@/slides/SlideView'
 import { forgetDecks } from '@/slides/SlidePicker'
 import { findDecks, type FoundDeck, importDeck } from '@/slides/importDeck'
+import { SlideEditor } from '@/slides/editor/SlideEditor'
+import { poolSource } from '@/slides/editor/source'
+import { SlidesTabs } from '@/slides/SlidesTabs'
+import { slideAssets } from '@/domain/slides'
 
 /** The slide pool (docs/slides.md): translated decks, uploaded once as folders; slides are picked from here into items and library entries. */
 export default function DecksPage() {
@@ -19,6 +23,8 @@ export default function DecksPage() {
   const library = useLibrary()
   const [decks, setDecks] = useState<Deck[] | null>(null)
   const [open, setOpen] = useState<string | null>(null)
+  /** A pool slide opened in the slide editor: read-only, paged through its deck, "Save as template" at hand. */
+  const [viewing, setViewing] = useState<{ deck: Deck; key: string } | null>(null)
   const [slides, setSlides] = useState<Record<string, DeckSlide[]>>({})
   const [found, setFound] = useState<FoundDeck[] | null>(null)
   const [chosen, setChosen] = useState<string[]>([])
@@ -35,7 +41,14 @@ export default function DecksPage() {
 
   const show = async (id: string) => {
     setOpen(open === id ? null : id)
-    if (!slides[id]) setSlides({ ...slides, [id]: (await api.getDeck(id)).slides })
+    if (slides[id]) return
+    try {
+      const loaded = (await api.getDeck(id)).slides
+      // Another deck may have been opened while this one loaded: keep both.
+      setSlides((all) => ({ ...all, [id]: loaded }))
+    } catch (err) {
+      reportFailure(err)
+    }
   }
 
   const choose = async (files: File[]) => {
@@ -54,24 +67,44 @@ export default function DecksPage() {
     const total = picked.reduce((n, d) => n + d.fragments.length, 0)
     let before = 0
     let entries = 0
+    let imported = 0
+    const missing = new Set<string>()
     setProgress({ done: 0, total })
     const existing = new Set(library.entries.map((e) => e.title.toLowerCase()))
-    for (const d of picked) {
-      const result = await importDeck(d, { createEntries, existingTitles: existing, categories: settings.categories.map((c) => c.id) }, (done) => setProgress({ done: before + done, total }))
-      before += d.fragments.length
-      entries += result.entries
+    let failure: unknown = null
+    try {
+      for (const d of picked) {
+        const result = await importDeck(d, { createEntries, existingTitles: existing, categories: settings.categories.map((c) => c.id) }, (done) => setProgress({ done: before + done, total }))
+        before += d.fragments.length
+        entries += result.entries
+        imported++
+        result.missing.forEach((m) => missing.add(m))
+      }
+      setFound(null)
+    } catch (err) {
+      // The decks imported before the failure stay; the list below shows them.
+      failure = err
+    } finally {
+      setProgress(null)
+      forgetDecks()
+      await load()
+      if (entries) await library.load()
     }
-    setProgress(null)
-    setFound(null)
-    forgetDecks()
-    await load()
-    if (entries) await library.load()
-    setNotice([t('slides.imported', { count: picked.length }), entries ? t('slides.entriesCreated', { count: entries }) : ''].filter(Boolean).join(' · '))
+    setNotice(
+      [imported ? t('slides.imported', { count: imported }) : '', entries ? t('slides.entriesCreated', { count: entries }) : '', missing.size ? t('slides.missingPictures', { names: [...missing].join(', ') }) : '']
+        .filter(Boolean)
+        .join(' · ') || null,
+    )
+    if (failure) reportFailure(failure)
   }
 
   const remove = async (deck: Deck) => {
     if (!window.confirm(t('slides.deleteDeck', { title: deck.title }))) return
-    await api.deleteDeck(deck.id)
+    try {
+      await api.deleteDeck(deck.id)
+    } catch (err) {
+      return reportFailure(err)
+    }
     forgetDecks()
     await load()
   }
@@ -79,6 +112,7 @@ export default function DecksPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-10 md:py-10">
+        <SlidesTabs />
         <PageHeader
           title={t('slides.pool')}
           subtitle={t('slides.poolSubtitle')}
@@ -154,7 +188,7 @@ export default function DecksPage() {
                 <ul className={cx('grid grid-cols-2 gap-3 border-t border-line p-4 md:grid-cols-4')}>
                   {(slides[d.id] ?? []).map((s, i) => (
                     <li key={s.id}>
-                      <SlideView html={s.html} theme={d.theme || settings.theme || 'default'} scope="library" label={t('slides.slide', { n: i + 1 })} />
+                      <SlideView html={s.html} theme={d.theme || settings.theme || 'default'} scope="library" label={t('slides.slide', { n: i + 1 })} onClick={() => setViewing({ deck: d, key: s.id })} />
                       <div className="mt-1 truncate text-[11px] text-ink-3">{s.caption}</div>
                     </li>
                   ))}
@@ -163,6 +197,18 @@ export default function DecksPage() {
             </li>
           ))}
         </ul>
+        {viewing && slides[viewing.deck.id] && (
+          <SlideEditor
+            source={poolSource({ context: t('editor.ctx.pool'), deck: viewing.deck, slides: slides[viewing.deck.id] })}
+            start={viewing.key}
+            onClose={() => setViewing(null)}
+            theme={viewing.deck.theme || settings.theme || 'default'}
+            scope="library"
+            owner
+            canEdit={false}
+            known={[...new Set(slides[viewing.deck.id].flatMap((s) => slideAssets(s.html)))]}
+          />
+        )}
       </div>
     </div>
   )

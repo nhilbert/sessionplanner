@@ -1,3 +1,4 @@
+import type { Op } from './ops.ts'
 import type { Day, Group, Item } from './types.ts'
 
 /**
@@ -65,3 +66,20 @@ export function placeAt(siblings: { id: string; position: number }[], id: string
 
 /** Position after the last of `siblings`. */
 export const positionAtEnd = (siblings: { position: number }[]): number => (siblings.length ? Math.max(...siblings.map((s) => s.position)) + 1 : 1)
+
+/**
+ * `placeAt` for the entries of a workshop: the position for putting `id` (a new or moved item or group) at
+ * `index` among `siblings` (ids of the target list without `id`, in order), and the operations that renumber
+ * the neighbours when the list had to be renumbered.
+ */
+export function placeIn(structure: Structure, siblings: string[], id: string, index: number): { position: number; ops: Op[] } {
+  const groupIds = new Set(structure.groups.map((g) => g.id))
+  const positions = new Map<string, number>([...structure.items, ...structure.groups].map((x) => [x.id, x.position]))
+  const ops: Op[] = []
+  let position = 0
+  for (const p of placeAt(siblings.map((x) => ({ id: x, position: positions.get(x) ?? 0 })), id, index)) {
+    if (p.id === id) position = p.position
+    else ops.push(groupIds.has(p.id) ? { op: 'set', entity: 'group', id: p.id, fields: { position: p.position } } : { op: 'set', entity: 'item', id: p.id, fields: { position: p.position } })
+  }
+  return { position, ops }
+}

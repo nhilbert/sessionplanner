@@ -3,19 +3,22 @@ import { useTranslation } from 'react-i18next'
 import { Archive, BookmarkPlus, Copy, Minus, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, Material, WorkshopState } from '@/domain/types'
 import { newId, type ItemFields, type Op } from '@/domain/ops'
-import { entriesIn, membersOf, placeAt, positionAtEnd } from '@/domain/order'
+import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
 import { contentOf } from '@/domain/copy'
+import { newSlides } from '@/domain/slides'
 import { categoryName, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
 import Swatches from '@/components/Swatches'
-import { SNAP } from '@/domain/time'
-import { api } from '@/api'
+import { MAX_DURATION, SNAP } from '@/domain/time'
+import { api, reportFailure } from '@/api'
 import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/components/ui'
-import { DEFAULT_DURATION, DurationField, TextField, TimeField, formatSize } from './fields'
+import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField, formatSize } from './fields'
 import NotesField from './NotesField'
 import { uploadFiles } from './upload'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
+import { usePlanner } from '@/store/usePlanner'
+import { useSlideEditing } from '@/slides/PlannerSlides'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
 
@@ -61,13 +64,9 @@ export default function ItemPanel({
     const grouped = item.groupId !== null && data.groups.some((g) => g.id === item.groupId)
     const siblings = grouped ? membersOf(data.items, item.groupId!) : entriesIn(data, item.dayId)
     const index = siblings.findIndex((s) => s.id === item.id) + 1
-    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })) }
-    const placed = placeAt(siblings, copy.id, index)
-    const isGroup = (id: string) => data.groups.some((g) => g.id === id)
-    const ops: Op[] = placed
-      .filter((p) => p.id !== copy.id)
-      .map((p): Op => (isGroup(p.id) ? { op: 'set', entity: 'group', id: p.id, fields: { position: p.position } } : { op: 'set', entity: 'item', id: p.id, fields: { position: p.position } }))
-    ops.push({ op: 'create', entity: 'item', record: { ...copy, position: placed.find((p) => p.id === copy.id)!.position } })
+    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })), slides: newSlides(item.slides, newId) }
+    const { position, ops } = placeIn(data, siblings.map((s) => s.id), copy.id, index)
+    ops.push({ op: 'create', entity: 'item', record: { ...copy, position } })
     change(ops)
     onSelect(copy.id)
   }
@@ -75,8 +74,12 @@ export default function ItemPanel({
   const toParking = () => set({ dayId: null, groupId: null, position: positionAtEnd(entriesIn(data, null)) })
 
   const save = async () => {
-    await saveToLibrary({ kind: 'item', title: item.title || t(`kinds.${item.kind}`), data: contentOf(item) })
-    onSaved(item.title)
+    try {
+      await saveToLibrary({ kind: 'item', title: item.title || t(`kinds.${item.kind}`), data: contentOf(item) })
+      onSaved(item.title)
+    } catch (err) {
+      reportFailure(err)
+    }
   }
 
   return (
@@ -103,7 +106,7 @@ export default function ItemPanel({
                 <Minus size={14} />
               </IconButton>
               <DurationField value={item.duration} onChange={(duration) => set({ duration })} className="w-[104px]" aria-label={t('item.duration')} />
-              <IconButton label="+5" onClick={() => set({ duration: Math.min(1440, item.duration + SNAP) })}>
+              <IconButton label="+5" onClick={() => set({ duration: Math.min(MAX_DURATION, item.duration + SNAP) })}>
                 <Plus size={14} />
               </IconButton>
             </div>
@@ -155,7 +158,17 @@ export default function ItemPanel({
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
       {item.kind !== 'note' && <Files item={item} data={data} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
-      {(item.kind === 'block' || item.kind === 'break') && <SlideStrip slides={item.slides} onChange={(slides) => set({ slides })} scope={{ workshopId: data.workshop.id }} theme={themeOf(data.workshop, settings)} canEdit owner={owner} />}
+      {(item.kind === 'block' || item.kind === 'break') && (
+        <SlideStrip
+          slides={item.slides}
+          list={{ get: () => usePlanner.getState().data?.items.find((i) => i.id === item.id)?.slides ?? [], set: (slides) => set({ slides }) }}
+          onOpen={(key, mode) => useSlideEditing.getState().open({ kind: 'step', itemId: item.id, key, mode })}
+          scope={{ workshopId: data.workshop.id }}
+          theme={themeOf(data.workshop, settings)}
+          canEdit
+          owner={owner}
+        />
+      )}
 
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <Button size="sm" onClick={duplicate}>
@@ -200,17 +213,7 @@ function Materials({ materials, onChange }: { materials: Material[]; onChange: (
         {materials.map((m) => (
           <div key={m.id} className="flex items-center gap-1.5">
             <TextField value={m.label} onCommit={(label) => update(m.id, { label })} placeholder={t('item.materialLabel')} className="h-8 min-w-0 flex-1 text-[13px]" />
-            <input
-              type="number"
-              min={0}
-              value={m.qty}
-              aria-label={t('item.qty')}
-              onChange={(e) => {
-                const qty = Math.round(Number(e.target.value))
-                if (qty >= 0) update(m.id, { qty })
-              }}
-              className="field tnum h-8 w-14 px-1.5 text-center text-[13px]"
-            />
+            <QtyField value={m.qty} aria-label={t('item.qty')} onChange={(qty) => update(m.id, { qty })} />
             <TextField
               value={m.link ?? ''}
               onCommit={(link) => {

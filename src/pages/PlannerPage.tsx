@@ -6,17 +6,19 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { AlignLeft, CalendarPlus, ChevronLeft, FolderOpen, PanelRight, Printer, Redo2, Rows2, Rows3, Rows4, Undo2, X } from 'lucide-react'
 import { PRINT_VARIANTS } from '@/domain/print'
 import { VARIANT_LABEL } from '@/print/options'
+import { reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { itemColor, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
-import { entriesIn, itemsIn, placeAt, positionAtEnd, sortedDays } from '@/domain/order'
-import { scheduleDay, SNAP, type DaySchedule } from '@/domain/time'
+import { entriesIn, itemsIn, placeIn, positionAtEnd, sortedDays } from '@/domain/order'
+import { MAX_DURATION, scheduleDay, SNAP, type DaySchedule } from '@/domain/time'
 import { newId, type Op } from '@/domain/ops'
 import { contentOf, fromLibrary } from '@/domain/copy'
 import type { Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import { formatDate } from '@/i18n'
 import { Button, cx, IconButton, isTyping, Segmented, useIsPhone, useLocalState } from '@/components/ui'
 import Menu from '@/components/Menu'
+import { overlayOpen } from '@/components/overlay'
 import { BoardContext, type BoardCtx, DayColumn } from '@/planner/DayColumn'
 import { ItemCard } from '@/planner/ItemCard'
 import Toolbox, { type Tab } from '@/planner/Toolbox'
@@ -26,6 +28,7 @@ import TimeEditor, { type TimeMode } from '@/planner/TimeEditor'
 import type { InsertKind } from '@/planner/Insert'
 import type { Preview } from '@/planner/DayColumn'
 import AgendaView from './AgendaView'
+import { PlannerSlideEditor, useSlideEditing } from '@/slides/PlannerSlides'
 
 const ZOOM: Record<string, number> = { s: 1, m: 1.6, l: 2.6 }
 const EMPTY = { workshop: { id: '' }, days: [], groups: [], items: [], attachments: [] } as unknown as WorkshopState
@@ -59,7 +62,10 @@ export default function PlannerPage() {
   useEffect(() => {
     open(id)
     setFocusDay(null)
-    return () => close()
+    return () => {
+      useSlideEditing.getState().close()
+      close()
+    }
   }, [id, open, close])
   useEffect(() => {
     document.title = data?.workshop.title ? `${data.workshop.title} · Session Planner` : 'Session Planner'
@@ -74,7 +80,6 @@ export default function PlannerPage() {
   const days = useMemo(() => sortedDays(state.days), [state.days])
   const items = useMemo(() => Object.fromEntries(state.items.map((i) => [i.id, i])), [state.items])
   const groups = useMemo(() => Object.fromEntries(state.groups.map((g) => [g.id, g])), [state.groups])
-  const positionOf = (x: string) => items[x]?.position ?? groups[x]?.position ?? 0
   const setPosition = (x: string, position: number): Op => (groups[x] ? { op: 'set', entity: 'group', id: x, fields: { position } } : { op: 'set', entity: 'item', id: x, fields: { position } })
 
   // ---- library entries arrive as copies ---------------------------------------------------------
@@ -91,14 +96,9 @@ export default function PlannerPage() {
     const { dayId, groupId } = placeOf(data, key)
     const { group, items: created } = fromLibrary(entry, data.workshop.id, dayId, groupId, 0)
     const topId = group?.id ?? created[0].id
-    const siblings = (board.lists[key] ?? []).map((x) => ({ id: x, position: positionOf(x) }))
-    const ops: Op[] = []
-    for (const p of placeAt(siblings, topId, at)) {
-      if (p.id !== topId) ops.push(setPosition(p.id, p.position))
-      else if (group) ops.push({ op: 'create', entity: 'group', record: { ...group, position: p.position } })
-      else ops.push({ op: 'create', entity: 'item', record: { ...created[0], position: p.position } })
-    }
-    if (group) for (const i of created) ops.push({ op: 'create', entity: 'item', record: i })
+    const { position, ops } = placeIn(state, board.lists[key] ?? [], topId, at)
+    if (group) ops.push({ op: 'create', entity: 'group', record: { ...group, position } }, ...created.map((i): Op => ({ op: 'create', entity: 'item', record: i })))
+    else ops.push({ op: 'create', entity: 'item', record: { ...created[0], position } })
     change(ops)
   }
 
@@ -147,13 +147,9 @@ export default function PlannerPage() {
     if (!data) return
     const { dayId, groupId } = placeOf(data, list)
     const id = newId()
-    const siblings = (board.lists[list] ?? []).map((x) => ({ id: x, position: positionOf(x) }))
-    const ops: Op[] = []
-    for (const p of placeAt(siblings, id, index)) {
-      if (p.id !== id) ops.push(setPosition(p.id, p.position))
-      else if (kind === 'group') ops.push({ op: 'create', entity: 'group', record: { id, workshopId: data.workshop.id, dayId, position: p.position, title: t('group.newTitle') } })
-      else ops.push({ op: 'create', entity: 'item', record: { ...newItem(t, data.workshop.id, dayId, kind, p.position), id, groupId } })
-    }
+    const { position, ops } = placeIn(state, board.lists[list] ?? [], id, index)
+    if (kind === 'group') ops.push({ op: 'create', entity: 'group', record: { id, workshopId: data.workshop.id, dayId, position, title: t('group.newTitle') } })
+    else ops.push({ op: 'create', entity: 'item', record: { ...newItem(t, data.workshop.id, dayId, kind, position), id, groupId } })
     change(ops)
     if (kind !== 'group') openDetails(id)
   }
@@ -200,7 +196,7 @@ export default function PlannerPage() {
 
   const resizeBy = (item: Item, delta: number) => {
     if (item.kind !== 'block' && item.kind !== 'break') return
-    const duration = Math.min(1440, Math.max(SNAP, item.duration + delta))
+    const duration = Math.min(MAX_DURATION, Math.max(SNAP, item.duration + delta))
     if (duration !== item.duration) change([{ op: 'set', entity: 'item', id: item.id, fields: { duration } }])
   }
 
@@ -239,14 +235,10 @@ export default function PlannerPage() {
     const list = board.lists[key] ?? []
     // Inside an existing group, the new group goes right after it.
     const index = list.slice(0, list.indexOf(anchor)).filter((x) => !selected.has(x)).length + (inGroup ? 1 : 0)
-    const siblings = list.filter((x) => !selected.has(x)).map((x) => ({ id: x, position: positionOf(x) }))
     const gid = newId()
     const { dayId } = placeOf(data, key)
-    const ops: Op[] = []
-    for (const p of placeAt(siblings, gid, index)) {
-      if (p.id === gid) ops.push({ op: 'create', entity: 'group', record: { id: gid, workshopId: data.workshop.id, dayId, position: p.position, title: t('group.newTitle') } })
-      else ops.push(setPosition(p.id, p.position))
-    }
+    const { position, ops } = placeIn(state, list.filter((x) => !selected.has(x)), gid, index)
+    ops.push({ op: 'create', entity: 'group', record: { id: gid, workshopId: data.workshop.id, dayId, position, title: t('group.newTitle') } })
     ordered.forEach((i, n) => ops.push({ op: 'set', entity: 'item', id: i.id, fields: { groupId: gid, dayId, position: n + 1 } }))
     change(ops)
     clearSelection()
@@ -271,15 +263,20 @@ export default function PlannerPage() {
     const members = (board.lists[inner(gid)] ?? []).map((x) => items[x]).filter(Boolean)
     if (!members.length) return
     const title = groups[gid]?.title || t('group.untitled')
-    await library.save({ kind: 'group', title, data: { items: members.map(contentOf) } })
-    setNotice(t('library.saved', { title }))
+    try {
+      await library.save({ kind: 'group', title, data: { items: members.map(contentOf) } })
+      setNotice(t('library.saved', { title }))
+    } catch (err) {
+      reportFailure(err)
+    }
   }
 
   // ---- keyboard --------------------------------------------------------------------------------
   const single = selected.size === 1 ? [...selected][0] : null
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target)) return
+      // A dialog, menu or the slide editor above the agenda takes the keys; the agenda behind it stays as it is.
+      if (isTyping(e.target) || overlayOpen() || e.defaultPrevented) return
       const mod = e.ctrlKey || e.metaKey
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()
@@ -363,6 +360,18 @@ export default function PlannerPage() {
     onUngroup: ungroup,
     onDeleteGroup: deleteGroup,
     onSaveGroup: owner ? (gid) => void saveGroup(gid) : undefined,
+    onOpenSlides: (itemId) => {
+      const first = items[itemId]?.slides[0]
+      if (first) useSlideEditing.getState().open({ kind: 'step', itemId, key: first.id })
+    },
+  }
+
+  /** Where an item would start if it flowed with the agenda (its fixed start taken away). */
+  const flowStart = (it: Item): number | null => {
+    const day = it.dayId ? days.find((d) => d.id === it.dayId) : undefined
+    if (!day) return null
+    const flowing = itemsIn(state, day.id).map((i) => (i.id === it.id ? { ...i, fixedStart: null } : i))
+    return scheduleDay(day.startMin, day.endMin, flowing).slots[it.id]?.start ?? null
   }
 
   const detailsItem = detailsId ? items[detailsId] : null
@@ -571,12 +580,22 @@ export default function PlannerPage() {
             const it = items[timeEdit.id]
             return it.dayId ? (schedules[it.dayId]?.slots[it.id]?.start ?? null) : null
           })()}
+          flowStart={flowStart(items[timeEdit.id])}
           phone={phone}
           onPreview={(fields) => setPreview(fields ? { id: timeEdit.id, fields } : null)}
           onCommit={(fields) => change([{ op: 'set', entity: 'item', id: timeEdit.id, fields }])}
           onClose={() => setTimeEdit(null)}
         />
       )}
+      <PlannerSlideEditor
+        owner={owner}
+        onDetails={() => {
+          setTab('details')
+          setDetailsId(null)
+          setToolboxOpen('1')
+          if (phone) setMobileToolbox(true)
+        }}
+      />
       {notice && <div className="no-print fade-in fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-ink px-4 py-2 text-[13px] text-paper shadow-[var(--shadow)] md:bottom-6">{notice}</div>}
     </BoardContext.Provider>
   )

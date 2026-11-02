@@ -1,5 +1,7 @@
-import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, WorkshopState, WorkshopSummary } from './domain/types'
+import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, SlideTemplate, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op } from './domain/ops'
+import { type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
+import i18n from './i18n'
 
 /** Thin client for the server API (server/app.ts). Changes carry the app's header (server/guard.ts). */
 
@@ -14,9 +16,27 @@ export class ApiError extends Error {
 
 export const LOGIN_REQUIRED = 'sp:login-required'
 
+/** Tells the user that an action failed, with the server's reason, where the action has no place of its own to show it. */
+export function reportFailure(err: unknown): void {
+  // An expired login has its own banner (components/AppShell.tsx).
+  if (err instanceof ApiError && err.status === 401) return
+  const reason = err instanceof Error ? err.message : String(err)
+  window.alert(i18n.t('common.failed', { error: reason }))
+}
+
 /** Where a slide's pictures come from: a workshop's own route (its guests may load them) or the owner's library. */
 export type AssetScope = { workshopId: string } | 'library'
 export const assetUrl = (scope: AssetScope, hash: string): string => (scope === 'library' ? `/api/library/assets/${hash}` : `/api/workshops/${scope.workshopId}/assets/${hash}`)
+
+export interface AgentConnections {
+  connections: AgentConnection[]
+  /** The address to enter in Claude (…/mcp). */
+  resource: string
+  /** Hosted: a new connection must be started here first; locally not. */
+  armRequired: boolean
+  /** Until when a new connection may be approved, or null. */
+  armedUntil: string | null
+}
 
 export interface AgentConnection {
   id: string
@@ -69,7 +89,9 @@ export const api = {
   deleteLogo: () => call<Settings>('/api/settings/logo', { method: 'DELETE' }),
   logoUrl: (settings: Settings) => (settings.logo ? `/api/settings/logo?v=${encodeURIComponent(settings.logo.updatedAt)}` : null),
   /** AI agents connected over OAuth to /mcp (docs/mcp.md); 404 when OAuth is off on the server. */
-  agentConnections: () => call<{ connections: AgentConnection[] }>('/api/mcp/connections'),
+  agentConnections: () => call<AgentConnections>('/api/mcp/connections'),
+  /** Hosted: lets the owner approve one new connection in the next minutes (server/oauth.ts, arm). */
+  armAgent: () => call<{ armedUntil: string; resource: string }>('/api/mcp/arm', { method: 'POST' }),
   disconnectAgent: (id: string) => call<{ ok: boolean }>(`/api/mcp/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listLibrary: () => call<LibraryEntry[]>('/api/library'),
   saveLibraryEntry: (entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>, id?: string) =>
@@ -83,7 +105,24 @@ export const api = {
     return call<Asset>(scope === 'library' ? '/api/library/assets' : `/api/workshops/${scope.workshopId}/assets`, { method: 'POST', body: form })
   },
   sweepAssets: () => call<{ removed: number }>('/api/assets/sweep', { method: 'POST' }),
-  listThemes: () => call<string[]>('/api/themes'),
+  /** Every slide theme the server has: built in, folders and data themes (docs/slides.md, section 4). */
+  listThemes: () => call<ThemeInfo[]>('/api/themes'),
+  themeCssUrl: (id: string, version?: string) => `/api/themes/${encodeURIComponent(id)}/theme.css${version ? `?v=${encodeURIComponent(version)}` : ''}`,
+  getTheme: (id: string) => call<Theme>(`/api/themes/${encodeURIComponent(id)}`),
+  createTheme: (input: { name: string; tokens?: ThemeTokens; from?: string }) => call<Theme>('/api/themes', { method: 'POST', body: JSON.stringify(input) }),
+  updateTheme: (id: string, patch: { name?: string; tokens?: ThemeTokens }) => call<Theme>(`/api/themes/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(patch) }),
+  deleteTheme: (id: string) => call<{ ok: true }>(`/api/themes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  uploadThemeLogo: (id: string, file: File, variant: 'logo' | 'logoLight') => {
+    const form = new FormData()
+    form.append('file', file)
+    return call<Theme>(`/api/themes/${encodeURIComponent(id)}/logo${variant === 'logoLight' ? '?variant=light' : ''}`, { method: 'POST', body: form })
+  },
+  deleteThemeLogo: (id: string, variant: 'logo' | 'logoLight') => call<Theme>(`/api/themes/${encodeURIComponent(id)}/logo${variant === 'logoLight' ? '?variant=light' : ''}`, { method: 'DELETE' }),
+  themeLogoUrl: (theme: Theme, variant: 'logo' | 'logoLight') => themeLogoUrl(theme, variant),
+  /** Template slides (docs/slides.md, section 7), the owner's. */
+  listSlideTemplates: () => call<SlideTemplate[]>('/api/slide-templates'),
+  saveSlideTemplate: (input: { name: string; html: string; position?: number }, id?: string) => call<SlideTemplate>(id ? `/api/slide-templates/${id}` : '/api/slide-templates', { method: id ? 'PUT' : 'POST', body: JSON.stringify(input) }),
+  deleteSlideTemplate: (id: string) => call<{ ok: true }>(`/api/slide-templates/${id}`, { method: 'DELETE' }),
   listDecks: () => call<Deck[]>('/api/decks'),
   getDeck: (id: string) => call<{ deck: Deck; slides: DeckSlide[] }>(`/api/decks/${id}`),
   createDeck: (input: { title: string; theme: string; source: string; slides: { html: string; caption: string }[] }) => call<{ deck: Deck; slides: DeckSlide[] }>('/api/decks', { method: 'POST', body: JSON.stringify(input) }),

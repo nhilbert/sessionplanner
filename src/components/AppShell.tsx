@@ -9,7 +9,8 @@ import { cx, useLocalState } from './ui'
 const NAV = [
   { to: '/', key: 'nav.workshops', icon: CalendarDays, end: false, owner: false },
   { to: '/library', key: 'nav.library', icon: BookMarked, end: true, owner: true },
-  { to: '/decks', key: 'nav.pool', icon: Presentation, end: true, owner: true },
+  // The slides area (pool, templates, themes) under one entry; its pages have tabs.
+  { to: '/slides', key: 'nav.slides', icon: Presentation, end: false, owner: true },
 ] as const
 
 /** The frame shared with Zendo and the Revenue Tracker: navigation on the left (icons only when folded), a bottom bar on phones. */
@@ -18,7 +19,7 @@ export default function AppShell() {
   const [folded, setFolded] = useLocalState('sp.nav', 'open')
   const { load, loadMe, me } = useSettings()
   const collapsed = folded === 'folded'
-  // Guests see their shared workshops and the language setting; the library and the slide pool are the owner's.
+  // Guests see their shared workshops and the language setting; the library and the slides area are the owner's.
   const nav = me.owner ? NAV : NAV.filter((n) => !n.owner)
 
   const [loginExpired, setLoginExpired] = useState(false)

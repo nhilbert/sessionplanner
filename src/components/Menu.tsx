@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Check, MoreHorizontal } from 'lucide-react'
 import { cx, Sheet, SheetRow, useIsPhone } from './ui'
+import { useOverlay } from './overlay'
 
 export interface MenuItem {
   label: string
@@ -32,18 +33,16 @@ export default function Menu({
   const [open, setOpen] = useState(false)
   const phone = useIsPhone()
   const ref = useRef<HTMLDivElement>(null)
+  // The sheet closes itself (backdrop, Escape); the dropdown closes on Escape (as an overlay) and on a click outside.
+  const list = useRef<HTMLDivElement>(null)
+  useOverlay(open && !phone, () => setOpen(false), { root: list, focus: 'first' })
   useEffect(() => {
-    // The sheet closes itself (backdrop, Escape); the dropdown closes on a click outside and on Escape.
     if (!open || phone) return
     const close = (e: Event) => {
-      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false)
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
     }
     window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', close)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', close)
-    }
+    return () => window.removeEventListener('mousedown', close)
   }, [open, phone])
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
   const pick = (it: MenuItem) => {
@@ -72,7 +71,19 @@ export default function Menu({
           ))}
         </Sheet>
       ) : open ? (
-        <div role="menu" className={cx('card absolute z-40 mt-1 min-w-52 p-1 shadow-[var(--shadow)]', align === 'left' ? 'left-0' : 'right-0')}>
+        <div
+          ref={list}
+          role="menu"
+          className={cx('card absolute z-40 mt-1 min-w-52 p-1 shadow-[var(--shadow)]', align === 'left' ? 'left-0' : 'right-0')}
+          onKeyDown={(e) => {
+            // Up and down move through the items, as in any menu.
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+            e.preventDefault()
+            const items = [...(list.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+            const at = items.indexOf(document.activeElement as HTMLElement)
+            items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
+          }}
+        >
           {items.map((it) => (
             <button
               key={it.label}
