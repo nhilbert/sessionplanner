@@ -6,14 +6,14 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
-import { createApp, MAX_FILE } from './app.ts'
+import { createApp, MAX_FILE, type QUOTAS } from './app.ts'
 import { adjustedOps, type Op, type ServerEvent } from '../src/domain/ops.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
 const H = { 'content-type': 'application/json', 'x-sp': '1' }
 
-function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string; proxySecret?: string } = {}) {
+function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string; proxySecret?: string; quotas?: Partial<typeof QUOTAS>; pingSeconds?: number } = {}) {
   const db = opts.db ?? openDb(':memory:')
   const repo = new Repo(db)
   const hub = new Hub()
@@ -27,6 +27,8 @@ function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; d
     staticDir: opts.staticDir,
     linkToken: opts.linkToken,
     proxySecret: opts.proxySecret,
+    quotas: opts.quotas,
+    pingSeconds: opts.pingSeconds,
   })
   return { app, repo, hub, db }
 }
@@ -607,6 +609,60 @@ describe('guests', () => {
     expect((await app.request(`${pub}/api/attachments/${shared}`, { headers: ANNA })).status).toBe(200)
     expect((await app.request(`${pub}/api/attachments/${mine}`, { headers: ANNA })).status).toBe(404)
     expect((await app.request(`${pub}/api/attachments/${shared}`, { method: 'DELETE', headers: ANNA })).status).toBe(403)
+  })
+})
+
+describe('limits', () => {
+  const pub = 'https://sessions.example.com'
+  const as = (email: string) => ({ 'x-auth-request-email': email, 'x-sp': '1' })
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+  async function prepared(quotas: Partial<typeof QUOTAS>, pingSeconds?: number) {
+    const ctx = setup({ owners: ['me@example.com'], publicUrl: new URL(pub), quotas, pingSeconds })
+    const id = ctx.repo.createWorkshop({ title: 'Geteilt' }).workshop.id
+    ctx.repo.setMember(id, 'anna@example.com', 'edit', true)
+    const send = async (url: string, bytes: Buffer | string, email: string, name = 'x.txt') => {
+      const form = new FormData()
+      form.append('file', new File([bytes], name, { type: 'application/octet-stream' }))
+      const res = await ctx.app.request(`${pub}${url}`, { method: 'POST', headers: as(email), body: form })
+      return { status: res.status, body: (await res.json()) as { error?: string } }
+    }
+    return { ...ctx, id, file: (bytes: Buffer | string, email: string) => send(`/api/workshops/${id}/attachments`, bytes, email), picture: (bytes: Buffer, email: string) => send(`/api/workshops/${id}/assets`, bytes, email, 'p.png') }
+  }
+
+  it('keeps the files of a workshop under their limit, for the owner too', async () => {
+    const { file } = await prepared({ workshopFiles: 10 })
+    expect((await file('123456', 'me@example.com')).status).toBe(201)
+    expect(await file('123456', 'me@example.com')).toEqual({ status: 413, body: { error: 'quota' } })
+    expect((await file('1234', 'anna@example.com')).status).toBe(201)
+  })
+
+  it('lets a guest upload so much a day, files and slide pictures together; the owner is not counted', async () => {
+    const { file, picture } = await prepared({ guestUploadsPerDay: PNG.length + 6 })
+    expect((await file('123456', 'anna@example.com')).status).toBe(201)
+    expect((await picture(PNG, 'anna@example.com')).status).toBe(201)
+    expect(await picture(Buffer.concat([PNG, Buffer.from([0])]), 'anna@example.com')).toEqual({ status: 429, body: { error: 'upload_budget' } })
+    expect((await file('1', 'anna@example.com')).status).toBe(429)
+    // a picture the server already has takes no room, and the owner uploads as before
+    expect((await picture(PNG, 'anna@example.com')).status).toBe(201)
+    expect((await file('123456', 'me@example.com')).status).toBe(201)
+  })
+
+  it('lets a guest hold so many live-update streams; closing one frees its place, the owner is not counted', async () => {
+    const { app, id } = await prepared({ guestStreams: 2 }, 0.02)
+    const open = (email: string) => app.request(`${pub}/api/workshops/${id}/events`, { headers: as(email) })
+    const first = await open('anna@example.com')
+    const second = await open('anna@example.com')
+    expect([first.status, second.status]).toEqual([200, 200])
+    const third = await open('anna@example.com')
+    expect(third.status).toBe(429)
+    expect(await third.json()).toEqual({ error: 'too_many_streams' })
+    const owners = [await open('me@example.com'), await open('me@example.com'), await open('me@example.com')]
+    expect(owners.map((r) => r.status)).toEqual([200, 200, 200])
+    await first.body!.cancel()
+    await new Promise((r) => setTimeout(r, 30))
+    const again = await open('anna@example.com')
+    expect(again.status).toBe(200)
+    await Promise.all([second, again, ...owners].map((r) => r.body!.cancel()))
   })
 })
 

@@ -62,7 +62,7 @@ Computing a day (pure function, `src/domain/time.ts`):
 
 - Material entries on an item: label, quantity, optional link.
 - **Packing list** of the workshop: entries grouped by label (case and spaces ignored). The quantity is the *largest* quantity of any single item, not the sum, because two steps with two flipcharts each need two flipcharts. The quantity can be overridden (e.g. cards are used up), each line can be ticked off, and marked "at the venue".
-- **Attachments**: upload files to the workshop (up to 25 MB each), link them to items, download them. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `Content-Type: application/octet-stream`, `nosniff`, sandbox CSP), so a file can never run as a page, nor be loaded by one as script or stylesheet.
+- **Attachments**: upload files to the workshop (up to 25 MB each, 500 MB per workshop), link them to items, download them. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `Content-Type: application/octet-stream`, `nosniff`, sandbox CSP), so a file can never run as a page, nor be loaded by one as script or stylesheet.
 
 ## 6. Output
 
@@ -134,6 +134,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Existing decks are translated once, by Claude with the `deck-translate` skill, against the catalogue; the result is reviewed in a static preview before it is uploaded. The translated decks form a slide pool in the app; slides are copied from the pool into items and library entries, so the pool is a source, not a dependency.
 - Slides are item content and travel with the library, copies and duplicates; the library's "no files" rule now reads "no attachments". Pictures are assets stored once by content hash, served through the API with the workshop's access check.
 - Nothing a guest writes may run: slides are sanitised on write and on render with an allowlist, SVG included; assets are raster only.
+- Nothing a guest does may fill the server: a guest uploads at most 250 MB a day (files and slide pictures together; a picture the server already has costs nothing) and holds at most 10 live-update streams at once (one per window); the files of a workshop take at most 500 MB, the owner's too. The day's count and the streams are kept in memory, so a restart starts afresh (`QUOTAS` in `server/app.ts`).
 - The app generates what the plan knows: title, agenda and break slides with the computed times; the facts panel of an exercise can come from the item later.
 - Glyphs on section slides need a CJK font; Noto Sans JP, sliced, loaded on demand, inlined into the standalone file when used.
 - No slide editor. A source field for small fixes; everything else happens outside, or through the connector later.

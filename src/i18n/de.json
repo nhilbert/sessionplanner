@@ -169,6 +169,8 @@
     "empty": "Noch keine Dateien.",
     "tooLarge": "„{{name}}“ ist größer als 25 MB.",
     "failed": "„{{name}}“ konnte nicht hochgeladen werden.",
+    "quota": "„{{name}}“ passt nicht mehr: Die Dateien eines Workshops dürfen zusammen 500 MB groß sein.",
+    "budget": "„{{name}}“ wurde nicht hochgeladen: Gäste können bis zu 250 MB am Tag hochladen.",
     "deleteConfirm": "„{{name}}“ löschen? Die Datei wird von allen Punkten gelöst.",
     "linked_one": "an {{count}} Punkt",
     "linked_other": "an {{count}} Punkten"

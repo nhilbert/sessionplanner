@@ -169,6 +169,8 @@
     "empty": "No files yet.",
     "tooLarge": "“{{name}}” is larger than 25 MB.",
     "failed": "“{{name}}” could not be uploaded.",
+    "quota": "“{{name}}” does not fit: the files of a workshop may take up 500 MB in all.",
+    "budget": "“{{name}}” was not uploaded: guests can upload up to 250 MB a day.",
     "deleteConfirm": "Delete “{{name}}”? It is unlinked from all items.",
     "linked_one": "linked to {{count}} item",
     "linked_other": "linked to {{count}} items"

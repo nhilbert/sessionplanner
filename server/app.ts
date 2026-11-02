@@ -18,6 +18,15 @@ export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
 /** A picture on a slide (docs/slides.md): stored once per content hash, shown inline. */
 export const MAX_ASSET = 10 * 1024 * 1024
+/** Limits that keep the disk and the server's connections from being filled, by guests in particular. */
+export const QUOTAS = {
+  /** The files of one workshop together, in bytes. */
+  workshopFiles: 500 * 1024 * 1024,
+  /** What one guest may upload per day, files and slide pictures together, in bytes. The owner has no such limit. */
+  guestUploadsPerDay: 250 * 1024 * 1024,
+  /** Live-update streams one guest may hold open at once (one per open window). */
+  guestStreams: 10,
+}
 const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 
 export interface AppOptions extends GuardOptions {
@@ -39,6 +48,8 @@ export interface AppOptions extends GuardOptions {
   oauth?: { routes: Hono; admin: Hono }
   /** Token for GET /api/link/workshops (SP_LINK_TOKEN): another app (the CRM) reads the list to link to workshops. */
   linkToken?: string
+  /** Other limits than QUOTAS (tests). */
+  quotas?: Partial<typeof QUOTAS>
 }
 
 // The built UI loads only its own files; nothing a user typed can run as script.
@@ -58,8 +69,9 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   }
 }
 
-export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, quotas }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
+  const quota = { ...QUOTAS, ...quotas }
   const filePath = (id: string) => path.join(filesDir, id)
   const assetPath = (hash: string) => path.join(filesDir, 'assets', hash)
   /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
@@ -70,6 +82,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return member ? { role: member.role, showNotes: member.showNotes } : null
   }
   const canEdit = (a: 'owner' | Access | null) => a === 'owner' || a?.role === 'edit'
+
+  // Guests' uploads per day and their open live-update streams, kept in memory: a restart starts afresh.
+  const uploaded = new Map<string, { day: string; bytes: number }>()
+  /** Books an upload of a guest against the day's budget; false when it would go over. The owner has none. */
+  const guestUpload = (c: Context<Env>, access: 'owner' | Access, size: number): boolean => {
+    if (access === 'owner') return true
+    const email = c.get('user').email ?? ''
+    const day = new Date().toISOString().slice(0, 10)
+    const before = uploaded.get(email)
+    const bytes = before?.day === day ? before.bytes : 0
+    if (bytes + size > quota.guestUploadsPerDay) return false
+    uploaded.set(email, { day, bytes: bytes + size })
+    return true
+  }
+  const streams = new Map<string, number>()
 
   app.use('*', async (c, next) => {
     await next()
@@ -168,6 +195,10 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     let access = accessTo(c, id)
     if (!access || !repo.loadWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     const email = c.get('user').email
+    // A guest holds a bounded number of streams; the owner is not counted.
+    const guest = access === 'owner' ? null : (email ?? '')
+    if (guest !== null && (streams.get(guest) ?? 0) >= quota.guestStreams) return c.json({ error: 'too_many_streams' }, 429)
+    if (guest !== null) streams.set(guest, (streams.get(guest) ?? 0) + 1)
     c.header('Cache-Control', 'no-store')
     c.header('X-Accel-Buffering', 'no')
     return streamSSE(c, async (stream) => {
@@ -188,13 +219,26 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
         const filtered = access !== 'owner' && access!.role === 'view' && !access!.showNotes && event.type !== 'workshop-deleted'
         void stream.writeSSE({ data: JSON.stringify(filtered ? { type: 'changed' } : event) })
       })
-      stream.onAbort(unsubscribe)
-      await stream.writeSSE({ event: 'hello', data: '' })
-      while (!stream.aborted && !stream.closed) {
-        await stream.sleep(pingSeconds * 1000)
-        if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: '' })
+      let released = false
+      const release = () => {
+        if (released) return
+        released = true
+        unsubscribe()
+        if (guest === null) return
+        const left = (streams.get(guest) ?? 1) - 1
+        if (left > 0) streams.set(guest, left)
+        else streams.delete(guest)
       }
-      unsubscribe()
+      stream.onAbort(release)
+      try {
+        await stream.writeSSE({ event: 'hello', data: '' })
+        while (!stream.aborted && !stream.closed) {
+          await stream.sleep(pingSeconds * 1000)
+          if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: '' })
+        }
+      } finally {
+        release()
+      }
     })
   })
 
@@ -206,6 +250,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const file = body.file
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (file.size > MAX_FILE) return c.json({ error: 'too_large' }, 413)
+    if (repo.attachmentBytes(c.req.param('id')!) + file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
+    if (!guestUpload(c, access, file.size)) return c.json({ error: 'upload_budget' }, 429)
     const id = newId()
     await mkdir(filesDir, { recursive: true })
     await writeFile(filePath(id), Buffer.from(await file.arrayBuffer()))
@@ -337,7 +383,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return null
   }
   const HASH = /^[0-9a-f]{64}$/
-  const storeAsset = async (c: Context<Env>) => {
+  const storeAsset = async (c: Context<Env>, access: 'owner' | Access) => {
     const file = (await c.req.parseBody()).file
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (file.size > MAX_ASSET) return c.json({ error: 'too_large' }, 413)
@@ -345,6 +391,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const mime = sniff(data)
     if (!mime) throw new BadRequest('png, jpeg, webp or gif only')
     const hash = createHash('sha256').update(data).digest('hex')
+    // A picture the server has already takes no more room.
+    if (!repo.getAsset(hash) && !guestUpload(c, access, data.length)) return c.json({ error: 'upload_budget' }, 429)
     await mkdir(path.join(filesDir, 'assets'), { recursive: true })
     await writeFile(assetPath(hash), data)
     return c.json(repo.addAsset({ hash, mime, size: data.length }), 201)
@@ -360,7 +408,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const access = accessTo(c, c.req.param('id')!)
     if (!access) return c.json({ error: 'not_found' }, 404)
     if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
-    return storeAsset(c)
+    return storeAsset(c, access)
   })
   app.get('/api/workshops/:id/assets/:hash', (c) => {
     const id = c.req.param('id')!
@@ -369,7 +417,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!accessTo(c, id) || !HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
     return sendAsset(c, hash)
   })
-  app.post('/api/library/assets', storeAsset)
+  app.post('/api/library/assets', (c) => storeAsset(c, 'owner'))
   app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!))
   app.post('/api/assets/sweep', ownerOnly, async (c) => {
     const gone = repo.sweepAssets()
