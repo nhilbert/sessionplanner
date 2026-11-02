@@ -1,37 +1,46 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { api } from '@/api'
-import type { WorkshopState } from '@/domain/types'
+import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { SlideStage } from '@/slides/SlideView'
 import { useDeck } from '@/slides/useDeck'
-import { presentChannel } from '@/slides/presentChannel'
+import { usePresentSync } from '@/slides/presentSync'
+import { useWakeLock } from '@/slides/useWakeLock'
 
-/** Presenting from the app (docs/slides.md): the deck full screen, arrow keys, space and clicks to page, Escape to leave. */
+/**
+ * Presenting from the app (docs/slides.md): the deck full screen, arrow keys, space and clicks to page, Escape to leave.
+ * It shows the workshop live, so a slide changed meanwhile shows at once, and pages with every window of the presentation.
+ */
 export default function PresentPage() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const [data, setData] = useState<WorkshopState | null>(null)
-  const [failed, setFailed] = useState(false)
+  const { data, status, open, close } = usePlanner()
   const { loaded, load } = useSettings()
   const [scale, setScale] = useState(1)
   const [hint, setHint] = useState(true)
   const hintTimer = useRef<number | null>(null)
   const touchX = useRef<number | null>(null)
   const { deck, theme } = useDeck(data)
+  // ?from=N presents from that slide ("Present from here"); ?n=N is where this window was, for a reload.
+  const [from] = useState(() => params.get('from'))
+  const { at: n, go: page } = usePresentSync(id, deck, parseInt(from ?? params.get('n') ?? '1', 10) || 1, from !== null)
+  useWakeLock()
 
   useEffect(() => {
-    api.loadWorkshop(id).then(setData, () => setFailed(true))
-  }, [id])
+    open(id)
+    return () => close()
+  }, [id, open, close])
   useEffect(() => {
     if (!loaded) void load()
   }, [loaded, load])
-  const n = Math.min(Math.max(parseInt(params.get('n') ?? '1', 10) || 1, 1), Math.max(deck.length, 1)) - 1
+  useEffect(() => {
+    if (deck.length) setParams({ n: String(n + 1) }, { replace: true })
+  }, [n, deck.length, setParams])
   const go = (i: number) => {
-    setParams({ n: String(Math.min(Math.max(i, 0), deck.length - 1) + 1) }, { replace: true })
+    page(i)
     setHint(true)
     if (hintTimer.current) window.clearTimeout(hintTimer.current)
     hintTimer.current = window.setTimeout(() => setHint(false), 1500)
@@ -49,14 +58,6 @@ export default function PresentPage() {
   useEffect(() => {
     if (data) document.title = `${data.workshop.title || t('workshops.untitled')} – ${t('slides.title')}`
   }, [data, t])
-  // A presenter view in another window leads; this window follows.
-  useEffect(() => {
-    const channel = presentChannel(id)
-    channel.onmessage = (e: MessageEvent<{ n?: number }>) => {
-      if (typeof e.data?.n === 'number') setParams({ n: String(e.data.n) }, { replace: true })
-    }
-    return () => channel.close()
-  }, [id, setParams])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown' || e.key === 'Enter') go(n + 1)
@@ -74,7 +75,8 @@ export default function PresentPage() {
     return () => window.removeEventListener('keydown', key)
   })
 
-  if (failed) return <p className="p-8 text-rose">{t('common.missing')}</p>
+  if (status === 'missing') return <p className="p-8 text-rose">{t('common.missing')}</p>
+  if (status === 'login' || status === 'error') return <p className="p-8 text-rose">{status === 'login' ? t('common.login') : t('common.error')}</p>
   if (!data) return <p className="p-8 text-ink-2">{t('common.loading')}</p>
   const slide = deck[n]
   const title = data.workshop.title || t('workshops.untitled')

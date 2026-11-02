@@ -98,7 +98,7 @@ export function deckSource(o: {
   setSlides(itemId: string, slides: Slide[]): void
   editable: boolean
   session?: SlideSource['session']
-  openDetails(): void
+  openDetails?(): void
   hide(kind: 'agenda' | 'break'): void
 }): SlideSource {
   const view = (deck: DeckSlideRef[]): EditorSlide[] =>

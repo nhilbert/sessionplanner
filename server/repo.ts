@@ -246,6 +246,10 @@ export class Repo {
     return this.loadWorkshop(id)!
   }
 
+  hasWorkshop(id: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(id)
+  }
+
   loadWorkshop(id: string): WorkshopState | null {
     const w = this.db.prepare('SELECT * FROM workshops WHERE id = ?').get(id) as Row | undefined
     if (!w) return null

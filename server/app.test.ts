@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
-import { createApp, MAX_FILE, type QUOTAS } from './app.ts'
+import { createApp, MAX_FILE, PRESENT_HOURS, type QUOTAS } from './app.ts'
 import type { Op, ServerEvent } from '../src/domain/ops.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
@@ -582,6 +582,51 @@ describe('guests', () => {
     expect((await app.request(`${pub}/api/library`, { headers: BEN })).status).toBe(403)
     expect((await app.request(`${pub}/api/workshops`, { method: 'POST', headers: BEN, body: '{}' })).status).toBe(403)
     expect((await app.request(`${pub}/api/settings`, { headers: BEN })).status).toBe(200)
+  })
+
+  it('lead a presentation with edit access; every window that joins learns where it stands, view guests learn nothing', async () => {
+    const { app, id, otherId } = await prepared()
+    await share(app, id, 'anna@example.com', 'view', false)
+    await share(app, id, 'ben@example.com', 'edit', false)
+    const present = (headers: Record<string, string>, body: object, wid = id) => app.request(`${pub}/api/workshops/${wid}/present`, { method: 'POST', headers, body: JSON.stringify(body) })
+    /** Reads a live-update stream until `until` shows up in it. */
+    const read = async (res: Response, until: string) => {
+      const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader()
+      let text = ''
+      while (!text.includes(until)) text += (await reader.read()).value ?? ''
+      await reader.cancel()
+      return text
+    }
+    const stream = (headers: Record<string, string>) => app.request(`${pub}/api/workshops/${id}/events`, { headers })
+
+    expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":null}')
+    expect((await present(OWNER, { key: 'title:d1', n: 1, tag: 'w1.1' })).status).toBe(200)
+    expect((await present(BEN, { key: 'a:s1', n: 3, tag: 'w2.1' })).status).toBe(200)
+    expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w2.1"}}')
+
+    const owner = await stream(OWNER)
+    const anna = await stream(ANNA)
+    await present(OWNER, { key: 'a:s2', n: 4, tag: 'w1.2' })
+    expect(await read(owner, '"tag":"w1.2"')).toContain('data: {"type":"present","key":"a:s2","n":4,"tag":"w1.2"}')
+    await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'a', fields: { duration: 45 } }] }) })
+    const seen = await read(anna, '"type":"changed"')
+    expect(seen).not.toContain('present')
+    expect(seen).toMatch(/event: hello\ndata: \n/)
+
+    expect((await present(ANNA, { key: 'a:s1', n: 3, tag: 'w3.1' })).status).toBe(403)
+    expect((await present(BEN, { key: 'a:s1', n: 3, tag: 'w3.1' }, otherId)).status).toBe(404)
+    expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't' }, 'nope')).status).toBe(404)
+    expect((await present(OWNER, { key: 'a:s1', n: 0, tag: 't' })).status).toBe(400)
+    expect((await present(OWNER, { key: 'a:s1', n: 2 })).status).toBe(400)
+
+    // the next day nobody joins yesterday's slide
+    const now = Date.now()
+    const later = vi.spyOn(Date, 'now').mockReturnValue(now + (PRESENT_HOURS + 1) * 3_600_000)
+    try {
+      expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":null}')
+    } finally {
+      later.mockRestore()
+    }
   })
 
   it('lose access at once when removed, also on an open live-update stream', async () => {
