@@ -125,7 +125,7 @@ The host's line at y = 672: deck name and section at the left in small caps, the
 - Whether `--radius` stays a theme choice at all; the paper look wants 0 to 4 px, the partner theme uses 16.
 - The size of the display step: 96 fits a two-word title; a German compound of 20 letters needs 80.
 - Whether the title rule is drawn by the format (this brief) or stays a theme decoration as today.
-- Parked for a later variant, not for this pass: a playful look as an alternative template family – warm earth tones (terracotta, ochre, olive, cream), organic blob shapes and a thin wavy line as decoration, flat illustrated figures beside the text, titles in caps. It is a different family, not a theme of this brief, because its decoration lives in the layouts, not in the tokens.
+- A playful look as an alternative template family for school workshops was found in its own design search on 2026-11-03: `docs/slide-design-playful.md`. It is a different family, not a theme of this brief, because its decoration lives in the layouts, not in the tokens.
 
 ## 12. The owner's taste (from the design search of 2026-11-03)
 
@@ -146,7 +146,7 @@ Six rows of sample slides on a design canvas, each row a different direction, an
 
 **Cut-outs (a feature, stage B).** Illustrations are uploaded with their flat backgrounds (the ink-wash series sits on paper grey or white). At upload the app detects a flat background (the border pixels agree on one colour), floods it from the edges with a tolerance and a soft edge, and stores the cut-out next to the original; the editor shows which one a slide uses and lets the owner switch back when the detection was wrong. A prototype of the routine in pure Python (flood fill, soft edge) cut the sample plant cleanly in one pass. Photographs are never cut out; they bleed.
 
-**Parked:** a playful illustrated family (section 11) stays a separate, later direction.
+**The playful family** for school workshops is a separate direction with its own brief, `docs/slide-design-playful.md`: one disc per slide, teal and yellow on cream, flat vector figures recoloured to the tokens.
 
 ## 13. The catalogue against the slide-type literature (2026-11-03)
 
