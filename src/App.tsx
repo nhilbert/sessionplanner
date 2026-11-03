@@ -11,6 +11,7 @@ import PresentPage from './pages/PresentPage'
 import PresenterPage from './pages/PresenterPage'
 import ThemesPage from './pages/ThemesPage'
 import TemplatesPage from './pages/TemplatesPage'
+import PicturesPage from './pages/PicturesPage'
 import { useSettings } from './store/useSettings'
 
 /** The owner's pages (library, slides area): a guest who types their address lands on the workshops shared with them. */
@@ -32,6 +33,8 @@ const router = createBrowserRouter([
       { path: 'slides/pool', element: <OwnerOnly><DecksPage /></OwnerOnly> },
       { path: 'slides/templates', element: <OwnerOnly><TemplatesPage /></OwnerOnly> },
       { path: 'slides/themes', element: <OwnerOnly><ThemesPage /></OwnerOnly> },
+      // The picture pool of the themes, as an entry of its own in the navigation.
+      { path: 'pictures', element: <OwnerOnly><PicturesPage /></OwnerOnly> },
       { path: 'decks', element: <Navigate to="/slides/pool" replace /> },
       { path: 'library/decks', element: <Navigate to="/slides/pool" replace /> },
       { path: 'templates', element: <Navigate to="/slides/templates" replace /> },

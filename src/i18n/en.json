@@ -236,7 +236,8 @@
     "settings": "Settings",
     "collapse": "Collapse",
     "expand": "Expand",
-    "slides": "Slides"
+    "slides": "Slides",
+    "pictures": "Pictures"
   },
   "settings": {
     "language": "Language",
@@ -804,7 +805,8 @@
     "tags": "Tags",
     "tagsPlaceholder": "tags, separated by commas",
     "removeFromPool": "Remove from the pool",
-    "poolEmpty": "Nothing in the pool yet."
+    "poolEmpty": "Nothing in the pool yet.",
+    "dropHint": "Drag pictures here or upload them, several at once."
   },
   "templates": {
     "title": "Slide templates",
@@ -829,5 +831,12 @@
     "pool": "Pool",
     "templates": "Templates",
     "themes": "Themes"
+  },
+  "pictures": {
+    "title": "Picture pool",
+    "subtitle": "The generated title, agenda and break slides take the pictures in turn; icons are offered to cards. Tags, separated by commas, make them findable in the editor and for the assistant.",
+    "theme": "Theme",
+    "belongsTo": "The pool belongs to the theme “{{name}}”.",
+    "noTheme": "The picture pool belongs to a theme kept as data. Create one first:"
   }
 }

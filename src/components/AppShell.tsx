@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { BookMarked, CalendarDays, PanelLeftClose, PanelLeftOpen, Presentation, Settings } from 'lucide-react'
+import { BookMarked, CalendarDays, Images, PanelLeftClose, PanelLeftOpen, Presentation, Settings } from 'lucide-react'
 import { useSettings } from '@/store/useSettings'
 import { LOGIN_REQUIRED } from '@/api'
 import { cx, useLocalState } from './ui'
@@ -11,6 +11,8 @@ const NAV = [
   { to: '/library', key: 'nav.library', icon: BookMarked, end: true, owner: true },
   // The slides area (pool, templates, themes) under one entry; its pages have tabs.
   { to: '/slides', key: 'nav.slides', icon: Presentation, end: false, owner: true },
+  // The picture pool: pictures for the generated slides and icons for cards (docs/slides.md, section 4).
+  { to: '/pictures', key: 'nav.pictures', icon: Images, end: true, owner: true },
 ] as const
 
 /** The frame shared with Zendo and the Revenue Tracker: navigation on the left (icons only when folded), a bottom bar on phones. */

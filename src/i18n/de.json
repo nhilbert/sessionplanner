@@ -236,7 +236,8 @@
     "settings": "Einstellungen",
     "collapse": "Einklappen",
     "expand": "Ausklappen",
-    "slides": "Folien"
+    "slides": "Folien",
+    "pictures": "Bilder"
   },
   "settings": {
     "language": "Sprache",
@@ -804,7 +805,8 @@
     "tags": "Schlagworte",
     "tagsPlaceholder": "Schlagworte, mit Komma",
     "removeFromPool": "Aus dem Pool nehmen",
-    "poolEmpty": "Noch nichts im Pool."
+    "poolEmpty": "Noch nichts im Pool.",
+    "dropHint": "Bilder hierher ziehen oder hochladen; mehrere auf einmal."
   },
   "templates": {
     "title": "Folienvorlagen",
@@ -829,5 +831,12 @@
     "pool": "Sammlung",
     "templates": "Vorlagen",
     "themes": "Themes"
+  },
+  "pictures": {
+    "title": "Bildpool",
+    "subtitle": "Fotos nehmen die erzeugten Titel-, Agenda- und Pausenfolien reihum, Icons stehen Karten zur Wahl. Schlagworte, durch Kommas getrennt, machen sie im Editor und für den Assistenten findbar.",
+    "theme": "Theme",
+    "belongsTo": "Der Pool gehört zum Theme „{{name}}“.",
+    "noTheme": "Der Bildpool gehört zu einem Theme als Daten. Lege zuerst eines an:"
   }
 }
