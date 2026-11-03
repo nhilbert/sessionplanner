@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cjkCodePoints, deckOf, type DeckLabels } from './deck.ts'
+import { cjkCodePoints, DECK_DEFAULTS, deckOf, type DeckLabels } from './deck.ts'
 import type { Item, WorkshopState } from './types.ts'
 
 const labels: DeckLabels = { untitled: 'Ohne Titel', day: (n) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t) => `bis ${t}`, minutes: (n) => `${n} Minuten`, date: (d) => d }
@@ -34,20 +34,20 @@ describe('deckOf', () => {
     expect(deck[4].caption).toBe('Pause')
   })
   it('leaves out what is switched off, and a break with slides of its own uses them', () => {
-    expect(deckOf(state, labels, { agenda: false, breaks: false }).map((s) => s.key)).toEqual(['title:d1', 'a:s1', 'a:s2'])
+    expect(deckOf(state, labels, { ...DECK_DEFAULTS, agenda: false, breaks: false }).map((s) => s.key)).toEqual(['title:d1', 'a:s1', 'a:s2'])
     const own = { ...state, items: state.items.map((i) => (i.id === 'pause' ? { ...i, slides: [{ id: 'p1', html: '<section class="slide break"><h1>Kaffee</h1></section>' }] } : i)) }
     expect(deckOf(own, labels).map((s) => s.key)).toEqual(['title:d1', 'agenda:d1:0', 'a:s1', 'a:s2', 'pause:p1'])
   })
   it('splits a long day over two agenda slides', () => {
     const many = { ...state, items: [...state.items, ...Array.from({ length: 12 }, (_, i) => item(`m${i}`, { position: 10 + i, duration: 10 }))] }
-    const agendas = deckOf(many, labels, { agenda: true, breaks: false }).filter((s) => s.generated === 'agenda')
+    const agendas = deckOf(many, labels, { ...DECK_DEFAULTS, agenda: true, breaks: false }).filter((s) => s.generated === 'agenda')
     expect(agendas.map((s) => s.caption)).toEqual(['Agenda 1/2', 'Agenda 2/2'])
     expect(agendas[0].html.match(/<li>/g)).toHaveLength(11)
     expect(agendas[1].html.match(/<li>/g)).toHaveLength(4)
   })
   it('names the days when there are several', () => {
     const two = { ...state, days: [...state.days, { id: 'd2', workshopId: 'w', position: 2, date: '2026-11-11', startMin: 540, endMin: null }] }
-    const deck = deckOf(two, labels, { agenda: false, breaks: false })
+    const deck = deckOf(two, labels, { ...DECK_DEFAULTS, agenda: false, breaks: false })
     expect(deck.filter((s) => s.generated === 'title').map((s) => s.caption)).toEqual(['Tag 1', 'Tag 2'])
     expect(deck[deck.length - 1].html).toContain('Tag 2 · 2026-11-11')
   })

@@ -368,7 +368,6 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
 
 /** The pool of a theme: its pictures and its icons, each with the words it is found by. */
 function PoolEditor({ themeId }: { themeId: string }) {
-  const { t } = useTranslation()
   const pool = usePool(themeId)
   const setPool = useThemes((s) => s.setPool)
   const load = useThemes((s) => s.load)
