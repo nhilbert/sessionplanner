@@ -1,4 +1,7 @@
 import { isDark, isHex, mixHex, parseHex } from './color.ts'
+import { familyCss, type FamilyKey } from './families.ts'
+
+export { FAMILY_KEYS, type FamilyKey } from './families.ts'
 
 /**
  * Slide themes as data (docs/slides.md, section 4): a theme names a few colours, two fonts and a handful of
@@ -49,6 +52,8 @@ export interface ThemeTokens {
   logo: LogoPlacement
   /** The mark before an unnumbered point. */
   mark: MarkShape
+  /** The template family (docs/slide-design-playful.md): the calm look of the stylesheet, or the playful one laid over it. */
+  family: FamilyKey
 }
 
 /** What a theme's pool holds: pictures (photos for the moment slides) and icons (for cards). */
@@ -99,6 +104,7 @@ export const DEFAULT_TOKENS: ThemeTokens = {
   titleScrim: false,
   logo: 'none',
   mark: 'square',
+  family: 'calm',
 }
 
 /** A dark counterpart to the default: what "new dark theme" starts from. */
@@ -142,6 +148,7 @@ export function withDefaults(tokens: Partial<ThemeTokens> | undefined, base: The
     titleScrim: t.titleScrim ?? base.titleScrim,
     logo: t.logo ?? base.logo,
     mark: t.mark ?? base.mark,
+    family: t.family ?? base.family ?? 'calm',
   }
 }
 
@@ -188,6 +195,9 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
     lines.push(`${sel} .slide.title::after, ${sel} .slide.break::after { top: auto; bottom: 36px; height: 56px; width: 190px; }`)
     lines.push(`${sel} .slide.title:has(figure)::after, ${sel} .slide.break:has(figure)::after { background-image: var(--logo-light, var(--logo)); }`)
   }
+  // the family's decoration after the tokens and the logo, so its rules win where they meet
+  const family = familyCss(sel, tokens)
+  if (family) lines.push(family)
   return lines.join('\n')
 }
 

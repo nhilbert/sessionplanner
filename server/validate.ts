@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
 import { PALETTE, type ItemContent, type Settings } from '../src/domain/types.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
-import { DERIVED_COLOR_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
+import { DERIVED_COLOR_KEYS, FAMILY_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
 export class BadRequest extends Error {}
 
@@ -214,6 +214,7 @@ const tokensBody = z.strictObject({
   titleScrim: z.boolean().optional(),
   logo: z.enum(['none', 'title', 'all']).optional(),
   mark: z.enum(['square', 'circle', 'none']).optional(),
+  family: z.enum(FAMILY_KEYS).optional(),
 })
 const themeBody = z.strictObject({ name: text(100), tokens: tokensBody.optional(), from: text(60).optional() })
 const themePatch = z.strictObject({ name: text(100).optional(), tokens: tokensBody.optional() })

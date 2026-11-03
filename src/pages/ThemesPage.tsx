@@ -333,6 +333,18 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
               ]}
             />
           </Field>
+          <Field label={t('themes.family')} className="mt-3">
+            <Segmented
+              size="sm"
+              value={tokens.family}
+              onChange={(family) => update({ family })}
+              options={[
+                { value: 'calm', label: t('themes.familyCalm') },
+                { value: 'playful', label: t('themes.familyPlayful') },
+              ]}
+            />
+            {tokens.family === 'playful' && <p className="mt-2 text-[12px] leading-snug text-ink-3">{t('themes.familyHint')}</p>}
+          </Field>
           <Field label={t('themes.logoPlacement')} className="mt-3">
             <Segmented
               size="sm"
