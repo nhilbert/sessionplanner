@@ -2,7 +2,7 @@
 
 Slides for the agenda and the library. A slide is text in a small HTML subset; one stylesheet owned by the app gives every slide its look, and a theme (colours, fonts, logo) is chosen per workshop. Decks are presented from the app, downloaded as one standalone HTML file, or printed to PDF. Slides are edited in the app as content (section 7): fields for the words, a catalogue layout chosen per slide, the appearance from the theme; themes and template slides are edited there too. There is no way back to PowerPoint: existing decks are translated once (section 6).
 
-Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) are done; stage 4 (this draft) adds the editor, themes as data and template slides.
+Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) are done; stage 4 (this draft) adds the editor, themes as data and template slides. How the layouts should look – grid, type scale, compositions, signature devices – is decided in [slide-design.md](slide-design.md).
 
 ## 1. Decisions
 
