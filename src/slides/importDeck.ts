@@ -2,6 +2,7 @@ import { api } from '@/api'
 import type { Deck, ItemContent, ItemKind } from '@/domain/types'
 import { newId } from '@/domain/ops'
 import { normalizeSlideHtml, slideTitle } from '@/domain/slides'
+import { withCutouts } from '@/domain/cutouts'
 
 /** The manifest of a translated deck (docs/slides.md, section 6; .claude/skills/deck-translate). */
 export interface DeckMeta {
@@ -61,6 +62,7 @@ const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
  */
 export async function importDeck(found: FoundDeck, options: { createEntries: boolean; existingTitles: Set<string>; categories: string[] }, progress?: (done: number, total: number) => void): Promise<{ deck: Deck; entries: number; missing: string[] }> {
   const hashes = new Map<string, string>()
+  const cutouts = new Map<string, string>()
   const missing = new Set<string>()
   const slides: { file: string; html: string; caption: string }[] = []
   let done = 0
@@ -75,12 +77,15 @@ export async function importDeck(found: FoundDeck, options: { createEntries: boo
           missing.add(name)
           continue
         }
-        hash = (await api.uploadAsset('library', picture)).hash
+        const asset = await api.uploadAsset('library', picture)
+        hash = asset.hash
         hashes.set(name, hash)
+        if (asset.cutout) cutouts.set(hash, asset.cutout)
       }
       html = html.replace(m[0], `src="asset:${hash}"`)
     }
-    html = normalizeSlideHtml(html)
+    // An illustration shown whole on the ground comes as its cut-out (src/domain/cutouts.ts).
+    html = withCutouts(normalizeSlideHtml(html), (h) => cutouts.get(h) ?? null)
     slides.push({ file: pathOf(file).slice(found.folder.length), html, caption: slideTitle(html) })
     progress?.(++done, found.fragments.length)
   }
