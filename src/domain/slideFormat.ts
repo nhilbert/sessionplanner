@@ -30,6 +30,7 @@ export const SLIDE_FORMAT = {
     tag: 'a pill in front of an exercise title: <h2><span class="tag">Übung</span> Title</h2>',
     lead: 'the line under the title (p.lead)',
     source: 'the source in the footer (span.source) or a figcaption',
+    takeaway: 'the one-line takeaway at the foot of a content slide (span.takeaway in the footer, before the source)',
     muted: 'quieter text',
     accent: 'highlighted text, a highlighted cell or box',
     todo: 'marks an element the author still has to check; the preview flags it',
@@ -38,7 +39,7 @@ export const SLIDE_FORMAT = {
   pictures: 'A picture is <img src="asset:<hash>" alt="…">. Only hashes that already exist can be used: a pool slide or another slide shows them (slide_get lists a slide\'s assets). Agents cannot upload pictures; write the slide without one or copy a pool slide.',
   text: 'The deck\'s language and words: German typographic quotes „…“, no emoji, no trailing period on titles, no ALL CAPS, one li per point, at most two list levels, two to five cards or steps per slide. Keep a slide to what its layout holds (every layout says what fits): about six to ten points, five cards, eleven agenda lines; split a slide rather than crowd it.',
   generated: 'The app generates the title slide, the agenda slide per day (with the computed times) and a break slide for every break without slides of its own, and shows them in the deck (deck_outline). Write a title, agenda, break or closing slide yourself only for a special case.',
-  choosing: 'Pick the layout by what the slide does: one sentence that carries the slide is statement, parallel points are cards, a sequence is steps, letters with meanings are acronym, labelled boxes with guiding questions are canvas, a 2 × 2 is matrix, a shape diagram is model, an exercise with task and steps is exercise, text beside a picture is split, everything else that is text is list.',
+  choosing: 'Pick the layout by what the slide does: one sentence that carries the slide is statement, parallel points are cards, a sequence is steps, letters with meanings are acronym, labelled boxes with guiding questions are canvas, a 2 × 2 is matrix, a shape diagram is model, an exercise with task and steps is exercise, text beside a picture is split, one large figure with its evidence is number, two sides against each other are compare, dated points on a line are timeline, everything else that is text is list.',
 }
 
 const PICTURE = 'asset:3f2a9c1e5b7d4a6f'
@@ -186,5 +187,26 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
     options: 'table.compact for more rows; td.good and td.bad for a verdict',
     fits: 'a header row and about nine rows of short cells, ten with .compact; three or four columns',
     example: '<section class="slide table"><header><h2>Zwei Wege zur Entscheidung</h2></header><table class="compact"><thead><tr><th></th><th>Konsens</th><th>Konsent</th></tr></thead><tbody><tr><td><strong>Frage</strong></td><td>Sind alle dafür?</td><td>Hat jemand einen schwerwiegenden Einwand?</td></tr><tr><td><strong>Tempo</strong></td><td class="bad">Langsam</td><td class="good">Zügig</td></tr></tbody></table><footer><span class="source">Eigene Darstellung</span></footer></section>',
+  },
+  {
+    layout: 'number',
+    use: 'one large figure with its unit and one line of evidence; two to four figures side by side',
+    structure: 'header, then ul.numbers > li > p.value + p.label; one to four li',
+    fits: 'one figure of up to about eight characters with a label of one or two lines; two to four figures with a label of one line each',
+    example: '<section class="slide number"><header><h2>Wie viel Zeit geht in Besprechungen?</h2></header><ul class="numbers"><li><p class="value">37 %</p><p class="label">der Arbeitswoche einer Führungskraft sind Besprechungen</p></li></ul><footer><span class="source">Beispielzahl, eigene Erhebung</span></footer></section>',
+  },
+  {
+    layout: 'compare',
+    use: 'two columns against each other: before and after, option A and B, pro and contra',
+    structure: 'header, then div.compare > div.side × 2 > h3 + p? + ul.list?',
+    fits: 'a heading, a line and up to six short points per side',
+    example: '<section class="slide compare"><header><h2>Linear oder zirkulär?</h2></header><div class="compare"><div class="side"><h3>Linear</h3><ul class="list"><li>Ursache führt zu Wirkung</li><li>Die Leitfrage: „Wer war’s?“</li><li>Lösung: Ursache beseitigen</li></ul></div><div class="side"><h3>Zirkulär</h3><ul class="list"><li>Verhalten erzeugt Verhalten</li><li>Die Leitfrage: „Was erhält das Muster?“</li><li>Lösung: an einer Stelle anders reagieren</li></ul></div></div></section>',
+  },
+  {
+    layout: 'timeline',
+    use: 'three to six dated points on one line: a change process, a history, a roadmap',
+    structure: 'header, then ol.timeline > li > div.eyebrow (the date) + h3 + p?',
+    fits: 'three to six points with a date, a heading of one to three words and a line or two of text',
+    example: '<section class="slide timeline"><header><h2>Der Weg bis zum Teamtag</h2></header><ol class="timeline"><li><div class="eyebrow">März</div><h3>Auftrag</h3><p>Klärung mit der Geschäftsführung</p></li><li><div class="eyebrow">Mai</div><h3>Interviews</h3><p>Zwölf Gespräche im Team</p></li><li><div class="eyebrow">Juni</div><h3>Rückspiegelung</h3><p>Muster und Hypothesen</p></li><li><div class="eyebrow">Heute</div><h3>Teamtag</h3><p>Vereinbarungen für das nächste halbe Jahr</p></li></ol></section>',
   },
 ]

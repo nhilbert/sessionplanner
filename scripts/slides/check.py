@@ -279,6 +279,25 @@ def fits_checks(layout, sec):
     elif layout == 'figure':
         if not any(x.tag == 'img' for x in sec.all()):
             warn('figure without a picture')
+    elif layout == 'number':
+        for ul in (x for x in sec.all() if x.tag == 'ul' and 'numbers' in x.classes):
+            n = len(ul.items())
+            if n > 4:
+                warn(f'{n} figures: four at most side by side')
+    elif layout == 'compare':
+        sides = [x for x in sec.all() if x.tag == 'div' and 'side' in x.classes]
+        if len(sides) != 2:
+            warn(f'{len(sides)} sides: a comparison has two')
+        for side in sides:
+            if sum(len(l.items()) for l in side.all() if l.tag == 'ul') > 6:
+                warn('more than six points on a side; split the slide')
+    elif layout == 'timeline':
+        for ol in (x for x in sec.all() if x.tag == 'ol' and 'timeline' in x.classes):
+            n = len(ol.items())
+            if n > 6:
+                warn(f'{n} points: a timeline holds six')
+            elif n < 3:
+                note(f'{n} points: a timeline reads from three')
     return out
 
 

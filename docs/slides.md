@@ -61,12 +61,15 @@ Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) ar
 | `canvas` | a grid of labelled boxes with guiding questions | `div.canvas.cols-N > .box > h3 + p`; `.box.wide`, `.box.tall`, `.box.accent` |
 | `model` | a diagram as inline SVG: pyramid, cycle, curve, triangle | `figure.model > svg + figcaption?` |
 | `table` | a small table | `table`, `td.good`, `td.bad`, modifier `.compact` |
+| `number` | one large figure with its evidence, or two to four side by side | `ul.numbers > li > p.value + p.label` |
+| `compare` | two columns against each other: before and after, option A and B, pro and contra | `div.compare > div.side × 2 > h3 + p? + ul.list?` |
+| `timeline` | three to six dated points on one line | `ol.timeline > li > .eyebrow (the date) + h3 + p?` |
 
 Title, agenda, break and closing slides are the ones the app can generate from the workshop (section 5 of the concept); the others are written. The facts panel of an exercise (duration, format, material) can be filled from the item.
 
-Common elements: `.eyebrow` (kicker above the title), `.tag` (a pill such as "Übung" in front of the title, later derived from the item's category), `.lead`, `.source`, `.muted`, `.accent`.
+Common elements: `.eyebrow` (kicker above the title), `.tag` (the kicker in front of an exercise title, later derived from the item's category), `.lead`, `.takeaway` (the one-line takeaway in the footer of a content slide), `.source`, `.muted`, `.accent`.
 
-The facts panel of an exercise (`aside.facts`: duration, format, material) is optional. It repeats on the wall what the facilitator knows from the plan, so participants see how long they have and what to use; in the app it can be filled from the item instead of being written into the slide.
+The facts panel of an exercise (`aside.facts`: duration, format, material, and the result the group brings back) is optional. It repeats on the wall what the facilitator knows from the plan, so participants see how long they have and what to use; in the app it can be filled from the item instead of being written into the slide.
 
 ## 4. Themes
 

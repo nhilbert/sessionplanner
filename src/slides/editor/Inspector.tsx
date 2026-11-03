@@ -335,6 +335,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
       {(parts.has('source') || doc.source !== undefined) && (
         <section>
           <SectionLabel>{t('editor.footer')}</SectionLabel>
+          <Text path="takeaway" value={doc.takeaway ?? ''} onChange={(takeaway) => set({ takeaway })} onFocus={onFocus} placeholder={f('takeaway')} label={f('takeaway')} />
           <Text path="source" value={doc.source ?? ''} onChange={(source) => set({ source })} onFocus={onFocus} placeholder={f('source')} label={f('source')} />
         </section>
       )}

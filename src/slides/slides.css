@@ -320,3 +320,38 @@
 .slide td.good { color: var(--fg); }
 .slide td.bad { color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--accent-2, var(--fg-3)); text-decoration-thickness: 1px; }
 .slide table.compact { font-size: 17px; }
+
+/* number: one large figure, thin, with its label; two to four side by side */
+.slide ul.numbers { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 48px; align-items: end; }
+.slide ul.numbers > li { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.slide ul.numbers .value { font: var(--numeral-weight, 300) 96px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.03em; color: var(--kicker, var(--accent-deep, var(--accent))); font-variant-numeric: tabular-nums; }
+.slide ul.numbers .label { font-size: 21px; line-height: 1.4; color: var(--fg-2); }
+.slide ul.numbers:has(> li:only-child) .value { font-size: 180px; letter-spacing: -0.04em; }
+.slide ul.numbers:has(> li:only-child) .label { font-size: 26px; max-width: 760px; color: var(--fg); }
+.slide ul.numbers:has(> li:nth-child(4)) .value { font-size: 72px; }
+
+/* compare: two sides against each other, a hairline between them */
+.slide .compare { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0 56px; align-items: end; }
+.slide .compare .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.slide .compare .side:nth-child(2)::after { content: none; }
+.slide .compare > .side:first-child { grid-column: 1; }
+.slide .compare > .side:last-child { grid-column: 3; }
+.slide .compare::before { content: ''; grid-column: 2; grid-row: 1; align-self: stretch; background: var(--line); }
+.slide .compare h3 { font-size: 28px; }
+.slide .compare .side > p { font-size: 20px; line-height: 1.45; color: var(--fg-2); }
+.slide .compare ul.list { font-size: 21px; max-width: none; }
+.slide .compare ul.list > li { padding-top: 9px; padding-bottom: 9px; }
+
+/* timeline: dated points on one line, a mark on the line for each */
+.slide ol.timeline { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 40px; align-items: start; position: relative; padding-top: 28px; }
+.slide ol.timeline::before { content: ''; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: var(--line); }
+.slide ol.timeline > li { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.slide ol.timeline > li::before { content: ''; position: absolute; left: 0; top: -28px; width: 9px; height: 9px; border-radius: var(--mark-radius, 0); background: var(--accent); }
+.slide ol.timeline h3 { font-size: 24px; }
+.slide ol.timeline p { font-size: 18px; line-height: 1.45; color: var(--fg-2); }
+.slide ol.timeline:has(> li:nth-child(5)) h3 { font-size: 21px; }
+.slide ol.timeline:has(> li:nth-child(5)) p { font-size: 16px; }
+
+/* the takeaway: one line at the foot of a content slide, above the chrome */
+.slide > footer > .takeaway { position: absolute; left: 0; bottom: 44px; max-width: 900px; font: 700 20px/1.35 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--kicker, var(--accent-deep, var(--accent))); }
+.slide:has(> footer > .takeaway) { padding-bottom: 152px; }

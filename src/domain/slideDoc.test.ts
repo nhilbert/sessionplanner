@@ -179,6 +179,16 @@ describe('slide document', () => {
     const quote = parseSlide('<section class="slide quote"><blockquote><p>Q</p></blockquote><cite>Wer</cite></section>')
     expect(convertLayout({ ...quote, source: 'Buch' }, 'statement').lost).toContain('other')
   })
+  it('reads and writes the takeaway next to the source', () => {
+    const html = '<section class="slide list"><header><h2>Regeln</h2></header><ul class="list"><li>Ausreden lassen</li></ul><footer><span class="takeaway">Zuhören ist die halbe Regel</span><span class="source">Eigene Praxis</span></footer></section>'
+    const doc = parseSlide(html)
+    expect(doc.takeaway).toBe('Zuhören ist die halbe Regel')
+    expect(doc.source).toBe('Eigene Praxis')
+    expect(serializeSlide(doc)).toBe(html)
+    const only = parseSlide('<section class="slide list"><ul class="list"><li>A</li></ul><footer><span class="takeaway">Merke</span></footer></section>')
+    expect(only.takeaway).toBe('Merke')
+    expect(only.source).toBe('')
+  })
   it('names an element for every field', () => {
     const doc = parseSlide(SLIDE_LAYOUTS.find((l) => l.layout === 'matrix')!.example)
     const paths = fieldSelectors(doc).map((f) => f.path)

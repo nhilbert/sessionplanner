@@ -407,6 +407,9 @@
       "steps": "Sequence",
       "matrix": "Matrix",
       "acronym": "Acronym",
+      "number": "Number",
+      "compare": "Comparison",
+      "timeline": "Timeline",
       "canvas": "Canvas",
       "model": "Model",
       "table": "Table"
@@ -510,6 +513,9 @@
       "steps": "a sequence of three to five steps",
       "matrix": "a 2 × 2 with axis labels",
       "acronym": "letters and their meaning",
+      "number": "one large figure with its evidence, or up to four side by side",
+      "compare": "two columns against each other: before and after, A and B",
+      "timeline": "three to six dated points on one line",
       "canvas": "labelled boxes with guiding questions",
       "model": "a diagram as inline SVG",
       "table": "a small table"
@@ -606,6 +612,7 @@
       "glyphCaption": "Caption under the glyph",
       "logo": "Show the theme's logo",
       "source": "Source line",
+      "takeaway": "Takeaway",
       "accent": "Highlighted",
       "wide": "Two columns wide",
       "tall": "Two rows tall",

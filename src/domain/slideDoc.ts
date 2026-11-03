@@ -136,6 +136,8 @@ export interface SlideDoc {
   /** Closing slide: the theme's logo above the title. */
   logo?: boolean
   source?: string
+  /** The one-line takeaway at the foot of a content slide (span.takeaway in the footer). */
+  takeaway?: string
   /** The body as markup when its structure is not the catalogue's (with `whole`, the header and footer too). */
   raw?: string
   /** Raw only: the header and footer are part of `raw`, not fields. */
@@ -185,6 +187,9 @@ export const LAYOUTS: LayoutSpec[] = [
   { id: 'canvas', group: 'structure', parts: ['header', 'boxes', 'source'], options: [choice('cols', [2, 3, 4], 3)], max: 12 },
   { id: 'model', group: 'visual', parts: ['header', 'svg', 'figure', 'source'], options: [] },
   { id: 'table', group: 'structure', parts: ['header', 'table', 'source'], options: [flag('compact')], max: 8 },
+  { id: 'number', group: 'text', parts: ['header', 'cards', 'source'], options: [], max: 4 },
+  { id: 'compare', group: 'structure', parts: ['header', 'cards', 'source'], options: [], max: 2 },
+  { id: 'timeline', group: 'structure', parts: ['header', 'steps', 'source'], options: [], max: 6 },
 ]
 export const LAYOUT_IDS = LAYOUTS.map((l) => l.id)
 export const layoutSpec = (id: string): LayoutSpec | undefined => LAYOUTS.find((l) => l.id === id)
@@ -445,6 +450,51 @@ const readers: Record<string, BodyReader> = {
     while (doc.matrix.cells.length < 4) doc.matrix.cells.push(emptyCell())
     return true
   },
+  number: (body, doc) => {
+    if (body.length !== 1 || body[0].tag !== 'ul' || !hasClass(body[0], 'numbers')) return false
+    doc.cards = []
+    for (const li of elements(body[0]).filter((e) => e.tag === 'li')) {
+      const card = emptyCard()
+      for (const c of elements(li)) {
+        if (c.tag === 'p' && hasClass(c, 'value')) card.title = inline(c)
+        else if (c.tag === 'p' && hasClass(c, 'label')) card.text = inline(c)
+        else return false
+      }
+      doc.cards.push(card)
+    }
+    return true
+  },
+  compare: (body, doc) => {
+    if (body.length !== 1 || body[0].tag !== 'div' || !hasClass(body[0], 'compare')) return false
+    doc.cards = []
+    for (const side of elements(body[0])) {
+      if (side.tag !== 'div' || !hasClass(side, 'side')) return false
+      const card = emptyCard()
+      for (const c of elements(side)) {
+        if (c.tag === 'h3') card.title = inline(c)
+        else if (c.tag === 'p') card.text = card.text ? `${card.text}\n\n${inline(c)}` : inline(c)
+        else if (c.tag === 'ul' && hasClass(c, 'list')) card.points = elements(c).filter((e) => e.tag === 'li').map(inline)
+        else return false
+      }
+      doc.cards.push(card)
+    }
+    return doc.cards.length === 2
+  },
+  timeline: (body, doc) => {
+    if (body.length !== 1 || body[0].tag !== 'ol' || !hasClass(body[0], 'timeline')) return false
+    doc.steps = []
+    for (const li of elements(body[0]).filter((e) => e.tag === 'li')) {
+      const step = emptyStep()
+      for (const c of elements(li)) {
+        if (c.tag === 'div' && hasClass(c, 'eyebrow')) step.eyebrow = inline(c)
+        else if (c.tag === 'h3') step.title = inline(c)
+        else if (c.tag === 'p') step.text = step.text ? `${step.text}\n\n${inline(c)}` : inline(c)
+        else return false
+      }
+      doc.steps.push(step)
+    }
+    return true
+  },
   acronym: (body, doc) => {
     if (body.length !== 1 || body[0].tag !== 'dl' || !hasClass(body[0], 'acronym')) return false
     if (hasClass(body[0], 'compact')) doc.options.compact = true
@@ -506,7 +556,12 @@ export function parseSlide(html: string): SlideDoc {
   const header = elements(root).find((e) => e.tag === 'header')
   const footer = elements(root).find((e) => e.tag === 'footer' && !hasClass(e, 'chrome'))
   if (header) doc.header = readHeader(header)
-  if (footer) doc.source = inline(only(elements(footer), 'span', 'source') ?? footer)
+  if (footer) {
+    const src = only(elements(footer), 'span', 'source')
+    const take = only(elements(footer), 'span', 'takeaway')
+    doc.source = src || !take ? inline(src ?? footer) : ''
+    if (take) doc.takeaway = inline(take)
+  }
   const bodyNodes = root.children.filter((n) => n !== header && n !== footer && !(isEl(n) && n.tag === 'footer' && hasClass(n, 'chrome')))
   const body = bodyNodes.filter(isEl)
   const clean = bodyNodes.every((n) => isEl(n) || isBlank(n))
@@ -516,6 +571,7 @@ export function parseSlide(html: string): SlideDoc {
   const partial: SlideDoc = { layout, options: {}, raw: serializeNodes(bodyNodes).trim(), root: rootClass }
   if (doc.header) partial.header = doc.header
   if (doc.source !== undefined) partial.source = doc.source
+  if (doc.takeaway !== undefined) partial.takeaway = doc.takeaway
   if (sameContent(html, serializeSlide(partial))) return partial
   return whole
 }
@@ -689,6 +745,22 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
     const axis = (name: string, labels: [string, string]) => el('div', { class: name }, labels.map((l) => el('span', {}, textToInline(l.trim()))))
     return [el('div', { class: 'matrix' }, [axis('axis-y', m.axisY), el('div', { class: 'cells' }, cells.slice(0, 4).map((c) => el('div', { class: cls('cell', c.accent && 'accent') }, [...h('h3', c.title), ...ps('', c.text)]))), axis('axis-x', m.axisX)])]
   },
+  number: (d) => {
+    const items = (d.cards ?? []).filter((c) => c.title.trim() || c.text.trim())
+    if (!items.length) return []
+    return [el('ul', { class: 'numbers' }, items.map((c) => el('li', {}, [...ps('value', c.title), ...ps('label', c.text)])))]
+  },
+  compare: (d) => {
+    const sides = (d.cards ?? []).slice(0, 2)
+    if (!sides.some((c) => c.title.trim() || c.text.trim() || c.points.some((x) => x.trim()))) return []
+    while (sides.length < 2) sides.push(emptyCard())
+    return [el('div', { class: 'compare' }, sides.map((c) => el('div', { class: 'side' }, [...h('h3', c.title), ...ps('', c.text), ...ul('list', c.points)])))]
+  },
+  timeline: (d) => {
+    const steps = (d.steps ?? []).filter((s) => s.text.trim() || s.title.trim() || s.eyebrow.trim())
+    if (!steps.length) return []
+    return [el('ol', { class: 'timeline' }, steps.map((s) => el('li', {}, [...div('eyebrow', s.eyebrow), ...h('h3', s.title), ...ps('', s.text)])))]
+  },
   acronym: (d) => {
     const letters = (d.letters ?? []).filter((l) => l.letter.trim() || l.term.trim() || l.text.trim())
     if (!letters.length) return []
@@ -731,7 +803,11 @@ export function serializeSlide(doc: SlideDoc): string {
   if (spec?.parts.includes('header') || (doc.raw !== undefined && doc.header)) parts.push(serializeNodes(writeHeader(doc.header, doc.layout === 'exercise')))
   if (doc.raw !== undefined) parts.push(doc.raw)
   else if (writers[doc.layout]) parts.push(serializeNodes(writers[doc.layout](doc)))
-  if (doc.source?.trim()) parts.push(`<footer><span class="source">${serializeNodes(textToInline(doc.source.trim()))}</span></footer>`)
+  if (doc.takeaway?.trim() || doc.source?.trim()) {
+    const take = doc.takeaway?.trim() ? `<span class="takeaway">${serializeNodes(textToInline(doc.takeaway.trim()))}</span>` : ''
+    const src = doc.source?.trim() ? `<span class="source">${serializeNodes(textToInline(doc.source.trim()))}</span>` : ''
+    parts.push(`<footer>${take}${src}</footer>`)
+  }
   return `<section class="${rootClass}">${parts.join('')}</section>`
 }
 
@@ -809,6 +885,15 @@ export function blankDoc(layout: string, w: BlankWords): SlideDoc {
     case 'steps':
       doc.steps = [1, 2, 3].map((i) => ({ ...emptyStep(), title: n(w.step, i), text: w.text }))
       break
+    case 'timeline':
+      doc.steps = [1, 2, 3].map((i) => ({ ...emptyStep(), eyebrow: n(w.step, i), title: n(w.point, i), text: w.text }))
+      break
+    case 'number':
+      doc.cards = [{ ...emptyCard(), title: '42 %', text: w.text }]
+      break
+    case 'compare':
+      doc.cards = [1, 2].map((i) => ({ ...emptyCard(), title: n(w.point, i), points: [w.text, w.text] }))
+      break
     case 'matrix':
       doc.matrix = { axisY: [n(w.axis, 1), n(w.axis, 2)], axisX: [n(w.axis, 3), n(w.axis, 4)], cells: [1, 2, 3, 4].map((i) => ({ ...emptyCell(), title: n(w.point, i), text: w.text, accent: i === 1 })) }
       break
@@ -845,6 +930,7 @@ interface Pool {
   figure?: Figure
   svg?: string
   source: string
+  takeaway: string
   /** What the pool could not place anywhere else (a quote's attribution next to a source line). */
   extra: string[]
 }
@@ -852,7 +938,7 @@ interface Pool {
 function poolOf(doc: SlideDoc): Pool {
   const t = doc.text
   const items: Pool['items'] = []
-  const pool: Pool = { eyebrow: doc.header?.eyebrow || t?.eyebrow || '', title: doc.header?.title || t?.title || t?.big || doc.quote?.text || '', lead: doc.header?.lead || t?.lead || t?.sub || t?.subtitle || t?.body || doc.quote?.sub || '', small: doc.header?.small ?? '', items, figure: doc.figure, svg: doc.svg, source: doc.source ?? '', extra: [] }
+  const pool: Pool = { eyebrow: doc.header?.eyebrow || t?.eyebrow || '', title: doc.header?.title || t?.title || t?.big || doc.quote?.text || '', lead: doc.header?.lead || t?.lead || t?.sub || t?.subtitle || t?.body || doc.quote?.sub || '', small: doc.header?.small ?? '', items, figure: doc.figure, svg: doc.svg, source: doc.source ?? '', takeaway: doc.takeaway ?? '', extra: [] }
   if (doc.points) for (const pt of doc.points) items.push({ title: '', text: [pt.text, ...pt.children].filter(Boolean).join('\n') })
   if (doc.cards) for (const c of doc.cards) items.push({ title: c.title, text: [c.text, ...c.points].filter(Boolean).join('\n'), image: c.image || undefined, alt: c.alt })
   if (doc.steps) for (const s of doc.steps) items.push({ title: s.title, text: s.text })
@@ -913,6 +999,8 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
   if (spec.parts.includes('svg')) out.svg = pool.svg ?? ''
   else if (pool.svg && !(layout === 'split')) lost.push('svg')
   if (spec.parts.includes('source') && pool.source) out.source = pool.source
+  if (spec.parts.includes('source') && pool.takeaway) out.takeaway = pool.takeaway
+  else if (pool.takeaway) lost.push('takeaway')
   else if (pool.source && layout !== 'quote') lost.push('source')
   switch (layout) {
     case 'section':
@@ -952,6 +1040,16 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
       break
     case 'steps':
       out.steps = take(spec.max).map((i) => ({ ...emptyStep(), title: headline(i), text: rest(i) }))
+      break
+    case 'timeline':
+      out.steps = take(spec.max).map((i) => ({ ...emptyStep(), title: headline(i), text: rest(i) }))
+      break
+    case 'number':
+      out.cards = take(spec.max).map((i) => ({ ...emptyCard(), title: headline(i), text: rest(i) }))
+      break
+    case 'compare':
+      out.cards = take(spec.max).map((i) => ({ ...emptyCard(), title: headline(i), points: rest(i).split('\n').filter(Boolean) }))
+      while (out.cards.length < 2) out.cards.push(emptyCard())
       break
     case 'matrix':
       out.matrix = { axisY: ['', ''], axisX: ['', ''], cells: take(4).map((i) => ({ title: headline(i), text: rest(i), accent: false })) }
@@ -1012,17 +1110,17 @@ export function fieldSelectors(doc: SlideDoc): { path: string; selector: string 
   }
   if (doc.cards)
     doc.cards.forEach((_, i) => {
-      const li = `:scope > .cards > li${nth(i)}`
+      const li = doc.layout === 'number' ? `:scope > .numbers > li${nth(i)}` : doc.layout === 'compare' ? `:scope > .compare > .side${nth(i)}` : `:scope > .cards > li${nth(i)}`
       add(`cards.${i}.image`, `${li} > img`)
       add(`cards.${i}.eyebrow`, `${li} > .eyebrow`)
-      add(`cards.${i}.title`, `${li} > h3`)
-      add(`cards.${i}.text`, `${li} > p`)
+      add(`cards.${i}.title`, doc.layout === 'number' ? `${li} > .value` : `${li} > h3`)
+      add(`cards.${i}.text`, doc.layout === 'number' ? `${li} > .label` : `${li} > p`)
       add(`cards.${i}.points`, `${li} > ul`)
       add(`cards.${i}`, li)
     })
   if (doc.steps)
     doc.steps.forEach((_, i) => {
-      const li = doc.layout === 'exercise' ? `:scope > .exercise > .steps > li${nth(i)}` : `:scope > .flow > li${nth(i)}`
+      const li = doc.layout === 'exercise' ? `:scope > .exercise > .steps > li${nth(i)}` : doc.layout === 'timeline' ? `:scope > .timeline > li${nth(i)}` : `:scope > .flow > li${nth(i)}`
       add(`steps.${i}.eyebrow`, `${li} > .eyebrow`)
       add(`steps.${i}.title`, `${li} > h3`)
       add(`steps.${i}.text`, `${li} > p`)
@@ -1052,5 +1150,6 @@ export function fieldSelectors(doc: SlideDoc): { path: string; selector: string 
   if (doc.table) add('table', ':scope > table')
   if (doc.glyph) add('glyph', ':scope > .glyph')
   if (doc.source !== undefined) add('source', ':scope > footer > .source')
+  if (doc.takeaway !== undefined) add('takeaway', ':scope > footer > .takeaway')
   return out
 }

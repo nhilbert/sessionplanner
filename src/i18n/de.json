@@ -407,6 +407,9 @@
       "steps": "Ablauf",
       "matrix": "Matrix",
       "acronym": "Akronym",
+      "number": "Zahl",
+      "compare": "Vergleich",
+      "timeline": "Zeitstrahl",
       "canvas": "Canvas",
       "model": "Modell",
       "table": "Tabelle"
@@ -510,6 +513,9 @@
       "steps": "ein Ablauf in drei bis fünf Schritten",
       "matrix": "eine 2 × 2 mit Achsenbeschriftung",
       "acronym": "Buchstaben und ihre Bedeutung",
+      "number": "eine große Zahl mit Beleg, oder bis zu vier nebeneinander",
+      "compare": "zwei Spalten gegeneinander: vorher und nachher, A und B",
+      "timeline": "drei bis sechs datierte Punkte auf einer Linie",
       "canvas": "beschriftete Felder mit Leitfragen",
       "model": "eine Grafik als Inline-SVG",
       "table": "eine kleine Tabelle"
@@ -606,6 +612,7 @@
       "glyphCaption": "Beschriftung unter dem Zeichen",
       "logo": "Logo des Themes zeigen",
       "source": "Quellenzeile",
+      "takeaway": "Kernaussage (Takeaway)",
       "accent": "Hervorgehoben",
       "wide": "Zwei Spalten breit",
       "tall": "Zwei Zeilen hoch",
