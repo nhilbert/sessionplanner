@@ -55,7 +55,12 @@ function PoolKindList({ kind, entries, onUpload, onTags, onRemove, large }: { ki
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const sorted = [...entries].sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+  const [query, setQuery] = useState('')
+  const [shown, setShown] = useState(kind === 'icon' ? 60 : 24)
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const matches = (e: PoolAsset) => words.every((w) => e.tags.some((tag) => tag.startsWith(w) || tag.split(/\s+/).some((part) => part.startsWith(w))))
+  const sorted = [...entries].filter((e) => !words.length || matches(e)).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+  const page = sorted.slice(0, shown)
   const [over, setOver] = useState(false)
   const take = async (files: File[]) => {
     if (!files.length) return
@@ -107,14 +112,23 @@ function PoolKindList({ kind, entries, onUpload, onTags, onRemove, large }: { ki
         />
       </div>
       {error && <p className="mb-2 text-[12px] text-rose">{error}</p>}
+      {entries.length > 12 && <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('editor.searchPool')} aria-label={t('editor.searchPool')} className="field mb-2 h-8 w-full px-2 text-[13px]" />}
       {sorted.length ? (
         <ul className={cx('grid gap-2', kind === 'icon' ? (large ? 'grid-cols-5 sm:grid-cols-8 lg:grid-cols-10' : 'grid-cols-4 sm:grid-cols-5') : large ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
-          {sorted.map((e) => (
+          {page.map((e) => (
             <PoolEntry key={e.hash} entry={e} onTags={(tags) => onTags(e.hash, tags)} onRemove={() => onRemove(e.hash)} />
           ))}
         </ul>
       ) : (
-        <p className="py-4 text-center text-[13px] text-ink-3">{t('themes.poolEmpty')}</p>
+        <p className="py-4 text-center text-[13px] text-ink-3">{entries.length ? t('themes.poolNoMatch') : t('themes.poolEmpty')}</p>
+      )}
+      {sorted.length > page.length && (
+        <div className="mt-3 flex items-center gap-3 text-[12px] text-ink-3">
+          <span className="tnum">{t('themes.poolShown', { shown: page.length, total: sorted.length })}</span>
+          <Button size="sm" variant="ghost" onClick={() => setShown((n) => n + (kind === 'icon' ? 60 : 24))}>
+            {t('themes.poolMore')}
+          </Button>
+        </div>
       )}
       <p className="mt-2 text-[11px] text-ink-3">{t('themes.dropHint')}</p>
     </div>

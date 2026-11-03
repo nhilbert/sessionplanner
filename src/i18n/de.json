@@ -810,7 +810,10 @@
     "tagsPlaceholder": "Schlagworte, mit Komma",
     "removeFromPool": "Aus dem Pool nehmen",
     "poolEmpty": "Noch nichts im Pool.",
-    "dropHint": "Bilder hierher ziehen oder hochladen; mehrere auf einmal."
+    "dropHint": "Bilder hierher ziehen oder hochladen; mehrere auf einmal.",
+    "poolNoMatch": "Kein Bild mit diesem Schlagwort.",
+    "poolShown": "{{shown}} von {{total}}",
+    "poolMore": "Mehr anzeigen"
   },
   "templates": {
     "title": "Folienvorlagen",

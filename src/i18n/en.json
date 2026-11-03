@@ -810,7 +810,10 @@
     "tagsPlaceholder": "tags, separated by commas",
     "removeFromPool": "Remove from the pool",
     "poolEmpty": "Nothing in the pool yet.",
-    "dropHint": "Drag pictures here or upload them, several at once."
+    "dropHint": "Drag pictures here or upload them, several at once.",
+    "poolNoMatch": "No picture with this tag.",
+    "poolShown": "{{shown}} of {{total}}",
+    "poolMore": "Show more"
   },
   "templates": {
     "title": "Slide templates",
