@@ -31,7 +31,7 @@ export default function SlidesPrint({ data }: { data: WorkshopState }) {
       <div className="mx-auto flex flex-col items-center gap-6 py-6 print:block print:gap-0 print:py-0">
         {deck.map((s, i) => (
           <div key={s.key} className="slide-page h-[720px] w-[1280px] overflow-hidden bg-black print:h-[190.5mm] print:w-[338.667mm]">
-            <SlideStage html={s.html} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: i + 1 }} scale={1} />
+            <SlideStage html={s.html} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: i + 1, part: s.part && t('slides.part', s.part) }} scale={1} />
           </div>
         ))}
       </div>

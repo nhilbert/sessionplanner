@@ -98,7 +98,7 @@ export default function PresentPage() {
     >
       {slide && (
         <div className="absolute left-1/2 top-1/2" style={{ width: 1280 * scale, height: 720 * scale, transform: 'translate(-50%, -50%)' }}>
-          <SlideStage html={slide.html} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: n + 1 }} scale={scale} />
+          <SlideStage html={slide.html} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} scale={scale} />
         </div>
       )}
       <div className={`pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-4 text-[12px] text-white/60 transition-opacity tnum ${hint ? 'opacity-100' : 'opacity-0'}`}>

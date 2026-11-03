@@ -440,6 +440,7 @@
     "sourceHint": "For small corrections. Only the slide format is allowed (docs/slides.md); anything else is removed when saving.",
     "apply": "Apply",
     "slide": "Slide {{n}}",
+    "part": "Part {{n}} of {{of}}",
     "empty": "No slides yet.",
     "pool": "Slide pool",
     "poolSubtitle": "Translated decks, uploaded once. Slides are copied from here into items and library entries; later changes to the pool leave the copies alone.",

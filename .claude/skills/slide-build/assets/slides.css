@@ -42,6 +42,8 @@
   display: var(--chrome, none); right: auto; bottom: 32px; justify-content: flex-start; gap: 16px;
   font: 700 12px/1 var(--font-body), 'Noto Sans JP'; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fg-3);
 }
+/* the section tracker ("Teil 2 von 5") after the deck name, set off by a hairline */
+.slide > footer.chrome .part { padding-left: 16px; border-left: 1px solid var(--line); }
 .slide > footer.chrome span:last-child {
   order: -1; width: 32px; height: 32px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
   font: 700 12px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: 0;

@@ -27,7 +27,7 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
   const save = async () => {
     setBusy(true)
     try {
-      downloadBlob(`${fileSlug(title)}-folien.html`, await exportDeckHtml(deck, { title, theme, scope, chrome: title, lang: i18n.language }))
+      downloadBlob(`${fileSlug(title)}-folien.html`, await exportDeckHtml(deck, { title, theme, scope, chrome: title, lang: i18n.language, part: (p) => t('slides.part', p) }))
     } catch (err) {
       reportFailure(err)
     } finally {
@@ -80,7 +80,7 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
       <ol className="grid grid-cols-2 gap-2">
         {deck.map((s, i) => (
           <li key={s.key} className="min-w-0">
-            <SlideView html={s.html} theme={theme} scope={scope} chrome={{ label: title, n: i + 1 }} onClick={() => useSlideEditing.getState().open({ kind: 'deck', key: s.key })} label={t('slides.slide', { n: i + 1 })} />
+            <SlideView html={s.html} theme={theme} scope={scope} chrome={{ label: title, n: i + 1, part: s.part && t('slides.part', s.part) }} onClick={() => useSlideEditing.getState().open({ kind: 'deck', key: s.key })} label={t('slides.slide', { n: i + 1 })} />
             <div className={cx('mt-0.5 flex gap-1 truncate text-[11px]', s.generated ? 'text-ink-3' : 'text-ink-2')}>
               <span className="tnum">{i + 1}</span>
               <span className="truncate">{s.generated ? t(`slides.generated.${s.generated}`, { n: '' }).trim() : s.caption}</span>

@@ -78,7 +78,7 @@ A theme sets the tokens slides.css reads on `[data-theme="name"]` and may add de
 - colours: `--bg --surface --surface-2 --line --fg --fg-2 --fg-3 --title --accent --accent-deep --accent-2 --accent-3 --accent-4 --on-accent --field --on-field --on-field-2 --tint` (the accent mixed into the ground: the one panel the format fills) and optionally `--kicker` (small capitals and numerals; the deeper accent unless set)
 - type: `--font-display --font-body --font-mono --display-weight` (800 unless set) `--numeral-weight` (300 unless set: the large thin numerals)
 - marks: `--mark-size --mark-radius` (the small mark in the accent colour before an unnumbered point: 9 px square unless set; a theme as data chooses square, circle or none)
-- shape and chrome: `--radius --chrome` (whether the host's footer line shows), `--logo --logo-light --mark`
+- shape and chrome: `--radius --chrome` (whether the host's footer line shows), `--logo --logo-light --mark`; the footer line carries the slide number, the deck name and, once the deck has two or more section slides, the section tracker ("Teil 2 von 5") from the first section on
 
 SVG in slides uses classes bound to these tokens: fills `f-accent f-accent-deep f-accent-2 f-accent-3 f-accent-4 f-surface f-surface-2 f-title f-bg`, strokes `s-accent s-line s-fg`, text `t t-small t-display t-on`.
 

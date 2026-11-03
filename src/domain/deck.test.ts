@@ -77,3 +77,15 @@ describe('pictures from the pool', () => {
     expect(deckOf(state, labels).some((s) => s.html.includes('asset:'))).toBe(false)
   })
 })
+
+describe('the section tracker', () => {
+  const section = (id: string, title: string) => ({ id, html: `<section class="slide section"><div class="text"><h1>${title}</h1></div></section>` })
+  const list = (id: string) => ({ id, html: '<section class="slide list"><p>x</p></section>' })
+  it('numbers the parts from the first section slide on, once the deck has two sections', () => {
+    const two: WorkshopState = { ...state, items: [item('a', { position: 1, slides: [list('s0'), section('s1', 'Eins'), list('s2')] }), item('b', { position: 2, slides: [section('s3', 'Zwei'), list('s4')] })] }
+    const deck = deckOf(two, labels, { agenda: true, breaks: false, pictures: false, shift: 0 })
+    expect(deck.map((s) => (s.part ? `${s.part.n}/${s.part.of}` : '-'))).toEqual(['-', '-', '-', '1/2', '1/2', '2/2', '2/2'])
+    const one: WorkshopState = { ...state, items: [item('a', { position: 1, slides: [section('s1', 'Eins'), list('s2')] })] }
+    expect(deckOf(one, labels).some((s) => s.part)).toBe(false)
+  })
+})

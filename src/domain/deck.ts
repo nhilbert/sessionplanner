@@ -1,7 +1,7 @@
 import type { WorkshopState } from './types.ts'
 import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { durationOf, formatTime, scheduleDay } from './time.ts'
-import { esc } from './slides.ts'
+import { esc, slideLayout } from './slides.ts'
 
 /**
  * The deck of a workshop (docs/slides.md): the slides of its placed items in agenda order, with the slides the
@@ -52,6 +52,8 @@ export interface DeckSlideRef {
   generated?: 'title' | 'agenda' | 'break'
   /** What to call it in a list: the item's title, or the kind of generated slide. */
   caption: string
+  /** The part of the deck the slide is in ("Teil 2 von 5"): counted by the section slides, set once the deck has two or more, from the first section on. */
+  part?: { n: number; of: number }
 }
 
 /**
@@ -59,6 +61,23 @@ export interface DeckSlideRef {
  * turn, starting at a place the workshop id decides, so the same deck shows the same pictures every time.
  */
 export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: string[] = []): DeckSlideRef[] {
+  const out: DeckSlideRef[] = withParts(build(state, labels, options, pool))
+  return out
+}
+
+/** The section tracker: every slide from the first section slide on learns which part of how many it is in. */
+function withParts(deck: DeckSlideRef[]): DeckSlideRef[] {
+  const of = deck.filter((s) => !s.generated && slideLayout(s.html) === 'section').length
+  if (of < 2) return deck
+  let n = 0
+  for (const s of deck) {
+    if (!s.generated && slideLayout(s.html) === 'section') n++
+    if (n) s.part = { n, of }
+  }
+  return deck
+}
+
+function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: string[]): DeckSlideRef[] {
   const out: DeckSlideRef[] = []
   let taken = 0
   const picture = (): string => {

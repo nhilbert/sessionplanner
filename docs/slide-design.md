@@ -117,7 +117,7 @@ The host's line at y = 672: deck name and section at the left in small caps, the
 ## 10. How it is done
 
 - **Stage A, the base stylesheet.** Grid, type scale, compositions and devices go into `slides.css`; the themes keep their tokens. Every layout is rendered in every theme (the owner's two and the default) with the sample content of the skill, as contact sheets (`scripts/slides/render.sh`), and judged against this brief side by side with the version before. Several rounds, on a branch. The skill's copies are renewed with `scripts/slides/refresh-skill.py`; the tests see that they are current.
-- **Stage B, the theme choices.** The switches of section 6 and the picture treatment of section 7 become fields of the theme (`src/domain/theme.ts`, the theme editor), and three or four presets are shipped as starting points, every one tuned as a whole.
+- **Stage B, the theme choices** (done 2026-11-03 on the branch stage-b: Lato hosted, the owner's profile theme as data, the picture and icon pool with tags, pool pictures on the generated slides, cut-outs at upload, the pool in the editor's picker and the connector, the section tracker). The switches of section 6 and the picture treatment of section 7 become fields of the theme (`src/domain/theme.ts`, the theme editor), and three or four presets are shipped as starting points, every one tuned as a whole.
 - **Stage C, the catalogue.** New layouts only for what recurs in the real decks and no composition covers: a large number with its evidence, a timeline, a before-and-after comparison, a picture grid. Variants of existing layouts come first because they cost only a modifier.
 
 ## 11. Open

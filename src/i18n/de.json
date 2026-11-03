@@ -440,6 +440,7 @@
     "sourceHint": "Für kleine Korrekturen. Erlaubt ist nur das Folienformat (docs/slides.md); alles andere wird beim Speichern entfernt.",
     "apply": "Übernehmen",
     "slide": "Folie {{n}}",
+    "part": "Teil {{n}} von {{of}}",
     "empty": "Noch keine Folien.",
     "pool": "Foliensammlung",
     "poolSubtitle": "Übersetzte Decks, einmal hochgeladen. Folien werden daraus in Punkte und Bibliothekseinträge kopiert; spätere Änderungen an der Sammlung ändern die Kopien nicht.",

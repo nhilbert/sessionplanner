@@ -102,11 +102,11 @@ fit();show(n)})();`
  * One self-contained HTML file of the deck: stylesheet, theme with fonts and logos, the glyph font slices the
  * deck needs, pictures as data, a few lines of script to page through. Opens from a USB stick, prints to 16:9 pages.
  */
-export async function exportDeckHtml(deck: DeckSlideRef[], options: { title: string; theme: string; scope: AssetScope; chrome: string; lang: string }): Promise<Blob> {
+export async function exportDeckHtml(deck: DeckSlideRef[], options: { title: string; theme: string; scope: AssetScope; chrome: string; lang: string; part?: (p: { n: number; of: number }) => string }): Promise<Blob> {
   const assets = new Map<string, string>()
   const sections: string[] = []
   for (const [i, slide] of deck.entries()) {
-    let html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1 })
+    let html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1, part: slide.part && options.part ? options.part(slide.part) : undefined })
     for (const m of [...slide.html.matchAll(/asset:([0-9a-f]{16,64})/g)]) {
       const hash = m[1]
       if (!assets.has(hash)) assets.set(hash, (await toDataUrl(assetUrl(options.scope, hash))) ?? '')

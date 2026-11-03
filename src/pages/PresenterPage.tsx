@@ -131,7 +131,7 @@ export default function PresenterPage() {
                 if (Math.abs(dx) > 40) go(dx < 0 ? n + 1 : n - 1)
               }}
             >
-              <SlideView html={slide.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 1 }} className="w-full shadow-[var(--shadow)]" />
+              <SlideView html={slide.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} className="w-full shadow-[var(--shadow)]" />
             </div>
           ) : (
             <p className="text-ink-3">{t('slides.deckEmpty')}</p>
@@ -166,7 +166,7 @@ export default function PresenterPage() {
                 </button>
               )}
             </div>
-            {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2 }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
+            {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2, part: next.part && t('slides.part', next.part) }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
             {next && <div className="mt-1 truncate text-[12px] text-ink-3">{next.caption}</div>}
           </div>
           {timing ? (
