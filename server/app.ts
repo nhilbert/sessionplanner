@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { streamSSE } from 'hono/streaming'
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -12,12 +12,14 @@ import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken }
 import type { Access, Asset, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
-import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
+import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
+import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng } from './cutout.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
+/** A theme's own file: a font or a picture its rules use. */
+export const MAX_THEME_FILE = 5 * 1024 * 1024
 /** A presentation nobody paged for this long is over: windows opened afterwards start where their link says. */
 export const PRESENT_HOURS = 6
 /** A picture on a slide (docs/slides.md): stored once per content hash, shown inline. */
@@ -139,12 +141,13 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   const limits = {
     upload: bodyLimit({ maxSize: MAX_FILE + 64 * 1024, onError: tooLarge }),
     logo: bodyLimit({ maxSize: MAX_LOGO + 64 * 1024, onError: tooLarge }),
+    themeFile: bodyLimit({ maxSize: MAX_THEME_FILE + 64 * 1024, onError: tooLarge }),
     ops: bodyLimit({ maxSize: 4 * 1024 * 1024, onError: tooLarge }),
     json: bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge }),
   }
   app.use('/api/*', (c, next) => {
     const p = c.req.path
-    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets|themes\/[^/]+\/pool)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : limits.json
+    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets|themes\/[^/]+\/pool)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : /^\/api\/themes\/[^/]+\/files$/.test(p) ? limits.themeFile : limits.json
     return limit(c, next)
   })
   // Agents write whole agendas and slide decks in one call, like the app's operation batches.
@@ -492,6 +495,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   // ---- slide themes: kept as data (colours, fonts, logo; the stylesheet is generated) or as folders in data/themes ----
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
   const themeLogoPath = (id: string, variant: 'logo' | 'logoLight') => path.join(filesDir, 'theme-logos', variant === 'logo' ? id : `${id}-light`)
+  const themeFilesDir = (id: string) => path.join(filesDir, 'theme-files', id)
   app.get('/api/themes', (c) => c.json(listThemes(themesDir, repo.listThemes())))
   /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
   app.get('/api/themes/:id', ownerOnly, (c) => {
@@ -531,7 +535,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const data = repo.getTheme(name)
     if (data) {
       if (rel.length === 1 && rel[0] === 'theme.css') {
-        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo'), logoLightUrl: themeLogoUrl(data, 'logoLight') })
+        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo'), logoLightUrl: themeLogoUrl(data, 'logoLight'), css: data.css, fileUrls: themeFileUrls(data) })
         // Changed in the theme editor at any time: asked for again on every load (it is small).
         return c.body(css, 200, { 'Content-Type': THEME_TYPES['.css'], 'Cache-Control': 'private, no-cache' })
       }
@@ -542,7 +546,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
         if (!logo || !bytes) return c.json({ error: 'not_found' }, 404)
         return c.body(new Uint8Array(bytes), 200, { 'Content-Type': logo.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
       }
-      return c.json({ error: 'not_found' }, 404)
+      // the theme's own files, addressed by its rules (versioned there, so they may be kept)
+      const file = data.files.find((f) => f.path === rel.join('/'))
+      const bytes = file && (await readFile(path.join(themeFilesDir(data.id), ...rel)).catch(() => null))
+      if (!file || !bytes) return c.json({ error: 'not_found' }, 404)
+      return c.body(new Uint8Array(bytes), 200, { 'Content-Type': file.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=86400' })
     }
     if (!themesDir) return c.json({ error: 'not_found' }, 404)
     const type = THEME_TYPES[path.extname(rel[rel.length - 1]).toLowerCase()]
@@ -556,12 +564,18 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const from = input.from ? repo.getTheme(input.from) : null
     if (input.from && !from && input.from !== 'default' && input.from !== 'dark') throw new BadRequest(`no theme "${input.from}" to copy`)
     const tokens = input.tokens ?? from?.tokens ?? (input.from === 'dark' ? DARK_TOKENS : DEFAULT_TOKENS)
-    let id = themeIdFrom(input.name, newId)
-    while (repo.getTheme(id) || listThemes(themesDir).some((t) => t.id === id)) id = themeIdFrom(input.name, newId)
-    repo.createTheme({ id, name: input.name, tokens })
+    // An id given takes over a theme folder of that name (the data theme hides it, docs/slides.md); otherwise one from the name.
+    if (input.id && (input.id === 'default' || repo.getTheme(input.id))) throw new BadRequest(`theme "${input.id}" exists`)
+    let id = input.id ?? themeIdFrom(input.name, newId)
+    while (!input.id && (repo.getTheme(id) || listThemes(themesDir).some((t) => t.id === id))) id = themeIdFrom(input.name, newId)
+    repo.createTheme({ id, name: input.name, tokens, css: input.css ?? from?.css })
     if (from) {
-      // The logos and the pool come along with a copy.
+      // The logos, the files and the pool come along with a copy.
       repo.copyPool(from.id, id)
+      if (from.files.length) {
+        await cp(themeFilesDir(from.id), themeFilesDir(id), { recursive: true }).catch(() => undefined)
+        for (const f of from.files) repo.setThemeFile(id, f.path, { mime: f.mime, size: f.size, updatedAt: new Date().toISOString() })
+      }
       await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
       for (const variant of ['logo', 'logoLight'] as const) {
         const logo = from[variant]
@@ -583,7 +597,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!isThemeId(id)) return c.json({ error: 'not_found' }, 404)
     const result = repo.deleteTheme(id)
     if (!result) return c.json({ error: 'not_found' }, 404)
-    await Promise.all([rm(themeLogoPath(id, 'logo'), { force: true }), rm(themeLogoPath(id, 'logoLight'), { force: true })])
+    await Promise.all([rm(themeLogoPath(id, 'logo'), { force: true }), rm(themeLogoPath(id, 'logoLight'), { force: true }), rm(themeFilesDir(id), { recursive: true, force: true })])
     // Workshops that used the theme fall back to the default: the open windows learn it like any other change.
     for (const w of result.workshops) hub.publish(w, { type: 'ops', clientId: 'server', ops: [{ op: 'set', entity: 'workshop', id: w, fields: { theme: '' } }] })
     return c.json({ ok: true })
@@ -600,6 +614,29 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
     await writeFile(themeLogoPath(theme.id, variant), Buffer.from(await file.arrayBuffer()))
     return c.json(repo.setThemeLogo(theme.id, variant, { mime: file.type, updatedAt: new Date().toISOString() }))
+  })
+  /** A file of the theme (multipart: file, path), addressed by its rules relative to the stylesheet; one with the same path is replaced. */
+  app.post('/api/themes/:id/files', ownerOnly, async (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    if (!theme) return c.json({ error: 'not_found' }, 404)
+    const body = await c.req.parseBody()
+    const file = body.file
+    if (!(file instanceof File)) throw new BadRequest('file required')
+    const filePath = validateThemeFilePath(body.path ?? file.name)
+    if (file.size > MAX_THEME_FILE) return c.json({ error: 'too_large' }, 413)
+    // served by its extension, whatever the browser called it
+    const mime = THEME_TYPES[path.extname(filePath).toLowerCase()]!
+    const target = path.join(themeFilesDir(theme.id), ...filePath.split('/'))
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, Buffer.from(await file.arrayBuffer()))
+    return c.json(repo.setThemeFile(theme.id, filePath, { mime, size: file.size, updatedAt: new Date().toISOString() }), 201)
+  })
+  app.delete('/api/themes/:id/files', ownerOnly, async (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    const filePath = c.req.query('path') ?? ''
+    if (!theme || !theme.files.some((f) => f.path === filePath)) return c.json({ error: 'not_found' }, 404)
+    await rm(path.join(themeFilesDir(theme.id), ...filePath.split('/')), { force: true })
+    return c.json(repo.setThemeFile(theme.id, filePath, null))
   })
   app.delete('/api/themes/:id/logo', ownerOnly, async (c) => {
     const theme = repo.getTheme(c.req.param('id')!)

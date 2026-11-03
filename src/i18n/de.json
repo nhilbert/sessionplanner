@@ -817,7 +817,16 @@
     "dropHint": "Bilder hierher ziehen oder hochladen; mehrere auf einmal.",
     "poolNoMatch": "Kein Bild mit diesem Schlagwort.",
     "poolShown": "{{shown}} von {{total}}",
-    "poolMore": "Mehr anzeigen"
+    "poolMore": "Mehr anzeigen",
+    "own": "Eigene Regeln und Dateien",
+    "ownHint": "CSS über allem, was die Einstellungen oben erzeugen – für ein Markenbild, das sie nicht abdecken. :scope steht für dieses Theme ([data-theme=\"…\"]), Dateien werden relativ angesprochen: url(fonts/Marke.woff2).",
+    "ownRules": "Regeln (CSS)",
+    "ownFiles": "Dateien",
+    "ownFilesHint": "Schriften und Bilder der Regeln, bis 5 MB. Schriften landen unter fonts/, Bilder unter assets/.",
+    "uploadFiles": "Dateien hochladen",
+    "removeFile": "Datei entfernen",
+    "fileFailed": "Die Datei konnte nicht hochgeladen werden (Schrift oder Bild, bis 5 MB).",
+    "filesEmpty": "Noch keine Dateien."
   },
   "templates": {
     "title": "Folienvorlagen",

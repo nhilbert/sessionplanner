@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { openDb } from './db.ts'
@@ -123,6 +123,67 @@ describe('slide themes as data', () => {
     expect(events).toEqual([{ type: 'ops', clientId: 'server', ops: [{ op: 'set', entity: 'workshop', id: ws.workshop.id, fields: { theme: '' } }] }])
     expect((await app.request(`${BASE}/api/themes/${theme.id}/theme.css`, { headers: H() })).status).toBe(404)
     expect((await app.request(`${BASE}/api/themes/${copy.id}/theme.css`, { headers: H() })).status).toBe(200)
+  })
+
+  it('keeps own rules and files: served under the theme, copied with it, gone with it', async () => {
+    const { app, filesDir } = setup()
+    const theme = (await (await post(app, '/api/themes', { name: 'Marke', css: ':scope .slide h1 { font-weight: 900; }', tokens: { displayWeight: 900 } })).json()) as Theme
+    expect(theme.css).toBe(':scope .slide h1 { font-weight: 900; }')
+    expect(theme.tokens.displayWeight).toBe(900)
+    const upload = (filePath: string | null, name = 'x.ttf', id = theme.id) => {
+      const form = new FormData()
+      form.append('file', new File([PNG], name, { type: 'application/octet-stream' }))
+      if (filePath !== null) form.append('path', filePath)
+      return app.request(`${BASE}/api/themes/${id}/files`, { method: 'POST', headers: { 'x-sp': '1', 'x-auth-request-email': OWNER }, body: form })
+    }
+    expect((await upload('fonts/Brand.ttf')).status).toBe(201)
+    const withFiles = (await (await upload(null, 'mark.svg')).json()) as Theme
+    expect(withFiles.files.map((f) => [f.path, f.mime])).toEqual([
+      ['fonts/Brand.ttf', 'font/ttf'],
+      ['mark.svg', 'image/svg+xml'],
+    ])
+    for (const bad of ['../x.ttf', 'theme.css', 'fonts/x.js']) expect((await upload(bad)).status).toBe(400)
+    await post(app, `/api/themes/${theme.id}`, { css: "@font-face { font-family: 'Brand'; src: url(fonts/Brand.ttf); }\n:scope { --mark: url('mark.svg'); }" }, OWNER, 'PUT')
+    const css = await (await app.request(`${BASE}/api/themes/${theme.id}/theme.css`, { headers: H(GUEST) })).text()
+    expect(css).toContain(`src: url(/api/themes/${theme.id}/fonts/Brand.ttf?v=`)
+    expect(css).toContain(`[data-theme="${theme.id}"] { --mark: url('/api/themes/${theme.id}/mark.svg?v=`)
+    expect(css).toContain('--display-weight: 900;')
+    const font = await app.request(`${BASE}/api/themes/${theme.id}/fonts/Brand.ttf`, { headers: H(GUEST) })
+    expect(font.status).toBe(200)
+    expect(font.headers.get('content-type')).toBe('font/ttf')
+    expect((await app.request(`${BASE}/api/themes/${theme.id}/fonts/Other.ttf`, { headers: H(GUEST) })).status).toBe(404)
+    // own rules stay inside the stylesheet and the theme
+    expect((await post(app, `/api/themes/${theme.id}`, { css: '</style><script>' }, OWNER, 'PUT')).status).toBe(400)
+    expect((await post(app, `/api/themes/${theme.id}`, { css: "@import url('https://example.com/x.css');" }, OWNER, 'PUT')).status).toBe(400)
+    // a copy takes rules and files along
+    const copy = (await (await post(app, '/api/themes', { name: 'Kopie', from: theme.id })).json()) as Theme
+    expect(copy.css).toContain('--mark')
+    expect(copy.files.map((f) => f.path)).toEqual(['fonts/Brand.ttf', 'mark.svg'])
+    expect((await app.request(`${BASE}/api/themes/${copy.id}/mark.svg`, { headers: H() })).status).toBe(200)
+    // removing a file and deleting the theme take the files from the disk
+    const without = await app.request(`${BASE}/api/themes/${theme.id}/files?path=mark.svg`, { method: 'DELETE', headers: H() })
+    expect(((await without.json()) as Theme).files.map((f) => f.path)).toEqual(['fonts/Brand.ttf'])
+    expect((await app.request(`${BASE}/api/themes/${theme.id}/mark.svg`, { headers: H() })).status).toBe(404)
+    expect((await app.request(`${BASE}/api/themes/${theme.id}/files`, { method: 'POST', headers: { 'x-sp': '1', 'x-auth-request-email': GUEST }, body: new FormData() })).status).toBe(403)
+    await app.request(`${BASE}/api/themes/${theme.id}`, { method: 'DELETE', headers: H() })
+    expect(existsSync(path.join(filesDir, 'theme-files', theme.id))).toBe(false)
+    expect(existsSync(path.join(filesDir, 'theme-files', copy.id, 'mark.svg'))).toBe(true)
+  })
+
+  it('takes over a theme folder when created with its name as id', async () => {
+    const { app } = setup()
+    expect((await (await app.request(`${BASE}/api/themes/demo/theme.css`, { headers: H() })).text())).toContain('--bg: #fff')
+    const taken = (await (await post(app, '/api/themes', { id: 'demo', name: 'Demo als Daten' })).json()) as Theme
+    expect(taken.id).toBe('demo')
+    const list = (await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()) as { id: string; kind: string }[]
+    expect(list.map((t) => [t.id, t.kind])).toEqual([
+      ['default', 'builtin'],
+      ['demo', 'data'],
+    ])
+    expect((await (await app.request(`${BASE}/api/themes/demo/theme.css`, { headers: H() })).text())).toContain('--bg: #FBFAF8')
+    expect((await post(app, '/api/themes', { id: 'demo', name: 'Noch einmal' })).status).toBe(400)
+    expect((await post(app, '/api/themes', { id: 'default', name: 'Standard' })).status).toBe(400)
+    expect((await post(app, '/api/themes', { id: 'Bad Id', name: 'x' })).status).toBe(400)
   })
 
   it('is known to the agents: settings list it, a workshop can choose it', () => {

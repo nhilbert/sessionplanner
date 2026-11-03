@@ -41,7 +41,7 @@ export interface ThemeTokens {
   /** Derived tones set by hand (the editor's advanced section); absent = derived. */
   overrides: Partial<Record<DerivedColorKey, string>>
   fonts: { display: FontKey; body: FontKey }
-  displayWeight: 500 | 600 | 700 | 800
+  displayWeight: 500 | 600 | 700 | 800 | 900
   /** Corner radius of the tinted panels (the facts of an exercise), px. */
   radius: number
   /** The host's footer line (deck name, slide number). */
@@ -73,7 +73,15 @@ export interface ThemeLogo {
   updatedAt: string
 }
 
-/** A theme as stored: id (a folder-safe name), display name, tokens, the logos uploaded for it. */
+/** A file of a theme (a font, a picture its own rules use), addressed in those rules relative to the stylesheet: `fonts/x.ttf`. */
+export interface ThemeFile {
+  path: string
+  mime: string
+  size: number
+  updatedAt: string
+}
+
+/** A theme as stored: id (a folder-safe name), display name, tokens, the logos uploaded for it, its own rules and files. */
 export interface Theme {
   id: string
   name: string
@@ -81,6 +89,9 @@ export interface Theme {
   logo: ThemeLogo | null
   /** A light variant of the logo for the field colour (section and closing slides). */
   logoLight: ThemeLogo | null
+  /** The theme's own rules, after the generated ones: `:scope` stands for the theme's selector. */
+  css: string
+  files: ThemeFile[]
   createdAt: string
   updatedAt: string
 }
@@ -156,6 +167,21 @@ export interface ThemeCssOptions {
   /** The address of the uploaded logo (and its light variant), if any. */
   logoUrl?: string | null
   logoLightUrl?: string | null
+  /** The theme's own rules (`:scope` = the theme's selector), laid over everything the tokens generate. */
+  css?: string
+  /** The addresses of the theme's files by their path, for the `url(…)` of its own rules. */
+  fileUrls?: Record<string, string>
+}
+
+/** A file path a theme may have: up to three folder-safe parts with a font or picture extension. */
+export const THEME_FILE_PATH = /^(?:[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}\/){0,2}[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}\.(?:woff2|woff|ttf|otf|png|jpe?g|webp|svg|gif)$/i
+
+/** A theme's own rules for its selector: `:scope` becomes the selector, `url(path)` of a known file its address. */
+export function scopeThemeCss(css: string, sel: string, fileUrls: Record<string, string> = {}): string {
+  return css.replace(/:scope\b/g, sel).replace(/url\((['"]?)([^'")]+)\1\)/g, (m, q: string, ref: string) => {
+    const url = fileUrls[ref.replace(/^\.\//, '')]
+    return url ? `url(${q}${url}${q})` : m
+  })
 }
 
 /**
@@ -198,6 +224,8 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
   // the family's decoration after the tokens and the logo, so its rules win where they meet
   const family = familyCss(sel, tokens)
   if (family) lines.push(family)
+  // the theme's own rules last: they may change anything above
+  if (options.css?.trim()) lines.push(scopeThemeCss(options.css, sel, options.fileUrls))
   return lines.join('\n')
 }
 
@@ -205,6 +233,11 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
 export function themeLogoUrl(theme: Pick<Theme, 'id' | 'logo' | 'logoLight'>, variant: 'logo' | 'logoLight'): string | null {
   const logo = variant === 'logo' ? theme.logo : theme.logoLight
   return logo ? `/api/themes/${encodeURIComponent(theme.id)}/${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}` : null
+}
+
+/** The addresses of a theme's files by their path, versioned by the upload. */
+export function themeFileUrls(theme: Pick<Theme, 'id' | 'files'>): Record<string, string> {
+  return Object.fromEntries(theme.files.map((f) => [f.path, `/api/themes/${encodeURIComponent(theme.id)}/${f.path}?v=${encodeURIComponent(f.updatedAt)}`]))
 }
 
 /** The ids a theme may have: the same rule as theme folders (server/themes.ts). */
