@@ -467,6 +467,8 @@
     "theme": "Slide theme",
     "themeDefault": "Default (settings)",
     "themeBuiltIn": "Built in",
+    "viewIn": "View in",
+    "themeOfDeck": "Each deck's own",
     "sweep": "Remove pictures no slide shows",
     "swept_one": "{{count}} picture removed",
     "swept_other": "{{count}} pictures removed",

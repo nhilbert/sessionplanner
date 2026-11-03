@@ -467,6 +467,8 @@
     "theme": "Folien-Theme",
     "themeDefault": "Standard (Einstellungen)",
     "themeBuiltIn": "Eingebaut",
+    "viewIn": "Ansehen in",
+    "themeOfDeck": "Theme des Decks",
     "sweep": "Nicht mehr gezeigte Bilder entfernen",
     "swept_one": "{{count}} Bild entfernt",
     "swept_other": "{{count}} Bilder entfernt",

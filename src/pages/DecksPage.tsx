@@ -15,6 +15,7 @@ import { SlideEditor } from '@/slides/editor/SlideEditor'
 import { poolSource } from '@/slides/editor/source'
 import { SlidesTabs } from '@/slides/SlidesTabs'
 import { slideAssets } from '@/domain/slides'
+import { useViewTheme, ViewThemeSelect } from '@/slides/ThemeSelect'
 
 /** The slide pool (docs/slides.md): translated decks, uploaded once as folders; slides are picked from here into items and library entries. */
 export default function DecksPage() {
@@ -32,6 +33,9 @@ export default function DecksPage() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  /** The slides shown in another theme than their deck's, to see how they look there. */
+  const [view, setView] = useViewTheme('sp.decks.theme')
+  const themeOf = (deck: Deck) => view || deck.theme || settings.theme || 'default'
 
   const load = () => api.listDecks().then(setDecks, () => setDecks([]))
   useEffect(() => {
@@ -117,10 +121,13 @@ export default function DecksPage() {
           title={t('slides.pool')}
           subtitle={t('slides.poolSubtitle')}
           right={
-            <Button size="sm" onClick={() => input.current?.click()} disabled={!!progress}>
-              <Upload size={13} />
-              {t('slides.uploadDeck')}
-            </Button>
+            <>
+              {!!decks?.length && <ViewThemeSelect value={view} onChange={setView} defaultLabel={t('slides.themeOfDeck')} />}
+              <Button size="sm" onClick={() => input.current?.click()} disabled={!!progress}>
+                <Upload size={13} />
+                {t('slides.uploadDeck')}
+              </Button>
+            </>
           }
         />
         <input
@@ -188,7 +195,7 @@ export default function DecksPage() {
                 <ul className={cx('grid grid-cols-2 gap-3 border-t border-line p-4 md:grid-cols-4')}>
                   {(slides[d.id] ?? []).map((s, i) => (
                     <li key={s.id}>
-                      <SlideView html={s.html} theme={d.theme || settings.theme || 'default'} scope="library" label={t('slides.slide', { n: i + 1 })} onClick={() => setViewing({ deck: d, key: s.id })} />
+                      <SlideView html={s.html} theme={themeOf(d)} scope="library" label={t('slides.slide', { n: i + 1 })} onClick={() => setViewing({ deck: d, key: s.id })} />
                       <div className="mt-1 truncate text-[11px] text-ink-3">{s.caption}</div>
                     </li>
                   ))}
@@ -202,7 +209,7 @@ export default function DecksPage() {
             source={poolSource({ context: t('editor.ctx.pool'), deck: viewing.deck, slides: slides[viewing.deck.id] })}
             start={viewing.key}
             onClose={() => setViewing(null)}
-            theme={viewing.deck.theme || settings.theme || 'default'}
+            theme={themeOf(viewing.deck)}
             scope="library"
             owner
             canEdit={false}
