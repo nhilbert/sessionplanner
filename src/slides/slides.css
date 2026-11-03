@@ -80,11 +80,11 @@
 .slide .list.rows > li::before { top: 1.15em; }
 .slide ol.list { counter-reset: n; }
 .slide ol.list > li { position: relative; padding-left: 56px; counter-increment: n; }
-.slide ol.list > li::before { content: counter(n, decimal-leading-zero); position: absolute; left: 0; top: 0.5em; font-size: 26px; }
+/* the numeral stands in the indent on the first line's baseline and scales with the list, whatever its size */
+.slide ol.list > li::before { content: counter(n, decimal-leading-zero); display: inline-block; width: 56px; margin-left: -56px; line-height: 0; font-size: 1.1em; }
 /* a long list sets itself at the compact size */
 .slide ul.list:has(> li:nth-child(9)), .slide ol.list:has(> li:nth-child(9)) { font-size: 19px; }
 .slide ul.list:has(> li:nth-child(9)) > li, .slide ol.list:has(> li:nth-child(9)) > li { padding-top: 8px; padding-bottom: 8px; }
-.slide ol.list:has(> li:nth-child(9)) > li::before { font-size: 22px; top: 0.35em; }
 .slide ul.list ul, .slide ol.list ul { list-style: none; margin-top: 6px; padding-left: 0; font-size: 19px; line-height: 1.4; color: var(--fg-2); display: flex; flex-direction: column; gap: 2px; }
 .slide ul.list ul li, .slide ol.list ul li { position: relative; padding-left: 22px; }
 .slide ul.list ul li::before { width: auto; height: auto; background: none; border-radius: 0; }
@@ -98,7 +98,7 @@
 /* rows: a heading and a text per point */
 .slide .list.rows { font-size: 20px; }
 .slide .list.rows > li { padding-top: 14px; padding-bottom: 14px; }
-.slide ol.list.rows > li::before { top: 0.3em; }
+.slide ol.list.rows > li::before { position: absolute; left: 0; top: 0.3em; margin-left: 0; line-height: 1; font-size: 26px; }
 .slide .list.rows:has(> li:nth-child(5)) { font-size: 18px; }
 .slide .list.rows:has(> li:nth-child(5)) > li { padding-top: 9px; padding-bottom: 9px; }
 .slide .list.rows:has(> li:nth-child(5)) > li > strong { font-size: 21px; }
@@ -186,7 +186,7 @@
 .slide.quote cite { display: block; font: 700 13px/1.2 var(--font-body), 'Noto Sans JP'; letter-spacing: 0.2em; text-transform: uppercase; font-style: normal; color: var(--fg-3); margin-top: 24px; }
 
 /* cards: columns separated by space, a numeral above each */
-.slide ul.cards { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 48px; align-items: end; }
+.slide ul.cards { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 48px; align-items: start; }
 .slide ul.cards.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .slide ul.cards.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 32px; }
 .slide ul.cards.cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 32px 24px; }
@@ -202,12 +202,12 @@
 .slide ul.cards.numbered > li::before { content: counter(n, decimal-leading-zero); font-size: 72px; margin-bottom: 24px; }
 .slide ul.cards.cols-4.numbered > li::before, .slide ul.cards.cols-5.numbered > li::before { font-size: 56px; margin-bottom: 16px; }
 .slide ul.cards ul.list { font-size: 19px; max-width: none; margin-top: 4px; }
-.slide ul.cards ul.list > li { padding: 8px 0; }
+.slide ul.cards ul.list > li { padding-top: 8px; padding-bottom: 8px; }
 /* picture cards: the picture on top, cropped to a band; .contain shows it whole */
 .slide ul.cards.picture > li img { width: 100%; height: 200px; object-fit: cover; margin: 0 0 8px; }
 .slide ul.cards.picture.contain > li img { object-fit: contain; object-position: center bottom; }
 .slide ul.cards.picture ul.list { font-size: 17px; }
-.slide ul.cards.picture ul.list > li { padding: 5px 0; }
+.slide ul.cards.picture ul.list > li { padding-top: 5px; padding-bottom: 5px; }
 /* plain picture cards: illustrations whole, labels aligned below */
 .slide ul.cards.plain .icon { width: 100%; height: 170px; object-fit: cover; margin-bottom: 10px; }
 .slide ul.cards.plain h3 { font-size: 26px; }
@@ -227,8 +227,17 @@
 .slide .split .text { display: flex; flex-direction: column; justify-content: flex-end; gap: 18px; font-size: 22px; line-height: 1.45; min-width: 0; }
 .slide .split .text p.small { font-size: 19px; color: var(--fg-2); }
 .slide .split .text h3 { margin-top: 6px; }
+/* a statement beside a picture at the quote's size */
+.slide .split .text .big { font-size: 48px; line-height: 1.08; letter-spacing: -0.03em; }
+/* the source stays under the text, never under the picture (the first column, 5 of 11 or 3 of 5, holds whatever
+   comes first: the text, or the figure by .figure-left or by order) */
+.slide:has(> .split) > footer:not(.chrome) { right: 722px; }
+.slide:has(> .split.wide-text) > footer:not(.chrome) { right: 563px; }
+.slide:has(> .split.figure-left, > .split > figure:first-child) > footer:not(.chrome) { left: 623px; right: 64px; }
+.slide:has(> .split.wide-text.figure-left, > .split.wide-text > figure:first-child) > footer:not(.chrome) { left: 781px; }
+.slide:has(> .split):has(> footer .source) .split .text { padding-bottom: 40px; }
 .slide .split .text ul.list { font-size: 20px; max-width: none; }
-.slide .split .text ul.list > li { padding: 10px 0; }
+.slide .split .text ul.list > li { padding-top: 10px; padding-bottom: 10px; }
 .slide .split figure { position: relative; margin: 0 -64px -96px 0; min-height: 0; }
 .slide .split.figure-left figure { margin: 0 0 -96px -64px; }
 .slide .split figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -254,7 +263,7 @@
 .slide .exercise:not(:has(aside.facts)) { grid-template-columns: minmax(0, 1fr); }
 .slide ol.steps { list-style: none; counter-reset: n; display: flex; flex-direction: column; font-size: 23px; line-height: 1.4; border-bottom: 1px solid var(--line); }
 .slide ol.steps > li { position: relative; padding: 12px 0 12px 72px; border-top: 1px solid var(--line); counter-increment: n; }
-.slide ol.steps > li::before { content: counter(n, decimal-leading-zero); position: absolute; left: 0; top: 12px; font-size: 28px; line-height: 1.15; }
+.slide ol.steps > li::before { content: counter(n, decimal-leading-zero); display: inline-block; width: 72px; margin-left: -72px; line-height: 0; font-size: 1.2em; }
 .slide ol.steps:has(> li:nth-child(6)) { font-size: 20px; }
 .slide ol.steps:has(> li:nth-child(6)) > li { padding-top: 8px; padding-bottom: 8px; }
 .slide aside.facts { background: var(--tint, var(--surface)); border-radius: var(--radius, 8px); padding: 28px 32px 32px; }
@@ -263,7 +272,7 @@
 .slide aside.facts dd { margin: 0; font: 700 22px/1.3 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--fg); }
 
 /* steps: a horizontal sequence, a numeral above each, no arrows */
-.slide ol.flow { list-style: none; counter-reset: n; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 48px; align-items: end; }
+.slide ol.flow { list-style: none; counter-reset: n; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 48px; align-items: start; }
 .slide ol.flow > li { counter-increment: n; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .slide ol.flow > li::before { content: counter(n, decimal-leading-zero); font-size: 72px; margin-bottom: 24px; }
 .slide ol.flow h3 { font-size: 25px; }
@@ -331,7 +340,7 @@
 .slide table.compact { font-size: 17px; }
 
 /* number: one large figure, thin, with its label; two to four side by side */
-.slide ul.numbers { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 48px; align-items: end; }
+.slide ul.numbers { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 48px; align-items: start; }
 .slide ul.numbers > li { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .slide ul.numbers .value { font: var(--numeral-weight, 300) 96px/1 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.03em; color: var(--kicker, var(--accent-deep, var(--accent))); font-variant-numeric: tabular-nums; }
 .slide ul.numbers .label { font-size: 21px; line-height: 1.4; color: var(--fg-2); }
@@ -340,7 +349,7 @@
 .slide ul.numbers:has(> li:nth-child(4)) .value { font-size: 72px; }
 
 /* compare: two sides against each other, a hairline between them */
-.slide .compare { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0 56px; align-items: end; }
+.slide .compare { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0 56px; align-items: start; }
 .slide .compare .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .slide .compare .side:nth-child(2)::after { content: none; }
 .slide .compare > .side:first-child { grid-column: 1; }

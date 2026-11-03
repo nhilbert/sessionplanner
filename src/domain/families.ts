@@ -76,6 +76,7 @@ THEME .slide ul.cards:not(.numbered):not(.picture) > li:nth-child(3n):not(:has(>
 THEME .slide ol.steps > li::before, THEME .slide ol.list > li::before, THEME .slide ol.agenda > li::before {
   content: counter(n); display: flex; align-items: center; justify-content: center; border-radius: 50%; letter-spacing: 0; color: var(--fg); background: var(--accent);
 }
+THEME .slide ol.steps > li::before, THEME .slide ol.list > li::before { position: absolute; left: 0; margin-left: 0; line-height: 1; }
 THEME .slide ol.steps > li:nth-child(4n+2)::before, THEME .slide ol.list > li:nth-child(3n+2)::before, THEME .slide ol.agenda > li:nth-child(3n+2)::before { background: var(--accent-2); }
 THEME .slide ol.steps > li:nth-child(4n+3)::before, THEME .slide ol.list > li:nth-child(3n)::before, THEME .slide ol.agenda > li:nth-child(3n)::before { background: var(--field); color: var(--on-field); }
 THEME .slide ol.steps > li::before { width: 48px; height: 48px; font-size: 22px; top: 8px; }
@@ -101,7 +102,6 @@ THEME .slide:has(> .split:not(.figure-left) > figure > img) { background: radial
 THEME .slide:has(> .split.figure-left > figure > img) { background: radial-gradient(circle at 220px 380px, var(--accent-2) 479px, transparent 481px), var(--bg); }
 THEME .slide .split:has(> figure > img) { grid-template-columns: 500px minmax(0, 1fr); gap: 48px; }
 THEME .slide .split.figure-left:has(> figure > img) { grid-template-columns: minmax(0, 1fr) 500px; }
-THEME .slide .split .text ul.list > li { padding-left: calc(var(--mark-size, 9px) + 19px); }
 THEME .slide .split figure:has(> img:only-child) { position: static; margin: 0; }
 THEME .slide .split figure > img:only-child { position: absolute; inset: auto; left: 760px; top: 250px; width: 500px; height: 280px; object-fit: contain; object-position: center; }
 THEME .slide .split.figure-left figure > img:only-child { left: 20px; }
