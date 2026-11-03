@@ -47,16 +47,16 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
   {
     layout: 'title',
     use: 'the first slide of a workshop or day',
-    structure: 'div.text > div.eyebrow + h1 + p.subtitle? + p.meta?; an optional full-bleed figure > img before div.text',
+    structure: 'div.text > div.eyebrow + h1 + p.subtitle? + p.meta?; an optional figure > img before div.text, shown as a column at the right edge (a theme may fill the slide with it under a scrim)',
     generated: true,
-    fits: 'a title of up to about 40 characters on two lines (the text block is 62 % wide), a subtitle, a meta line',
+    fits: 'a title of up to about 40 characters on three lines (the text block is 600 px wide), a subtitle, a meta line',
     example: '<section class="slide title"><div class="text"><div class="eyebrow">Teamtag · 10. November 2026</div><h1>Zusammenarbeit im neuen Team</h1><p class="subtitle">Beispiel GmbH</p><p class="meta">Bonn</p></div></section>',
   },
   {
     layout: 'section',
     use: 'a divider between topics',
-    structure: 'div.text > div.eyebrow? + h1 + p.lead? + ul.list?; an optional div.glyph with a large character (and a small caption) on the right',
-    fits: 'a title of up to about 55 characters on two lines, a lead of one or two lines or three to five short points',
+    structure: 'div.text > div.eyebrow? + h1 + p.lead? + ul.list?; an optional figure > img after div.text, shown as a band across the top; an optional div.glyph with a large character (and a small caption) on the right',
+    fits: 'a title of up to about 40 characters on two lines, a lead of one or two lines or three to five short points; with a picture one line of title and the lead',
     example: '<section class="slide section"><div class="text"><div class="eyebrow">Teil 2</div><h1>Feedback</h1><p class="lead">Wie wir einander sagen, was wir sehen</p></div></section>',
   },
   {
@@ -118,9 +118,9 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
   {
     layout: 'split',
     use: 'text beside a picture or diagram; a definition with an illustration',
-    structure: 'header, then div.split > div.text (p.lead, p, p.small, h3, ul.list) + figure > img (or svg)',
-    options: '.figure-left, .wide-text',
-    fits: 'the text half holds about 14 lines, or a lead and up to nine points; the figure takes the other half',
+    structure: 'header, then div.split > div.text (p.lead, p, p.small, h3, ul.list) + figure > img (or svg); the picture is a column to the right and bottom edges, cropped to fit; with .contain, a caption or an svg it stands whole on the ground',
+    options: '.figure-left, .wide-text, .contain (a cut-out illustration, a diagram: shown whole, not cropped)',
+    fits: 'the text column holds about 12 lines, or a lead and up to seven points; the figure takes the other column',
     example: '<section class="slide split"><header><h2>Was ich sehe und was andere sehen</h2></header><div class="split"><div class="text"><p class="lead">Vier Felder der Selbst- und Fremdwahrnehmung</p><ul class="list"><li>Öffentlich: beiden bekannt</li><li>Blinder Fleck: nur den anderen bekannt</li><li>Privat: nur mir bekannt</li></ul></div><figure><img src="' + PICTURE + '" alt="Vier Felder"></figure></div></section>',
   },
   {

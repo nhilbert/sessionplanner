@@ -301,7 +301,7 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
             </Field>
           </div>
           <Field label={t('themes.weight')} className="mt-3">
-            <Segmented size="sm" value={String(tokens.displayWeight)} onChange={(v) => update({ displayWeight: Number(v) as ThemeTokens['displayWeight'] })} options={[{ value: '500', label: '500' }, { value: '600', label: '600' }, { value: '700', label: '700' }]} />
+            <Segmented size="sm" value={String(tokens.displayWeight)} onChange={(v) => update({ displayWeight: Number(v) as ThemeTokens['displayWeight'] })} options={[{ value: '500', label: '500' }, { value: '600', label: '600' }, { value: '700', label: '700' }, { value: '800', label: '800' }]} />
           </Field>
         </section>
 

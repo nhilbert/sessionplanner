@@ -168,7 +168,7 @@ const choice = (key: string, values: number[], def: number): OptionSpec => ({ ke
 
 export const LAYOUTS: LayoutSpec[] = [
   { id: 'title', group: 'opening', parts: ['figure', 'text'], textFields: ['eyebrow', 'title', 'subtitle', 'meta'], options: [], generated: true },
-  { id: 'section', group: 'opening', parts: ['text', 'points', 'glyph'], textFields: ['eyebrow', 'title', 'lead'], options: [], max: 5 },
+  { id: 'section', group: 'opening', parts: ['figure', 'text', 'points', 'glyph'], textFields: ['eyebrow', 'title', 'lead'], options: [], max: 5 },
   { id: 'agenda', group: 'opening', parts: ['header', 'rows'], options: [], max: 11, generated: true },
   { id: 'break', group: 'opening', parts: ['text', 'figure'], textFields: ['title', 'until'], options: [], generated: true },
   { id: 'closing', group: 'opening', parts: ['logo', 'text'], textFields: ['title', 'body'], options: [], generated: true },
@@ -176,7 +176,7 @@ export const LAYOUTS: LayoutSpec[] = [
   { id: 'quote', group: 'text', parts: ['quote'], options: [] },
   { id: 'list', group: 'text', parts: ['header', 'points', 'source'], options: [flag('ordered'), flag('compact'), flag('two'), flag('rows'), flag('four')], max: 8 },
   { id: 'cards', group: 'structure', parts: ['header', 'cards', 'source'], options: [choice('cols', [2, 3, 4, 5], 3), flag('numbered'), flag('plain'), flag('contain'), flag('picture')], max: 10 },
-  { id: 'split', group: 'visual', parts: ['header', 'blocks', 'figure', 'source'], options: [flag('figureLeft'), flag('wideText')] },
+  { id: 'split', group: 'visual', parts: ['header', 'blocks', 'figure', 'source'], options: [flag('figureLeft'), flag('wideText'), flag('contain')] },
   { id: 'figure', group: 'visual', parts: ['header', 'figure'], options: [flag('full')] },
   { id: 'exercise', group: 'structure', parts: ['header', 'steps', 'facts'], options: [], max: 6 },
   { id: 'steps', group: 'structure', parts: ['header', 'steps', 'source'], options: [flag('plain')], max: 5 },
@@ -285,10 +285,11 @@ const readers: Record<string, BodyReader> = {
     return readText(t, doc)
   },
   section: (body, doc) => {
-    if (!onlyOf(body, (e) => e.tag === 'div' && (hasClass(e, 'text') || hasClass(e, 'glyph')))) return false
+    if (!onlyOf(body, (e) => (e.tag === 'div' && (hasClass(e, 'text') || hasClass(e, 'glyph'))) || e.tag === 'figure')) return false
     const t = only(body, 'div', 'text')
     const g = only(body, 'div', 'glyph')
-    if (!t) return false
+    const f = only(body, 'figure')
+    if (!t || (f && !readFigure(f, doc))) return false
     if (g) {
       const small = only(elements(g), 'small')
       doc.glyph = { char: textOf(g.children.filter((n) => n !== small)), caption: inline(small) }
@@ -371,6 +372,7 @@ const readers: Record<string, BodyReader> = {
     const split = body[0]
     if (hasClass(split, 'figure-left')) doc.options.figureLeft = true
     if (hasClass(split, 'wide-text')) doc.options.wideText = true
+    if (hasClass(split, 'contain')) doc.options.contain = true
     if (!onlyOf(elements(split), tagIs('div', 'figure'))) return false
     const t = only(elements(split), 'div', 'text')
     const f = only(elements(split), 'figure')
@@ -632,7 +634,7 @@ function writeFigure(fig: Figure | undefined, className: string, svg?: string): 
 
 const writers: Record<string, (doc: SlideDoc) => El[]> = {
   title: (d) => [...writeFigure(d.figure, ''), ...writeText(d, ['eyebrow', 'title', 'subtitle', 'meta'])],
-  section: (d) => [...writeText(d, ['eyebrow', 'title', 'lead'], writePoints(d.points ?? [], 'ul', 'list')), ...(d.glyph?.char.trim() ? [el('div', { class: 'glyph' }, [txt(d.glyph.char.trim()), ...(d.glyph.caption.trim() ? [el('small', {}, textToInline(d.glyph.caption.trim()))] : [])])] : [])],
+  section: (d) => [...writeText(d, ['eyebrow', 'title', 'lead'], writePoints(d.points ?? [], 'ul', 'list')), ...writeFigure(d.figure, ''), ...(d.glyph?.char.trim() ? [el('div', { class: 'glyph' }, [txt(d.glyph.char.trim()), ...(d.glyph.caption.trim() ? [el('small', {}, textToInline(d.glyph.caption.trim()))] : [])])] : [])],
   agenda: (d) => {
     const rows = (d.rows ?? []).filter((r) => r.text.trim() || r.when.trim())
     return [
@@ -662,7 +664,7 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
   },
   split: (d) => {
     const text = (d.blocks ?? []).flatMap((b): El[] => (b.kind === 'list' ? ul('list', b.points) : b.kind === 'h3' ? h('h3', b.text) : p(b.kind === 'p' ? '' : b.kind, b.text)))
-    return [el('div', { class: cls('split', d.options.figureLeft && 'figure-left', d.options.wideText && 'wide-text') }, [el('div', { class: 'text' }, text), ...writeFigure(d.figure, '', d.svg)])]
+    return [el('div', { class: cls('split', d.options.figureLeft && 'figure-left', d.options.wideText && 'wide-text', d.options.contain && 'contain') }, [el('div', { class: 'text' }, text), ...writeFigure(d.figure, '', d.svg)])]
   },
   figure: (d) => writeFigure(d.figure, 'main'),
   exercise: (d) => {

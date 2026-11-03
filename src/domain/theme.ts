@@ -10,7 +10,7 @@ import { isDark, isHex, mixHex, parseHex } from './color.ts'
 
 export const THEME_COLOR_KEYS = ['bg', 'fg', 'title', 'accent', 'accent2', 'accent3', 'accent4', 'onAccent', 'field', 'onField'] as const
 export type ThemeColorKey = (typeof THEME_COLOR_KEYS)[number]
-export const DERIVED_COLOR_KEYS = ['surface', 'surface2', 'line', 'fg2', 'fg3', 'accentDeep', 'onField2'] as const
+export const DERIVED_COLOR_KEYS = ['surface', 'surface2', 'line', 'fg2', 'fg3', 'accentDeep', 'onField2', 'tint'] as const
 export type DerivedColorKey = (typeof DERIVED_COLOR_KEYS)[number]
 
 export const FONT_KEYS = ['inter', 'manrope', 'source-serif', 'system-sans', 'system-serif', 'mono'] as const
@@ -35,12 +35,12 @@ export interface ThemeTokens {
   /** Derived tones set by hand (the editor's advanced section); absent = derived. */
   overrides: Partial<Record<DerivedColorKey, string>>
   fonts: { display: FontKey; body: FontKey }
-  displayWeight: 500 | 600 | 700
-  /** Corner radius of cards and boxes, px. */
+  displayWeight: 500 | 600 | 700 | 800
+  /** Corner radius of the tinted panels (the facts of an exercise), px. */
   radius: number
   /** The host's footer line (deck name, slide number). */
   chrome: boolean
-  /** A picture on the title slide gets a dark gradient and light text. */
+  /** A picture on the title slide fills the slide under a dark gradient with light text, instead of standing as a column at the right edge. */
   titleScrim: boolean
   /** Where the host shows the theme's logo besides the closing slide. */
   logo: LogoPlacement
@@ -73,13 +73,13 @@ export interface ThemeInfo {
 
 /** The neutral default, the same colours as themes/default.css. */
 export const DEFAULT_TOKENS: ThemeTokens = {
-  colors: { bg: '#FFFFFF', fg: '#1F2428', title: '#1F2428', accent: '#2F6F8F', accent2: '#B5513D', accent3: '#C99A2E', accent4: '#5B8E7D', onAccent: '#FFFFFF', field: '#2F6F8F', onField: '#FFFFFF' },
+  colors: { bg: '#FBFAF8', fg: '#22272E', title: '#22272E', accent: '#2F6F8F', accent2: '#B5513D', accent3: '#C99A2E', accent4: '#5B8E7D', onAccent: '#FFFFFF', field: '#2F6F8F', onField: '#FFFFFF' },
   overrides: {},
-  fonts: { display: 'inter', body: 'inter' },
-  displayWeight: 600,
-  radius: 12,
+  fonts: { display: 'manrope', body: 'inter' },
+  displayWeight: 800,
+  radius: 8,
   chrome: false,
-  titleScrim: true,
+  titleScrim: false,
   logo: 'none',
 }
 
@@ -89,7 +89,7 @@ export const DARK_TOKENS: ThemeTokens = {
   colors: { bg: '#15181B', fg: '#E8EAED', title: '#F3F4F6', accent: '#7FB3CF', accent2: '#E08A74', accent3: '#E0B85A', accent4: '#86BDA9', onAccent: '#15181B', field: '#24485A', onField: '#F3F4F6' },
 }
 
-/** The derived tones of a theme: tints of the text colour on the background, the deeper accent, the quieter text on the field. */
+/** The derived tones of a theme: tints of the text colour on the background, the deeper accent, the quieter text on the field, the accent's tint for the one panel the format fills. */
 export function derivedColors(tokens: ThemeTokens): Record<DerivedColorKey, string> {
   const c = tokens.colors
   const dark = isDark(c.bg)
@@ -101,6 +101,7 @@ export function derivedColors(tokens: ThemeTokens): Record<DerivedColorKey, stri
     fg3: mixHex(c.fg, c.bg, 0.48),
     accentDeep: mixHex(c.accent, dark ? '#FFFFFF' : '#000000', 0.2),
     onField2: mixHex(c.onField, c.field, 0.2),
+    tint: mixHex(c.bg, c.accent, dark ? 0.24 : 0.16),
   }
   for (const k of DERIVED_COLOR_KEYS) {
     const o = tokens.overrides[k]
@@ -141,7 +142,7 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
   const d = derivedColors(tokens)
   const sel = `[data-theme="${id.replace(/[^a-zA-Z0-9_-]/g, '')}"]`
   const vars = [
-    `--bg: ${c.bg}; --surface: ${d.surface}; --surface-2: ${d.surface2}; --line: ${d.line};`,
+    `--bg: ${c.bg}; --surface: ${d.surface}; --surface-2: ${d.surface2}; --line: ${d.line}; --tint: ${d.tint};`,
     `--fg: ${c.fg}; --fg-2: ${d.fg2}; --fg-3: ${d.fg3};`,
     `--title: ${c.title}; --accent: ${c.accent}; --accent-deep: ${d.accentDeep}; --accent-2: ${c.accent2}; --accent-3: ${c.accent3}; --accent-4: ${c.accent4}; --on-accent: ${c.onAccent};`,
     `--field: ${c.field}; --on-field: ${c.onField}; --on-field-2: ${d.onField2};`,
@@ -154,16 +155,18 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
   if (tokens.titleScrim) {
     const ink = isDark(c.bg) ? c.bg : '#1F2428'
     const rgb = (parseHex(ink) ?? [31, 36, 40]).join(',')
+    lines.push(`${sel} .slide.title > figure { width: 100%; }`)
     lines.push(`${sel} .slide.title > figure::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(${rgb},0.9) 0%, rgba(${rgb},0.7) 45%, rgba(${rgb},0.1) 100%); }`)
     lines.push(`${sel} .slide.title:has(figure) { color: #FFFFFF; }`)
     lines.push(`${sel} .slide.title:has(figure) h1, ${sel} .slide.title:has(figure) .subtitle, ${sel} .slide.title:has(figure) .meta { color: #FFFFFF; }`)
     lines.push(`${sel} .slide.title:has(figure) .eyebrow { color: rgba(255,255,255,0.8); }`)
   }
   if (options.logoUrl && tokens.logo !== 'none') {
+    // content slides: top right, where nothing else sits; title and break: bottom right (on the picture, in the light variant)
     const where = tokens.logo === 'title' ? `${sel} .slide.title::after` : `${sel} .slide:not(.section):not(.closing):not(.figure.full)::after`
-    lines.push(`${where} { content: ''; position: absolute; right: 64px; bottom: 28px; width: 150px; height: 44px; background: var(--logo) no-repeat right center / contain; pointer-events: none; z-index: 2; }`)
-    if (tokens.logo === 'all') lines.push(`${sel} .slide.title::after, ${sel} .slide.break::after { height: 56px; width: 190px; }`)
-    if (tokens.logo === 'all') lines.push(`${sel} .slide.title:has(figure)::after { background-image: var(--logo-light, var(--logo)); }`)
+    lines.push(`${where} { content: ''; position: absolute; right: 64px; top: 56px; width: 150px; height: 40px; background: var(--logo) no-repeat right center / contain; pointer-events: none; z-index: 2; }`)
+    lines.push(`${sel} .slide.title::after, ${sel} .slide.break::after { top: auto; bottom: 36px; height: 56px; width: 190px; }`)
+    lines.push(`${sel} .slide.title:has(figure)::after, ${sel} .slide.break:has(figure)::after { background-image: var(--logo-light, var(--logo)); }`)
   }
   return lines.join('\n')
 }
@@ -205,5 +208,8 @@ export function contrastPairs(tokens: ThemeTokens): { key: string; fg: string; b
     { key: 'onField', fg: c.onField, bg: c.field, large: true },
     { key: 'onField2', fg: d.onField2, bg: c.field, large: false },
     { key: 'textOnSurface', fg: c.fg, bg: d.surface, large: false },
+    { key: 'kicker', fg: d.accentDeep, bg: c.bg, large: false },
+    { key: 'textOnTint', fg: c.fg, bg: d.tint, large: false },
+    { key: 'kickerOnTint', fg: d.accentDeep, bg: d.tint, large: false },
   ]
 }

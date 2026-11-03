@@ -208,7 +208,7 @@ const tokensBody = z.strictObject({
   colors: z.partialRecord(colorKey, hex).optional(),
   overrides: z.partialRecord(derivedKey, hex).optional(),
   fonts: z.strictObject({ display: z.enum(FONT_KEYS).optional(), body: z.enum(FONT_KEYS).optional() }).optional(),
-  displayWeight: z.union([z.literal(500), z.literal(600), z.literal(700)]).optional(),
+  displayWeight: z.union([z.literal(500), z.literal(600), z.literal(700), z.literal(800)]).optional(),
   radius: z.number().int().min(0).max(40).optional(),
   chrome: z.boolean().optional(),
   titleScrim: z.boolean().optional(),

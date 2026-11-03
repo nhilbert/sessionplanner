@@ -43,8 +43,8 @@ Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) ar
 
 | Layout | Used for | Markup |
 |---|---|---|
-| `title` | first slide of a workshop or day | `div.text` with `.eyebrow`, `h1`, `p.subtitle`, `p.meta`; optional full-bleed `figure` |
-| `section` | a divider between topics | `div.text` with `.eyebrow`, `h1`, optional `.lead`, `ul.list`; optional `.glyph` |
+| `title` | first slide of a workshop or day | `div.text` with `.eyebrow`, `h1`, `p.subtitle`, `p.meta`; optional `figure`, a column at the right edge (a theme may fill the slide with it under a scrim) |
+| `section` | a divider between topics | `div.text` with `.eyebrow`, `h1`, optional `.lead`, `ul.list`; optional `figure`, a band across the top; optional `.glyph` |
 | `agenda` | the plan of a day, numbered, with optional times or a picture | `ol.agenda > li > span.when? + span`; or `ol.blocks` cards with time ranges; `.cols` when a figure sits next to the list |
 | `break` | a pause with its end time | `div.text` with `h1`, `p.until`; optional `figure` |
 | `closing` | the last slide | `img.logo`, `h1`, `p` on the theme's field colour |
@@ -52,7 +52,7 @@ Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) ar
 | `quote` | a quotation with attribution | `blockquote > p + p.sub?`, `cite` |
 | `list` | bullet points, one or two levels; rules; literature; points with a heading each | `ul.list` or `ol.list`, modifiers `.compact`, `.two`, `.rows` (a `strong` heading on each point) |
 | `cards` | two to five parallel points with heading and text, optional picture, number or short list | `ul.cards.cols-N > li > img.icon? + .eyebrow? + h3 + (p | ul.list)`; modifiers `.numbered`, `.plain` (no surface, picture cropped to a band), `.plain.contain` (illustrations shown whole, labels aligned below), `.picture` (picture fills the top of the card), `.picture.contain` (book covers); cards fill the height they have |
-| `split` | text beside a picture or diagram; a definition with an illustration | `div.split > div.text + figure`; modifiers `.figure-left`, `.wide-text` |
+| `split` | text beside a picture or diagram; a definition with an illustration | `div.split > div.text + figure`; the picture a column to the slide's edges, cropped; modifiers `.figure-left`, `.wide-text`, `.contain` (a cut-out or a diagram shown whole; a caption or an svg does the same) |
 | `figure` | one large picture with caption | `figure.main > img + figcaption`; modifier `.full` |
 | `exercise` | an exercise: the task, its steps, optionally the facts | `header` with `h2 > span.tag + title` and `p.lead` (the question or goal), then `div.exercise > ol.steps + aside.facts? > dl` |
 | `steps` | a sequence or process, three to five steps | `ol.flow > li > .eyebrow? + h3 + p` |
@@ -72,8 +72,8 @@ The facts panel of an exercise (`aside.facts`: duration, format, material) is op
 
 A theme sets the tokens slides.css reads on `[data-theme="name"]` and may add decorations for the title, section and closing slides (a picture scrim, where the logo sits):
 
-- colours: `--bg --surface --surface-2 --line --fg --fg-2 --fg-3 --title --accent --accent-deep --accent-2 --accent-3 --accent-4 --on-accent --field --on-field --on-field-2`
-- type: `--font-display --font-body --font-mono --display-weight`
+- colours: `--bg --surface --surface-2 --line --fg --fg-2 --fg-3 --title --accent --accent-deep --accent-2 --accent-3 --accent-4 --on-accent --field --on-field --on-field-2 --tint` (the accent mixed into the ground: the one panel the format fills) and optionally `--kicker` (small capitals and numerals; the deeper accent unless set)
+- type: `--font-display --font-body --font-mono --display-weight` (800 unless set) `--numeral-weight` (300 unless set: the large thin numerals)
 - shape and chrome: `--radius --chrome` (whether the host's footer line shows), `--logo --logo-light --mark`
 
 SVG in slides uses classes bound to these tokens: fills `f-accent f-accent-deep f-accent-2 f-accent-3 f-accent-4 f-surface f-surface-2 f-title f-bg`, strokes `s-accent s-line s-fg`, text `t t-small t-display t-on`.

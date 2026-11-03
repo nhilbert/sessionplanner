@@ -718,7 +718,8 @@
       "fg2": "Text 2",
       "fg3": "Text 3",
       "accentDeep": "Accent deep",
-      "onField2": "Text 2 on field"
+      "onField2": "Text 2 on field",
+      "tint": "Tint"
     },
     "type": "Type",
     "display": "Headings",
@@ -759,7 +760,11 @@
       "onAccent": "Text on accent",
       "onField": "Text on field",
       "onField2": "Text 2 on field",
-      "textOnSurface": "Text on card"
+      "tint": "Tint",
+      "textOnSurface": "Text on card",
+      "kicker": "Kicker and numerals",
+      "textOnTint": "Text on tint",
+      "kickerOnTint": "Kicker on tint"
     },
     "preview": "Preview",
     "saved": "Saved",

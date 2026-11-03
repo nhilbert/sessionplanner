@@ -718,7 +718,8 @@
       "fg2": "Text 2",
       "fg3": "Text 3",
       "accentDeep": "Akzent dunkel",
-      "onField2": "Text 2 auf Fläche"
+      "onField2": "Text 2 auf Fläche",
+      "tint": "Tönung"
     },
     "type": "Schrift",
     "display": "Überschriften",
@@ -759,7 +760,11 @@
       "onAccent": "Text auf Akzent",
       "onField": "Text auf Fläche",
       "onField2": "Text 2 auf Fläche",
-      "textOnSurface": "Text auf Karte"
+      "tint": "Tönung",
+      "textOnSurface": "Text auf Karte",
+      "kicker": "Kicker und Ziffern",
+      "textOnTint": "Text auf Tönung",
+      "kickerOnTint": "Kicker auf Tönung"
     },
     "preview": "Vorschau",
     "saved": "Gespeichert",

@@ -37,7 +37,7 @@ describe('slide themes as data', () => {
     const theme = (await res.json()) as Theme
     expect(theme.id).toMatch(/^beispiel-hell-[a-z0-9]+$/)
     expect(theme.tokens.colors.accent).toBe('#AA3366')
-    expect(theme.tokens.colors.bg).toBe('#FFFFFF')
+    expect(theme.tokens.colors.bg).toBe('#FBFAF8')
     expect(theme.tokens.radius).toBe(4)
     const list = (await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()) as { id: string; kind: string; name: string }[]
     expect(list.map((t) => [t.id, t.kind])).toEqual([

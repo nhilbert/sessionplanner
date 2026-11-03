@@ -29,6 +29,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 CSS = os.path.join(REPO, 'src', 'slides', 'slides.css')
 DEFAULT_THEME = os.path.join(REPO, 'src', 'slides', 'themes', 'default.css')
 INTER = os.path.join(REPO, 'node_modules', '@fontsource-variable', 'inter', 'index.css')
+MANROPE = os.path.join(REPO, 'node_modules', '@fontsource-variable', 'manrope', 'index.css')
 NOTO = os.path.join(REPO, 'node_modules', '@fontsource', 'noto-sans-jp', '400.css')
 # Stands in for assets/<file> while the sanitiser runs: it accepts asset:<hash> only.
 STAND_IN = 'asset:' + '0' * 64
@@ -404,7 +405,7 @@ def render(frags, theme, theme_css, chrome, tmp):
             return m.group(0)
         return re.sub(r'src="([^"]*)"', sub, frag)
 
-    links = ''.join(f'<link rel="stylesheet" href="{furl(p)}">' for p in (INTER, NOTO, CSS, theme_css) if p and os.path.exists(p))
+    links = ''.join(f'<link rel="stylesheet" href="{furl(p)}">' for p in (INTER, MANROPE, NOTO, CSS, theme_css) if p and os.path.exists(p))
     page = f'<!doctype html><html lang="de" data-theme="{theme}"><head><meta charset="utf-8">{links}<style>body{{margin:0;background:#777}}.slide{{margin:0 0 24px}}</style></head><body>' + '\n'.join(prepared(f, r) for f, r in frags) + f'<script>{PAGE_JS}</script></body></html>'
     path = os.path.join(tmp, 'check.html')
     with open(path, 'w', encoding='utf-8') as f:
