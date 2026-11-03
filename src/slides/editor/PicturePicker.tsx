@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Image, Upload, X } from 'lucide-react'
-import { api, type AssetScope, assetUrl } from '@/api'
-import { Button, cx, IconButton, Modal } from '@/components/ui'
+import { api, type AssetInfo, type AssetScope, assetUrl } from '@/api'
+import { Button, cx, IconButton, Modal, Segmented } from '@/components/ui'
 import { fieldId } from './fields'
 import { uploadProblem } from '@/planner/upload'
 
@@ -10,8 +10,9 @@ import { uploadProblem } from '@/planner/upload'
 export function PictureField({ path, value, onChange, onFocus, scope, known, label }: { path: string; value: string; onChange: (hash: string) => void; onFocus: (path: string) => void; scope: AssetScope; known: string[]; label?: string }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const pair = usePair(scope, value)
   return (
-    <div className="flex items-center gap-2" id={fieldId(path)} tabIndex={-1} onFocus={() => onFocus(path)}>
+    <div className="flex flex-wrap items-center gap-2" id={fieldId(path)} tabIndex={-1} onFocus={() => onFocus(path)}>
       {value ? (
         <button type="button" onClick={() => setOpen(true)} className="h-12 w-20 shrink-0 overflow-hidden rounded-md border border-line bg-surface-2" aria-label={label ?? t('editor.pickPicture')}>
           <img src={assetUrl(scope, value)} alt="" className="h-full w-full object-cover" />
@@ -32,9 +33,28 @@ export function PictureField({ path, value, onChange, onFocus, scope, known, lab
           </IconButton>
         </>
       )}
+      {pair?.cutout && (
+        <Segmented size="sm" value={value === pair.cutout ? 'cutout' : 'original'} onChange={(v) => onChange(v === 'cutout' ? pair.cutout! : pair.original)} options={[{ value: 'cutout', label: t('editor.cutout') }, { value: 'original', label: t('editor.original') }]} />
+      )}
       <PicturePicker open={open} onClose={() => setOpen(false)} onPick={onChange} scope={scope} known={known} current={value} />
     </div>
   )
+}
+
+/** The original and the cut-out an asset belongs to, asked for once per asset. */
+function usePair(scope: AssetScope, hash: string): AssetInfo | null {
+  const [pair, setPair] = useState<AssetInfo | null>(null)
+  useEffect(() => {
+    let live = true
+    if (!hash) setPair(null)
+    else if (pair && (pair.original === hash || pair.cutout === hash)) return
+    else api.assetInfo(scope, hash).then((p) => live && setPair(p), () => live && setPair(null))
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash, scope === 'library' ? 'library' : scope.workshopId])
+  return pair
 }
 
 /** Pick a picture: one used on a slide already, or a new upload (stored once by its content, docs/slides.md). */
@@ -48,7 +68,8 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current }: 
     setError('')
     try {
       const asset = await api.uploadAsset(scope, file)
-      onPick(asset.hash)
+      // An illustration freed of its flat background at upload is shown as the cut-out; the field can switch back.
+      onPick(asset.cutout ?? asset.hash)
       onClose()
     } catch (err) {
       setError(uploadProblem(err, file.name, t))

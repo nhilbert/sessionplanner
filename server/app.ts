@@ -14,6 +14,7 @@ import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
+import { cutoutPng } from './cutout.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -415,8 +416,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return null
   }
   const HASH = /^[0-9a-f]{64}$/
-  /** Stores an uploaded picture once by its content; the record, or the answer that refuses it (too large, over the guest's budget). */
-  const saveUpload = async (c: Context<Env>, access: 'owner' | Access, file: unknown): Promise<Asset | Response> => {
+  /**
+   * Stores an uploaded picture once by its content; the record (with the hash of the cut-out made from a PNG with a
+   * flat background, server/cutout.ts), or the answer that refuses it (too large, over the guest's budget).
+   */
+  const saveUpload = async (c: Context<Env>, access: 'owner' | Access, file: unknown): Promise<(Asset & { cutout: string | null }) | Response> => {
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (file.size > MAX_ASSET) return c.json({ error: 'too_large' }, 413)
     const data = Buffer.from(await file.arrayBuffer())
@@ -425,9 +429,26 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const hash = createHash('sha256').update(data).digest('hex')
     // A picture the server has already takes no more room.
     if (!repo.getAsset(hash) && !guestUpload(c, access, data.length)) return c.json({ error: 'upload_budget' }, 429)
+    const known = repo.getAsset(hash)
     await mkdir(path.join(filesDir, 'assets'), { recursive: true })
     await writeFile(assetPath(hash), data)
-    return repo.addAsset({ hash, mime, size: data.length })
+    const asset = known ?? repo.addAsset({ hash, mime, size: data.length })
+    // An illustration on a flat background gets its cut-out, stored next to it as an asset of its own, once.
+    let cutout = repo.getCutout(hash)?.hash ?? null
+    if (!cutout && !known && mime === 'image/png' && !asset.cutoutOf) {
+      const cut = cutoutPng(data)
+      if (cut && guestUpload(c, access, cut.length)) {
+        const cutHash = createHash('sha256').update(cut).digest('hex')
+        await writeFile(assetPath(cutHash), cut)
+        cutout = repo.addAsset({ hash: cutHash, mime: 'image/png', size: cut.length, cutoutOf: hash }).hash
+      }
+    }
+    return { ...asset, cutout }
+  }
+  /** An asset with its original and its cut-out, for the picture field's switch between them. */
+  const assetInfo = (c: Context<Env>, hash: string) => {
+    const pair = HASH.test(hash) ? repo.assetPair(hash) : null
+    return pair ? c.json({ hash, ...pair }) : c.json({ error: 'not_found' }, 404)
   }
   const storeAsset = async (c: Context<Env>, access: 'owner' | Access) => {
     const saved = await saveUpload(c, access, (await c.req.parseBody()).file)
@@ -446,6 +467,12 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
     return storeAsset(c, access)
   })
+  app.get('/api/workshops/:id/assets/:hash/info', (c) => {
+    const id = c.req.param('id')!
+    const hash = c.req.param('hash')!
+    if (!accessTo(c, id) || !HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
+    return assetInfo(c, hash)
+  })
   app.get('/api/workshops/:id/assets/:hash', (c) => {
     const id = c.req.param('id')!
     const hash = c.req.param('hash')!
@@ -454,6 +481,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return sendAsset(c, hash)
   })
   app.post('/api/library/assets', (c) => storeAsset(c, 'owner'))
+  app.get('/api/library/assets/:hash/info', (c) => assetInfo(c, c.req.param('hash')!))
   app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!))
   app.post('/api/assets/sweep', ownerOnly, async (c) => {
     const gone = repo.sweepAssets()

@@ -6,6 +6,7 @@ import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { createApp } from './app.ts'
+import { decodePng, encodePng } from './cutout.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
@@ -161,5 +162,46 @@ describe('the slide pool', () => {
     expect((await app.request(`${BASE}/api/decks/${deck.id}`, { method: 'DELETE', headers: H() })).status).toBe(200)
     expect((await app.request(`${BASE}/api/decks/${deck.id}`, { headers: H() })).status).toBe(404)
     expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 1 })
+  })
+})
+
+describe('cut-outs at upload', () => {
+  it('stores the cut-out of a PNG with a flat background next to the original, tells both apart, and keeps them together', async () => {
+    const { app, repo } = setup()
+    const rgba = new Uint8Array(40 * 40 * 4)
+    for (let i = 0; i < 1600; i++) {
+      const x = i % 40
+      const y = (i - x) / 40
+      rgba.set(x >= 15 && x < 25 && y >= 15 && y < 25 ? [20, 30, 40, 255] : [220, 218, 214, 255], i * 4)
+    }
+    const png = encodePng({ width: 40, height: 40, rgba })
+    const res = await upload(app, '/api/library/assets', png)
+    expect(res.status).toBe(201)
+    const asset = (await res.json()) as { hash: string; cutout: string | null }
+    expect(asset.cutout).toMatch(/^[0-9a-f]{64}$/)
+    expect(asset.cutout).not.toBe(asset.hash)
+    const cut = await app.request(`${BASE}/api/library/assets/${asset.cutout}`, { headers: H() })
+    expect(cut.status).toBe(200)
+    const img = decodePng(Buffer.from(await cut.arrayBuffer()))!
+    expect([img.width, img.height]).toEqual([26, 26])
+    expect(img.rgba[3]).toBe(0)
+    // both know each other
+    expect(await (await app.request(`${BASE}/api/library/assets/${asset.hash}/info`, { headers: H() })).json()).toEqual({ hash: asset.hash, original: asset.hash, cutout: asset.cutout })
+    expect(await (await app.request(`${BASE}/api/library/assets/${asset.cutout}/info`, { headers: H() })).json()).toEqual({ hash: asset.cutout, original: asset.hash, cutout: asset.cutout })
+    // uploaded again: the same answer, no second cut-out
+    expect(await (await upload(app, '/api/library/assets', png)).json()).toMatchObject({ hash: asset.hash, cutout: asset.cutout })
+    expect(repo.getCutout(asset.hash)?.hash).toBe(asset.cutout)
+    // a tiny PNG without a subject gets none
+    expect(((await (await upload(app, '/api/library/assets', PNG)).json()) as { cutout: string | null }).cutout).toBeNull()
+    // a slide showing the cut-out keeps the original too; a guest sees both through the workshop
+    const ws = await workshop(app)
+    const html = `<section class="slide figure"><figure class="main"><img src="asset:${asset.cutout}" alt=""></figure></section>`
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/ops`, { method: 'POST', headers: H(), body: JSON.stringify({ clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item('i1', ws.workshop.id, ws.days[0].id, html) }] }) })
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/members/${GUEST}`, { method: 'PUT', headers: H(), body: JSON.stringify({ role: 'view', showNotes: false }) })
+    expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}/assets/${asset.hash}`, { headers: H(GUEST) })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}/assets/${asset.hash}/info`, { headers: H(GUEST) })).status).toBe(200)
+    expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 1 })
+    expect(repo.getAsset(asset.hash)).not.toBeNull()
+    expect(repo.getAsset(asset.cutout!)).not.toBeNull()
   })
 })

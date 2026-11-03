@@ -691,7 +691,9 @@
     "editHint": "Edit (E) – or double-click a text",
     "viewHint": "Back to viewing (Esc)",
     "viewing": "View slide",
-    "presentHere": "Present from here"
+    "presentHere": "Present from here",
+    "cutout": "Cut-out",
+    "original": "Original"
   },
   "themes": {
     "title": "Slide themes",

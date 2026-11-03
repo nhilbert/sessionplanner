@@ -27,6 +27,12 @@ export function reportFailure(err: unknown): void {
 /** Where a slide's pictures come from: a workshop's own route (its guests may load them) or the owner's library. */
 export type AssetScope = { workshopId: string } | 'library'
 export const assetUrl = (scope: AssetScope, hash: string): string => (scope === 'library' ? `/api/library/assets/${hash}` : `/api/workshops/${scope.workshopId}/assets/${hash}`)
+/** An asset with its original and its cut-out (docs/slides.md): the two a picture field may switch between. */
+export interface AssetInfo {
+  hash: string
+  original: string
+  cutout: string | null
+}
 
 export interface AgentConnections {
   connections: AgentConnection[]
@@ -104,8 +110,9 @@ export const api = {
   uploadAsset: (scope: AssetScope, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return call<Asset>(scope === 'library' ? '/api/library/assets' : `/api/workshops/${scope.workshopId}/assets`, { method: 'POST', body: form })
+    return call<Asset & { cutout: string | null }>(scope === 'library' ? '/api/library/assets' : `/api/workshops/${scope.workshopId}/assets`, { method: 'POST', body: form })
   },
+  assetInfo: (scope: AssetScope, hash: string) => call<AssetInfo>(`${assetUrl(scope, hash)}/info`),
   sweepAssets: () => call<{ removed: number }>('/api/assets/sweep', { method: 'POST' }),
   /** Every slide theme the server has: built in, folders and data themes (docs/slides.md, section 4). */
   listThemes: () => call<ThemeInfo[]>('/api/themes'),

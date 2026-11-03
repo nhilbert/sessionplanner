@@ -691,7 +691,9 @@
     "editHint": "Bearbeiten (E) – oder Doppelklick auf einen Text",
     "viewHint": "Zurück zur Ansicht (Esc)",
     "viewing": "Folie ansehen",
-    "presentHere": "Präsentieren ab hier"
+    "presentHere": "Präsentieren ab hier",
+    "cutout": "Freigestellt",
+    "original": "Original"
   },
   "themes": {
     "title": "Folien-Themes",
