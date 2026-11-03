@@ -25,7 +25,7 @@ const INSTRUCTIONS = `Session Planner holds workshop agendas: a workshop has day
 - Facilitation notes (notes) are the facilitator's own; appendNotes adds to them instead of replacing.
 - The packing list is computed from the material of all placed items (largest quantity per label, not the sum); packing_update ticks lines, overrides quantities and adds workshop-wide material.
 - The library holds reusable items and groups shared by all workshops, as copies both ways: library_insert copies an entry into an agenda, and changing or deleting an entry leaves the placed copies alone. Read library_get before library_update.
-- Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show.
+- Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show, or the theme's pool (theme_pool: pictures for figures, icons for cards).
 - Prefer small, reversible changes and say what you changed. Workshops cannot be deleted through these tools; archive instead.`
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
@@ -320,6 +320,13 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
     'The slide pool (translated decks): the decks, and the slides whose deck, caption or text contain every word of query; deck (title or id) and layout narrow it. Returns ids for slide_get, slide_add and slide_set.',
     { query: z.string().optional(), deck: z.string().optional(), layout: z.string().optional() },
     (a) => ops.poolSearch(a as never),
+    'read',
+  )
+  tool(
+    'theme_pool',
+    "The picture pool of a theme (the default theme without one): pictures for figures and icons for cards, each an asset hash with its tags. Use them as <img src=\"asset:<hash>\"> – a picture in a figure, an icon as img.icon on a card.",
+    { theme: z.string().optional().describe('Theme id (settings_get lists them); default: the settings\' theme') },
+    (a) => ops.themePool(a.theme as string | undefined),
     'read',
   )
   tool(

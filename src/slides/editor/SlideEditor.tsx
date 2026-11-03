@@ -506,7 +506,7 @@ export function SlideEditor(p: Props) {
   const panel = sourceView ? (
     <SourceView html={html} canEdit={editable} onDraft={(v) => (sourceDraft.current = v === html ? null : { key: slide.key, html: v })} onApply={() => commit()} />
   ) : editing ? (
-    <Inspector doc={doc} onChange={(next) => update(next)} onFocus={setFocus} scope={p.scope} known={p.known} />
+    <Inspector doc={doc} onChange={(next) => update(next)} onFocus={setFocus} scope={p.scope} known={p.known} theme={p.theme} />
   ) : (
     <ReadOnly
       slide={slide}

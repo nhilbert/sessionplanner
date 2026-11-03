@@ -693,7 +693,10 @@
     "viewing": "View slide",
     "presentHere": "Present from here",
     "cutout": "Cut-out",
-    "original": "Original"
+    "original": "Original",
+    "poolPictures": "Pictures from the pool",
+    "poolIcons": "Icons from the pool",
+    "searchPool": "Search the pool by tag …"
   },
   "themes": {
     "title": "Slide themes",

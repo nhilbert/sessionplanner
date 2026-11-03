@@ -913,6 +913,15 @@ export class Ops {
     }
   }
 
+  /** The pool of a theme (the settings' default without one): its pictures and icons with their tags, for figures and card icons. */
+  themePool(ref?: string) {
+    const theme = this.theme(ref) ?? this.repo.getSettings().theme ?? ''
+    const id = theme || 'default'
+    const pool = this.repo.listPool(id)
+    const entries = (kind: 'picture' | 'icon') => pool.filter((e) => e.kind === kind).map((e) => ({ asset: e.hash, tags: e.tags }))
+    return { theme: id, pictures: entries('picture'), icons: entries('icon') }
+  }
+
   /** The deck of a workshop as it would be shown: generated slides and the items' own, in order; agenda and break slides can be left out as in the app. */
   deckOutline(ref: string, options: { agenda?: boolean; breaks?: boolean } = {}) {
     const s = this.state(ref)

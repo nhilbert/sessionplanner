@@ -693,7 +693,10 @@
     "viewing": "Folie ansehen",
     "presentHere": "Präsentieren ab hier",
     "cutout": "Freigestellt",
-    "original": "Original"
+    "original": "Original",
+    "poolPictures": "Fotos aus dem Pool",
+    "poolIcons": "Icons aus dem Pool",
+    "searchPool": "Pool nach Schlagwort durchsuchen …"
   },
   "themes": {
     "title": "Folien-Themes",

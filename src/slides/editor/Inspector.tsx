@@ -12,6 +12,8 @@ interface Props {
   scope: AssetScope
   /** Pictures a picker can offer (hashes used on slides of this step, entry or workshop). */
   known: string[]
+  /** The theme whose pool the picker offers. */
+  theme: string
 }
 
 /**
@@ -19,7 +21,7 @@ interface Props {
  * layout holds, the footer; above them the layout's options. Each field edits one part of the document; the
  * preview follows at once.
  */
-export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
+export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props) {
   const { t } = useTranslation()
   const spec = layoutSpec(doc.layout)
   const set = (patch: Partial<SlideDoc>) => onChange({ ...doc, ...patch })
@@ -113,7 +115,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
           make={emptyCard}
           render={(c, setC, i) => (
             <>
-              <PictureField path={`cards.${i}.image`} value={c.image} onChange={(image) => setC({ ...c, image })} onFocus={onFocus} scope={scope} known={known} />
+              <PictureField path={`cards.${i}.image`} value={c.image} onChange={(image) => setC({ ...c, image })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer="icon" />
               {c.image && <Text path={`cards.${i}.alt`} value={c.alt} onChange={(v) => setC({ ...c, alt: v })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} className="text-[12px]" />}
               <Text path={`cards.${i}.eyebrow`} value={c.eyebrow} onChange={(v) => setC({ ...c, eyebrow: v })} onFocus={onFocus} placeholder={f('eyebrow')} label={f('eyebrow')} />
               <Area path={`cards.${i}.title`} value={c.title} onChange={(v) => setC({ ...c, title: v })} onFocus={onFocus} placeholder={f('title')} label={f('title')} className="font-medium" />
@@ -307,7 +309,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known }: Props) {
         <section>
           <SectionLabel>{f('figure')}</SectionLabel>
           <div className="space-y-1.5">
-            <PictureField path="figure.image" value={doc.figure?.image ?? ''} onChange={(image) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), image } })} onFocus={onFocus} scope={scope} known={known} />
+            <PictureField path="figure.image" value={doc.figure?.image ?? ''} onChange={(image) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), image } })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer="picture" />
             {doc.figure?.image && <Text path="figure.alt" value={doc.figure?.alt ?? ''} onChange={(alt) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), alt } })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} />}
             {doc.layout !== 'title' && doc.layout !== 'break' && <Text path="figure.caption" value={doc.figure?.caption ?? ''} onChange={(caption) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), caption } })} onFocus={onFocus} placeholder={f('caption')} label={f('caption')} />}
           </div>

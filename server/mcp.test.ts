@@ -8,6 +8,7 @@ import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { createApp } from './app.ts'
+import { DEFAULT_TOKENS } from '../src/domain/theme.ts'
 import { mcpRoutes } from './mcp.ts'
 
 const TOKEN = 'test-token'
@@ -85,7 +86,7 @@ describe('MCP endpoint', () => {
     const { client, ready } = connect(app)
     await ready
     const tools = (await client.listTools()).tools
-    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['slide_format', 'slide_list', 'slide_get', 'slide_add', 'slide_update', 'slide_remove', 'slide_set', 'pool_search', 'deck_outline']))
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['slide_format', 'slide_list', 'slide_get', 'slide_add', 'slide_update', 'slide_remove', 'slide_set', 'pool_search', 'theme_pool', 'deck_outline']))
     expect(tools.find((t) => t.name === 'slide_update')?.annotations?.destructiveHint).toBe(true)
     const format = json(await client.callTool({ name: 'slide_format', arguments: { layout: 'statement' } }))
     expect(format.example).toMatch(/^<section class="slide statement">/)
@@ -98,6 +99,12 @@ describe('MCP endpoint', () => {
     const outline = json(await client.callTool({ name: 'deck_outline', arguments: { workshop: 'Strategietag', agenda: false } }))
     expect(outline.deck.map((d: { generated?: string; item?: string }) => d.generated ?? d.item)).toEqual(['title', 'Check-in'])
     expect(json(await client.callTool({ name: 'settings_get', arguments: {} })).themes).toEqual([{ id: 'default', name: 'default' }])
+    // the picture pool of a theme: empty for the built-in one, the entries with their tags for a data theme
+    expect(json(await client.callTool({ name: 'theme_pool', arguments: {} }))).toEqual({ theme: 'default', pictures: [], icons: [] })
+    repo.createTheme({ id: 'sr', name: 'SR', tokens: DEFAULT_TOKENS })
+    repo.addAsset({ hash: 'a'.repeat(64), mime: 'image/png', size: 1 })
+    repo.addPoolAsset('sr', { hash: 'a'.repeat(64), kind: 'icon', tags: ['team', 'gespräch'] })
+    expect(json(await client.callTool({ name: 'theme_pool', arguments: { theme: 'sr' } }))).toEqual({ theme: 'sr', pictures: [], icons: [{ asset: 'a'.repeat(64), tags: ['team', 'gespräch'] }] })
     await client.close()
   })
 

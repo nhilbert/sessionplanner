@@ -241,9 +241,10 @@ Slides live on a step of a workshop (`workshop` + `item`) or on a library entry 
 | `slide_remove` | destructive | target, `slide` or `slides[]` | Removes one or several slides. |
 | `slide_set` | destructive | target, `slides[]` (each `html` \| `pool` \| `keep`) | Replaces the slides in the given order: markup, a pool copy, or an existing slide kept (id or number), which is how slides are reordered in bulk; an empty list removes all. |
 | `pool_search` | read | `query`, `deck`, `layout` | The decks of the pool, and the slides whose deck, caption or text contain every word; `deck` (title or id) and `layout` narrow it. Ids for `slide_get`, `slide_add` and `slide_set`. |
+| `theme_pool` | read | `theme` | The picture pool of a theme (docs/slides.md, section 4; the settings' theme without one): pictures for figures and icons for cards, each an asset hash with its tags. |
 | `deck_outline` | read | `workshop`, `agenda`, `breaks` | The deck as presented, with its theme: the generated title, agenda and break slides and the items' own, in order; `agenda` or `breaks` false leave the generated ones out, as the app can. |
 
-Markup is reduced to the slide format on write (`docs/slides.md`, section 2; `slide_format` serves the same rules and an example per layout to the agent): anything outside the allowlist is removed, a slide without a `section.slide` root gets one, markup after the root is dropped, and the answers show the slide as stored, so the agent sees what survived. Pictures are referenced as `asset:<hash>`; an agent cannot upload pictures, so it reuses hashes that pool slides or other slides already show (`slide_get` lists them) or writes slides without pictures. Markers and notes have no slides.
+Markup is reduced to the slide format on write (`docs/slides.md`, section 2; `slide_format` serves the same rules and an example per layout to the agent): anything outside the allowlist is removed, a slide without a `section.slide` root gets one, markup after the root is dropped, and the answers show the slide as stored, so the agent sees what survived. Pictures are referenced as `asset:<hash>`; an agent cannot upload pictures, so it reuses hashes from the theme's pool (`theme_pool`) or that pool slides or other slides already show (`slide_get` lists them), or writes slides without pictures. Markers and notes have no slides.
 
 ### Settings
 
