@@ -735,6 +735,7 @@
     "fonts": {
       "inter": "Inter",
       "manrope": "Manrope",
+      "lato": "Lato",
       "source-serif": "Source Serif 4",
       "system-sans": "System (serifenlos)",
       "system-serif": "System (Serife)",

@@ -13,20 +13,21 @@ export type ThemeColorKey = (typeof THEME_COLOR_KEYS)[number]
 export const DERIVED_COLOR_KEYS = ['surface', 'surface2', 'line', 'fg2', 'fg3', 'accentDeep', 'onField2', 'tint'] as const
 export type DerivedColorKey = (typeof DERIVED_COLOR_KEYS)[number]
 
-export const FONT_KEYS = ['inter', 'manrope', 'source-serif', 'system-sans', 'system-serif', 'mono'] as const
+export const FONT_KEYS = ['inter', 'manrope', 'lato', 'source-serif', 'system-sans', 'system-serif', 'mono'] as const
 export type FontKey = (typeof FONT_KEYS)[number]
 
-/** The font stacks behind the keys; the first two and the serif are self-hosted by the app. */
+/** The font stacks behind the keys; Inter, Manrope, Lato and the serif are self-hosted by the app. */
 export const FONT_STACKS: Record<FontKey, string> = {
   inter: "'Inter Variable', Inter, system-ui, 'Segoe UI', Roboto, sans-serif",
   manrope: "'Manrope Variable', Manrope, 'Inter Variable', system-ui, sans-serif",
+  lato: "Lato, 'Inter Variable', system-ui, 'Segoe UI', Roboto, sans-serif",
   'source-serif': "'Source Serif 4 Variable', 'Source Serif 4', Georgia, 'Times New Roman', serif",
   'system-sans': "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
   'system-serif': "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif",
   mono: "ui-monospace, Menlo, Consolas, 'Liberation Mono', monospace",
 }
 /** The fonts the app ships (the others are the viewer's system fonts). */
-export const HOSTED_FONTS: FontKey[] = ['inter', 'manrope', 'source-serif']
+export const HOSTED_FONTS: FontKey[] = ['inter', 'manrope', 'lato', 'source-serif']
 
 export type LogoPlacement = 'none' | 'title' | 'all'
 /** The mark before an unnumbered point: a small square, a circle, or none. */

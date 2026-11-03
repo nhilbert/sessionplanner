@@ -9,6 +9,11 @@ import './host.css'
 // The fonts a data theme may choose (docs/slides.md, section 4). The browser fetches a face only when a slide uses it.
 import '@fontsource-variable/manrope'
 import '@fontsource-variable/source-serif-4'
+import '@fontsource/lato/300.css'
+import '@fontsource/lato/400.css'
+import '@fontsource/lato/400-italic.css'
+import '@fontsource/lato/700.css'
+import '@fontsource/lato/900.css'
 
 export type { AssetScope }
 

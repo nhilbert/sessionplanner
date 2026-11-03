@@ -9,6 +9,11 @@ import notoCss from '@fontsource/noto-sans-jp/400.css?raw'
 import interCss from '@fontsource-variable/inter/index.css?raw'
 import manropeCss from '@fontsource-variable/manrope/index.css?raw'
 import serifCss from '@fontsource-variable/source-serif-4/index.css?raw'
+import lato300 from '@fontsource/lato/300.css?raw'
+import lato400 from '@fontsource/lato/400.css?raw'
+import lato400i from '@fontsource/lato/400-italic.css?raw'
+import lato700 from '@fontsource/lato/700.css?raw'
+import lato900 from '@fontsource/lato/900.css?raw'
 
 type FontFiles = Record<string, () => Promise<string>>
 const notoFiles = import.meta.glob('/node_modules/@fontsource/noto-sans-jp/files/*-400-normal.woff2', { query: '?url', import: 'default' }) as FontFiles
@@ -20,6 +25,8 @@ const HOSTED: { family: string; css: string; files: FontFiles }[] = [
   { family: 'Inter Variable', css: interCss, files: import.meta.glob('/node_modules/@fontsource-variable/inter/files/inter-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
   { family: 'Manrope Variable', css: manropeCss, files: import.meta.glob('/node_modules/@fontsource-variable/manrope/files/manrope-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
   { family: 'Source Serif 4 Variable', css: serifCss, files: import.meta.glob('/node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-*-wght-normal.woff2', { query: '?url', import: 'default' }) as FontFiles },
+  // Lato is a static family: the weights the slides use (light, regular, italic, bold, black), each its own file.
+  { family: 'Lato', css: [lato300, lato400, lato400i, lato700, lato900].join('\n'), files: import.meta.glob('/node_modules/@fontsource/lato/files/lato-*-{300,400,700,900}-{normal,italic}.woff2', { query: '?url', import: 'default' }) as FontFiles },
 ]
 
 const toDataUrl = async (url: string): Promise<string | null> => {
