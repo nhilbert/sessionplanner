@@ -109,12 +109,13 @@
 /* ---------- layouts ---------- */
 
 /* title: text bottom left, the kicker at the top, a picture as a column to the right edge */
+.slide.title { isolation: isolate; }
 .slide.title > .text { display: flex; flex-direction: column; gap: 24px; max-width: 600px; margin-top: auto; }
 .slide.title .eyebrow { position: absolute; left: 64px; top: 56px; }
 .slide.title h1 { font-size: 72px; }
 .slide.title .subtitle { font-size: 22px; line-height: 1.4; color: var(--fg-2); }
 .slide.title .meta { font: 700 13px/1.2 var(--font-body), 'Noto Sans JP'; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fg-3); }
-.slide.title > figure { position: absolute; top: 0; right: 0; bottom: 0; width: 560px; margin: 0; }
+.slide.title > figure { position: absolute; top: 0; right: 0; bottom: 0; width: 560px; margin: 0; z-index: -1; }
 .slide.title > figure img { width: 100%; height: 100%; object-fit: cover; }
 
 /* section: the title large at the bottom; a picture as a band at the top */
