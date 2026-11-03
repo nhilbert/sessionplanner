@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { contrastHex, mixHex, parseHex, toHex } from './color.ts'
-import { contrastPairs, DEFAULT_TOKENS, derivedColors, themeCss, themeIdFrom, withDefaults } from './theme.ts'
+import { contrastPairs, DEFAULT_TOKENS, derivedColors, THEME_FILE_PATH, themeCss, themeFileUrls, themeIdFrom, withDefaults } from './theme.ts'
 
 describe('colour', () => {
   it('parses and formats hex', () => {
@@ -57,6 +57,23 @@ describe('theme', () => {
     const withLogo = themeCss('x', { ...DEFAULT_TOKENS, logo: 'all', titleScrim: false }, { logoUrl: '/l' })
     expect(withLogo).toContain('.slide:not(.section):not(.closing)')
     expect(withLogo).not.toContain('figure::after')
+  })
+  it('lays a theme\'s own rules over the generated ones, under its selector and with its files', () => {
+    const fileUrls = themeFileUrls({ id: 'brand', files: [{ path: 'fonts/Brand.ttf', mime: 'font/ttf', size: 1, updatedAt: '2026-11-03T10:00:00.000Z' }] })
+    expect(fileUrls).toEqual({ 'fonts/Brand.ttf': '/api/themes/brand/fonts/Brand.ttf?v=2026-11-03T10%3A00%3A00.000Z' })
+    const own = "@font-face { font-family: 'Brand'; src: url('fonts/Brand.ttf'); }\n:scope .slide h2, :scope .slide h3 { font-weight: 700; }\n:scope { --mark: url(assets/missing.svg); background: url(\"data:image/svg+xml;utf8,<svg fill='%23fff'/>\"); }"
+    const css = themeCss('brand', { ...DEFAULT_TOKENS, family: 'playful' }, { css: own, fileUrls })
+    expect(css).toContain(`src: url('${fileUrls['fonts/Brand.ttf']}')`)
+    expect(css).toContain('[data-theme="brand"] .slide h2, [data-theme="brand"] .slide h3 { font-weight: 700; }')
+    // a path without a file stays as written; data addresses are left alone
+    expect(css).toContain('--mark: url(assets/missing.svg)')
+    expect(css).toContain(`url("data:image/svg+xml;utf8,<svg fill='%23fff'/>")`)
+    expect(css).not.toContain(':scope')
+    // last, after the family's decoration, so the own rules win
+    expect(css.indexOf('font-weight: 700')).toBeGreaterThan(css.indexOf('radial-gradient'))
+    expect(themeCss('brand', DEFAULT_TOKENS, { css: '  ' })).toBe(themeCss('brand', DEFAULT_TOKENS))
+    expect(['fonts/Lato-Black.ttf', 'assets/logo-mark.svg', 'logo.png', 'a/b/c.woff2'].every((p) => THEME_FILE_PATH.test(p))).toBe(true)
+    expect(['../x.ttf', 'fonts/x.css', 'theme.css', 'logo', '/abs.png', 'a/b/c/d.png', 'fonts/.hidden.ttf'].some((p) => THEME_FILE_PATH.test(p))).toBe(false)
   })
   it('fills partial tokens and makes ids', () => {
     const t = withDefaults({ colors: { accent: '#123456' } as never, radius: 4 })

@@ -817,7 +817,16 @@
     "dropHint": "Drag pictures here or upload them, several at once.",
     "poolNoMatch": "No picture with this tag.",
     "poolShown": "{{shown}} of {{total}}",
-    "poolMore": "Show more"
+    "poolMore": "Show more",
+    "own": "Own rules and files",
+    "ownHint": "CSS over everything the settings above generate – for a brand they do not cover. :scope stands for this theme ([data-theme=\"…\"]); files are addressed relative to it: url(fonts/Brand.woff2).",
+    "ownRules": "Rules (CSS)",
+    "ownFiles": "Files",
+    "ownFilesHint": "Fonts and pictures of the rules, up to 5 MB. Fonts go under fonts/, pictures under assets/.",
+    "uploadFiles": "Upload files",
+    "removeFile": "Remove file",
+    "fileFailed": "The file could not be uploaded (a font or picture, up to 5 MB).",
+    "filesEmpty": "No files yet."
   },
   "templates": {
     "title": "Slide templates",

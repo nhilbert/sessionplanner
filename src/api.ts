@@ -118,8 +118,8 @@ export const api = {
   listThemes: () => call<ThemeInfo[]>('/api/themes'),
   themeCssUrl: (id: string, version?: string) => `/api/themes/${encodeURIComponent(id)}/theme.css${version ? `?v=${encodeURIComponent(version)}` : ''}`,
   getTheme: (id: string) => call<Theme>(`/api/themes/${encodeURIComponent(id)}`),
-  createTheme: (input: { name: string; tokens?: ThemeTokens; from?: string }) => call<Theme>('/api/themes', { method: 'POST', body: JSON.stringify(input) }),
-  updateTheme: (id: string, patch: { name?: string; tokens?: ThemeTokens }) => call<Theme>(`/api/themes/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(patch) }),
+  createTheme: (input: { name: string; id?: string; tokens?: ThemeTokens; css?: string; from?: string }) => call<Theme>('/api/themes', { method: 'POST', body: JSON.stringify(input) }),
+  updateTheme: (id: string, patch: { name?: string; tokens?: ThemeTokens; css?: string }) => call<Theme>(`/api/themes/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(patch) }),
   deleteTheme: (id: string) => call<{ ok: true }>(`/api/themes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   uploadThemeLogo: (id: string, file: File, variant: 'logo' | 'logoLight') => {
     const form = new FormData()
@@ -128,6 +128,14 @@ export const api = {
   },
   deleteThemeLogo: (id: string, variant: 'logo' | 'logoLight') => call<Theme>(`/api/themes/${encodeURIComponent(id)}/logo${variant === 'logoLight' ? '?variant=light' : ''}`, { method: 'DELETE' }),
   themeLogoUrl: (theme: Theme, variant: 'logo' | 'logoLight') => themeLogoUrl(theme, variant),
+  /** A file of a theme (a font, a picture its own rules use), at the path the rules address it by. */
+  uploadThemeFile: (id: string, file: File, path: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('path', path)
+    return call<Theme>(`/api/themes/${encodeURIComponent(id)}/files`, { method: 'POST', body: form })
+  },
+  deleteThemeFile: (id: string, path: string) => call<Theme>(`/api/themes/${encodeURIComponent(id)}/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' }),
   /** The asset pool of a theme: pictures for the generated slides, icons for cards (docs/slides.md, section 4). */
   getPool: (id: string) => call<PoolAsset[]>(`/api/themes/${encodeURIComponent(id)}/pool`),
   uploadPoolAsset: (id: string, file: File, kind: PoolKind, tags = '') => {

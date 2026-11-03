@@ -5,7 +5,7 @@ import { Copy, Moon, Plus, Trash2, Upload, X } from 'lucide-react'
 import { api } from '@/api'
 import { SLIDE_LAYOUTS } from '@/domain/slideFormat'
 import { contrastHex } from '@/domain/color'
-import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, type ThemeTokens } from '@/domain/theme'
+import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, themeFileUrls, type ThemeTokens } from '@/domain/theme'
 import { themeLabel, useThemes } from '@/store/useThemes'
 import { PoolEditor } from '@/slides/PoolEditor'
 import { useSettings } from '@/store/useSettings'
@@ -16,6 +16,8 @@ import { inOrder } from '@/store/inOrder'
 import { SlidesTabs } from '@/slides/SlidesTabs'
 
 const MAX_LOGO = 2 * 1024 * 1024
+const MAX_THEME_FILE = 5 * 1024 * 1024
+const FONT_FILE = /\.(woff2?|ttf|otf)$/i
 const SAMPLES = ['title', 'agenda', 'cards', 'exercise', 'section', 'closing']
 
 /**
@@ -159,27 +161,30 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
   const [name, setName] = useState(theme.name)
   const [tokens, setTokens] = useState<ThemeTokens>(theme.tokens)
   const [logos, setLogos] = useState<Pick<Theme, 'logo' | 'logoLight'>>({ logo: theme.logo, logoLight: theme.logoLight })
+  const [css, setCss] = useState(theme.css)
+  const [files, setFiles] = useState(theme.files)
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const [advanced, setAdvanced] = useState(Object.keys(theme.tokens.overrides).length > 0)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   /** Changes not yet sent: name and tokens together, so one never cancels the other. */
-  const unsent = useRef<{ name?: string; tokens?: ThemeTokens }>({})
+  const unsent = useRef<{ name?: string; tokens?: ThemeTokens; css?: string }>({})
   /** The name as the server has it. */
   const savedName = useRef(theme.name)
   const logoUrl = api.themeLogoUrl({ ...theme, ...logos }, 'logo')
   const logoLightUrl = api.themeLogoUrl({ ...theme, ...logos }, 'logoLight')
+  const fileUrls = useMemo(() => themeFileUrls({ id: theme.id, files }), [theme.id, files])
 
   // The draft is the preview theme's stylesheet while this editor is open.
   useEffect(() => {
-    applyThemeCss(PREVIEW_THEME, themeCss(PREVIEW_THEME, tokens, { logoUrl, logoLightUrl }))
-  }, [tokens, logoUrl, logoLightUrl])
+    applyThemeCss(PREVIEW_THEME, themeCss(PREVIEW_THEME, tokens, { logoUrl, logoLightUrl, css, fileUrls }))
+  }, [tokens, logoUrl, logoLightUrl, css, fileUrls])
   useEffect(() => () => applyThemeCss(PREVIEW_THEME, null), [])
 
   const flush = async () => {
     clearTimeout(timer.current)
     const next = unsent.current
     unsent.current = {}
-    if (next.name === undefined && next.tokens === undefined) return
+    if (next.name === undefined && next.tokens === undefined && next.css === undefined) return
     try {
       // One save after the other, so the server keeps the latest.
       await inOrder(`theme:${theme.id}`, () => api.updateTheme(theme.id, next)).result
@@ -191,7 +196,7 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
       setState('failed')
     }
   }
-  const save = (next: { name?: string; tokens?: ThemeTokens }) => {
+  const save = (next: { name?: string; tokens?: ThemeTokens; css?: string }) => {
     unsent.current = { ...unsent.current, ...next }
     setState('saving')
     clearTimeout(timer.current)
@@ -302,7 +307,7 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
             </Field>
           </div>
           <Field label={t('themes.weight')} className="mt-3">
-            <Segmented size="sm" value={String(tokens.displayWeight)} onChange={(v) => update({ displayWeight: Number(v) as ThemeTokens['displayWeight'] })} options={[{ value: '500', label: '500' }, { value: '600', label: '600' }, { value: '700', label: '700' }, { value: '800', label: '800' }]} />
+            <Segmented size="sm" value={String(tokens.displayWeight)} onChange={(v) => update({ displayWeight: Number(v) as ThemeTokens['displayWeight'] })} options={[{ value: '500', label: '500' }, { value: '600', label: '600' }, { value: '700', label: '700' }, { value: '800', label: '800' }, { value: '900', label: '900' }]} />
           </Field>
         </section>
 
@@ -369,6 +374,32 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
         </section>
 
         <section className="card p-5 lg:col-span-2">
+          <SectionLabel>{t('themes.own')}</SectionLabel>
+          <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.ownHint')}</p>
+          <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+            <Field label={t('themes.ownRules')}>
+              <textarea
+                value={css}
+                onChange={(e) => {
+                  setCss(e.target.value)
+                  save({ css: e.target.value })
+                }}
+                spellCheck={false}
+                rows={14}
+                className="field h-80 w-full resize-y px-2 py-1.5 font-mono text-[12px] leading-snug"
+                placeholder=":scope .slide h2 { letter-spacing: 0; }"
+              />
+            </Field>
+            <ThemeFiles
+              files={files}
+              onFile={async (f) => setFiles((await api.uploadThemeFile(theme.id, f, `${FONT_FILE.test(f.name) ? 'fonts' : 'assets'}/${f.name.replace(/[^A-Za-z0-9._-]+/g, '-')}`)).files)}
+              onRemove={async (p) => setFiles((await api.deleteThemeFile(theme.id, p)).files)}
+              afterChange={() => reloadTheme(theme.id)}
+            />
+          </div>
+        </section>
+
+        <section className="card p-5 lg:col-span-2">
           <SectionLabel>{t('themes.pool')}</SectionLabel>
           <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.poolHint')}</p>
           <PoolEditor themeId={theme.id} />
@@ -408,6 +439,66 @@ function ColorField({ label, value, onChange, overridden, onReset }: { label: st
         <input value={text} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} className={cx('field tnum h-7 w-full px-1.5 font-mono text-[12px] uppercase', !overridden && onReset && 'text-ink-3')} aria-label={`${label} hex`} spellCheck={false} />
       </span>
     </label>
+  )
+}
+
+/** The files of a theme's own rules: fonts and pictures, uploaded under fonts/ or assets/ by their kind. */
+function ThemeFiles({ files, onFile, onRemove, afterChange }: { files: Theme['files']; onFile: (f: File) => Promise<void>; onRemove: (path: string) => Promise<void>; afterChange: () => void }) {
+  const { t } = useTranslation()
+  const input = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState('')
+  return (
+    <div>
+      <div className="mb-1 text-[12px] font-medium text-ink-2">{t('themes.ownFiles')}</div>
+      <p className="mb-2 text-[12px] leading-snug text-ink-3">{t('themes.ownFilesHint')}</p>
+      {files.length ? (
+        <ul className="mb-2 divide-y divide-line text-[12px]">
+          {files.map((f) => (
+            <li key={f.path} className="flex items-center gap-2 py-1">
+              <span className="min-w-0 flex-1 truncate font-mono">{f.path}</span>
+              <span className="tnum text-ink-3">{Math.max(1, Math.round(f.size / 1024))} kB</span>
+              <IconButton
+                label={t('themes.removeFile')}
+                onClick={async () => {
+                  await onRemove(f.path)
+                  afterChange()
+                }}
+              >
+                <X size={13} />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-2 text-[12px] text-ink-3">{t('themes.filesEmpty')}</p>
+      )}
+      <Button size="sm" onClick={() => input.current?.click()}>
+        <Upload size={13} />
+        {t('themes.uploadFiles')}
+      </Button>
+      {error && <p className="mt-1 text-[12px] text-rose">{error}</p>}
+      <input
+        ref={input}
+        type="file"
+        multiple
+        accept=".woff2,.woff,.ttf,.otf,image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+        hidden
+        onChange={async (e) => {
+          const picked = [...(e.target.files ?? [])]
+          e.target.value = ''
+          setError('')
+          try {
+            for (const file of picked) {
+              if (file.size > MAX_THEME_FILE) throw new Error('too large')
+              await onFile(file)
+            }
+          } catch {
+            setError(t('themes.fileFailed'))
+          }
+          afterChange()
+        }}
+      />
+    </div>
   )
 }
 

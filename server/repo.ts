@@ -1,6 +1,6 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
 import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE } from '../src/domain/types.ts'
-import { type PoolAsset, type PoolKind, type Theme, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
+import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
@@ -135,6 +135,8 @@ const toTheme = (r: Row): Theme => ({
   tokens: withDefaults(JSON.parse((r.tokens as string) || '{}')),
   logo: r.logo ? (JSON.parse(r.logo as string) as ThemeLogo) : null,
   logoLight: r.logo_light ? (JSON.parse(r.logo_light as string) as ThemeLogo) : null,
+  css: (r.css as string | null) ?? '',
+  files: JSON.parse((r.files as string | null) || '[]') as ThemeFile[],
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
 })
@@ -638,16 +640,27 @@ export class Repo {
     return r ? toTheme(r) : null
   }
 
-  createTheme(input: { id: string; name: string; tokens: ThemeTokens }): Theme {
+  createTheme(input: { id: string; name: string; tokens: ThemeTokens; css?: string }): Theme {
     const t = now()
-    this.db.prepare('INSERT INTO themes (id, name, tokens, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(input.id, input.name, JSON.stringify(input.tokens), t, t)
+    this.db.prepare('INSERT INTO themes (id, name, tokens, css, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(input.id, input.name, JSON.stringify(input.tokens), input.css ?? '', t, t)
     return this.getTheme(input.id)!
   }
 
-  updateTheme(id: string, patch: { name?: string; tokens?: ThemeTokens }): Theme | null {
+  updateTheme(id: string, patch: { name?: string; tokens?: ThemeTokens; css?: string }): Theme | null {
     const current = this.getTheme(id)
     if (!current) return null
-    this.db.prepare('UPDATE themes SET name = ?, tokens = ?, updated_at = ? WHERE id = ?').run(patch.name ?? current.name, JSON.stringify(patch.tokens ?? current.tokens), now(), id)
+    this.db.prepare('UPDATE themes SET name = ?, tokens = ?, css = ?, updated_at = ? WHERE id = ?').run(patch.name ?? current.name, JSON.stringify(patch.tokens ?? current.tokens), patch.css ?? current.css, now(), id)
+    return this.getTheme(id)
+  }
+
+  /** Records an uploaded file of a theme (one with the same path is replaced) or its removal with null; the file itself is the caller's. */
+  setThemeFile(id: string, filePath: string, file: Omit<ThemeFile, 'path'> | null): Theme | null {
+    const current = this.getTheme(id)
+    if (!current) return null
+    const files = current.files.filter((f) => f.path !== filePath)
+    if (file) files.push({ path: filePath, ...file })
+    files.sort((a, b) => a.path.localeCompare(b.path))
+    this.db.prepare('UPDATE themes SET files = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(files), now(), id)
     return this.getTheme(id)
   }
 

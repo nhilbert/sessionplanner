@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
 import { PALETTE, type ItemContent, type Settings } from '../src/domain/types.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
-import { DERIVED_COLOR_KEYS, FAMILY_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
+import { DERIVED_COLOR_KEYS, FAMILY_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_FILE_PATH, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
 export class BadRequest extends Error {}
 
@@ -210,7 +210,7 @@ const tokensBody = z.strictObject({
   colors: z.partialRecord(colorKey, hex).optional(),
   overrides: z.partialRecord(derivedKey, hex).optional(),
   fonts: z.strictObject({ display: z.enum(FONT_KEYS).optional(), body: z.enum(FONT_KEYS).optional() }).optional(),
-  displayWeight: z.union([z.literal(500), z.literal(600), z.literal(700), z.literal(800)]).optional(),
+  displayWeight: z.union([z.literal(500), z.literal(600), z.literal(700), z.literal(800), z.literal(900)]).optional(),
   radius: z.number().int().min(0).max(40).optional(),
   chrome: z.boolean().optional(),
   titleScrim: z.boolean().optional(),
@@ -218,21 +218,36 @@ const tokensBody = z.strictObject({
   mark: z.enum(['square', 'circle', 'none']).optional(),
   family: z.enum(FAMILY_KEYS).optional(),
 })
-const themeBody = z.strictObject({ name: text(100), tokens: tokensBody.optional(), from: text(60).optional() })
-const themePatch = z.strictObject({ name: text(100).optional(), tokens: tokensBody.optional() })
+/** The size of a theme's own rules (a whole stylesheet kept for a partner's brand is about 45 kB). */
+export const MAX_THEME_CSS = 256 * 1024
+// A theme's own rules end up inside a <style> of an exported deck, and stay within the theme: no closing tag, no imports.
+const themeRules = z
+  .string()
+  .max(MAX_THEME_CSS)
+  .refine((css) => !/<\/style/i.test(css), 'no </style>')
+  .refine((css) => !/@import/i.test(css), 'no @import')
+const themeBody = z.strictObject({ name: text(100), id: z.string().regex(THEME_ID, 'a folder-safe id').optional(), tokens: tokensBody.optional(), css: themeRules.optional(), from: text(60).optional() })
+const themePatch = z.strictObject({ name: text(100).optional(), tokens: tokensBody.optional(), css: themeRules.optional() })
 
 /** A new theme: its name, and either tokens or the id of a theme to copy them from (`from`). */
-export function validateTheme(body: unknown): { name: string; tokens?: ThemeTokens; from?: string } {
+export function validateTheme(body: unknown): { name: string; id?: string; tokens?: ThemeTokens; css?: string; from?: string } {
   const parsed = themeBody.safeParse(body)
   if (!parsed.success) throw new BadRequest(`invalid theme: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
-  return { name: parsed.data.name.trim(), tokens: parsed.data.tokens ? withDefaults(parsed.data.tokens as Partial<ThemeTokens>) : undefined, from: parsed.data.from }
+  return { name: parsed.data.name.trim(), id: parsed.data.id, tokens: parsed.data.tokens ? withDefaults(parsed.data.tokens as Partial<ThemeTokens>) : undefined, css: parsed.data.css, from: parsed.data.from }
 }
 
-export function validateThemePatch(body: unknown, current: ThemeTokens): { name?: string; tokens?: ThemeTokens } {
+export function validateThemePatch(body: unknown, current: ThemeTokens): { name?: string; tokens?: ThemeTokens; css?: string } {
   const parsed = themePatch.safeParse(body)
   if (!parsed.success) throw new BadRequest(`invalid theme: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
   // The patch is complete tokens as the editor sends them: what it leaves out keeps the current value.
-  return { name: parsed.data.name?.trim(), tokens: parsed.data.tokens ? withDefaults(parsed.data.tokens as Partial<ThemeTokens>, current) : undefined }
+  return { name: parsed.data.name?.trim(), tokens: parsed.data.tokens ? withDefaults(parsed.data.tokens as Partial<ThemeTokens>, current) : undefined, css: parsed.data.css }
+}
+
+/** The path of an uploaded theme file, as its rules address it (`fonts/Brand.woff2`). */
+export function validateThemeFilePath(value: unknown): string {
+  const p = typeof value === 'string' ? value.trim() : ''
+  if (!THEME_FILE_PATH.test(p)) throw new BadRequest('path: up to three parts of letters, digits, dot, dash or underscore, ending in a font or picture extension')
+  return p
 }
 
 export const isThemeId = (value: string): boolean => THEME_ID.test(value)
