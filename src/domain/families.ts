@@ -83,7 +83,11 @@ THEME .slide ol.steps > li::before { width: 48px; height: 48px; font-size: 22px;
 THEME .slide ol.steps:has(> li:nth-child(6)) > li::before { width: 36px; height: 36px; font-size: 17px; top: 6px; }
 THEME .slide ol.list > li::before { width: 36px; height: 36px; font-size: 16px; top: 0.3em; }
 THEME .slide ol.list:has(> li:nth-child(9)) > li::before { width: 28px; height: 28px; font-size: 13px; top: 0.2em; }
-THEME .slide ol.agenda > li::before { width: 36px; height: 36px; font-size: 16px; align-self: center; }
+/* the agenda's discs no taller than its line, the rows closer: a full page (eleven lines) fits under the wave */
+THEME .slide ol.agenda > li::before { width: 32px; height: 32px; font-size: 15px; align-self: center; }
+THEME .slide.agenda ol.agenda > li { padding: 10px 0; }
+THEME .slide.agenda ol.agenda.many > li { padding: 5px 0; }
+THEME .slide ol.agenda.many > li::before { width: 28px; height: 28px; font-size: 13px; }
 THEME .slide dl.acronym dt { color: var(--accent-deep); }
 /* ---- lists and rows: no hairlines, round marks in the three colours in turn ---- */
 THEME .slide ul.list, THEME .slide ol.list, THEME .slide ol.steps, THEME .slide.agenda ol.agenda, THEME .slide dl.acronym { border-bottom: 0; }
