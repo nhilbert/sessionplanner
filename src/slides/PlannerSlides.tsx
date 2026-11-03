@@ -88,6 +88,15 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent }: { owner: boo
           session: sessionHooks,
           openDetails: onDetails,
           hide: (kind) => updateDeckOptions(kind === 'agenda' ? { agenda: false } : { breaks: false }),
+          pictureOf: (key) => now()?.workshop.pictures?.[key] ?? '',
+          setPicture: (key, hash) => {
+            const state = now()
+            if (!state) return
+            const pictures = { ...(state.workshop.pictures ?? {}) }
+            if (hash) pictures[key] = hash
+            else delete pictures[key]
+            usePlanner.getState().change([{ op: 'set', entity: 'workshop', id: state.workshop.id, fields: { pictures } }])
+          },
         })
   const source = { ...base, ...presenting }
   return <SlideEditor key={session.current.id} source={source} start={target.key} mode={target.mode} onClose={close} theme={theme} scope={{ workshopId: data.workshop.id }} owner={owner} canEdit known={known} />

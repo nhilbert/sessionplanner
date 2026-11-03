@@ -80,7 +80,10 @@ function withParts(deck: DeckSlideRef[]): DeckSlideRef[] {
 function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: string[]): DeckSlideRef[] {
   const out: DeckSlideRef[] = []
   let taken = 0
-  const picture = (): string => {
+  /** The picture of a generated slide: chosen by hand for its key, else the pool's next in turn. */
+  const picture = (key: string): string => {
+    const chosen = state.workshop.pictures?.[key]
+    if (chosen) return `<figure><img src="asset:${chosen}" alt=""></figure>`
     if (!options.pictures || !pool.length) return ''
     const hash = pool[(seedOf(state.workshop.id) + (options.shift ?? 0) + taken++) % pool.length]
     return `<figure><img src="asset:${hash}" alt=""></figure>`
@@ -96,7 +99,7 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
       key: `title:${day.id}`,
       generated: 'title',
       caption: days.length > 1 ? `${labels.day(n + 1)}` : title,
-      html: `<section class="slide title"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${picture()}</section>`,
+      html: `<section class="slide title"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${picture(`title:${day.id}`)}</section>`,
     })
     if (options.agenda) {
       const rows = entriesIn(state, day.id)
@@ -115,7 +118,7 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
       for (let p = 0; p < pages; p++) {
         const part = rows.slice(p * AGENDA_LINES, (p + 1) * AGENDA_LINES)
         const list = `<ol class="agenda${part.length > 8 ? ' many' : ''}">${part.map((r) => `<li><span class="when">${formatTime(r.when)}</span><span${r.cls}>${esc(r.text)}</span></li>`).join('')}</ol>`
-        const pic = picture()
+        const pic = picture(`agenda:${day.id}:${p}`)
         out.push({
           key: `agenda:${day.id}:${p}`,
           generated: 'agenda',
@@ -135,7 +138,7 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
           generated: 'break',
           itemId: item.id,
           caption: item.title || labels.breakTitle,
-          html: `<section class="slide break"><div class="text"><h1>${esc(item.title || labels.breakTitle)}</h1><p class="until">${esc(labels.minutes(durationOf(item)))}${slot ? ` · <strong>${esc(labels.until(formatTime(slot.end)))}</strong>` : ''}</p></div>${picture()}</section>`,
+          html: `<section class="slide break"><div class="text"><h1>${esc(item.title || labels.breakTitle)}</h1><p class="until">${esc(labels.minutes(durationOf(item)))}${slot ? ` · <strong>${esc(labels.until(formatTime(slot.end)))}</strong>` : ''}</p></div>${picture(`break:${item.id}`)}</section>`,
         })
       }
     }

@@ -65,6 +65,8 @@ export interface Workshop {
   packing: Record<string, PackingState>
   /** Material for the workshop as a whole, not tied to an item (added in the packing list). */
   materials: Material[]
+  /** Pictures chosen by hand for generated slides: the slide's key (title:<day>, agenda:<day>:<page>, break:<item>) → asset hash; the others take the pool's pictures in turn. */
+  pictures: Record<string, string>
   archived: boolean
   createdAt: string
   updatedAt: string

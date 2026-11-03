@@ -17,6 +17,7 @@ const WORKSHOP_COLS: Columns = {
   notes: ['notes', 'text'],
   packing: ['packing', 'json'],
   materials: ['materials', 'json'],
+  pictures: ['pictures', 'json'],
   archived: ['archived', 'bool'],
   theme: ['theme', 'text'],
 }
@@ -71,6 +72,7 @@ const toWorkshop = (r: Row): Workshop => ({
   theme: (r.theme as string | null) ?? '',
   packing: JSON.parse(r.packing as string),
   materials: JSON.parse(r.materials as string),
+  pictures: JSON.parse((r.pictures as string | null) ?? '{}'),
   archived: r.archived === 1,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
@@ -401,8 +403,8 @@ export class Repo {
     const w = src.workshop
     this.tx(() => {
       this.db
-        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, theme, packing, materials, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
-        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, w.theme, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), t, t)
+        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, theme, packing, materials, pictures, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
+        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, w.theme, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), JSON.stringify(w.pictures ?? {}), t, t)
       for (const d of days) this.insert('days', DAY_COLS, { ...d, id: dayIds.get(d.id)!, workshopId: newWs, date: moved(d.date) })
       for (const g of src.groups) this.insert('groups', GROUP_COLS, { ...g, id: groupIds.get(g.id)!, workshopId: newWs, dayId: g.dayId ? (dayIds.get(g.dayId) ?? null) : null })
       for (const a of src.attachments)
@@ -554,7 +556,7 @@ export class Repo {
   assetInWorkshop(workshopId: string, hash: string): boolean {
     const pair = this.assetPair(hash)
     const hashes = pair ? [pair.original, ...(pair.cutout ? [pair.cutout] : [])] : [hash]
-    return hashes.some((h) => !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${h}%`) || this.assetInPool(h))
+    return hashes.some((h) => !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${h}%`) || !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ? AND pictures LIKE ? LIMIT 1').get(workshopId, `%${h}%`) || this.assetInPool(h))
   }
 
   /** Whether a theme's pool holds the asset. */
@@ -570,7 +572,7 @@ export class Repo {
   sweepAssets(): string[] {
     const used = (hash: string): boolean => {
       const like = `%asset:${hash}%`
-      return !!(this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM slide_templates WHERE html LIKE ? LIMIT 1').get(like) || this.assetInPool(hash))
+      return !!(this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM slide_templates WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM workshops WHERE pictures LIKE ? LIMIT 1').get(`%${hash}%`) || this.assetInPool(hash))
     }
     const gone: string[] = []
     for (const r of this.db.prepare('SELECT hash FROM assets').all() as Row[]) {

@@ -12,6 +12,7 @@ import { NewSlidePicker } from '../NewSlidePicker'
 import { SlidePicker } from '../SlidePicker'
 import { EditPreview } from './EditPreview'
 import { Inspector } from './Inspector'
+import { PictureField } from './PicturePicker'
 import { LayoutPicker } from './LayoutPicker'
 import { tr } from './fields'
 import { dropRedo, dropUndo, EMPTY_HISTORY, type History, lastStep, nextStep, record, recordEdit, redone, rekey, seal, undone } from './history'
@@ -511,6 +512,7 @@ export function SlideEditor(p: Props) {
     <ReadOnly
       slide={slide}
       canEdit={p.canEdit}
+      picture={src.current.setPicture && src.current.pictureOf ? { value: src.current.pictureOf(slide.key), set: (hash) => src.current.setPicture!(slide.key, hash), scope: p.scope, known: p.known, theme: p.theme } : undefined}
       onDetails={
         src.current.openDetails &&
         (() => {
@@ -695,7 +697,7 @@ function Thumbs({ slides, current, theme, scope, onPick }: { slides: EditorSlide
 }
 
 /** What a slide that is not edited here is, and what can be done instead. */
-function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate }: { slide: EditorSlide; canEdit: boolean; onDetails?: () => void; onHide?: (kind: 'agenda' | 'break') => void; onAdopt?: () => void; onTemplate?: () => void }) {
+function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, picture }: { slide: EditorSlide; canEdit: boolean; onDetails?: () => void; onHide?: (kind: 'agenda' | 'break') => void; onAdopt?: () => void; onTemplate?: () => void; picture?: { value: string; set: (hash: string) => void; scope: AssetScope; known: string[]; theme: string } }) {
   const { t } = useTranslation()
   const kind = slide.generated?.kind
   const text = kind ? tr(t, `editor.generated.${kind}`) : slide.pool ? t('editor.poolNote') : t('editor.viewOnly')
@@ -706,6 +708,17 @@ function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate }: { 
         <span>{text}</span>
       </div>
       <div className="flex flex-col items-start gap-2">
+        {kind && picture && canEdit && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px] text-ink-2">{t('editor.generatedPicture')}</span>
+            <PictureField path={`picture.${slide.key}`} value={picture.value} onChange={picture.set} onFocus={() => undefined} scope={picture.scope} known={picture.known} theme={picture.theme} prefer="picture" label={t('editor.pickPicture')} />
+            {picture.value && (
+              <Button size="sm" variant="ghost" onClick={() => picture.set('')}>
+                {t('editor.pictureAuto')}
+              </Button>
+            )}
+          </div>
+        )}
         {kind === 'title' && onDetails && <Button size="sm" onClick={onDetails}>{t('editor.openDetails')}</Button>}
         {kind === 'break' && onAdopt && canEdit && <Button size="sm" onClick={onAdopt}>{t('editor.adoptBreak')}</Button>}
         {(kind === 'agenda' || kind === 'break') && onHide && canEdit && (

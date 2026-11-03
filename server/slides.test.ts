@@ -205,3 +205,22 @@ describe('cut-outs at upload', () => {
     expect(repo.getAsset(asset.cutout!)).not.toBeNull()
   })
 })
+
+describe('pictures chosen for generated slides', () => {
+  it('are kept on the workshop, served to its guests and spared by the sweep; a bad hash is refused', async () => {
+    const { app, repo } = setup()
+    const ws = await workshop(app)
+    const asset = (await (await upload(app, `/api/workshops/${ws.workshop.id}/assets`, PNG)).json()) as { hash: string }
+    const set = (pictures: unknown) => app.request(`${BASE}/api/workshops/${ws.workshop.id}/ops`, { method: 'POST', headers: H(), body: JSON.stringify({ clientId: 'c', ops: [{ op: 'set', entity: 'workshop', id: ws.workshop.id, fields: { pictures } }] }) })
+    expect((await set({ 'title:x': 'nope' })).status).toBe(400)
+    expect((await set({ [`title:${ws.days[0].id}`]: asset.hash })).status).toBe(200)
+    expect(((await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { headers: H() })).json()) as WorkshopState).workshop.pictures).toEqual({ [`title:${ws.days[0].id}`]: asset.hash })
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/members/${GUEST}`, { method: 'PUT', headers: H(), body: JSON.stringify({ role: 'view', showNotes: false }) })
+    expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}/assets/${asset.hash}`, { headers: H(GUEST) })).status).toBe(200)
+    expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 0 })
+    expect(repo.getAsset(asset.hash)).not.toBeNull()
+    // the choice travels with a duplicate of the workshop
+    const copy = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/duplicate`, { method: 'POST', headers: H(), body: JSON.stringify({ title: 'Kopie', firstDate: '2026-12-01' }) })).json()) as WorkshopState
+    expect(Object.values(copy.workshop.pictures)).toEqual([asset.hash])
+  })
+})

@@ -34,6 +34,8 @@ const workshopFields = z.strictObject({
   notes: text(100_000),
   packing: z.record(z.string().max(200), packingState),
   materials: z.array(material).max(200),
+  // generated slides with a picture chosen by hand: slide key → asset hash (docs/slides.md)
+  pictures: z.record(z.string().max(80), z.string().regex(/^[0-9a-f]{64}$/, 'an asset hash')).refine((r) => Object.keys(r).length <= 200, 'at most 200 pictures'),
   archived: z.boolean(),
   theme,
 })

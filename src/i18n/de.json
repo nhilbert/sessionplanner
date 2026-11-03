@@ -698,7 +698,9 @@
     "original": "Original",
     "poolPictures": "Fotos aus dem Pool",
     "poolIcons": "Icons aus dem Pool",
-    "searchPool": "Pool nach Schlagwort durchsuchen …"
+    "searchPool": "Pool nach Schlagwort durchsuchen …",
+    "generatedPicture": "Bild dieser Folie",
+    "pictureAuto": "Automatisch aus dem Pool"
   },
   "themes": {
     "title": "Folien-Themes",

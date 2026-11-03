@@ -41,6 +41,9 @@ export interface SlideSource {
   session?: { begin(): void; end(): void }
   /** The deck: what can be done about a generated slide. */
   openDetails?(): void
+  /** Generated slides of a deck: the picture chosen by hand for a slide key, and the way to set it ('' = automatic). */
+  setPicture?(key: string, hash: string): void
+  pictureOf?(key: string): string
   hide?(kind: 'agenda' | 'break'): void
   /** The planner: where a slide stands in the deck as presented (1-based), or null when it is not in it (a parked step). */
   presentAt?(key: string): number | null
@@ -100,6 +103,9 @@ export function deckSource(o: {
   session?: SlideSource['session']
   openDetails?(): void
   hide(kind: 'agenda' | 'break'): void
+  /** The picture of a generated slide (by its key): '' = back to the pool's turn. */
+  setPicture?(key: string, hash: string): void
+  pictureOf?(key: string): string
 }): SlideSource {
   const view = (deck: DeckSlideRef[]): EditorSlide[] =>
     deck.map((r) =>
@@ -119,6 +125,8 @@ export function deckSource(o: {
     session: o.session,
     openDetails: o.openDetails,
     hide: o.hide,
+    setPicture: o.setPicture,
+    pictureOf: o.pictureOf,
     ...(o.editable
       ? {
           write: (key, html) => {

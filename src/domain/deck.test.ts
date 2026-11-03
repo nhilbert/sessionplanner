@@ -5,7 +5,7 @@ import type { Item, WorkshopState } from './types.ts'
 const labels: DeckLabels = { untitled: 'Ohne Titel', day: (n) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t) => `bis ${t}`, minutes: (n) => `${n} Minuten`, date: (d) => d }
 const item = (id: string, over: Partial<Item>): Item => ({ id, workshopId: 'w', dayId: 'd1', position: 1, groupId: null, kind: 'block', title: id, description: '', duration: 30, fixedStart: null, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], slides: [], categoryId: null, color: null, ...over })
 const state: WorkshopState = {
-  workshop: { id: 'w', title: 'Teamtag <A&B>', client: 'Example Ltd', location: 'Bonn', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, materials: [], archived: false, createdAt: '', updatedAt: '' },
+  workshop: { id: 'w', title: 'Teamtag <A&B>', client: 'Example Ltd', location: 'Bonn', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, materials: [], archived: false, createdAt: '', updatedAt: '' },
   days: [{ id: 'd1', workshopId: 'w', position: 1, date: '2026-11-10', startMin: 540, endMin: 1020 }],
   groups: [{ id: 'g', workshopId: 'w', dayId: 'd1', position: 2, title: 'Block A' }],
   items: [
@@ -87,5 +87,20 @@ describe('the section tracker', () => {
     expect(deck.map((s) => (s.part ? `${s.part.n}/${s.part.of}` : '-'))).toEqual(['-', '-', '-', '1/2', '1/2', '2/2', '2/2'])
     const one: WorkshopState = { ...state, items: [item('a', { position: 1, slides: [section('s1', 'Eins'), list('s2')] })] }
     expect(deckOf(one, labels).some((s) => s.part)).toBe(false)
+  })
+})
+
+describe('pictures chosen by hand', () => {
+  const pool = ['a'.repeat(64), 'b'.repeat(64)]
+  it('a generated slide shows the picture chosen for its key and leaves the pool\'s turn to the others', () => {
+    const chosen = { ...state, workshop: { ...state.workshop, pictures: { 'title:d1': 'c'.repeat(64) } } }
+    const deck = deckOf(chosen, labels, { agenda: true, breaks: true, pictures: true, shift: 0 }, pool)
+    expect(deck[0].html).toContain(`asset:${'c'.repeat(64)}`)
+    const rest = deck.filter((s) => s.generated && s.key !== 'title:d1').map((s) => /asset:([a-f])/.exec(s.html)?.[1])
+    expect([...rest].sort()).toEqual(['a', 'b'])
+    // chosen pictures stay when the pool's pictures are switched off
+    const off = deckOf(chosen, labels, { agenda: true, breaks: true, pictures: false, shift: 0 }, pool)
+    expect(off[0].html).toContain(`asset:${'c'.repeat(64)}`)
+    expect(off.slice(1).some((s) => s.html.includes('asset:'))).toBe(false)
   })
 })

@@ -27,7 +27,7 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
 })
 
 const base: WorkshopState = {
-  workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, materials: [], archived: false, createdAt: '', updatedAt: '' },
+  workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, materials: [], archived: false, createdAt: '', updatedAt: '' },
   days: [{ id: 'd1', workshopId: 'w', position: 1, date: '2026-11-10', startMin: 540, endMin: 1020 }],
   groups: [],
   items: [item('x'), item('y', { position: 2 })],

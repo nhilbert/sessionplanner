@@ -698,7 +698,9 @@
     "original": "Original",
     "poolPictures": "Pictures from the pool",
     "poolIcons": "Icons from the pool",
-    "searchPool": "Search the pool by tag …"
+    "searchPool": "Search the pool by tag …",
+    "generatedPicture": "Picture of this slide",
+    "pictureAuto": "Automatic from the pool"
   },
   "themes": {
     "title": "Slide themes",
