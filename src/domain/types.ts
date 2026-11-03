@@ -132,6 +132,8 @@ export interface Asset {
   mime: string
   size: number
   createdAt: string
+  /** The original this asset is the cut-out of (docs/slides.md): set on a cut-out made at upload. */
+  cutoutOf: string | null
 }
 
 /** A deck in the slide pool: uploaded once, its slides are picked into items and library entries as copies. */

@@ -1,6 +1,6 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
 import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE } from '../src/domain/types.ts'
-import { type Theme, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
+import { type PoolAsset, type PoolKind, type Theme, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
@@ -138,7 +138,8 @@ const toTheme = (r: Row): Theme => ({
 })
 const toTemplate = (r: Row): SlideTemplate => ({ id: r.id as string, name: r.name as string, layout: r.layout as string, html: r.html as string, position: r.position as number, createdAt: r.created_at as string, updatedAt: r.updated_at as string })
 
-const toAsset = (r: Row): Asset => ({ hash: r.hash as string, mime: r.mime as string, size: r.size as number, createdAt: r.created_at as string })
+const toAsset = (r: Row): Asset => ({ hash: r.hash as string, mime: r.mime as string, size: r.size as number, createdAt: r.created_at as string, cutoutOf: (r.cutout_of as string | null) ?? null })
+const toPoolAsset = (r: Row): PoolAsset => ({ hash: r.hash as string, kind: r.kind as PoolKind, tags: JSON.parse(r.tags as string) as string[], position: r.position as number, createdAt: r.created_at as string })
 
 const toLibraryEntry = (r: Row): LibraryEntry =>
   ({
@@ -525,9 +526,23 @@ export class Repo {
 
   // ---- assets: pictures of slides, once per content hash ----------------------------------------------
 
-  addAsset(asset: { hash: string; mime: string; size: number }): Asset {
-    this.db.prepare('INSERT OR IGNORE INTO assets (hash, mime, size, created_at) VALUES (?, ?, ?, ?)').run(asset.hash, asset.mime, asset.size, now())
+  addAsset(asset: { hash: string; mime: string; size: number; cutoutOf?: string | null }): Asset {
+    this.db.prepare('INSERT OR IGNORE INTO assets (hash, mime, size, created_at, cutout_of) VALUES (?, ?, ?, ?, ?)').run(asset.hash, asset.mime, asset.size, now(), asset.cutoutOf ?? null)
     return this.getAsset(asset.hash)!
+  }
+
+  /** The cut-out made from this asset at upload, if any. */
+  getCutout(hash: string): Asset | null {
+    const r = this.db.prepare('SELECT * FROM assets WHERE cutout_of = ? ORDER BY created_at LIMIT 1').get(hash) as Row | undefined
+    return r ? toAsset(r) : null
+  }
+
+  /** An asset with its original and its cut-out: the pair a picture field may switch between. */
+  assetPair(hash: string): { original: string; cutout: string | null } | null {
+    const asset = this.getAsset(hash)
+    if (!asset) return null
+    const original = asset.cutoutOf && this.getAsset(asset.cutoutOf) ? asset.cutoutOf : asset.hash
+    return { original, cutout: original === asset.hash ? (this.getCutout(hash)?.hash ?? null) : asset.hash }
   }
 
   getAsset(hash: string): Asset | null {
@@ -535,18 +550,33 @@ export class Repo {
     return r ? toAsset(r) : null
   }
 
-  /** Whether a slide of this workshop shows the asset: what a guest of the workshop may load. */
+  /** Whether a slide of this workshop shows the asset (or its original or cut-out), or a theme's pool holds it: what a guest of the workshop may load. */
   assetInWorkshop(workshopId: string, hash: string): boolean {
-    return !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${hash}%`)
+    const pair = this.assetPair(hash)
+    const hashes = pair ? [pair.original, ...(pair.cutout ? [pair.cutout] : [])] : [hash]
+    return hashes.some((h) => !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${h}%`) || this.assetInPool(h))
   }
 
-  /** Removes the records of assets no slide shows any more (in a workshop, the library, the pool or a template); returns their hashes, whose files the caller removes. */
+  /** Whether a theme's pool holds the asset. */
+  assetInPool(hash: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM theme_assets WHERE hash = ? LIMIT 1').get(hash)
+  }
+
+  /**
+   * Removes the records of assets no slide shows any more (in a workshop, the library, the pool or a template) and no
+   * theme's pool holds; an original and its cut-out stay together while one of them is used. Returns their hashes,
+   * whose files the caller removes.
+   */
   sweepAssets(): string[] {
+    const used = (hash: string): boolean => {
+      const like = `%asset:${hash}%`
+      return !!(this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM slide_templates WHERE html LIKE ? LIMIT 1').get(like) || this.assetInPool(hash))
+    }
     const gone: string[] = []
     for (const r of this.db.prepare('SELECT hash FROM assets').all() as Row[]) {
       const hash = r.hash as string
-      const like = `%asset:${hash}%`
-      if (this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM slide_templates WHERE html LIKE ? LIMIT 1').get(like)) continue
+      const pair = this.assetPair(hash)
+      if (used(hash) || (pair && [pair.original, pair.cutout].some((h) => h && h !== hash && used(h)))) continue
       this.db.prepare('DELETE FROM assets WHERE hash = ?').run(hash)
       gone.push(hash)
     }
@@ -638,9 +668,56 @@ export class Repo {
       const settings = this.getSettings()
       if (settings.theme === id) this.saveSettings({ ...settings, theme: '' })
       this.db.prepare("UPDATE decks SET theme = '' WHERE theme = ?").run(id)
+      this.db.prepare('DELETE FROM theme_assets WHERE theme_id = ?').run(id)
       this.db.prepare('DELETE FROM themes WHERE id = ?').run(id)
       return { workshops }
     })
+  }
+
+  // ---- the asset pool of a theme: pictures for the generated slides, icons for cards ------------------------------
+
+  listPool(themeId: string): PoolAsset[] {
+    return (this.db.prepare('SELECT * FROM theme_assets WHERE theme_id = ? ORDER BY kind, position, created_at').all(themeId) as Row[]).map(toPoolAsset)
+  }
+
+  getPoolAsset(themeId: string, hash: string): PoolAsset | null {
+    const r = this.db.prepare('SELECT * FROM theme_assets WHERE theme_id = ? AND hash = ?').get(themeId, hash) as Row | undefined
+    return r ? toPoolAsset(r) : null
+  }
+
+  /** Puts a stored asset into a theme's pool (at the end of its kind); one already there keeps its place and takes the tags. */
+  addPoolAsset(themeId: string, input: { hash: string; kind: PoolKind; tags: string[] }): PoolAsset | null {
+    if (!this.getTheme(themeId) || !this.getAsset(input.hash)) return null
+    const current = this.getPoolAsset(themeId, input.hash)
+    if (current) return this.updatePoolAsset(themeId, input.hash, { tags: input.tags.length ? input.tags : current.tags })
+    const last = (this.db.prepare('SELECT MAX(position) AS p FROM theme_assets WHERE theme_id = ? AND kind = ?').get(themeId, input.kind) as Row).p as number | null
+    this.db.prepare('INSERT INTO theme_assets (theme_id, hash, kind, tags, position, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(themeId, input.hash, input.kind, JSON.stringify(input.tags), (last ?? 0) + 1, now())
+    this.touchTheme(themeId)
+    return this.getPoolAsset(themeId, input.hash)
+  }
+
+  updatePoolAsset(themeId: string, hash: string, patch: { tags?: string[]; position?: number; kind?: PoolKind }): PoolAsset | null {
+    const current = this.getPoolAsset(themeId, hash)
+    if (!current) return null
+    this.db.prepare('UPDATE theme_assets SET tags = ?, position = ?, kind = ? WHERE theme_id = ? AND hash = ?').run(JSON.stringify(patch.tags ?? current.tags), patch.position ?? current.position, patch.kind ?? current.kind, themeId, hash)
+    this.touchTheme(themeId)
+    return this.getPoolAsset(themeId, hash)
+  }
+
+  removePoolAsset(themeId: string, hash: string): boolean {
+    const gone = this.db.prepare('DELETE FROM theme_assets WHERE theme_id = ? AND hash = ?').run(themeId, hash).changes > 0
+    if (gone) this.touchTheme(themeId)
+    return gone
+  }
+
+  /** The pool of one theme copied to another (a new theme made from it). */
+  copyPool(fromId: string, toId: string): void {
+    this.db.prepare('INSERT OR IGNORE INTO theme_assets (theme_id, hash, kind, tags, position, created_at) SELECT ?, hash, kind, tags, position, ? FROM theme_assets WHERE theme_id = ?').run(toId, now(), fromId)
+  }
+
+  /** A changed pool is a changed theme: the windows that show it learn of it through the themes list. */
+  private touchTheme(id: string): void {
+    this.db.prepare('UPDATE themes SET updated_at = ? WHERE id = ?').run(now(), id)
   }
 
   // ---- template slides -----------------------------------------------------------------------------------------

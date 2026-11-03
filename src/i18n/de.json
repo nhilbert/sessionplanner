@@ -786,7 +786,17 @@
     "manage": "Themes verwalten",
     "failed": "Das Theme konnte nicht gespeichert werden.",
     "logoTooLarge": "Das Logo ist größer als 2 MB.",
-    "logoFailed": "Das Logo konnte nicht hochgeladen werden (PNG, JPEG, WebP oder SVG)."
+    "logoFailed": "Das Logo konnte nicht hochgeladen werden (PNG, JPEG, WebP oder SVG).",
+    "pool": "Bildpool",
+    "poolHint": "Fotos nehmen die erzeugten Titel-, Agenda- und Pausenfolien reihum, je Workshop in fester Folge; Icons stehen Karten zur Wahl. Schlagworte, durch Kommas getrennt, machen sie im Editor und für den Assistenten findbar. PNG, JPEG, WebP oder GIF, bis 10 MB.",
+    "pictures": "Fotos",
+    "icons": "Icons",
+    "uploadPictures": "Fotos hochladen",
+    "uploadIcons": "Icons hochladen",
+    "tags": "Schlagworte",
+    "tagsPlaceholder": "Schlagworte, mit Komma",
+    "removeFromPool": "Aus dem Pool nehmen",
+    "poolEmpty": "Noch nichts im Pool."
   },
   "templates": {
     "title": "Folienvorlagen",

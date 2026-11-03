@@ -9,11 +9,11 @@ import { newId, type PresentPosition } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
-import type { Access, WorkshopState } from '../src/domain/types.ts'
+import type { Access, Asset, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, isThemeId, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
-import { DARK_TOKENS, DEFAULT_TOKENS, themeCss, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
+import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemePatch, validEmail } from './validate.ts'
+import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -143,7 +143,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   }
   app.use('/api/*', (c, next) => {
     const p = c.req.path
-    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : limits.json
+    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets|themes\/[^/]+\/pool)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : limits.json
     return limit(c, next)
   })
   // Agents write whole agendas and slide decks in one call, like the app's operation batches.
@@ -415,8 +415,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return null
   }
   const HASH = /^[0-9a-f]{64}$/
-  const storeAsset = async (c: Context<Env>, access: 'owner' | Access) => {
-    const file = (await c.req.parseBody()).file
+  /** Stores an uploaded picture once by its content; the record, or the answer that refuses it (too large, over the guest's budget). */
+  const saveUpload = async (c: Context<Env>, access: 'owner' | Access, file: unknown): Promise<Asset | Response> => {
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (file.size > MAX_ASSET) return c.json({ error: 'too_large' }, 413)
     const data = Buffer.from(await file.arrayBuffer())
@@ -427,7 +427,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!repo.getAsset(hash) && !guestUpload(c, access, data.length)) return c.json({ error: 'upload_budget' }, 429)
     await mkdir(path.join(filesDir, 'assets'), { recursive: true })
     await writeFile(assetPath(hash), data)
-    return c.json(repo.addAsset({ hash, mime, size: data.length }), 201)
+    return repo.addAsset({ hash, mime, size: data.length })
+  }
+  const storeAsset = async (c: Context<Env>, access: 'owner' | Access) => {
+    const saved = await saveUpload(c, access, (await c.req.parseBody()).file)
+    return saved instanceof Response ? saved : c.json(saved, 201)
   }
   const sendAsset = async (c: Context<Env>, hash: string) => {
     const asset = HASH.test(hash) ? repo.getAsset(hash) : null
@@ -466,6 +470,32 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const theme = repo.getTheme(c.req.param('id')!)
     return theme ? c.json(theme) : c.json({ error: 'not_found' }, 404)
   })
+  // ---- the asset pool of a theme: pictures the generated slides take in turn, icons for cards (docs/slides.md, section 4) ----
+  app.get('/api/themes/:id/pool', (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    return theme ? c.json(repo.listPool(theme.id)) : c.json({ error: 'not_found' }, 404)
+  })
+  /** A picture into the pool: uploaded (multipart: file, kind, tags) or one the server has already (JSON: hash, kind, tags). */
+  app.post('/api/themes/:id/pool', ownerOnly, async (c) => {
+    const theme = repo.getTheme(c.req.param('id')!)
+    if (!theme) return c.json({ error: 'not_found' }, 404)
+    let entry: { hash: string; kind: PoolKind; tags: string[] }
+    if (c.req.header('content-type')?.includes('multipart/form-data')) {
+      const body = await c.req.parseBody()
+      const saved = await saveUpload(c, 'owner', body.file)
+      if (saved instanceof Response) return saved
+      entry = { hash: saved.hash, kind: validatePoolKind(body.kind), tags: parseTags(typeof body.tags === 'string' ? body.tags : '') }
+    } else {
+      entry = validatePoolEntry(await jsonBody(c))
+      if (!repo.getAsset(entry.hash)) return c.json({ error: 'not_found' }, 404)
+    }
+    return c.json(repo.addPoolAsset(theme.id, entry), 201)
+  })
+  app.put('/api/themes/:id/pool/:hash', ownerOnly, async (c) => {
+    const entry = repo.updatePoolAsset(c.req.param('id')!, c.req.param('hash')!, validatePoolPatch(await jsonBody(c)))
+    return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
+  })
+  app.delete('/api/themes/:id/pool/:hash', ownerOnly, (c) => (repo.removePoolAsset(c.req.param('id')!, c.req.param('hash')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
   app.get('/api/themes/:name/*', async (c) => {
     const name = c.req.param('name')!
     const rel = c.req.path.slice(`/api/themes/${name}/`.length).split('/')
@@ -502,7 +532,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     while (repo.getTheme(id) || listThemes(themesDir).some((t) => t.id === id)) id = themeIdFrom(input.name, newId)
     repo.createTheme({ id, name: input.name, tokens })
     if (from) {
-      // The logos come along with a copy.
+      // The logos and the pool come along with a copy.
+      repo.copyPool(from.id, id)
       await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
       for (const variant of ['logo', 'logoLight'] as const) {
         const logo = from[variant]

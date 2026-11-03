@@ -786,7 +786,17 @@
     "manage": "Manage themes",
     "failed": "The theme could not be saved.",
     "logoTooLarge": "The logo is larger than 2 MB.",
-    "logoFailed": "The logo could not be uploaded (PNG, JPEG, WebP or SVG)."
+    "logoFailed": "The logo could not be uploaded (PNG, JPEG, WebP or SVG).",
+    "pool": "Picture pool",
+    "poolHint": "The generated title, agenda and break slides take the pictures in turn, in a fixed order per workshop; icons are offered to cards. Tags, separated by commas, make them findable in the editor and for the assistant. PNG, JPEG, WebP or GIF, up to 10 MB.",
+    "pictures": "Pictures",
+    "icons": "Icons",
+    "uploadPictures": "Upload pictures",
+    "uploadIcons": "Upload icons",
+    "tags": "Tags",
+    "tagsPlaceholder": "tags, separated by commas",
+    "removeFromPool": "Remove from the pool",
+    "poolEmpty": "Nothing in the pool yet."
   },
   "templates": {
     "title": "Slide templates",

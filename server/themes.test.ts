@@ -161,3 +161,63 @@ describe('template slides', () => {
     expect((await app.request(`${BASE}/api/slide-templates/${tpl.id}`, { method: 'DELETE', headers: H() })).status).toBe(404)
   })
 })
+
+describe('the asset pool of a theme', () => {
+  const upload = (app: ReturnType<typeof setup>['app'], url: string, fields: Record<string, string>, email = OWNER) => {
+    const form = new FormData()
+    form.append('file', new File([PNG], 'pic.png', { type: 'image/png' }))
+    for (const [k, v] of Object.entries(fields)) form.append(k, v)
+    return app.request(`${BASE}${url}`, { method: 'POST', headers: { 'x-sp': '1', 'x-auth-request-email': email }, body: form })
+  }
+  it('takes uploads and known assets with tags, is read by guests, travels with a copy, goes with the theme, and keeps its assets from the sweep', async () => {
+    const { app, repo } = setup()
+    const theme = (await (await post(app, '/api/themes', { name: 'Pool' })).json()) as Theme
+    // an upload with its kind and tags typed as one line
+    const res = await upload(app, `/api/themes/${theme.id}/pool`, { kind: 'icon', tags: 'Team, Gespräch,, team' })
+    expect(res.status).toBe(201)
+    const icon = (await res.json()) as { hash: string; kind: string; tags: string[] }
+    expect(icon.kind).toBe('icon')
+    expect(icon.tags).toEqual(['team', 'gespräch'])
+    // the same bytes again, as a picture this time: the asset is one, the pool entry keeps its kind and takes the new tags
+    const again = (await (await upload(app, `/api/themes/${theme.id}/pool`, { kind: 'picture', tags: 'see' })).json()) as { hash: string; kind: string; tags: string[] }
+    expect(again.hash).toBe(icon.hash)
+    expect(again.kind).toBe('icon')
+    expect(again.tags).toEqual(['see'])
+    expect((await upload(app, `/api/themes/${theme.id}/pool`, { kind: 'banner' })).status).toBe(400)
+    expect((await upload(app, `/api/themes/${theme.id}/pool`, { kind: 'icon' }, GUEST)).status).toBe(403)
+    // a known asset by hash
+    const other = repo.addAsset({ hash: 'a'.repeat(64), mime: 'image/png', size: 1 })
+    expect((await post(app, `/api/themes/${theme.id}/pool`, { hash: other.hash, kind: 'picture', tags: ['Luftbild'] })).status).toBe(201)
+    expect((await post(app, `/api/themes/${theme.id}/pool`, { hash: 'b'.repeat(64), kind: 'picture' })).status).toBe(404)
+    // listed for everyone who sees the theme, in kind order
+    const list = (await (await app.request(`${BASE}/api/themes/${theme.id}/pool`, { headers: H(GUEST) })).json()) as { hash: string; kind: string; tags: string[] }[]
+    expect(list.map((e) => [e.kind, e.tags])).toEqual([
+      ['icon', ['see']],
+      ['picture', ['luftbild']],
+    ])
+    // tags and position change; the theme counts as changed
+    const before = (await (await app.request(`${BASE}/api/themes/${theme.id}`, { headers: H() })).json()) as Theme
+    await new Promise((r) => setTimeout(r, 2))
+    expect((await post(app, `/api/themes/${theme.id}/pool/${icon.hash}`, { tags: ['Zwei Personen'] }, OWNER, 'PUT')).status).toBe(200)
+    expect(repo.getPoolAsset(theme.id, icon.hash)?.tags).toEqual(['zwei personen'])
+    const after = (await (await app.request(`${BASE}/api/themes/${theme.id}`, { headers: H() })).json()) as Theme
+    expect(after.updatedAt > before.updatedAt).toBe(true)
+    // a guest of a workshop loads a pool asset through the workshop's route although no slide shows it
+    const ws = (await (await post(app, '/api/workshops', { title: 'Teamtag', date: '2026-11-10' })).json()) as WorkshopState
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/members/${GUEST}`, { method: 'PUT', headers: H(), body: JSON.stringify({ role: 'view', showNotes: false }) })
+    expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}/assets/${icon.hash}`, { headers: H(GUEST) })).status).toBe(200)
+    // the sweep leaves pool assets alone
+    expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 0 })
+    // a copy takes the pool along
+    const copy = (await (await post(app, '/api/themes', { name: 'Kopie', from: theme.id })).json()) as Theme
+    expect(repo.listPool(copy.id).map((e) => e.hash).sort()).toEqual([icon.hash, other.hash].sort())
+    // removed from the pool, and the pool goes with the theme
+    expect((await post(app, `/api/themes/${theme.id}/pool/${other.hash}`, undefined, OWNER, 'DELETE')).status).toBe(200)
+    expect(repo.listPool(theme.id).map((e) => e.hash)).toEqual([icon.hash])
+    await post(app, `/api/themes/${copy.id}`, undefined, OWNER, 'DELETE')
+    expect(repo.listPool(copy.id)).toEqual([])
+    // once no pool holds it and no slide shows it, the sweep removes it
+    await post(app, `/api/themes/${theme.id}/pool/${icon.hash}`, undefined, OWNER, 'DELETE')
+    expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 2 })
+  })
+})

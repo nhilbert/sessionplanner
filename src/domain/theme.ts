@@ -51,6 +51,18 @@ export interface ThemeTokens {
   mark: MarkShape
 }
 
+/** What a theme's pool holds: pictures (photos for the moment slides) and icons (for cards). */
+export type PoolKind = 'picture' | 'icon'
+export const POOL_KINDS: PoolKind[] = ['picture', 'icon']
+/** One asset of a theme's pool: a stored picture with the words it is found by. */
+export interface PoolAsset {
+  hash: string
+  kind: PoolKind
+  tags: string[]
+  position: number
+  createdAt: string
+}
+
 export interface ThemeLogo {
   mime: string
   updatedAt: string

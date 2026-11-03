@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
 import { PALETTE, type ItemContent, type Settings } from '../src/domain/types.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
-import { DERIVED_COLOR_KEYS, FONT_KEYS, THEME_COLOR_KEYS, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
+import { DERIVED_COLOR_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
 export class BadRequest extends Error {}
 
@@ -233,6 +233,37 @@ export function validateThemePatch(body: unknown, current: ThemeTokens): { name?
 }
 
 export const isThemeId = (value: string): boolean => THEME_ID.test(value)
+
+// ---- the asset pool of a theme ----------------------------------------------------------------------------------
+
+const ASSET_HASH = /^[0-9a-f]{64}$/
+const poolKind = z.enum(POOL_KINDS as [PoolKind, ...PoolKind[]])
+const tags = z.array(text(40)).max(20)
+const poolEntry = z.strictObject({ hash: z.string().regex(ASSET_HASH, 'an asset hash'), kind: poolKind, tags: tags.optional() })
+const poolPatch = z.strictObject({ tags: tags.optional(), position: z.number().finite().optional(), kind: poolKind.optional() })
+
+/** Tags typed as one line – words or phrases separated by commas – as the list they are stored as: trimmed, lower-case, no doubles. */
+export const parseTags = (line: string): string[] => [...new Set(line.split(/[,;\n]+/).map((t) => t.trim().toLowerCase().slice(0, 40)).filter(Boolean))].slice(0, 20)
+
+/** An asset the server has already, put into a theme's pool: its hash, its kind and optional tags. */
+export function validatePoolEntry(body: unknown): { hash: string; kind: PoolKind; tags: string[] } {
+  const parsed = poolEntry.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid pool entry: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return { hash: parsed.data.hash, kind: parsed.data.kind, tags: parseTags((parsed.data.tags ?? []).join(',')) }
+}
+
+/** The kind of a pool upload, from a form field. */
+export function validatePoolKind(value: unknown): PoolKind {
+  const parsed = poolKind.safeParse(value)
+  if (!parsed.success) throw new BadRequest('kind: picture or icon')
+  return parsed.data
+}
+
+export function validatePoolPatch(body: unknown): { tags?: string[]; position?: number; kind?: PoolKind } {
+  const parsed = poolPatch.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid pool entry: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return { tags: parsed.data.tags ? parseTags(parsed.data.tags.join(',')) : undefined, position: parsed.data.position, kind: parsed.data.kind }
+}
 
 const templateBody = z.strictObject({ name: text(200), html: text(200_000).transform(normalizeSlideHtml), position: z.number().finite().optional() })
 

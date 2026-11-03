@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 import { Copy, Moon, Plus, Trash2, Upload, X } from 'lucide-react'
-import { api } from '@/api'
+import { api, assetUrl } from '@/api'
 import { SLIDE_LAYOUTS } from '@/domain/slideFormat'
 import { contrastHex } from '@/domain/color'
-import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, type ThemeTokens } from '@/domain/theme'
-import { themeLabel, useThemes } from '@/store/useThemes'
+import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, type PoolAsset, type PoolKind, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, type ThemeTokens } from '@/domain/theme'
+import { themeLabel, usePool, useThemes } from '@/store/useThemes'
+import { uploadProblem } from '@/planner/upload'
 import { useSettings } from '@/store/useSettings'
 import { Button, Chip, cx, Field, IconButton, Input, PageHeader, SectionLabel, Segmented, Select, useIsPhone } from '@/components/ui'
 import { applyThemeCss, PREVIEW_THEME, reloadTheme, SlideView } from '@/slides/SlideView'
@@ -354,8 +355,131 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
             <LogoSlot label={t('themes.logoLight')} url={logoLightUrl} dark onFile={async (f) => setLogos(await api.uploadThemeLogo(theme.id, f, 'logoLight'))} onRemove={async () => setLogos(await api.deleteThemeLogo(theme.id, 'logoLight'))} afterChange={() => reloadTheme(theme.id)} background={tokens.colors.field} />
           </div>
         </section>
+
+        <section className="card p-5 lg:col-span-2">
+          <SectionLabel>{t('themes.pool')}</SectionLabel>
+          <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.poolHint')}</p>
+          <PoolEditor themeId={theme.id} />
+        </section>
       </div>
     </div>
+  )
+}
+
+/** The pool of a theme: its pictures and its icons, each with the words it is found by. */
+function PoolEditor({ themeId }: { themeId: string }) {
+  const { t } = useTranslation()
+  const pool = usePool(themeId)
+  const setPool = useThemes((s) => s.setPool)
+  const load = useThemes((s) => s.load)
+  const replace = (next: PoolAsset[]) => setPool(themeId, next)
+  return (
+    <div className="grid gap-5 md:grid-cols-2">
+      {(['picture', 'icon'] as PoolKind[]).map((kind) => (
+        <PoolKindList
+          key={kind}
+          kind={kind}
+          entries={pool.filter((e) => e.kind === kind)}
+          onUpload={async (files) => {
+            let next = pool
+            for (const f of files) {
+              const entry = await api.uploadPoolAsset(themeId, f, kind)
+              next = [...next.filter((e) => e.hash !== entry.hash), entry]
+              replace(next)
+            }
+            // The theme's version moved: lists elsewhere learn of the new pool.
+            void load(true)
+          }}
+          onTags={async (hash, tags) => {
+            const entry = await api.updatePoolAsset(themeId, hash, { tags })
+            replace(pool.map((e) => (e.hash === hash ? entry : e)))
+          }}
+          onRemove={async (hash) => {
+            await api.removePoolAsset(themeId, hash)
+            replace(pool.filter((e) => e.hash !== hash))
+            void load(true)
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function PoolKindList({ kind, entries, onUpload, onTags, onRemove }: { kind: PoolKind; entries: PoolAsset[]; onUpload: (files: File[]) => Promise<void>; onTags: (hash: string, tags: string[]) => Promise<void>; onRemove: (hash: string) => Promise<void> }) {
+  const { t } = useTranslation()
+  const input = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const sorted = [...entries].sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[12px] font-medium text-ink-2">{t(kind === 'picture' ? 'themes.pictures' : 'themes.icons')}</span>
+        <span className="tnum text-[12px] text-ink-3">{entries.length}</span>
+        <span className="flex-1" />
+        <Button size="sm" onClick={() => input.current?.click()} disabled={busy}>
+          <Upload size={13} />
+          {busy ? t('common.uploading') : t(kind === 'picture' ? 'themes.uploadPictures' : 'themes.uploadIcons')}
+        </Button>
+        <input
+          ref={input}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          multiple
+          hidden
+          onChange={async (e) => {
+            const files = [...(e.target.files ?? [])]
+            e.target.value = ''
+            if (!files.length) return
+            setBusy(true)
+            setError('')
+            try {
+              await onUpload(files)
+            } catch (err) {
+              setError(uploadProblem(err, files[0].name, t))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        />
+      </div>
+      {error && <p className="mb-2 text-[12px] text-rose">{error}</p>}
+      {sorted.length ? (
+        <ul className={cx('grid gap-2', kind === 'icon' ? 'grid-cols-4 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3')}>
+          {sorted.map((e) => (
+            <PoolEntry key={e.hash} entry={e} onTags={(tags) => onTags(e.hash, tags)} onRemove={() => onRemove(e.hash)} />
+          ))}
+        </ul>
+      ) : (
+        <p className="py-4 text-center text-[13px] text-ink-3">{t('themes.poolEmpty')}</p>
+      )}
+    </div>
+  )
+}
+
+function PoolEntry({ entry, onTags, onRemove }: { entry: PoolAsset; onTags: (tags: string[]) => Promise<void>; onRemove: () => Promise<void> }) {
+  const { t } = useTranslation()
+  const [text, setText] = useState(entry.tags.join(', '))
+  const [base, setBase] = useState(entry.tags.join(', '))
+  const joined = entry.tags.join(', ')
+  if (base !== joined) {
+    setBase(joined)
+    setText(joined)
+  }
+  const commit = () => {
+    const tags = [...new Set(text.split(/[,;\n]+/).map((x) => x.trim().toLowerCase()).filter(Boolean))]
+    if (tags.join(', ') !== joined) void onTags(tags)
+  }
+  return (
+    <li className="group relative min-w-0">
+      <div className={cx('overflow-hidden rounded-md border border-line bg-surface-2', entry.kind === 'icon' ? 'aspect-square p-2' : 'aspect-[4/3]')}>
+        <img src={assetUrl('library', entry.hash)} alt="" className={cx('h-full w-full', entry.kind === 'icon' ? 'object-contain' : 'object-cover')} loading="lazy" />
+      </div>
+      <IconButton label={t('themes.removeFromPool')} onClick={() => void onRemove()} className="absolute right-1 top-1 bg-paper/90 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
+        <X size={13} />
+      </IconButton>
+      <input value={text} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} placeholder={t('themes.tagsPlaceholder')} aria-label={t('themes.tags')} className="field mt-1 h-7 w-full px-1.5 text-[12px]" spellCheck={false} />
+    </li>
   )
 }
 

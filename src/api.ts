@@ -1,6 +1,6 @@
 import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, SlideTemplate, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op, PresentPosition } from './domain/ops'
-import { type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
+import { type PoolAsset, type PoolKind, type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
 import i18n from './i18n'
 
 /** Thin client for the server API (server/app.ts). Changes carry the app's header (server/guard.ts). */
@@ -121,6 +121,18 @@ export const api = {
   },
   deleteThemeLogo: (id: string, variant: 'logo' | 'logoLight') => call<Theme>(`/api/themes/${encodeURIComponent(id)}/logo${variant === 'logoLight' ? '?variant=light' : ''}`, { method: 'DELETE' }),
   themeLogoUrl: (theme: Theme, variant: 'logo' | 'logoLight') => themeLogoUrl(theme, variant),
+  /** The asset pool of a theme: pictures for the generated slides, icons for cards (docs/slides.md, section 4). */
+  getPool: (id: string) => call<PoolAsset[]>(`/api/themes/${encodeURIComponent(id)}/pool`),
+  uploadPoolAsset: (id: string, file: File, kind: PoolKind, tags = '') => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('kind', kind)
+    form.append('tags', tags)
+    return call<PoolAsset>(`/api/themes/${encodeURIComponent(id)}/pool`, { method: 'POST', body: form })
+  },
+  addPoolAsset: (id: string, entry: { hash: string; kind: PoolKind; tags?: string[] }) => call<PoolAsset>(`/api/themes/${encodeURIComponent(id)}/pool`, { method: 'POST', body: JSON.stringify(entry) }),
+  updatePoolAsset: (id: string, hash: string, patch: { tags?: string[]; position?: number; kind?: PoolKind }) => call<PoolAsset>(`/api/themes/${encodeURIComponent(id)}/pool/${hash}`, { method: 'PUT', body: JSON.stringify(patch) }),
+  removePoolAsset: (id: string, hash: string) => call<{ ok: true }>(`/api/themes/${encodeURIComponent(id)}/pool/${hash}`, { method: 'DELETE' }),
   /** Template slides (docs/slides.md, section 7), the owner's. */
   listSlideTemplates: () => call<SlideTemplate[]>('/api/slide-templates'),
   saveSlideTemplate: (input: { name: string; html: string; position?: number }, id?: string) => call<SlideTemplate>(id ? `/api/slide-templates/${id}` : '/api/slide-templates', { method: id ? 'PUT' : 'POST', body: JSON.stringify(input) }),
