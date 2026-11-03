@@ -56,3 +56,24 @@ describe('deckOf', () => {
     expect(cjkCodePoints('<p>nur Text – „Zitat“</p>').size).toBe(0)
   })
 })
+
+describe('pictures from the pool', () => {
+  const pool = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)]
+  it('gives the generated title, agenda and break slides a picture each, in turn from a place the workshop decides', () => {
+    const deck = deckOf(state, labels, { agenda: true, breaks: true, pictures: true, shift: 0 }, pool)
+    const pics = deck.filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
+    expect(pics).toHaveLength(3)
+    expect(new Set(pics).size).toBe(3)
+    expect(deck[0].html).toMatch(/<\/div><figure><img src="asset:[a-f]{64}" alt=""><\/figure><\/section>$/)
+    expect(deck[1].html).toContain('<div class="cols"><ol class="agenda">')
+    // the same every time; a shift turns the rotation; another workshop starts elsewhere
+    expect(deckOf(state, labels, undefined, pool).map((s) => s.html)).toEqual(deck.map((s) => s.html))
+    const shifted = deckOf(state, labels, { agenda: true, breaks: true, pictures: true, shift: 1 }, pool).filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
+    expect(shifted).toEqual([...pics.slice(1), pics[0]])
+    const other = deckOf({ ...state, workshop: { ...state.workshop, id: 'w2' } }, labels, undefined, pool).filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
+    expect(other).not.toEqual(pics)
+    // off, or an empty pool: the slides as before
+    expect(deckOf(state, labels, { agenda: true, breaks: true, pictures: false, shift: 0 }, pool).some((s) => s.html.includes('asset:'))).toBe(false)
+    expect(deckOf(state, labels).some((s) => s.html.includes('asset:'))).toBe(false)
+  })
+})

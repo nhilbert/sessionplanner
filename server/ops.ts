@@ -917,9 +917,11 @@ export class Ops {
   deckOutline(ref: string, options: { agenda?: boolean; breaks?: boolean } = {}) {
     const s = this.state(ref)
     const labels = { untitled: 'Workshop', day: (n: number) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t: string) => `bis ${t}`, minutes: (n: number) => `${n} Minuten`, date: (d: string) => d }
-    const deck = deckOf(s, labels, { ...DECK_DEFAULTS, ...compact(options) })
+    const theme = s.workshop.theme || this.repo.getSettings().theme || 'default'
+    const pool = this.repo.listPool(theme).filter((e) => e.kind === 'picture').map((e) => e.hash)
+    const deck = deckOf(s, labels, { ...DECK_DEFAULTS, ...compact(options) }, pool)
     return {
-      theme: s.workshop.theme || this.repo.getSettings().theme || 'default',
+      theme,
       slides: deck.length,
       deck: deck.map((d, i) => compact({ n: i + 1, generated: d.generated, item: d.itemId ? s.items.find((x) => x.id === d.itemId)?.title : undefined, title: d.generated ? d.caption : slideTitle(d.html), layout: slideLayout(d.html) })),
     }

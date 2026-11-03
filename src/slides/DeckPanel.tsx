@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Download, MonitorSpeaker, Play, Printer } from 'lucide-react'
+import { Download, MonitorSpeaker, Play, Printer, Shuffle } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
 import { reportFailure } from '@/api'
@@ -20,7 +20,7 @@ import { useSlideEditing } from './PlannerSlides'
  */
 export function DeckPanel({ data, change, owner }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean }) {
   const { t, i18n } = useTranslation()
-  const { deck, theme, options, update } = useDeck(data)
+  const { deck, theme, options, update, pictures } = useDeck(data)
   const [busy, setBusy] = useState(false)
   const title = data.workshop.title || t('workshops.untitled')
   const scope = { workshopId: data.workshop.id }
@@ -64,6 +64,17 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
         <Option checked={options.breaks} onChange={(breaks) => update({ breaks })}>{t('slides.withBreaks')}</Option>
+        {pictures.length > 0 && (
+          <>
+            <Option checked={options.pictures} onChange={(pictures) => update({ pictures })}>{t('slides.withPictures')}</Option>
+            {options.pictures && pictures.length > 1 && (
+              <button type="button" onClick={() => update({ shift: (options.shift ?? 0) + 1 })} className="inline-flex items-center gap-1 text-[13px] text-ink-2 hover:text-ink">
+                <Shuffle size={13} />
+                {t('slides.otherPictures')}
+              </button>
+            )}
+          </>
+        )}
       </div>
       {!deck.some((s) => !s.generated) && <p className="text-[13px] text-ink-3">{t('slides.deckEmpty')}</p>}
       <ol className="grid grid-cols-2 gap-2">

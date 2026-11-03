@@ -10,6 +10,7 @@ import { useSettings } from '@/store/useSettings'
 import { themeOf, useTheme } from './SlideView'
 import { deckLabels } from './deckLabels'
 import { deckOptionsNow, updateDeckOptions, useDeckOptions } from './deckOptions'
+import { poolPicturesNow, usePool } from '@/store/useThemes'
 import { SlideEditor } from './editor/SlideEditor'
 import { deckSource, listSource } from './editor/source'
 import { tr } from './editor/fields'
@@ -40,6 +41,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent }: { owner: boo
   const data = usePlanner((s) => s.data)
   const settings = useSettings((s) => s.settings)
   const theme = useTheme(data ? themeOf(data.workshop, settings) : 'default')
+  usePool(theme) // the generated slides of the deck source take the pool's pictures
   useDeckOptions() // follows the deck options, so hiding agenda or break slides shows at once
   // One planner undo step per opening of the editor.
   const session = useRef<{ id: string; target: SlideTarget | null }>({ id: newId(), target: null })
@@ -61,7 +63,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent }: { owner: boo
   }
   const deckNow = () => {
     const state = now()
-    return state ? deckOf(state, deckLabels(t), deckOptionsNow()) : []
+    return state ? deckOf(state, deckLabels(t), deckOptionsNow(), poolPicturesNow(theme)) : []
   }
   // Present from here: the position in the deck as the presentation shows it; a parked step is not in it.
   const presenting = {

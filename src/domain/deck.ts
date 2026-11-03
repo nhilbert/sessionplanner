@@ -26,9 +26,20 @@ export interface DeckLabels {
 export interface DeckOptions {
   agenda: boolean
   breaks: boolean
+  /** Whether the generated slides take pictures from the theme's pool. */
+  pictures: boolean
+  /** Turns the pool's rotation on (the viewer asked for other pictures); 0 = the workshop's own order. */
+  shift: number
 }
 
-export const DECK_DEFAULTS: DeckOptions = { agenda: true, breaks: true }
+export const DECK_DEFAULTS: DeckOptions = { agenda: true, breaks: true, pictures: true, shift: 0 }
+
+/** A small stable number from a string, so a workshop starts the pool's rotation at a place of its own. */
+export function seedOf(text: string): number {
+  let h = 0
+  for (const ch of text) h = (h * 31 + ch.codePointAt(0)!) >>> 0
+  return h
+}
 
 /** Lines an agenda slide holds before a second one follows. */
 export const AGENDA_LINES = 11
@@ -43,8 +54,18 @@ export interface DeckSlideRef {
   caption: string
 }
 
-export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS): DeckSlideRef[] {
+/**
+ * @param pool the pictures of the workshop's theme (asset hashes): the title, agenda and break slides take them in
+ * turn, starting at a place the workshop id decides, so the same deck shows the same pictures every time.
+ */
+export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: string[] = []): DeckSlideRef[] {
   const out: DeckSlideRef[] = []
+  let taken = 0
+  const picture = (): string => {
+    if (!options.pictures || !pool.length) return ''
+    const hash = pool[(seedOf(state.workshop.id) + (options.shift ?? 0) + taken++) % pool.length]
+    return `<figure><img src="asset:${hash}" alt=""></figure>`
+  }
   const days = sortedDays(state.days)
   const title = state.workshop.title || labels.untitled
   const meta = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(' · ')
@@ -56,7 +77,7 @@ export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOp
       key: `title:${day.id}`,
       generated: 'title',
       caption: days.length > 1 ? `${labels.day(n + 1)}` : title,
-      html: `<section class="slide title"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div></section>`,
+      html: `<section class="slide title"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${picture()}</section>`,
     })
     if (options.agenda) {
       const rows = entriesIn(state, day.id)
@@ -74,11 +95,13 @@ export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOp
       const pages = Math.ceil(rows.length / AGENDA_LINES)
       for (let p = 0; p < pages; p++) {
         const part = rows.slice(p * AGENDA_LINES, (p + 1) * AGENDA_LINES)
+        const list = `<ol class="agenda${part.length > 8 ? ' many' : ''}">${part.map((r) => `<li><span class="when">${formatTime(r.when)}</span><span${r.cls}>${esc(r.text)}</span></li>`).join('')}</ol>`
+        const pic = picture()
         out.push({
           key: `agenda:${day.id}:${p}`,
           generated: 'agenda',
           caption: pages > 1 ? `${labels.agenda} ${p + 1}/${pages}` : labels.agenda,
-          html: `<section class="slide agenda"><header><h2>${esc(labels.agenda)}${pages > 1 ? ` <small>${p + 1}/${pages}</small>` : ''}</h2></header><ol class="agenda${part.length > 8 ? ' many' : ''}">${part.map((r) => `<li><span class="when">${formatTime(r.when)}</span><span${r.cls}>${esc(r.text)}</span></li>`).join('')}</ol></section>`,
+          html: `<section class="slide agenda"><header><h2>${esc(labels.agenda)}${pages > 1 ? ` <small>${p + 1}/${pages}</small>` : ''}</h2></header>${pic ? `<div class="cols">${list}${pic}</div>` : list}</section>`,
         })
       }
     }
@@ -93,7 +116,7 @@ export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOp
           generated: 'break',
           itemId: item.id,
           caption: item.title || labels.breakTitle,
-          html: `<section class="slide break"><div class="text"><h1>${esc(item.title || labels.breakTitle)}</h1><p class="until">${esc(labels.minutes(durationOf(item)))}${slot ? ` · <strong>${esc(labels.until(formatTime(slot.end)))}</strong>` : ''}</p></div></section>`,
+          html: `<section class="slide break"><div class="text"><h1>${esc(item.title || labels.breakTitle)}</h1><p class="until">${esc(labels.minutes(durationOf(item)))}${slot ? ` · <strong>${esc(labels.until(formatTime(slot.end)))}</strong>` : ''}</p></div>${picture()}</section>`,
         })
       }
     }

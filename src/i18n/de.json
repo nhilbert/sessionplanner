@@ -482,6 +482,8 @@
     "deckEmpty": "Noch keine Folien in der Agenda. Füge Punkten Folien hinzu (Details) oder nimm Punkte mit Folien aus der Bibliothek.",
     "withAgenda": "Agenda-Folie je Tag",
     "withBreaks": "Pausenfolien",
+    "withPictures": "Bilder aus dem Pool",
+    "otherPictures": "Andere Bilder",
     "exit": "Präsentation beenden",
     "presenter": "Moderationsansicht",
     "projector": "Präsentation öffnen",

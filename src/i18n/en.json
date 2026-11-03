@@ -482,6 +482,8 @@
     "deckEmpty": "No slides in the agenda yet. Add slides to items (details) or take items with slides from the library.",
     "withAgenda": "Agenda slide per day",
     "withBreaks": "Break slides",
+    "withPictures": "Pictures from the pool",
+    "otherPictures": "Other pictures",
     "exit": "Leave the presentation",
     "presenter": "Presenter view",
     "projector": "Open presentation",
