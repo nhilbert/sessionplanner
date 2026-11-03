@@ -89,8 +89,11 @@
 .slide ul.list ul li, .slide ol.list ul li { position: relative; padding-left: 22px; }
 .slide ul.list ul li::before { width: auto; height: auto; background: none; border-radius: 0; }
 .slide ul.list ul li::before, .slide ol.list ul li::before { content: '–'; position: absolute; left: 0; top: 0; color: var(--fg-3); }
-.slide .list.compact { font-size: 19px; }
-.slide .list.compact > li { padding-top: 8px; padding-bottom: 8px; }
+.slide .list.compact { font-size: 17px; line-height: 1.3; }
+.slide .list.compact > li { padding-top: 5px; padding-bottom: 5px; }
+/* a reference list of nine or more entries (literature): smaller still, so ten two-line entries fit */
+.slide .list.compact:has(> li:nth-child(9)) { font-size: 15px; }
+.slide .list.compact:has(> li:nth-child(9)) > li { padding-top: 4px; padding-bottom: 4px; }
 .slide .list.two { display: grid; grid-template-columns: 1fr 1fr; column-gap: 48px; max-width: none; }
 /* rows: a heading and a text per point */
 .slide .list.rows { font-size: 20px; }
@@ -104,9 +107,12 @@
 .slide .list.rows.compact > li { padding-top: 10px; padding-bottom: 10px; }
 .slide .list.rows.compact > li > strong { font-size: 21px; }
 /* a dense list in four columns (a word list): no lines */
-.slide ul.list.four { display: block; column-count: 4; column-gap: 28px; font-size: 16px; line-height: 1.3; max-width: none; border-bottom: 0; }
-.slide ul.list.four > li { break-inside: avoid; margin-bottom: 5px; padding: 0 0 0 16px; border-top: 0; position: relative; }
+.slide ul.list.four, .slide ul.list.four:has(> li:nth-child(9)) { display: block; column-count: 4; column-gap: 28px; font-size: 16px; line-height: 1.3; max-width: none; border-bottom: 0; }
+.slide ul.list.four > li, .slide ul.list.four:has(> li:nth-child(9)) > li { break-inside: avoid; margin-bottom: 5px; padding: 0 0 0 16px; border-top: 0; position: relative; }
 .slide ul.list.four > li::before { content: '–'; position: absolute; left: 0; top: 0; width: auto; height: auto; background: none; border-radius: 0; color: var(--fg-3); }
+/* a very long word list (sixty-one items or more, the value list): a fifth column and a smaller size, so the columns stay on the slide */
+.slide ul.list.four:has(> li:nth-child(61)) { column-count: 5; column-gap: 20px; font-size: 15px; line-height: 1.25; }
+.slide ul.list.four:has(> li:nth-child(61)) > li { margin-bottom: 4px; }
 
 /* ---------- layouts ---------- */
 
