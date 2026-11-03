@@ -19,18 +19,33 @@ describe('cut-outs', () => {
     const back = decodePng(encodePng(img))
     expect(back).toEqual(img)
   })
-  it('frees a subject of its flat background, softens the edge and trims to the subject', () => {
+  it('frees a subject of its paper, inside enclosed shapes too, and trims to the subject', () => {
     const img = picture(60, 40, [220, 218, 214], { x: 20, y: 10, size: 10 })
+    // a ring: the square with paper inside it, enclosed on all sides
+    for (let y = 13; y < 17; y++) for (let x = 23; x < 27; x++) img.rgba.set([220, 218, 214, 255], (y * 60 + x) * 4)
     const cut = cutout(img)!
     expect(cut).not.toBeNull()
     // trimmed to the square plus the margin of 8
     expect([cut.width, cut.height]).toEqual([26, 26])
-    const alpha = (x: number, y: number) => cut.rgba[(y * cut.width + x) * 4 + 3]
-    expect(alpha(0, 0)).toBe(0)
-    expect(alpha(13, 13)).toBe(255)
-    // the background colour stays under the transparency, so a soft edge keeps its tone
+    const at = (x: number, y: number) => cut.rgba.subarray((y * cut.width + x) * 4, (y * cut.width + x) * 4 + 4)
+    expect(at(0, 0)[3]).toBe(0)
+    expect(at(12, 12)[3]).toBe(0)
+    // the ink: nearly solid, and laid over the paper it gives the pixel back
+    const [r, g, b, a] = at(9, 9)
+    expect(a).toBeGreaterThan(220)
+    const over = (c: number, p: number) => Math.round((c * a + p * (255 - a)) / 255)
+    expect([over(r, 220), over(g, 218), over(b, 214)].map((v, k) => Math.abs(v - [20, 30, 40][k]) <= 3)).toEqual([true, true, true])
+    // the paper's colour stays under the transparency, so a scaled edge keeps its tone
     expect([...cut.rgba.subarray(0, 3)]).toEqual([220, 218, 214])
     expect(decodePng(cutoutPng(encodePng(img))!)).toEqual(cut)
+  })
+  it('keeps a wash a wash: a pale pixel becomes a faint one', () => {
+    const img = picture(40, 40, [220, 218, 214], { x: 10, y: 10, size: 10 })
+    for (let y = 25; y < 30; y++) for (let x = 25; x < 30; x++) img.rgba.set([170, 190, 190, 255], (y * 40 + x) * 4)
+    const cut = cutout(img, { margin: 0 })!
+    const alpha = cut.rgba[((17 * cut.width) + 17) * 4 + 3]
+    expect(alpha).toBeGreaterThan(20)
+    expect(alpha).toBeLessThan(80)
   })
   it('leaves alone what has no flat background, is transparent already, or would be nothing but background', () => {
     // a photograph: the border varies

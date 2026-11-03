@@ -1,12 +1,12 @@
 import { crc32, deflateSync, inflateSync } from 'node:zlib'
 
 /**
- * Cut-outs at upload (docs/slides.md, section 6, and docs/slide-design.md): an illustration uploaded with its flat
- * background – the ink-wash series sits on paper grey or white – is freed of it, so it stands on the slide's ground
- * instead of sitting in a foreign rectangle. The border pixels decide: when they agree on one colour, that colour is
- * flooded from the edges with a tolerance, the edge is softened by the pixel's distance to the background colour,
- * and the result is trimmed to its subject. Photographs (no flat border) and pictures that are transparent already
- * are left alone: `cutout` answers null. PNG only, 8 bits per channel, not interlaced; pure Node, no native code.
+ * Cut-outs (docs/slides.md, section 5, and docs/slide-design.md): an illustration with its flat background – the
+ * ink-wash series sits on paper grey or white – is freed of it, so it stands on the slide's ground instead of sitting
+ * in a foreign rectangle. The border pixels decide: when they agree on one colour, that colour is the paper, the ink
+ * is unmixed from it (see `cutout`) and the result is trimmed to its subject. Photographs (no flat border) and
+ * pictures that are transparent already are left alone: `cutout` answers null. PNG only, 8 bits per channel, not
+ * interlaced; pure Node, no native code.
  */
 
 export interface Decoded {
@@ -132,19 +132,26 @@ export function encodePng({ width, height, rgba }: Decoded): Buffer {
 }
 
 export interface CutoutOptions {
-  /** How far (per channel, 0–255) a pixel may be from the background colour and still count as background. */
+  /** How far (0–255) a pixel may be from the paper and still count as paper: the grain of the scan, made clear. */
   tolerance?: number
   /** The margin kept around the subject when the picture is trimmed, in pixels. */
   margin?: number
 }
 
+/** How far (per channel, 0–255) the border pixels may stray from their median and still count as one flat colour. */
+const FLAT = 28
+
 /**
- * The picture with its flat background made transparent and trimmed to its subject, or null when it has no flat
- * background to speak of: fewer than nine in ten border pixels share one colour (a photograph), the border is
- * transparent already (a cut-out), or the background would be nearly nothing or nearly everything.
+ * The picture with its paper made transparent and trimmed to its subject, or null when it has no paper to speak of:
+ * fewer than nine in ten border pixels share one colour (a photograph), the border is transparent already (a
+ * cut-out), or the paper would be nearly nothing or nearly everything. The ink is unmixed from the paper rather than
+ * flooded from the edges: every pixel is as opaque as it is far from the paper colour, and its colour is the ink
+ * that, laid over the paper at that opacity, gives the pixel back. So the paper goes wherever it shows – inside a
+ * head, a sun, a thought bubble too – and the picture looks on any light ground as it would printed on it (the
+ * effect of a multiply blend, kept in the file); a wash stays a wash.
  */
 export function cutout(image: Decoded, options: CutoutOptions = {}): Decoded | null {
-  const tol = options.tolerance ?? 28
+  const floor = (options.tolerance ?? 16) / 255
   const margin = options.margin ?? 8
   const { width: w, height: h, rgba } = image
   if (w < 4 || h < 4) return null
@@ -161,61 +168,42 @@ export function cutout(image: Decoded, options: CutoutOptions = {}): Decoded | n
   if (clear > border.length / 20) return null
   const bg = ch.map((v) => v.sort((a, b) => a - b)[v.length >> 1])
   const dist = (i: number): number => Math.max(Math.abs(rgba[i * 4] - bg[0]), Math.abs(rgba[i * 4 + 1] - bg[1]), Math.abs(rgba[i * 4 + 2] - bg[2]))
-  if (border.filter((i) => dist(i) <= tol).length < border.length * 0.9) return null
-  // flood the background from the edges
-  const mask = new Uint8Array(w * h)
-  const queue = new Int32Array(w * h)
-  let head = 0
-  let tail = 0
-  for (const i of border) {
-    if (!mask[i] && dist(i) <= tol) {
-      mask[i] = 1
-      queue[tail++] = i
-    }
-  }
-  while (head < tail) {
-    const i = queue[head++]
-    const x = i % w
-    const y = (i - x) / w
-    const next = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]
-    for (const n of next) {
-      if (n >= 0 && !mask[n] && dist(n) <= tol) {
-        mask[n] = 1
-        queue[tail++] = n
-      }
-    }
-  }
-  const share = tail / (w * h)
-  if (share < 0.05 || share > 0.98) return null
-  // soft edge: a subject pixel beside the background fades by its distance to the background colour
+  if (border.filter((i) => dist(i) <= FLAT).length < border.length * 0.9) return null
+  // unmix: the least opacity a pixel needs over the paper, per channel towards black below the paper, towards white
+  // above it (the least, so the ink keeps its full depth instead of turning pale and opaque)
   const out = new Uint8Array(w * h * 4)
-  const soft = tol * 2
+  let paper = 0
   let x0 = w
   let x1 = -1
   let y0 = h
   let y1 = -1
   for (let i = 0; i < w * h; i++) {
     const o = i * 4
-    let a = 0
-    if (!mask[i]) {
+    let need = 0
+    for (let k = 0; k < 3; k++) {
+      const c = rgba[o + k]
+      const b = bg[k]
+      need = Math.max(need, c < b ? (b - c) / b : c > b ? (c - b) / (255 - b) : 0)
+    }
+    const a = Math.max(0, Math.min(1, (need - floor) / (1 - floor)))
+    if (a === 0) {
+      paper++
+      out.set(rgba.subarray(o, o + 3), o)
+      continue
+    }
+    for (let k = 0; k < 3; k++) out[o + k] = Math.max(0, Math.min(255, Math.round(bg[k] + (rgba[o + k] - bg[k]) / a)))
+    out[o + 3] = Math.round(a * rgba[o + 3])
+    if (out[o + 3]) {
       const x = i % w
       const y = (i - x) / w
-      const near = (x > 0 && mask[i - 1]) || (x < w - 1 && mask[i + 1]) || (y > 0 && mask[i - w]) || (y < h - 1 && mask[i + w])
-      const d = dist(i)
-      a = !near || d >= soft ? rgba[o + 3] : Math.max(0, Math.min(rgba[o + 3], Math.round((255 * (d - tol)) / (soft - tol))))
-      if (a) {
-        if (x < x0) x0 = x
-        if (x > x1) x1 = x
-        if (y < y0) y0 = y
-        if (y > y1) y1 = y
-      }
+      if (x < x0) x0 = x
+      if (x > x1) x1 = x
+      if (y < y0) y0 = y
+      if (y > y1) y1 = y
     }
-    out[o] = rgba[o]
-    out[o + 1] = rgba[o + 1]
-    out[o + 2] = rgba[o + 2]
-    out[o + 3] = a
   }
-  if (x1 < 0) return null
+  const share = paper / (w * h)
+  if (share < 0.05 || share > 0.98 || x1 < 0) return null
   // trimmed to the subject with a small margin, so the cut-out scales to its subject, not to its old canvas
   x0 = Math.max(0, x0 - margin)
   y0 = Math.max(0, y0 - margin)

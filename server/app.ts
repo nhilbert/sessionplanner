@@ -15,6 +15,7 @@ import { listThemes, THEME_NAME } from './themes.ts'
 import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng } from './cutout.ts'
+import { withCutouts } from '../src/domain/cutouts.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
@@ -440,13 +441,15 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     let cutout = repo.getCutout(hash)?.hash ?? null
     if (!cutout && !known && mime === 'image/png' && !asset.cutoutOf) {
       const cut = cutoutPng(data)
-      if (cut && guestUpload(c, access, cut.length)) {
-        const cutHash = createHash('sha256').update(cut).digest('hex')
-        await writeFile(assetPath(cutHash), cut)
-        cutout = repo.addAsset({ hash: cutHash, mime: 'image/png', size: cut.length, cutoutOf: hash }).hash
-      }
+      if (cut && guestUpload(c, access, cut.length)) cutout = await storeCutout(hash, cut)
     }
     return { ...asset, cutout }
+  }
+  /** Stores a cut-out next to its original, once; its hash. */
+  const storeCutout = async (original: string, cut: Buffer): Promise<string> => {
+    const hash = createHash('sha256').update(cut).digest('hex')
+    if (!repo.getAsset(hash)) await writeFile(assetPath(hash), cut)
+    return repo.addAsset({ hash, mime: 'image/png', size: cut.length, cutoutOf: original }).hash
   }
   /** An asset with its original and its cut-out, for the picture field's switch between them. */
   const assetInfo = (c: Context<Env>, hash: string) => {
@@ -486,6 +489,37 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   app.post('/api/library/assets', (c) => storeAsset(c, 'owner'))
   app.get('/api/library/assets/:hash/info', (c) => assetInfo(c, c.req.param('hash')!))
   app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!))
+  /**
+   * Cut-outs for the pictures already on slides (owner): every PNG a stored slide shows gets its cut-out made with
+   * the current routine (from the original, when the slide shows an older cut-out), and the slides that show an
+   * illustration whole on the ground take it (src/domain/cutouts.ts) – in the workshops, the library, the pool and
+   * the templates. Running it again changes nothing; the editor's switch still leads back to the original.
+   */
+  app.post('/api/assets/cutouts', ownerOnly, async (c) => {
+    const shown = new Set<string>()
+    repo.rewriteSlides((html) => {
+      for (const m of html.matchAll(/asset:([0-9a-f]{64})/g)) shown.add(m[1])
+      return html
+    })
+    const current = new Map<string, string | null>()
+    let made = 0
+    for (const hash of shown) {
+      const asset = repo.getAsset(hash)
+      if (!asset || asset.mime !== 'image/png') continue
+      const original = asset.cutoutOf && repo.getAsset(asset.cutoutOf) ? asset.cutoutOf : asset.hash
+      if (!current.has(original)) {
+        const data = await readFile(assetPath(original)).catch(() => null)
+        const cut = data && cutoutPng(data)
+        const known = cut ? repo.getAsset(createHash('sha256').update(cut).digest('hex')) : null
+        current.set(original, cut ? await storeCutout(original, cut) : null)
+        if (cut && !known) made++
+      }
+      const cut = current.get(original)
+      if (cut) current.set(hash, cut)
+    }
+    const slides = repo.rewriteSlides((html) => withCutouts(html, (h) => current.get(h) ?? null))
+    return c.json({ pictures: new Set([...current.values()].filter(Boolean)).size, made, slides })
+  })
   app.post('/api/assets/sweep', ownerOnly, async (c) => {
     const gone = repo.sweepAssets()
     await Promise.all(gone.map((h) => rm(assetPath(h), { force: true })))

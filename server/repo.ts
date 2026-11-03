@@ -535,9 +535,9 @@ export class Repo {
     return this.getAsset(asset.hash)!
   }
 
-  /** The cut-out made from this asset at upload, if any. */
+  /** The cut-out made from this asset, if any; the latest when the routine made a new one (server/cutout.ts). */
   getCutout(hash: string): Asset | null {
-    const r = this.db.prepare('SELECT * FROM assets WHERE cutout_of = ? ORDER BY created_at LIMIT 1').get(hash) as Row | undefined
+    const r = this.db.prepare('SELECT * FROM assets WHERE cutout_of = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(hash) as Row | undefined
     return r ? toAsset(r) : null
   }
 
@@ -585,6 +585,50 @@ export class Repo {
       gone.push(hash)
     }
     return gone
+  }
+
+  /**
+   * Passes the markup of every stored slide – the steps of all workshops, the library, the pool, the templates –
+   * through `change` and keeps what it changed, in one transaction. Returns how many slides changed. The stamps
+   * of workshops and library entries are left alone: the content is the same, only its pictures moved.
+   */
+  rewriteSlides(change: (html: string) => string): number {
+    let n = 0
+    const slides = (list: unknown): boolean => {
+      if (!Array.isArray(list)) return false
+      let any = false
+      for (const s of list as { html?: unknown }[]) {
+        if (typeof s?.html !== 'string') continue
+        const next = change(s.html)
+        if (next !== s.html) {
+          s.html = next
+          any = true
+          n++
+        }
+      }
+      return any
+    }
+    return this.tx(() => {
+      for (const r of this.db.prepare('SELECT id, slides FROM items').all() as Row[]) {
+        const list = JSON.parse((r.slides as string | null) ?? '[]')
+        if (slides(list)) this.db.prepare('UPDATE items SET slides = ? WHERE id = ?').run(JSON.stringify(list), r.id as string)
+      }
+      for (const r of this.db.prepare('SELECT id, data FROM library').all() as Row[]) {
+        const data = JSON.parse(r.data as string) as { slides?: unknown; items?: { slides?: unknown }[] }
+        let any = slides(data.slides)
+        for (const i of Array.isArray(data.items) ? data.items : []) any = slides(i?.slides) || any
+        if (any) this.db.prepare('UPDATE library SET data = ? WHERE id = ?').run(JSON.stringify(data), r.id as string)
+      }
+      for (const table of ['deck_slides', 'slide_templates']) {
+        for (const r of this.db.prepare(`SELECT id, html FROM ${table}`).all() as Row[]) {
+          const next = change(r.html as string)
+          if (next === r.html) continue
+          this.db.prepare(`UPDATE ${table} SET html = ? WHERE id = ?`).run(next, r.id as string)
+          n++
+        }
+      }
+      return n
+    })
   }
 
   // ---- the slide pool -----------------------------------------------------------------------------------

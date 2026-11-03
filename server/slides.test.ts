@@ -206,6 +206,41 @@ describe('cut-outs at upload', () => {
   })
 })
 
+describe('cut-outs for the pictures on slides', () => {
+  it('puts the cut-out where an illustration stands whole on the ground, in workshops, the library, the pool and the templates, once', async () => {
+    const { app, repo } = setup()
+    const rgba = new Uint8Array(40 * 40 * 4)
+    for (let i = 0; i < 1600; i++) {
+      const x = i % 40
+      const y = (i - x) / 40
+      rgba.set(x >= 15 && x < 25 && y >= 15 && y < 25 ? [20, 30, 40, 255] : [220, 218, 214, 255], i * 4)
+    }
+    const asset = (await (await upload(app, '/api/library/assets', encodePng({ width: 40, height: 40, rgba }))).json()) as { hash: string; cutout: string }
+    const img = `<img src="asset:${asset.hash}" alt="">`
+    const split = `<section class="slide split"><header><h2>Selbstregulation</h2></header><div class="split"><div class="text"><p>Text</p></div><figure>${img}</figure></div></section>`
+    const cards = `<section class="slide cards"><header><h2>Stress</h2></header><ul class="cards plain cols-2"><li>${img}<h3>Auslöser</h3></li><li>${img}<h3>Verhalten</h3></li></ul></section>`
+    const full = `<section class="slide figure full"><header><h2>Weit</h2></header><figure class="main">${img}</figure></section>`
+    const ws = await workshop(app)
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/ops`, { method: 'POST', headers: H(), body: JSON.stringify({ clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item('i1', ws.workshop.id, ws.days[0].id, split) }] }) })
+    const entry = repo.saveLibraryEntry(null, { kind: 'item', title: 'Stress', data: { ...item('x', '', '', cards), id: undefined } as never })!
+    const { slides: pool } = repo.createDeck({ title: 'Resilienz', theme: '', source: '', slides: [{ html: full, caption: '' }, { html: cards, caption: '' }] })
+    const template = repo.saveSlideTemplate(null, { name: 'Bild', layout: 'figure', html: split })!
+    const run = async () => (await app.request(`${BASE}/api/assets/cutouts`, { method: 'POST', headers: H() })).json()
+    expect(await run()).toEqual({ pictures: 1, made: 0, slides: 4 })
+    const cut = `<img src="asset:${asset.cutout}" alt="">`
+    const state = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { headers: H() })).json()) as WorkshopState
+    expect(state.items[0].slides[0].html).toContain(`<div class="split contain">`)
+    expect(state.items[0].slides[0].html).toContain(cut)
+    expect(JSON.stringify(repo.getLibraryEntry(entry.id)!.data)).toContain('cards plain cols-2 contain')
+    expect(repo.getDeckSlide(pool[0].id)!.html).toBe(full)
+    expect(repo.getDeckSlide(pool[1].id)!.html.split(cut).length).toBe(3)
+    expect(repo.listSlideTemplates().find((t) => t.id === template.id)!.html).toContain(cut)
+    // a second run finds nothing to do; guests may not run it
+    expect(await run()).toEqual({ pictures: 1, made: 0, slides: 0 })
+    expect((await app.request(`${BASE}/api/assets/cutouts`, { method: 'POST', headers: H(GUEST) })).status).toBe(403)
+  })
+})
+
 describe('pictures chosen for generated slides', () => {
   it('are kept on the workshop, served to its guests and spared by the sweep; a bad hash is refused', async () => {
     const { app, repo } = setup()
