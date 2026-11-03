@@ -69,9 +69,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- lists: rows separated by hairlines, no bullet ---------- */
+/* ---------- lists: rows separated by hairlines, a small mark before each point ---------- */
 .slide ul.list, .slide ol.list { list-style: none; display: flex; flex-direction: column; font-size: 24px; line-height: 1.4; max-width: 880px; border-bottom: 1px solid var(--line); }
 .slide ul.list > li, .slide ol.list > li { padding: 12px 0; border-top: 1px solid var(--line); }
+/* the mark: a small square (or a circle, or nothing) in the accent colour; the theme sets --mark-size and --mark-radius */
+.slide ul.list > li { position: relative; padding-left: calc(var(--mark-size, 9px) + 19px); }
+.slide ul.list > li::before { content: ''; position: absolute; left: 0; top: 0.95em; width: var(--mark-size, 9px); height: var(--mark-size, 9px); border-radius: var(--mark-radius, 0); background: var(--accent); }
+.slide .list.rows > li::before { top: 1.15em; }
 .slide ol.list { counter-reset: n; }
 .slide ol.list > li { position: relative; padding-left: 56px; counter-increment: n; }
 .slide ol.list > li::before { content: counter(n, decimal-leading-zero); position: absolute; left: 0; top: 0.5em; font-size: 26px; }
@@ -81,6 +85,7 @@
 .slide ol.list:has(> li:nth-child(9)) > li::before { font-size: 22px; top: 0.35em; }
 .slide ul.list ul, .slide ol.list ul { list-style: none; margin-top: 6px; padding-left: 0; font-size: 19px; line-height: 1.4; color: var(--fg-2); display: flex; flex-direction: column; gap: 2px; }
 .slide ul.list ul li, .slide ol.list ul li { position: relative; padding-left: 22px; }
+.slide ul.list ul li::before { width: auto; height: auto; background: none; border-radius: 0; }
 .slide ul.list ul li::before, .slide ol.list ul li::before { content: '–'; position: absolute; left: 0; top: 0; color: var(--fg-3); }
 .slide .list.compact { font-size: 19px; }
 .slide .list.compact > li { padding-top: 8px; padding-bottom: 8px; }
@@ -99,7 +104,7 @@
 /* a dense list in four columns (a word list): no lines */
 .slide ul.list.four { display: block; column-count: 4; column-gap: 28px; font-size: 16px; line-height: 1.3; max-width: none; border-bottom: 0; }
 .slide ul.list.four > li { break-inside: avoid; margin-bottom: 5px; padding: 0 0 0 16px; border-top: 0; position: relative; }
-.slide ul.list.four > li::before { content: '–'; position: absolute; left: 0; top: 0; color: var(--fg-3); }
+.slide ul.list.four > li::before { content: '–'; position: absolute; left: 0; top: 0; width: auto; height: auto; background: none; border-radius: 0; color: var(--fg-3); }
 
 /* ---------- layouts ---------- */
 
@@ -180,7 +185,9 @@
 .slide ul.cards h3 { font-size: 25px; }
 .slide ul.cards p { font-size: 19px; line-height: 1.45; color: var(--fg-2); }
 .slide ul.cards .eyebrow { margin-bottom: 4px; }
-.slide ul.cards .icon { width: 64px; height: 64px; object-fit: contain; margin-bottom: 8px; }
+.slide ul.cards .icon { width: 56px; height: 56px; object-fit: contain; object-position: left center; margin-bottom: 12px; }
+/* a card's anchor: the numeral, else an icon or a picture, else a short rule in the accent colour */
+.slide ul.cards:not(.numbered):not(.picture) > li:not(:has(> img.icon))::before { content: ''; width: 32px; height: 3px; background: var(--accent); margin-bottom: 14px; }
 .slide ul.cards.numbered { counter-reset: n; }
 .slide ul.cards.numbered > li { counter-increment: n; }
 .slide ul.cards.numbered > li::before { content: counter(n, decimal-leading-zero); font-size: 72px; margin-bottom: 24px; }

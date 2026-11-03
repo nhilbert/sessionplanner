@@ -183,6 +183,10 @@ def fits_checks(layout, sec):
     for h in (n for n in sec.all() if n.tag == 'h2'):
         if len(h.plain()) > 90:
             warn(f'a title of {len(h.plain())} characters wraps to three lines; two lines hold about 80')
+    if layout not in ('title', 'section', 'break', 'closing', 'statement', 'quote', 'agenda', 'figure', 'model'):
+        n = len(sec.plain().split())
+        if n > 60:
+            warn(f'{n} words on the slide: the look wants little text per slide (about 60 at most); split it, or move words to the notes')
     h1_limit = {'title': 40, 'section': 55}.get(layout, 70)
     for h in (n for n in sec.all() if n.tag == 'h1'):
         if len(h.plain()) > h1_limit:

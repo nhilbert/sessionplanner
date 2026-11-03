@@ -320,6 +320,18 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
               {t('themes.titleScrim')}
             </label>
           </div>
+          <Field label={t('themes.mark')} className="mt-3">
+            <Segmented
+              size="sm"
+              value={tokens.mark}
+              onChange={(mark) => update({ mark })}
+              options={[
+                { value: 'square', label: t('themes.markSquare') },
+                { value: 'circle', label: t('themes.markCircle') },
+                { value: 'none', label: t('themes.markNone') },
+              ]}
+            />
+          </Field>
           <Field label={t('themes.logoPlacement')} className="mt-3">
             <Segmented
               size="sm"

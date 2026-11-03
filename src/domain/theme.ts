@@ -29,6 +29,8 @@ export const FONT_STACKS: Record<FontKey, string> = {
 export const HOSTED_FONTS: FontKey[] = ['inter', 'manrope', 'source-serif']
 
 export type LogoPlacement = 'none' | 'title' | 'all'
+/** The mark before an unnumbered point: a small square, a circle, or none. */
+export type MarkShape = 'square' | 'circle' | 'none'
 
 export interface ThemeTokens {
   colors: Record<ThemeColorKey, string>
@@ -44,6 +46,8 @@ export interface ThemeTokens {
   titleScrim: boolean
   /** Where the host shows the theme's logo besides the closing slide. */
   logo: LogoPlacement
+  /** The mark before an unnumbered point. */
+  mark: MarkShape
 }
 
 export interface ThemeLogo {
@@ -81,6 +85,7 @@ export const DEFAULT_TOKENS: ThemeTokens = {
   chrome: false,
   titleScrim: false,
   logo: 'none',
+  mark: 'square',
 }
 
 /** A dark counterpart to the default: what "new dark theme" starts from. */
@@ -123,6 +128,7 @@ export function withDefaults(tokens: Partial<ThemeTokens> | undefined, base: The
     chrome: t.chrome ?? base.chrome,
     titleScrim: t.titleScrim ?? base.titleScrim,
     logo: t.logo ?? base.logo,
+    mark: t.mark ?? base.mark,
   }
 }
 
@@ -148,6 +154,7 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
     `--field: ${c.field}; --on-field: ${c.onField}; --on-field-2: ${d.onField2};`,
     `--font-display: ${FONT_STACKS[tokens.fonts.display]}; --font-body: ${FONT_STACKS[tokens.fonts.body]}; --font-mono: ${FONT_STACKS.mono};`,
     `--display-weight: ${tokens.displayWeight}; --radius: ${tokens.radius}px; --chrome: ${tokens.chrome ? 'flex' : 'none'};`,
+    `--mark-size: ${tokens.mark === 'none' ? '0px' : '9px'}; --mark-radius: ${tokens.mark === 'circle' ? '50%' : '0'};`,
     options.logoUrl ? `--logo: url("${options.logoUrl}");` : '',
     options.logoLightUrl ? `--logo-light: url("${options.logoLightUrl}");` : options.logoUrl ? `--logo-light: url("${options.logoUrl}");` : '',
   ]

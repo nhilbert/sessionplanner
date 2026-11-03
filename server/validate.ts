@@ -213,6 +213,7 @@ const tokensBody = z.strictObject({
   chrome: z.boolean().optional(),
   titleScrim: z.boolean().optional(),
   logo: z.enum(['none', 'title', 'all']).optional(),
+  mark: z.enum(['square', 'circle', 'none']).optional(),
 })
 const themeBody = z.strictObject({ name: text(100), tokens: tokensBody.optional(), from: text(60).optional() })
 const themePatch = z.strictObject({ name: text(100).optional(), tokens: tokensBody.optional() })

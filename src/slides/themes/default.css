@@ -6,5 +6,5 @@
   --title: #22272E; --accent: #2F6F8F; --accent-deep: #205169; --accent-2: #B5513D; --accent-3: #C99A2E; --accent-4: #5B8E7D; --on-accent: #FFFFFF;
   --field: #2F6F8F; --on-field: #FFFFFF; --on-field-2: #D5E1E8;
   --font-display: 'Manrope Variable', Manrope, 'Inter Variable', system-ui, sans-serif; --font-body: 'Inter Variable', Inter, system-ui, 'Segoe UI', Roboto, sans-serif; --font-mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 800; --radius: 8px; --chrome: none;
+  --display-weight: 800; --radius: 8px; --chrome: none; --mark-size: 9px; --mark-radius: 0;
 }
