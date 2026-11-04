@@ -3,7 +3,7 @@ import i18n from '@/i18n'
 import type { DeckSlideRef } from '@/domain/deck'
 import { cjkCodePoints, codePoints } from '@/domain/deck'
 import { esc } from '@/domain/slides'
-import { hostHtml } from './SlideView'
+import { hostHtml, themeGround } from './SlideView'
 import slidesCss from './slides.css?raw'
 import defaultThemeCss from './themes/default.css?raw'
 import notoCss from '@fontsource/noto-sans-jp/400.css?raw'
@@ -131,12 +131,13 @@ export interface ExportOptions {
 export async function standaloneDeck(deck: DeckSlideRef[], options: ExportOptions): Promise<{ css: string; sections: string[]; theme: string }> {
   const assets = new Map<string, string>()
   const sections: string[] = []
+  const ground = themeGround(options.theme)
   for (const [i, slide] of deck.entries()) {
-    let html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1, part: slide.part && options.part ? options.part(slide.part) : undefined })
+    let html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1, part: slide.part && options.part ? options.part(slide.part) : undefined }, ground)
     for (const m of [...slide.html.matchAll(/asset:([0-9a-f]{16,64})/g)]) {
       const hash = m[1]
-      if (!assets.has(hash)) assets.set(hash, (await toDataUrl(assetUrl(options.scope, hash))) ?? '')
-      html = html.split(assetUrl(options.scope, hash)).join(assets.get(hash) || '')
+      if (!assets.has(hash)) assets.set(hash, (await toDataUrl(assetUrl(options.scope, hash, ground))) ?? '')
+      html = html.split(assetUrl(options.scope, hash, ground)).join(assets.get(hash) || '')
     }
     sections.push(html)
   }

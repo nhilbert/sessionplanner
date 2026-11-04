@@ -14,7 +14,7 @@ import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
-import { cutoutPng } from './cutout.ts'
+import { cutoutPng, darkCutoutPng } from './cutout.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
 
 export const MAX_FILE = 25 * 1024 * 1024
@@ -81,6 +81,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   const quota = { ...QUOTAS, ...quotas }
   const filePath = (id: string) => path.join(filesDir, id)
   const assetPath = (hash: string) => path.join(filesDir, 'assets', hash)
+  /** A cut-out's variant for a dark ground (server/cutout.ts): derived from the cut-out when first asked for, kept beside the assets. */
+  const darkAssetPath = (hash: string) => path.join(filesDir, 'assets-dark', hash)
   /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
   const accessTo = (c: Context<Env>, workshopId: string): 'owner' | Access | null => {
     const user = c.get('user')
@@ -460,10 +462,25 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const saved = await saveUpload(c, access, (await c.req.parseBody()).file)
     return saved instanceof Response ? saved : c.json(saved, 201)
   }
-  const sendAsset = async (c: Context<Env>, hash: string) => {
+  const sendAsset = async (c: Context<Env>, hash: string, ground?: string) => {
     const asset = HASH.test(hash) ? repo.getAsset(hash) : null
-    const data = asset && (await readFile(assetPath(hash)).catch(() => null))
-    if (!asset || !data) return c.json({ error: 'not_found' }, 404)
+    const stored = asset && (await readFile(assetPath(hash)).catch(() => null))
+    if (!asset || !stored) return c.json({ error: 'not_found' }, 404)
+    let data: Buffer = stored
+    // Under a dark theme the host asks for ?ground=dark: a cut-out comes as its dark variant, made once and kept;
+    // every other picture as it is.
+    if (ground === 'dark' && asset.cutoutOf && asset.mime === 'image/png') {
+      const dark = await readFile(darkAssetPath(hash)).catch(() => null)
+      if (dark) data = dark
+      else {
+        const made = darkCutoutPng(data)
+        if (made) {
+          await mkdir(path.join(filesDir, 'assets-dark'), { recursive: true })
+          await writeFile(darkAssetPath(hash), made)
+          data = made
+        }
+      }
+    }
     // Content-addressed: the same address always holds the same bytes, so a browser may keep it for good.
     return c.body(new Uint8Array(data), 200, { 'Content-Type': asset.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=31536000, immutable' })
   }
@@ -484,11 +501,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const hash = c.req.param('hash')!
     // A guest of the workshop sees what its slides show, nothing else.
     if (!accessTo(c, id) || !HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
-    return sendAsset(c, hash)
+    return sendAsset(c, hash, c.req.query('ground'))
   })
   app.post('/api/library/assets', (c) => storeAsset(c, 'owner'))
   app.get('/api/library/assets/:hash/info', (c) => assetInfo(c, c.req.param('hash')!))
-  app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!))
+  app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!, c.req.query('ground')))
   /**
    * Cut-outs for the pictures already on slides (owner): every PNG a stored slide shows gets its cut-out made with
    * the current routine (from the original, when the slide shows an older cut-out), and the slides that show an
@@ -522,7 +539,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
   app.post('/api/assets/sweep', ownerOnly, async (c) => {
     const gone = repo.sweepAssets()
-    await Promise.all(gone.map((h) => rm(assetPath(h), { force: true })))
+    await Promise.all(gone.flatMap((h) => [rm(assetPath(h), { force: true }), rm(darkAssetPath(h), { force: true })]))
     return c.json({ removed: gone.length })
   })
 

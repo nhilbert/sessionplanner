@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { type AssetScope, useFrameScale, useHostHtml, useTheme } from '../SlideView'
+import { type AssetScope, useFrameScale, useHostHtml, useTheme, useThemeGround } from '../SlideView'
 import { fieldSelectors, type SlideDoc } from '@/domain/slideDoc'
 import { cx } from '@/components/ui'
 import './editor.css'
@@ -15,7 +15,7 @@ export function EditPreview({ doc, html, theme, scope, focus, onFocus, onEdit, v
   const ref = useRef<HTMLDivElement>(null)
   const root = useRef<HTMLDivElement>(null)
   const scale = useFrameScale(ref)
-  const rendered = useHostHtml(html, scope)
+  const rendered = useHostHtml(html, scope, undefined, useThemeGround(theme))
   useTheme(theme)
   const selectors = useMemo(() => fieldSelectors(doc), [doc])
   const [over, setOver] = useState(false)

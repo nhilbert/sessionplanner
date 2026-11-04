@@ -88,6 +88,9 @@ describe('slide themes as data', () => {
     // A dark theme's logo is made for its dark ground: the printouts do not take it.
     const listed = (await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()) as ThemeInfo[]
     expect(listed.find((x) => x.id === theme.id)?.printLogo).toBeNull()
+    // and the host learns to ask for the cut-outs made for a dark ground
+    expect(listed.find((x) => x.id === theme.id)?.dark).toBe(true)
+    expect(listed.find((x) => x.id === 'default')?.dark).toBe(false)
     expect((await post(app, `/api/themes/${theme.id}`, { tokens: { colors: { accent: 'red' } } }, OWNER, 'PUT')).status).toBe(400)
     expect((await post(app, `/api/themes/${theme.id}`, { tokens: { fonts: { display: 'comic' } } }, OWNER, 'PUT')).status).toBe(400)
     expect((await post(app, '/api/themes', { name: 'x', extra: 1 })).status).toBe(400)
@@ -107,6 +110,15 @@ describe('slide themes as data', () => {
     expect((await list())?.printLogo).toBe(`/api/themes/${theme.id}/logo?v=${encodeURIComponent(withLogo.logo!.updatedAt)}`)
     await app.request(`${BASE}/api/themes/${theme.id}/logo`, { method: 'DELETE', headers: H() })
     expect((await list())?.printLogo).toBeNull()
+  })
+
+  it('tells whether a theme folder sets a dark ground', async () => {
+    const { app, themesDir } = setup()
+    const list = async () => (await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()) as ThemeInfo[]
+    expect((await list()).find((x) => x.id === 'demo')?.dark).toBe(false)
+    mkdirSync(path.join(themesDir, 'night'))
+    writeFileSync(path.join(themesDir, 'night', 'theme.css'), '[data-theme="night"] {\n  --bg: #22272E; --fg: #F4F2EE;\n}')
+    expect((await list()).find((x) => x.id === 'night')?.dark).toBe(true)
   })
 
   it('lists the logo a theme folder keeps beside its theme.css', async () => {
