@@ -102,6 +102,17 @@ export interface ThemeInfo {
   name: string
   kind: 'builtin' | 'folder' | 'data'
   updatedAt?: string
+  /** The address of the theme's logo (an uploaded one, or a logo file beside a folder's theme.css); null or absent without one. */
+  logo?: string | null
+}
+
+/**
+ * The branding of a workshop: the theme it is set to ('' follows the settings), and the logo its printouts show –
+ * the theme's, or the owner's printout logo when the theme has none (docs/concept.md, section 6).
+ */
+export function workshopBrand(workshopTheme: string, settingsTheme: string, themes: ThemeInfo[], ownerLogo: string | null): { theme: string; logo: string | null } {
+  const theme = workshopTheme || settingsTheme || 'default'
+  return { theme, logo: themes.find((x) => x.id === theme)?.logo || ownerLogo }
 }
 
 /** The neutral default, the same colours as themes/default.css. */

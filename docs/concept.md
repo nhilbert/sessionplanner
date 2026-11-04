@@ -66,7 +66,7 @@ Computing a day (pure function, `src/domain/time.ts`):
 
 ## 6. Output
 
-Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 portrait with the owner's logo, a running footer (workshop, dates, page x of y) and switches that are remembered per device. Every view has a Markdown twin built from the same switches (copy, or save as `.md`, e.g. for the photo protocol). The field names follow the German facilitation plan (Zeit · Dauer · Inhalt · Ziel · Methode · Wer · Material · Hinweise):
+Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 portrait with the logo of the workshop's theme (the owner's printout logo from the settings when the theme has none), a running footer (workshop, dates, page x of y) and switches that are remembered per device. Every view has a Markdown twin built from the same switches (copy, or save as `.md`, e.g. for the photo protocol). The field names follow the German facilitation plan (Zeit · Dauer · Inhalt · Ziel · Methode · Wer · Material · Hinweise):
 
 - **Planning overview** (`overview`): one table per day with the columns switched on (time, duration, content with description, goal, method, lead, category, material, files, notes); landscape as an option. The head repeats on every page, a row never splits. For planning and for a co-facilitator who wants everything on a few pages.
 - **Moderation plan** (`plan`): built to be worked through during the workshop. Per day first the day at a glance (times, numbered steps, length, lead), then one card per step: the clock time large in the margin with end time and length, a box to tick, the step's number and title, lead and category, description, goal, method, material as a checklist, files, and the facilitation notes in full (Markdown). Breaks hatched with a box, markers as a time line, cue notes shaded, groups as section headings with their time range. Slack before a fixed start and overlaps are printed, so the facilitator sees the buffers. A card never splits across a page. Options: packing list appended, each day on a new page.
@@ -128,6 +128,12 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
+
+**2026-11-04, branding per workshop** (revises "only the owner's logo on the printouts" of 2026-10-29)
+
+- A workshop's theme is its branding: it is chosen in the workshop's details (Branding) as well as in its Slides tab, and drives the slides and the printouts alike. The printouts show the theme's logo (an uploaded one, or `logo.svg`/`.png`/`.webp`/`.jpg` beside a folder theme's theme.css); the owner's printout logo in the settings is the fallback for a theme without one. The theme list (`GET /api/themes`) carries each theme's logo address, so guests' printouts show it too.
+- The printouts stay black on white: the theme gives them its logo, not its colours or fonts, so the rules of section 6 (no colour that carries meaning, readable on any printer) still hold.
+- Counter-argument considered: a client agenda for a workshop in a partner's theme now carries the partner's logo instead of the owner's. Wanted, since agenda and slides should look like one set; a workshop that should carry the owner's logo uses a theme without a logo, or the owner's theme.
 
 **2026-11-02, presenting together** (revises "presentation windows load the deck once" from the same day)
 
@@ -224,7 +230,7 @@ The same app, not a reduced one; what differs follows the device, consistently:
 - Groups: a heading over consecutive items (topic or sub-session) with time range and subtotal; collapsible, dragged as a whole; made from a Shift-click selection or by dragging items under a new heading.
 - Library shared by all workshops for items and groups; inserting makes a copy (later library edits do not change workshops). Files stay with each workshop.
 - Material can be added in the packing list, for the workshop in general or for an item.
-- Only the owner's logo on the printouts.
+- Only the owner's logo on the printouts. *(Revised 2026-11-04: see "branding per workshop".)*
 
 
 **2026-10-29**

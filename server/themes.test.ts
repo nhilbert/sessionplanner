@@ -7,7 +7,7 @@ import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { createApp } from './app.ts'
 import { Ops } from './ops.ts'
-import type { Theme } from '../src/domain/theme.ts'
+import type { Theme, ThemeInfo } from '../src/domain/theme.ts'
 import type { SlideTemplate, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
@@ -85,11 +85,27 @@ describe('slide themes as data', () => {
     expect(logo.status).toBe(200)
     expect(logo.headers.get('content-type')).toBe('image/png')
     expect(logo.headers.get('content-security-policy')).toBe('sandbox')
+    // The list tells guests too where the logo is, for the printouts of a workshop in this theme.
+    const listed = (await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()) as ThemeInfo[]
+    expect(listed.find((x) => x.id === theme.id)?.logo).toBe(`/api/themes/${theme.id}/logo?v=${encodeURIComponent(withLogo.logo!.updatedAt)}`)
     expect((await post(app, `/api/themes/${theme.id}`, { tokens: { colors: { accent: 'red' } } }, OWNER, 'PUT')).status).toBe(400)
     expect((await post(app, `/api/themes/${theme.id}`, { tokens: { fonts: { display: 'comic' } } }, OWNER, 'PUT')).status).toBe(400)
     expect((await post(app, '/api/themes', { name: 'x', extra: 1 })).status).toBe(400)
     const del = await app.request(`${BASE}/api/themes/${theme.id}/logo`, { method: 'DELETE', headers: H() })
     expect(((await del.json()) as Theme).logo).toBeNull()
+    const after = (await (await app.request(`${BASE}/api/themes`, { headers: H() })).json()) as ThemeInfo[]
+    expect(after.find((x) => x.id === theme.id)?.logo).toBeNull()
+  })
+
+  it('lists the logo a theme folder keeps beside its theme.css', async () => {
+    const { app, themesDir } = setup()
+    const list = async () => (await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()) as ThemeInfo[]
+    expect((await list()).find((x) => x.id === 'demo')?.logo).toBeNull()
+    writeFileSync(path.join(themesDir, 'demo', 'logo.png'), PNG)
+    expect((await list()).find((x) => x.id === 'demo')?.logo).toBe('/api/themes/demo/logo.png')
+    const res = await app.request(`${BASE}/api/themes/demo/logo.png`, { headers: H(GUEST) })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/png')
   })
 
   it('copies a theme with its logo, and deleting one resets the workshops and settings that used it', async () => {

@@ -153,7 +153,9 @@
     "copyTitle": "{{title}} (copy)",
     "daysFollow": "the other days follow",
     "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked.",
-    "days": "Days"
+    "days": "Days",
+    "branding": "Branding",
+    "brandingHint": "The theme of this workshop: its slides, and the logo on its printouts (the printout logo from the settings when the theme has none). Themes are edited under Slides → Themes."
   },
   "packing": {
     "empty": "No material yet. Add material to the agenda items.",
@@ -250,7 +252,7 @@
     "newCategory": "New category",
     "removeCategory": "Remove category",
     "logo": "Logo",
-    "logoHint": "Shown at the top of every printout. PNG, JPEG, WebP or SVG, up to 2 MB.",
+    "logoHint": "Shown at the top of printouts whose workshop theme has no logo of its own. PNG, JPEG, WebP or SVG, up to 2 MB.",
     "uploadLogo": "Upload logo",
     "removeLogo": "Remove",
     "logoTooLarge": "The logo is larger than 2 MB.",
@@ -268,7 +270,7 @@
     "agentsDisconnectConfirm": "Disconnect {{name}}? It loses access immediately and has to be approved again.",
     "agentsError": "Could not load or change the connections ({{error}}). Try again; until then they stay as they were.",
     "theme": "Slide theme",
-    "themeHint": "The slide theme of new workshops; each workshop can choose another in its Slides tab. Theme folders under data/themes (theme.css, fonts, logos) appear in the choice too.",
+    "themeHint": "The theme (slides and printout logo) of new workshops; each workshop can choose another in its details or its Slides tab. Theme folders under data/themes (theme.css, fonts, logos) appear in the choice too.",
     "sweepHint": "Pictures no slide shows any more (in workshops, the library, the pool or templates) are deleted.",
     "slides": "Slides",
     "slidesHint": "Themes and templates are under “Slides” in the navigation."

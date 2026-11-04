@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { contrastHex, mixHex, parseHex, toHex } from './color.ts'
-import { contrastPairs, DEFAULT_TOKENS, derivedColors, THEME_FILE_PATH, themeCss, themeFileUrls, themeIdFrom, withDefaults } from './theme.ts'
+import { contrastPairs, DEFAULT_TOKENS, derivedColors, THEME_FILE_PATH, themeCss, themeFileUrls, themeIdFrom, withDefaults, workshopBrand } from './theme.ts'
 
 describe('colour', () => {
   it('parses and formats hex', () => {
@@ -22,6 +22,24 @@ describe('colour', () => {
     expect(r).toBeGreaterThan(90)
     expect(r).toBeLessThan(160)
     expect(mixHex('#2F6F8F', '#FFFFFF', 0)).toBe('#2F6F8F')
+  })
+})
+
+describe('workshop branding', () => {
+  const themes = [
+    { id: 'default', name: 'default', kind: 'builtin' as const },
+    { id: 'client', name: 'Client', kind: 'data' as const, logo: '/api/themes/client/logo?v=1' },
+    { id: 'plain', name: 'Plain', kind: 'data' as const, logo: null },
+  ]
+  it("takes the workshop's theme, else the settings', else the default, and that theme's logo", () => {
+    expect(workshopBrand('client', 'plain', themes, '/api/settings/logo')).toEqual({ theme: 'client', logo: '/api/themes/client/logo?v=1' })
+    expect(workshopBrand('', 'client', themes, null)).toEqual({ theme: 'client', logo: '/api/themes/client/logo?v=1' })
+    expect(workshopBrand('', '', themes, null)).toEqual({ theme: 'default', logo: null })
+  })
+  it("falls back to the owner's printout logo when the theme has none or is gone", () => {
+    expect(workshopBrand('plain', '', themes, '/api/settings/logo')).toEqual({ theme: 'plain', logo: '/api/settings/logo' })
+    expect(workshopBrand('gone', '', themes, '/api/settings/logo').logo).toBe('/api/settings/logo')
+    expect(workshopBrand('', '', themes, '/api/settings/logo').logo).toBe('/api/settings/logo')
   })
 })
 

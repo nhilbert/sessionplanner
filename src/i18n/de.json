@@ -153,7 +153,9 @@
     "copyTitle": "{{title}} (Kopie)",
     "daysFollow": "die weiteren Tage folgen",
     "duplicateHint": "Kopiert Tage, Gruppen, Punkte, Material und Dateien. Die Packliste beginnt unabgehakt.",
-    "days": "Tage"
+    "days": "Tage",
+    "branding": "Branding",
+    "brandingHint": "Das Theme dieses Workshops: seine Folien und das Logo auf seinen Ausdrucken (ohne Logo im Theme das Ausdruck-Logo aus den Einstellungen). Themes werden unter Folien → Themes bearbeitet."
   },
   "packing": {
     "empty": "Noch kein Material. Ergänze Material an den Agendapunkten.",
@@ -250,7 +252,7 @@
     "newCategory": "Neue Kategorie",
     "removeCategory": "Kategorie entfernen",
     "logo": "Logo",
-    "logoHint": "Erscheint oben auf jedem Ausdruck. PNG, JPEG, WebP oder SVG, bis 2 MB.",
+    "logoHint": "Erscheint oben auf den Ausdrucken, wenn das Theme des Workshops kein eigenes Logo hat. PNG, JPEG, WebP oder SVG, bis 2 MB.",
     "uploadLogo": "Logo hochladen",
     "removeLogo": "Entfernen",
     "logoTooLarge": "Das Logo ist größer als 2 MB.",
@@ -268,7 +270,7 @@
     "agentsDisconnectConfirm": "{{name}} trennen? Der Zugriff endet sofort und muss neu freigegeben werden.",
     "agentsError": "Verbindungen konnten nicht geladen oder geändert werden ({{error}}). Bitte erneut versuchen; bis dahin bleiben sie unverändert.",
     "theme": "Folien-Theme",
-    "themeHint": "Das Theme der Folien neuer Workshops; jeder Workshop kann im Tab „Folien“ ein anderes wählen. Theme-Ordner unter data/themes (theme.css, Schriften, Logos) erscheinen ebenfalls in der Auswahl.",
+    "themeHint": "Das Theme (Folien und Logo der Ausdrucke) neuer Workshops; jeder Workshop kann in seinen Details oder im Tab „Folien“ ein anderes wählen. Theme-Ordner unter data/themes (theme.css, Schriften, Logos) erscheinen ebenfalls in der Auswahl.",
     "sweepHint": "Bilder, die keine Folie mehr zeigt (in Workshops, Bibliothek, Foliensammlung oder Vorlagen), werden gelöscht.",
     "slides": "Folien",
     "slidesHint": "Themes und Vorlagen findest du unter „Folien“ in der Navigation."
