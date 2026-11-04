@@ -123,7 +123,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Minimum duration and "optional" per item, with fit suggestions for a stretch that is over.
 - Asking before saving the same item to the library twice.
 - Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far. The presentation view is its seed; a break slide could show the re-forecast end.
-- Slides: a best-effort PPTX export from the format; moving a slide between items; updating placed copies from the library; themes and templates through the connector.
+- Slides: moving a slide between items; updating placed copies from the library; themes and templates through the connector.
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
@@ -166,7 +166,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 
 **2026-11-01, slides**
 
-- Slides are text, not pictures: a small HTML subset with a fixed catalogue of layouts, one stylesheet owned by the app, themes as data chosen per workshop. Pictures collapse too much (no search, no agent access, blurry at scale); PowerPoint objects are too much (merging masters, previews need LibreOffice). The way back to PowerPoint is given up; a best-effort export from the constrained format stays possible.
+- Slides are text, not pictures: a small HTML subset with a fixed catalogue of layouts, one stylesheet owned by the app, themes as data chosen per workshop. Pictures collapse too much (no search, no agent access, blurry at scale); PowerPoint objects are too much (merging masters, previews need LibreOffice). The way back to PowerPoint is an export (docs/slides.md, section 5a), not a round trip: the PPTX is written from the laid-out slides and never read back.
 - Existing decks are translated once, by Claude with the `deck-translate` skill, against the catalogue; the result is reviewed in a static preview before it is uploaded. The translated decks form a slide pool in the app; slides are copied from the pool into items and library entries, so the pool is a source, not a dependency.
 - Slides are item content and travel with the library, copies and duplicates; the library's "no files" rule now reads "no attachments". Pictures are assets stored once by content hash, served through the API with the workshop's access check.
 - Nothing a guest writes may run: slides are sanitised on write and on render with an allowlist, SVG included; assets are raster only.

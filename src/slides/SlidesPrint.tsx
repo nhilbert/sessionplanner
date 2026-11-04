@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Printer } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
@@ -15,9 +15,23 @@ export default function SlidesPrint({ data }: { data: WorkshopState }) {
   useEffect(() => {
     document.title = `${title} – ${t('slides.title')}`
   }, [title, t])
+  // "Save as PDF" in the deck tab: the print dialog opens by itself once the fonts and pictures are there
+  const pageRef = useRef<HTMLDivElement>(null)
+  const asked = useRef(false)
+  useEffect(() => {
+    if (asked.current || !deck.length || new URLSearchParams(window.location.search).get('pdf') !== '1') return
+    asked.current = true
+    const ready = async () => {
+      await new Promise((r) => requestAnimationFrame(() => r(null)))
+      await Promise.all([...(pageRef.current?.querySelectorAll('img') ?? [])].map((img) => img.decode().catch(() => undefined)))
+      await document.fonts.ready
+      window.print()
+    }
+    void ready()
+  }, [deck.length])
   return (
     <div className="min-h-dvh bg-[#2a2a2a] print:bg-white">
-      <style>{'@page { size: 338.667mm 190.5mm; margin: 0; } @media print { .slide-page { page-break-after: always; break-after: page; } }'}</style>
+      <style>{'@page { size: 338.667mm 190.5mm; margin: 0; } @media print { .slide-page { page-break-after: always; break-after: page; } .slide-page, .slide-page * { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }'}</style>
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-black/20 bg-[#f3f1ec] px-4 py-2 text-[13px] text-[#111]">
         <span className="font-medium">{t('slides.printSlides')}</span>
         <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
@@ -28,7 +42,7 @@ export default function SlidesPrint({ data }: { data: WorkshopState }) {
           {t('print.print')}
         </Button>
       </div>
-      <div className="mx-auto flex flex-col items-center gap-6 py-6 print:block print:gap-0 print:py-0">
+      <div ref={pageRef} className="mx-auto flex flex-col items-center gap-6 py-6 print:block print:gap-0 print:py-0">
         {deck.map((s, i) => (
           <div key={s.key} className="slide-page h-[720px] w-[1280px] overflow-hidden bg-black print:h-[190.5mm] print:w-[338.667mm]">
             <SlideStage html={s.html} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: i + 1, part: s.part && t('slides.part', s.part) }} scale={1} />

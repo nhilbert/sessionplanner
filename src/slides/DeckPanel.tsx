@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Download, MonitorSpeaker, Play, Printer, Shuffle } from 'lucide-react'
+import { Download, FileText, MonitorSpeaker, Play, Presentation, Printer, Shuffle } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
 import { reportFailure } from '@/api'
@@ -10,6 +10,7 @@ import { Option } from './Option'
 import { downloadBlob, fileSlug } from '@/print/options'
 import { SlideView } from './SlideView'
 import { exportDeckHtml } from './export'
+import { exportDeckPptx } from './pptx'
 import { useDeck } from './useDeck'
 import { ThemeSelect } from './ThemeSelect'
 import { useSlideEditing } from './PlannerSlides'
@@ -22,16 +23,20 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
   const { t, i18n } = useTranslation()
   const { deck, theme, options, update, pictures } = useDeck(data)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<{ done: number; of: number } | null>(null)
   const title = data.workshop.title || t('workshops.untitled')
   const scope = { workshopId: data.workshop.id }
-  const save = async () => {
+  const common = { title, theme, scope, chrome: title, lang: i18n.language, part: (p: { n: number; of: number }) => t('slides.part', p) }
+  const save = async (kind: 'html' | 'pptx') => {
     setBusy(true)
     try {
-      downloadBlob(`${fileSlug(title)}-folien.html`, await exportDeckHtml(deck, { title, theme, scope, chrome: title, lang: i18n.language, part: (p) => t('slides.part', p) }))
+      if (kind === 'html') downloadBlob(`${fileSlug(title)}-folien.html`, await exportDeckHtml(deck, common))
+      else downloadBlob(`${fileSlug(title)}-folien.pptx`, await exportDeckPptx(deck, { ...common, onProgress: (done, of) => setProgress({ done, of }) }))
     } catch (err) {
       reportFailure(err)
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
   return (
@@ -45,15 +50,26 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
           <MonitorSpeaker size={13} />
           {t('slides.presenter')}
         </Button>
-        <Button size="sm" onClick={() => void save()} disabled={!deck.length || busy}>
-          <Download size={13} />
-          {t('slides.downloadHtml')}
-        </Button>
         <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/print/slides`, '_blank', 'noopener')} disabled={!deck.length}>
           <Printer size={13} />
           {t('slides.printSlides')}
         </Button>
       </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => void save('pptx')} disabled={!deck.length || busy}>
+          <Presentation size={13} />
+          {progress ? t('slides.exporting', progress) : t('slides.downloadPptx')}
+        </Button>
+        <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/print/slides?pdf=1`, '_blank', 'noopener')} disabled={!deck.length}>
+          <FileText size={13} />
+          {t('slides.downloadPdf')}
+        </Button>
+        <Button size="sm" onClick={() => void save('html')} disabled={!deck.length || busy}>
+          <Download size={13} />
+          {t('slides.downloadHtml')}
+        </Button>
+      </div>
+      <p className="text-[12px] text-ink-3">{t('slides.exportHint')}</p>
       {owner && (
         <div className="flex flex-wrap items-center gap-2 text-[13px]">
           <span className="text-ink-2">{t('slides.deckTheme')}</span>

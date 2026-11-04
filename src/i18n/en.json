@@ -474,6 +474,10 @@
     "swept_other": "{{count}} pictures removed",
     "present": "Present",
     "downloadHtml": "Save as HTML",
+    "downloadPptx": "Save as PowerPoint",
+    "downloadPdf": "Save as PDF",
+    "exporting": "Exporting {{done}} / {{of}} …",
+    "exportHint": "PowerPoint: text boxes, shapes and pictures that can be edited; fonts the computer lacks are replaced. PDF: the print dialog opens, choose “Save as PDF”.",
     "printSlides": "Print slides (16:9)",
     "generated": {
       "title": "Title slide",

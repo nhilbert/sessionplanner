@@ -474,6 +474,10 @@
     "swept_other": "{{count}} Bilder entfernt",
     "present": "Präsentieren",
     "downloadHtml": "Als HTML speichern",
+    "downloadPptx": "Als PowerPoint speichern",
+    "downloadPdf": "Als PDF speichern",
+    "exporting": "Exportiere {{done}} / {{of}} …",
+    "exportHint": "PowerPoint: Textfelder, Formen und Bilder, die sich bearbeiten lassen; Schriften, die dem Rechner fehlen, werden ersetzt. PDF: Der Druckdialog öffnet sich, dort „Als PDF speichern“ wählen.",
     "printSlides": "Folien drucken (16:9)",
     "generated": {
       "title": "Titelfolie",
