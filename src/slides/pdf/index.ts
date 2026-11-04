@@ -95,8 +95,9 @@ function wordsOf(slide: HTMLElement): PdfWord[] {
 }
 
 export async function exportDeckPdf(deck: DeckSlideRef[], options: ExportOptions & { onProgress?: (done: number, of: number) => void }): Promise<Blob> {
-  const { css, sections } = await standaloneDeck(deck, options)
-  const stage = createStage(options.theme)
+  // the theme the stylesheet really is (the built-in one when the workshop's is gone): picture and words both use it
+  const { css, sections, theme } = await standaloneDeck(deck, options)
+  const stage = createStage(theme)
   const frameEnds = svgFrame(css)
   const pages: PdfPage[] = []
   try {
@@ -106,7 +107,7 @@ export async function exportDeckPdf(deck: DeckSlideRef[], options: ExportOptions
       await Promise.all([...stage.root.querySelectorAll('img')].map((img) => img.decode().catch(() => undefined)))
       await document.fonts.ready
       const words = slide ? wordsOf(slide) : []
-      pages.push({ jpeg: await rasterize(section, options.theme, frameEnds), width: W * SCALE, height: H * SCALE, words })
+      pages.push({ jpeg: await rasterize(section, theme, frameEnds), width: W * SCALE, height: H * SCALE, words })
       options.onProgress?.(i + 1, sections.length)
     }
   } finally {

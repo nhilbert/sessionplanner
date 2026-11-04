@@ -477,6 +477,7 @@
     "downloadPptx": "Als PowerPoint speichern",
     "downloadPdf": "Als PDF speichern",
     "exporting": "Exportiere {{done}} / {{of}} …",
+    "themeUnavailable": "Das Folien-Theme konnte nicht geladen werden, deshalb wurde keine Datei erzeugt (die Folien wären ungestaltet).",
     "exportHint": "PowerPoint: Textfelder, Formen und Bilder zum Bearbeiten; Schriften, die dem Rechner fehlen, werden ersetzt. PDF: jede Folie so, wie sie hier aussieht, Text durchsuchbar und kopierbar.",
     "printSlides": "Folien drucken (16:9)",
     "generated": {

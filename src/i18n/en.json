@@ -477,6 +477,7 @@
     "downloadPptx": "Save as PowerPoint",
     "downloadPdf": "Save as PDF",
     "exporting": "Exporting {{done}} / {{of}} …",
+    "themeUnavailable": "The slide theme could not be loaded, so the file was not made (it would have had unstyled slides).",
     "exportHint": "PowerPoint: text boxes, shapes and pictures to edit; fonts the computer lacks are replaced. PDF: every slide as it looks here, text searchable and copyable.",
     "printSlides": "Print slides (16:9)",
     "generated": {
