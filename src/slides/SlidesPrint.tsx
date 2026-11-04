@@ -17,7 +17,7 @@ export default function SlidesPrint({ data }: { data: WorkshopState }) {
   }, [title, t])
   return (
     <div className="min-h-dvh bg-[#2a2a2a] print:bg-white">
-      <style>{'@page { size: 338.667mm 190.5mm; margin: 0; } @media print { .slide-page { page-break-after: always; break-after: page; } }'}</style>
+      <style>{'@page { size: 338.667mm 190.5mm; margin: 0; } @media print { .slide-page { page-break-after: always; break-after: page; } .slide-page, .slide-page * { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }'}</style>
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-black/20 bg-[#f3f1ec] px-4 py-2 text-[13px] text-[#111]">
         <span className="font-medium">{t('slides.printSlides')}</span>
         <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>

@@ -1,4 +1,5 @@
 import { type AssetScope, assetUrl } from '@/api'
+import i18n from '@/i18n'
 import type { DeckSlideRef } from '@/domain/deck'
 import { cjkCodePoints, codePoints } from '@/domain/deck'
 import { esc } from '@/domain/slides'
@@ -41,12 +42,18 @@ const toDataUrl = async (url: string): Promise<string | null> => {
   })
 }
 
-/** A theme's stylesheet with its fonts and logos inlined, so the file works without the server. */
-async function themeCss(theme: string): Promise<string> {
-  if (theme === 'default') return defaultThemeCss
+/**
+ * A theme's stylesheet with its fonts and logos inlined, so the file works without the server, and the theme the
+ * slides are to name. A theme that no longer exists gives the built-in one, under its own name (its rules apply to
+ * `[data-theme="default"]` only). Any other failure stops the export: the stylesheet of another theme, or none,
+ * would give a file of unstyled slides without anyone noticing.
+ */
+async function themeCss(theme: string): Promise<{ id: string; css: string }> {
+  if (theme === 'default') return { id: 'default', css: defaultThemeCss }
   const base = `/api/themes/${encodeURIComponent(theme)}/`
   const res = await fetch(`${base}theme.css`).catch(() => null)
-  if (!res?.ok) return defaultThemeCss
+  if (res?.status === 404) return { id: 'default', css: defaultThemeCss }
+  if (!res?.ok) throw new Error(i18n.t('slides.themeUnavailable'))
   let css = await res.text()
   // Relative addresses are files beside a folder theme; /api/… addresses are the logos of a data theme.
   const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:)/.test(u) && (!u.startsWith('/') || u.startsWith('/api/'))))]
@@ -54,7 +61,13 @@ async function themeCss(theme: string): Promise<string> {
     const data = await toDataUrl(ref.startsWith('/') ? ref : base + ref.replace(/^\.\//, ''))
     if (data) css = css.split(`url(${ref})`).join(`url(${data})`).split(`url('${ref}')`).join(`url('${data}')`).split(`url("${ref}")`).join(`url("${data}")`)
   }
-  return css
+  return { id: theme, css }
+}
+
+/** Whether a stylesheet names a font family in a font stack, quoted ('Inter Variable') or not (Lato). */
+export const namesFamily = (css: string, family: string): boolean => {
+  const name = family.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(['"])${name}\\1|(^|[\\s:,(])${name}\\s*([,;})!]|$)`, 'm').test(css)
 }
 
 /** Whether a unicode-range ("U+0000-00FF,U+0131") covers one of the code points. */
@@ -98,11 +111,24 @@ addEventListener('resize',fit);addEventListener('keydown',function(e){if(e.key==
 addEventListener('click',function(e){show(e.clientX<innerWidth/3?n-1:n+1)});var x0=null;addEventListener('touchstart',function(e){x0=e.touches[0].clientX});addEventListener('touchend',function(e){if(x0===null)return;var d=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(d)>40)show(d<0?n+1:n-1)});
 fit();show(n)})();`
 
+/** A document language tag from the app's language: "de" → "de-DE". */
+export const docLang = (lang: string): string => (lang.includes('-') ? lang : lang === 'de' ? 'de-DE' : lang === 'en' ? 'en-US' : lang)
+
+export interface ExportOptions {
+  title: string
+  theme: string
+  scope: AssetScope
+  chrome: string
+  lang: string
+  part?: (p: { n: number; of: number }) => string
+}
+
 /**
- * One self-contained HTML file of the deck: stylesheet, theme with fonts and logos, the glyph font slices the
- * deck needs, pictures as data, a few lines of script to page through. Opens from a USB stick, prints to 16:9 pages.
+ * The deck as self-contained pieces: every slide's markup with the footer line and its pictures as data, and one
+ * stylesheet with the theme, its fonts and logos and the glyph slices the deck needs. The HTML file and the PDF are
+ * made from these, so both show the slides as the app does without the server.
  */
-export async function exportDeckHtml(deck: DeckSlideRef[], options: { title: string; theme: string; scope: AssetScope; chrome: string; lang: string; part?: (p: { n: number; of: number }) => string }): Promise<Blob> {
+export async function standaloneDeck(deck: DeckSlideRef[], options: ExportOptions): Promise<{ css: string; sections: string[]; theme: string }> {
   const assets = new Map<string, string>()
   const sections: string[] = []
   for (const [i, slide] of deck.entries()) {
@@ -115,14 +141,22 @@ export async function exportDeckHtml(deck: DeckSlideRef[], options: { title: str
     sections.push(html)
   }
   const text = sections.join('')
-  const theme = await themeCss(options.theme)
+  const { id, css: theme } = await themeCss(options.theme)
   const points = codePoints(text)
-  const hosted = await Promise.all(HOSTED.filter((f) => theme.includes(`'${f.family}'`)).map((f) => inlineFontFaces(f.css, f.files, points)))
+  const hosted = await Promise.all(HOSTED.filter((f) => namesFamily(theme, f.family)).map((f) => inlineFontFaces(f.css, f.files, points)))
   const fonts = [...hosted, await inlineFontFaces(notoCss, notoFiles, cjkCodePoints(text))]
-  const css = [slidesCss.replace(/@import[^;]+;/g, ''), theme, ...fonts, STAGE_CSS].join('\n')
+  return { css: [slidesCss.replace(/@import[^;]+;/g, ''), theme, ...fonts].join('\n'), sections, theme: id }
+}
+
+/**
+ * One self-contained HTML file of the deck: stylesheet, theme with fonts and logos, the glyph font slices the
+ * deck needs, pictures as data, a few lines of script to page through. Opens from a USB stick, prints to 16:9 pages.
+ */
+export async function exportDeckHtml(deck: DeckSlideRef[], options: ExportOptions): Promise<Blob> {
+  const { css, sections, theme } = await standaloneDeck(deck, options)
   const doc = `<!doctype html>
-<html lang="${esc(options.lang)}" data-theme="${esc(options.theme)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(options.title)}</title>
-<style>${css}</style></head>
+<html lang="${esc(options.lang)}" data-theme="${esc(theme)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(options.title)}</title>
+<style>${css}\n${STAGE_CSS}</style></head>
 <body><div class="deck">${sections.join('\n')}</div><div class="hint"></div><script>${SCRIPT}</script></body></html>`
   return new Blob([doc], { type: 'text/html;charset=utf-8' })
 }
