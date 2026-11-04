@@ -107,6 +107,8 @@ export interface ThemeInfo {
    * file beside a folder's theme.css; null or absent without one (a dark theme's logo is made for its dark ground).
    */
   printLogo?: string | null
+  /** Whether the slides' ground is dark: the host then asks for the cut-outs made for a dark ground (docs/slides.md, section 5). */
+  dark?: boolean
 }
 
 /**

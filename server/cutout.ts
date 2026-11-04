@@ -222,3 +222,53 @@ export function cutoutPng(data: Buffer, options?: CutoutOptions): Buffer | null 
   const cut = image && cutout(image, options)
   return cut ? encodePng(cut) : null
 }
+
+export interface DarkCutoutOptions {
+  /**
+   * The opacity (0–255) up to which a pixel is the paper's grain, not ink: the faint veil a scan's texture leaves
+   * all over a cut-out, invisible on paper, a grey rectangle on a dark ground. Cleared, with a ramp above it.
+   */
+  haze?: number
+}
+
+/**
+ * A cut-out for a dark ground: the ink's lightness is turned over – black ink becomes white, a grey wash a light
+ * one, a coloured ink keeps its hue and its depth of colour, since every channel moves by the same amount – and
+ * the paper's grain is cleared, so the drawing stands on a dark ground like chalk on a board instead of vanishing
+ * into it. Made from the cut-out (`cutout`), which has no paper left to unmix; the host asks for it when the
+ * theme's ground is dark (docs/slides.md, section 5). Photographs never come here: the caller asks only for cut-outs.
+ * A picture drawn in light ink – on the whole lighter than mid grey, weighed by opacity – already stands on a dark
+ * ground and would vanish if turned over, and its faint strokes are ink, not grain: it stays as it is.
+ */
+export function darkCutout(image: Decoded, options: DarkCutoutOptions = {}): Decoded {
+  const haze = options.haze ?? 72
+  const { width, height, rgba } = image
+  let weight = 0
+  let light = 0
+  for (let o = 0; o < rgba.length; o += 4) {
+    const a = rgba[o + 3]
+    weight += a
+    light += a * (Math.max(rgba[o], rgba[o + 1], rgba[o + 2]) + Math.min(rgba[o], rgba[o + 1], rgba[o + 2]))
+  }
+  if (weight && light / weight > 255) return image
+  const out = new Uint8Array(rgba.length)
+  for (let o = 0; o < rgba.length; o += 4) {
+    const a = rgba[o + 3]
+    if (a <= haze) continue
+    const r = rgba[o]
+    const g = rgba[o + 1]
+    const b = rgba[o + 2]
+    const shift = 255 - Math.max(r, g, b) - Math.min(r, g, b)
+    out[o] = r + shift
+    out[o + 1] = g + shift
+    out[o + 2] = b + shift
+    out[o + 3] = Math.round(((a - haze) / (255 - haze)) * 255)
+  }
+  return { width, height, rgba: out }
+}
+
+/** A cut-out PNG file turned over for a dark ground, as a PNG file; null when the file is not one this module reads. */
+export function darkCutoutPng(data: Buffer, options?: DarkCutoutOptions): Buffer | null {
+  const image = decodePng(data)
+  return image ? encodePng(darkCutout(image, options)) : null
+}

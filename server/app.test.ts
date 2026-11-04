@@ -7,6 +7,7 @@ import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { createApp, MAX_FILE, PRESENT_HOURS, type QUOTAS } from './app.ts'
+import { decodePng, encodePng } from './cutout.ts'
 import type { Op, ServerEvent } from '../src/domain/ops.ts'
 import type { Item, WorkshopState } from '../src/domain/types.ts'
 
@@ -190,6 +191,52 @@ describe('workshops and operations', () => {
     const ws = await create(app)
     const res = await ops(app, ws.workshop.id, { clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'gone', fields: { title: 'x' } }] })
     expect((await res.json()).ops).toEqual([])
+  })
+})
+
+describe('cut-outs on a dark ground', () => {
+  it('serves a cut-out turned over for a dark ground on ?ground=dark, and every other picture as it is', async () => {
+    const { app } = setup({ owners: ['me@example.com'] })
+    const owner = { 'x-sp': '1', 'x-auth-request-email': 'me@example.com' }
+    // paper with a dark square: the upload makes the cut-out
+    const w = 40
+    const h = 30
+    const rgba = new Uint8Array(w * h * 4)
+    for (let i = 0; i < w * h; i++) {
+      const x = i % w
+      const y = (i - x) / w
+      rgba.set(x >= 10 && x < 20 && y >= 10 && y < 20 ? [20, 30, 40, 255] : [220, 218, 214, 255], i * 4)
+    }
+    const form = new FormData()
+    form.append('file', new File([encodePng({ width: w, height: h, rgba })], 'ink.png', { type: 'image/png' }))
+    const up = (await (await app.request(`${BASE}/api/library/assets`, { method: 'POST', headers: owner, body: form })).json()) as { hash: string; cutout: string | null }
+    expect(up.cutout).toBeTruthy()
+    const get = async (hash: string, ground?: string) => {
+      const res = await app.request(`${BASE}/api/library/assets/${hash}${ground ? `?ground=${ground}` : ''}`, { headers: owner })
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('image/png')
+      return Buffer.from(await res.arrayBuffer())
+    }
+    const cut = await get(up.cutout!)
+    const dark = await get(up.cutout!, 'dark')
+    expect(dark.equals(cut)).toBe(false)
+    // the square's ink is light now with its hue kept, its surroundings transparent as before
+    const pixel = (png: Buffer, x: number, y: number) => {
+      const image = decodePng(png)!
+      return [...image.rgba.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4)]
+    }
+    const { width, height } = decodePng(dark)!
+    const c = pixel(cut, width >> 1, height >> 1)
+    const d = pixel(dark, width >> 1, height >> 1)
+    expect(Math.max(...c.slice(0, 3))).toBeLessThan(40)
+    expect(Math.min(...d.slice(0, 3))).toBe(255 - Math.max(...c.slice(0, 3)))
+    expect([d[0] - d[1], d[1] - d[2]]).toEqual([c[0] - c[1], c[1] - c[2]])
+    expect(d[3]).toBe(Math.round(((c[3] - 72) / 183) * 255))
+    expect(pixel(dark, 0, 0)[3]).toBe(0)
+    // the same bytes the second time (kept), the original untouched by the ground, an unknown ground ignored
+    expect((await get(up.cutout!, 'dark')).equals(dark)).toBe(true)
+    expect((await get(up.hash, 'dark')).equals(await get(up.hash))).toBe(true)
+    expect((await get(up.cutout!, 'light')).equals(cut)).toBe(true)
   })
 })
 

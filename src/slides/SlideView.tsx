@@ -1,6 +1,6 @@
 import { type ComponentProps, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { esc, normalizeSlideHtml, renderSlideHtml } from '@/domain/slides'
-import { type AssetScope, api, assetUrl } from '@/api'
+import { type AssetGround, type AssetScope, api, assetUrl } from '@/api'
 import { cx } from '@/components/ui'
 import { useThemes } from '@/store/useThemes'
 import './slides.css'
@@ -88,8 +88,8 @@ export interface Chrome {
   part?: string
 }
 
-export function hostHtml(html: string, scope: AssetScope, chrome?: Chrome): string {
-  let out = renderSlideHtml(normalizeSlideHtml(html), (hash) => assetUrl(scope, hash))
+export function hostHtml(html: string, scope: AssetScope, chrome?: Chrome, ground: AssetGround = 'light'): string {
+  let out = renderSlideHtml(normalizeSlideHtml(html), (hash) => assetUrl(scope, hash, ground))
   if (chrome) {
     const footer = `<footer class="chrome"><span>${esc(chrome.label)}</span>${chrome.part ? `<span class="part">${esc(chrome.part)}</span>` : ''}<span>${chrome.n}</span></footer>`
     const at = out.lastIndexOf('</section>')
@@ -102,11 +102,15 @@ export function hostHtml(html: string, scope: AssetScope, chrome?: Chrome): stri
  * hostHtml, worked out again only when what it depends on changes: callers pass scope and chrome as fresh objects
  * on every render, and sanitising a whole deck on each keystroke elsewhere on the page is wasted work.
  */
-export function useHostHtml(html: string, scope: AssetScope, chrome?: Chrome): string {
+export function useHostHtml(html: string, scope: AssetScope, chrome?: Chrome, ground: AssetGround = 'light'): string {
   const scopeKey = scope === 'library' ? 'library' : scope.workshopId
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => hostHtml(html, scope, chrome), [html, scopeKey, chrome?.label, chrome?.n, chrome?.part])
+  return useMemo(() => hostHtml(html, scope, chrome, ground), [html, scopeKey, chrome?.label, chrome?.n, chrome?.part, ground])
 }
+
+/** The ground of a theme's slides, from the list of themes: dark, and the host asks for the cut-outs made for it. */
+export const themeGround = (theme: string): AssetGround => (useThemes.getState().themes.find((t) => t.id === theme)?.dark ? 'dark' : 'light')
+export const useThemeGround = (theme: string): AssetGround => useThemes((s) => (s.themes.find((t) => t.id === theme)?.dark ? 'dark' : 'light'))
 
 /** The scale that fits a 1280-wide slide into an element, kept current while it resizes. */
 export function useFrameScale(ref: React.RefObject<HTMLElement | null>): number {
@@ -130,7 +134,7 @@ export function useFrameScale(ref: React.RefObject<HTMLElement | null>): number 
 export function SlideView({ html, theme, scope, chrome, className, onClick, label, ...rest }: { html: string; theme: string; scope: AssetScope; chrome?: Chrome; className?: string; onClick?: () => void; label?: string } & Omit<ComponentProps<'div'>, 'onClick'>) {
   const ref = useRef<HTMLDivElement>(null)
   const scale = useFrameScale(ref)
-  const rendered = useHostHtml(html, scope, chrome)
+  const rendered = useHostHtml(html, scope, chrome, useThemeGround(theme))
   useTheme(theme)
   const button = !!onClick
   return (
@@ -152,7 +156,7 @@ export function SlideView({ html, theme, scope, chrome, className, onClick, labe
 
 /** A slide at its design size for a stage that scales it (presenting, printing). */
 export function SlideStage({ html, theme, scope, chrome, scale }: { html: string; theme: string; scope: AssetScope; chrome?: Chrome; scale: number }) {
-  const rendered = useHostHtml(html, scope, chrome)
+  const rendered = useHostHtml(html, scope, chrome, useThemeGround(theme))
   useTheme(theme)
   return (
     <div className="slide-stage" style={{ transform: `scale(${scale})` }}>

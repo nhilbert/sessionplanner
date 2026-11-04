@@ -1,6 +1,6 @@
 import type { AssetScope } from '@/api'
 import type { DeckSlideRef } from '@/domain/deck'
-import { hostHtml } from '../SlideView'
+import { hostHtml, themeGround } from '../SlideView'
 import { docLang } from '../export'
 import { writePptx, type PptxSlide } from './ooxml'
 import { createStage } from '../stage'
@@ -20,9 +20,10 @@ export async function exportDeckPptx(
   const slides: PptxSlide[] = []
   let colors: ReturnType<typeof themeColors> | null = null
   let fonts: ReturnType<typeof themeFonts> | null = null
+  const ground = themeGround(options.theme)
   try {
     for (const [i, slide] of deck.entries()) {
-      const html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1, part: slide.part && options.part ? options.part(slide.part) : undefined })
+      const html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1, part: slide.part && options.part ? options.part(slide.part) : undefined }, ground)
       slides.push(await measureSlide(stage.root, html, media))
       const el = stage.root.querySelector<HTMLElement>(':scope > section.slide')
       if (el && !colors) {

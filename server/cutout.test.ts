@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cutout, cutoutPng, decodePng, encodePng } from './cutout.ts'
+import { cutout, cutoutPng, darkCutout, darkCutoutPng, decodePng, encodePng } from './cutout.ts'
 
 /** A w × h picture of one colour with a dark square inside, as RGBA. */
 function picture(w: number, h: number, bg: [number, number, number], square: { x: number; y: number; size: number } | null, alpha = 255) {
@@ -14,6 +14,22 @@ function picture(w: number, h: number, bg: [number, number, number], square: { x
 }
 
 describe('cut-outs', () => {
+  it('turns a cut-out over for a dark ground: lightness inverted, hue kept, the paper haze cleared', () => {
+    // black ink, a red ink half transparent, and the paper's grain at a faint opacity
+    const img = { width: 3, height: 1, rgba: new Uint8Array([20, 30, 40, 255, 180, 60, 60, 200, 0, 0, 0, 40]) }
+    const dark = darkCutout(img)
+    expect([...dark.rgba.subarray(0, 4)]).toEqual([215, 225, 235, 255])
+    // still red: every channel moved by the same amount; the opacity ramps up from the haze
+    expect([...dark.rgba.subarray(4, 8)]).toEqual([195, 75, 75, 178])
+    expect([...dark.rgba.subarray(8, 12)]).toEqual([0, 0, 0, 0])
+    expect(decodePng(darkCutoutPng(encodePng(img))!)).toEqual(dark)
+    expect(darkCutoutPng(Buffer.from('not a png'))).toBeNull()
+  })
+  it('leaves a picture drawn in light ink as it is: turned over it would vanish on the dark ground', () => {
+    // white strokes, all of them faint, and one dark speck that does not make it a dark drawing
+    const img = { width: 3, height: 1, rgba: new Uint8Array([255, 255, 255, 60, 250, 250, 245, 40, 10, 10, 10, 20]) }
+    expect(darkCutout(img)).toEqual(img)
+  })
   it('reads and writes PNG files the same', () => {
     const img = picture(12, 9, [200, 190, 180], { x: 3, y: 2, size: 4 })
     const back = decodePng(encodePng(img))

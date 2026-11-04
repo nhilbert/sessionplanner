@@ -26,7 +26,10 @@ export function reportFailure(err: unknown): void {
 
 /** Where a slide's pictures come from: a workshop's own route (its guests may load them) or the owner's library. */
 export type AssetScope = { workshopId: string } | 'library'
-export const assetUrl = (scope: AssetScope, hash: string): string => (scope === 'library' ? `/api/library/assets/${hash}` : `/api/workshops/${scope.workshopId}/assets/${hash}`)
+/** The ground a picture is shown on: under a dark theme the server answers with a cut-out's dark variant (docs/slides.md, section 5). */
+export type AssetGround = 'light' | 'dark'
+export const assetUrl = (scope: AssetScope, hash: string, ground: AssetGround = 'light'): string =>
+  `${scope === 'library' ? `/api/library/assets/${hash}` : `/api/workshops/${scope.workshopId}/assets/${hash}`}${ground === 'dark' ? '?ground=dark' : ''}`
 /** An asset with its original and its cut-out (docs/slides.md): the two a picture field may switch between. */
 export interface AssetInfo {
   hash: string
