@@ -3,8 +3,10 @@
 #
 # Refuses:
 #   - private files (data/, private-*/ folders, .env, databases)
-#   - anything matching a line of .git/info/private-patterns (server addresses and host names, clients, people …).
-#     That file lives inside .git, so it is never committed or pushed; create it once per clone (README, Privacy).
+#   - anything matching a line of .git/info/private-patterns (server addresses and host names, clients, people …)
+#     or of the environment variable SP_PRIVATE_PATTERNS (same format, lines or one regex). The file lives inside
+#     .git, so it is never committed or pushed; create it once per clone. A fresh cloud session has no such file:
+#     there the patterns come from the variable, set once in the environment's settings (README, Privacy).
 #   - e-mail addresses other than your own (git config user.email), example domains and noreply addresses,
 #     so no client's or participant's address slips in
 #   - public IPv4 addresses
@@ -19,10 +21,7 @@ PRIVATE_FILES='^data/|(^|/)private-[^/]*/|(^|/)\.env$|\.db$|\.db-(journal|wal|sh
 SECRETS='sk-ant-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|"refresh_token"|"access_token"'
 
 patterns_file=$(git rev-parse --git-path info/private-patterns)
-private_re=''
-if [[ -f $patterns_file ]]; then
-  private_re=$(grep -v -E '^\s*(#|$)' "$patterns_file" | paste -sd'|' || true)
-fi
+private_re=$( { [[ -f $patterns_file ]] && cat "$patterns_file" && echo; printf '%s\n' "${SP_PRIVATE_PATTERNS:-}"; } | grep -v -E '^\s*(#|$)' | paste -sd'|' || true)
 
 fail() {
   printf '\n\033[31mPrivacy guard:\033[0m %s\n' "$1" >&2
@@ -48,7 +47,7 @@ scan() {
 
 case ${1:-} in
 pre-commit)
-  [[ -n $private_re ]] || printf '\033[33mPrivacy guard:\033[0m %s is missing – server details and client names are not checked (README.md, Privacy).\n' "$patterns_file" >&2
+  [[ -n $private_re ]] || printf '\033[33mPrivacy guard:\033[0m no private patterns (%s or SP_PRIVATE_PATTERNS) – server details and client names are not checked (README.md, Privacy).\n' "$patterns_file" >&2
   bad=$(git diff --cached --name-only --diff-filter=ACMR | grep -E "$PRIVATE_FILES" || true)
   [[ -z $bad ]] || fail 'private files staged:' "$bad"
   bad=$(git diff --cached --name-only --diff-filter=ACMR | scan || true)
@@ -63,7 +62,7 @@ commit-msg)
   [[ -z $bad ]] || fail 'the commit message contains:' "$bad"
   ;;
 pre-push)
-  [[ -n $private_re ]] || fail "$patterns_file is missing, so server details and client names cannot be checked." 'Create it (README.md, Privacy), then push again.'
+  [[ -n $private_re ]] || fail "no private patterns ($patterns_file or SP_PRIVATE_PATTERNS), so server details and client names cannot be checked." 'Create the file, or set the variable in the environment (README.md, Privacy), then push again.'
   zero=0000000000000000000000000000000000000000
   while read -r _local_ref local_sha _remote_ref _remote_sha; do
     [[ $local_sha == "$zero" ]] && continue # deleting a branch publishes nothing

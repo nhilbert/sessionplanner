@@ -19,10 +19,11 @@ export function crc32(data: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0
 }
 
-async function deflateRaw(data: Uint8Array): Promise<Uint8Array | null> {
+/** Deflated bytes from the platform's CompressionStream (raw for ZIP, zlib for PDF); null where it is missing. */
+export async function compress(data: Uint8Array, format: 'deflate' | 'deflate-raw'): Promise<Uint8Array | null> {
   if (typeof CompressionStream === 'undefined') return null
   try {
-    const stream = new Blob([data as BlobPart]).stream().pipeThrough(new CompressionStream('deflate-raw'))
+    const stream = new Blob([data as BlobPart]).stream().pipeThrough(new CompressionStream(format))
     return new Uint8Array(await new Response(stream).arrayBuffer())
   } catch {
     return null
@@ -49,7 +50,7 @@ export async function zip(entries: ZipEntry[]): Promise<Uint8Array> {
     const name = enc.encode(entry.path)
     const raw = typeof entry.data === 'string' ? enc.encode(entry.data) : entry.data
     const crc = crc32(raw)
-    const packed = entry.compress === false ? null : await deflateRaw(raw)
+    const packed = entry.compress === false ? null : await compress(raw, 'deflate-raw')
     const useDeflate = !!packed && packed.length < raw.length
     const body = useDeflate ? packed! : raw
     const local = new DataView(new ArrayBuffer(30))

@@ -150,7 +150,8 @@ function materialize(root: HTMLElement) {
   root.classList.add('pp-measuring')
 }
 
-const MEASURE_CSS = `.pp-measuring::before, .pp-measuring::after, .pp-measuring *::before, .pp-measuring *::after { content: none !important; display: none !important; }`
+/** Hides the pseudo-elements once they are real elements (materialize); the stage of the export carries it. */
+export const MEASURE_CSS = `.pp-measuring::before, .pp-measuring::after, .pp-measuring *::before, .pp-measuring *::after { content: none !important; display: none !important; }`
 
 // ---------- geometry ----------
 
@@ -662,23 +663,6 @@ export function themeColors(slide: HTMLElement): { dk1: string; lt1: string; dk2
 export const themeFonts = (slide: HTMLElement): { major: string; minor: string } => {
   const cs = getComputedStyle(slide)
   return { major: fontName(cs.getPropertyValue('--font-display') || cs.fontFamily), minor: fontName(cs.getPropertyValue('--font-body') || cs.fontFamily) }
-}
-
-/** A stage the slides are laid out on at their design size, out of sight. */
-export function createStage(theme: string): { root: HTMLElement; remove: () => void } {
-  const stage = document.createElement('div')
-  stage.className = 'slide-stage'
-  stage.setAttribute('aria-hidden', 'true')
-  stage.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none;'
-  const root = document.createElement('div')
-  root.className = 'slide-root'
-  root.dataset.theme = theme
-  stage.appendChild(root)
-  const style = document.createElement('style')
-  style.textContent = MEASURE_CSS
-  document.head.appendChild(style)
-  document.body.appendChild(stage)
-  return { root, remove: () => (stage.remove(), style.remove()) }
 }
 
 /** Lays one slide out on the stage and reads it back as shapes. */

@@ -17,7 +17,7 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - German and English, light and dark.
 - **On a phone**: days stack, the sidebar fills the screen, menus and the time editor come up as bottom sheets, a tap opens an item, press and hold drags it, a tap on the length changes it.
 - **Workshops list** with search (title, client, location), each workshop's dates, agenda length and location.
-- **Slides** on steps and library entries: text in a small slide format with a fixed catalogue of layouts, one stylesheet, themes as data; a slide pool of translated decks to pick from; the deck of a workshop with generated title, agenda and break slides; present from the app with a presenter view that follows the clock; export as editable PowerPoint, as PDF (16:9 pages) or as one HTML file – see [docs/slides.md](docs/slides.md).
+- **Slides** on steps and library entries: text in a small slide format with a fixed catalogue of layouts, one stylesheet, themes as data; a slide pool of translated decks to pick from; the deck of a workshop with generated title, agenda and break slides; present from the app with a presenter view that follows the clock; export as editable PowerPoint, as PDF or as one HTML file, print 16:9 – see [docs/slides.md](docs/slides.md).
 - **Slide editor**: a slide opens to look at – large, paged by arrows, swipe or thumbnails, "Present from here" in the planner; Edit, E or a double-click on a text brings the fields. Editing shows the slide live on one side, its content as fields on the other; a click on the slide opens the field it shows. The layout is chosen from the catalogue and carries the content along; the editor says what no longer fits. A slide thumbnail anywhere – a step, the slide count on an agenda card, the deck, the library, the templates, the pool – opens the same editor, paging through what it came from; generated slides explain where they come from. The editor has its own undo and redo (in the planner one undo step per session) and keeps the keyboard focus where it belongs. **Themes** (colours, fonts, logo, with WCAG contrast checks) and **template slides** live with the pool under Slides in the navigation, shared by all workshops. Works the same on a phone: the slide on top, the fields below.
 - **AI agents** (Claude, Claude Code …) work with the same data through the built-in MCP server: draft an agenda from a brief, rework timings, fill the packing list, write and edit slides – see [docs/mcp.md](docs/mcp.md).
 
@@ -53,7 +53,9 @@ A guard enforces this on every commit and push (`.githooks/guard.sh`, enabled by
 Example Client GmbH
 ```
 
-Without it, commits only warn and pushes are refused.
+Without patterns, commits only warn and pushes are refused. `npm install` switches the hooks on (the `prepare` script).
+
+**Cloud sessions** (Claude Code on the web) start from a fresh clone, so the file is missing there. Put the same patterns into the environment variable `SP_PRIVATE_PATTERNS` of the cloud environment (environment settings, one regex per line or joined with `|`); the guard reads the variable as well as the file. The variable stays in the environment's settings and never reaches the repository.
 
 ## Licence
 

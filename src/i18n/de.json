@@ -477,7 +477,7 @@
     "downloadPptx": "Als PowerPoint speichern",
     "downloadPdf": "Als PDF speichern",
     "exporting": "Exportiere {{done}} / {{of}} …",
-    "exportHint": "PowerPoint: Textfelder, Formen und Bilder, die sich bearbeiten lassen; Schriften, die dem Rechner fehlen, werden ersetzt. PDF: Der Druckdialog öffnet sich, dort „Als PDF speichern“ wählen.",
+    "exportHint": "PowerPoint: Textfelder, Formen und Bilder zum Bearbeiten; Schriften, die dem Rechner fehlen, werden ersetzt. PDF: jede Folie so, wie sie hier aussieht, Text durchsuchbar und kopierbar.",
     "printSlides": "Folien drucken (16:9)",
     "generated": {
       "title": "Titelfolie",

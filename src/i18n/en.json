@@ -477,7 +477,7 @@
     "downloadPptx": "Save as PowerPoint",
     "downloadPdf": "Save as PDF",
     "exporting": "Exporting {{done}} / {{of}} …",
-    "exportHint": "PowerPoint: text boxes, shapes and pictures that can be edited; fonts the computer lacks are replaced. PDF: the print dialog opens, choose “Save as PDF”.",
+    "exportHint": "PowerPoint: text boxes, shapes and pictures to edit; fonts the computer lacks are replaced. PDF: every slide as it looks here, text searchable and copyable.",
     "printSlides": "Print slides (16:9)",
     "generated": {
       "title": "Title slide",

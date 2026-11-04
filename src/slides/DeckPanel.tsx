@@ -11,6 +11,7 @@ import { downloadBlob, fileSlug } from '@/print/options'
 import { SlideView } from './SlideView'
 import { exportDeckHtml } from './export'
 import { exportDeckPptx } from './pptx'
+import { exportDeckPdf } from './pdf'
 import { useDeck } from './useDeck'
 import { ThemeSelect } from './ThemeSelect'
 import { useSlideEditing } from './PlannerSlides'
@@ -23,17 +24,21 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
   const { t, i18n } = useTranslation()
   const { deck, theme, options, update, pictures } = useDeck(data)
   const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState<{ done: number; of: number } | null>(null)
+  const [progress, setProgress] = useState<{ kind: 'pptx' | 'pdf'; done: number; of: number } | null>(null)
   const title = data.workshop.title || t('workshops.untitled')
   const scope = { workshopId: data.workshop.id }
   const common = { title, theme, scope, chrome: title, lang: i18n.language, part: (p: { n: number; of: number }) => t('slides.part', p) }
-  const save = async (kind: 'html' | 'pptx') => {
+  const save = async (kind: 'html' | 'pptx' | 'pdf') => {
     setBusy(true)
+    const onProgress = (done: number, of: number) => kind !== 'html' && setProgress({ kind, done, of })
     try {
       if (kind === 'html') downloadBlob(`${fileSlug(title)}-folien.html`, await exportDeckHtml(deck, common))
-      else downloadBlob(`${fileSlug(title)}-folien.pptx`, await exportDeckPptx(deck, { ...common, onProgress: (done, of) => setProgress({ done, of }) }))
+      else if (kind === 'pdf') downloadBlob(`${fileSlug(title)}-folien.pdf`, await exportDeckPdf(deck, { ...common, onProgress }))
+      else downloadBlob(`${fileSlug(title)}-folien.pptx`, await exportDeckPptx(deck, { ...common, onProgress }))
     } catch (err) {
-      reportFailure(err)
+      // a browser that will not hand out the drawn slides (a tainted canvas): the print view makes the PDF instead
+      if (kind === 'pdf' && err instanceof DOMException && err.name === 'SecurityError') window.open(`/w/${data.workshop.id}/print/slides`, '_blank', 'noopener')
+      else reportFailure(err)
     } finally {
       setBusy(false)
       setProgress(null)
@@ -58,11 +63,11 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => void save('pptx')} disabled={!deck.length || busy}>
           <Presentation size={13} />
-          {progress ? t('slides.exporting', progress) : t('slides.downloadPptx')}
+          {progress?.kind === 'pptx' ? t('slides.exporting', progress) : t('slides.downloadPptx')}
         </Button>
-        <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/print/slides?pdf=1`, '_blank', 'noopener')} disabled={!deck.length}>
+        <Button size="sm" onClick={() => void save('pdf')} disabled={!deck.length || busy}>
           <FileText size={13} />
-          {t('slides.downloadPdf')}
+          {progress?.kind === 'pdf' ? t('slides.exporting', progress) : t('slides.downloadPdf')}
         </Button>
         <Button size="sm" onClick={() => void save('html')} disabled={!deck.length || busy}>
           <Download size={13} />

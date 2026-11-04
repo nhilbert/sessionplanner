@@ -1,8 +1,10 @@
 import type { AssetScope } from '@/api'
 import type { DeckSlideRef } from '@/domain/deck'
 import { hostHtml } from '../SlideView'
+import { docLang } from '../export'
 import { writePptx, type PptxSlide } from './ooxml'
-import { MediaStore, createStage, measureSlide, themeColors, themeFonts } from './measure'
+import { createStage } from '../stage'
+import { MEASURE_CSS, MediaStore, measureSlide, themeColors, themeFonts } from './measure'
 
 /**
  * The deck as an editable PowerPoint file (docs/slides.md, section 5): every slide laid out by the browser with the
@@ -13,7 +15,7 @@ export async function exportDeckPptx(
   deck: DeckSlideRef[],
   options: { title: string; theme: string; scope: AssetScope; chrome: string; lang: string; part?: (p: { n: number; of: number }) => string; onProgress?: (done: number, of: number) => void },
 ): Promise<Blob> {
-  const stage = createStage(options.theme)
+  const stage = createStage(options.theme, MEASURE_CSS)
   const media = new MediaStore()
   const slides: PptxSlide[] = []
   let colors: ReturnType<typeof themeColors> | null = null
@@ -32,7 +34,7 @@ export async function exportDeckPptx(
   } finally {
     stage.remove()
   }
-  const lang = options.lang.includes('-') ? options.lang : options.lang === 'de' ? 'de-DE' : options.lang === 'en' ? 'en-US' : options.lang
+  const lang = docLang(options.lang)
   const bytes = await writePptx({
     title: options.title,
     lang,
