@@ -250,6 +250,15 @@ const loadImage = (src: string): Promise<HTMLImageElement | null> =>
     img.src = src
   })
 
+/** A data address, not a blob: the app's Content-Security-Policy lets pictures load from data: only. */
+const dataAddress = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error ?? new Error('picture could not be read'))
+    reader.readAsDataURL(blob)
+  })
+
 async function rasterize(src: string, w: number, h: number): Promise<Uint8Array | null> {
   const img = await loadImage(src)
   if (!img) return null
@@ -267,16 +276,13 @@ async function pictureMedia(url: string, natural: { w: number; h: number }): Pro
   const type = blob.type || ''
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return [{ ext: 'png', data: bytes }]
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return [{ ext: 'jpeg', data: bytes }]
-  const objectUrl = URL.createObjectURL(blob)
-  try {
-    const isSvg = type.includes('svg') || /^\s*(<\?xml|<svg)/.test(new TextDecoder().decode(bytes.slice(0, 200)))
-    const scale = isSvg ? Math.max(1, 1600 / Math.max(natural.w, natural.h, 1)) : 1
-    const png = await rasterize(objectUrl, natural.w * scale, natural.h * scale)
-    if (!png) return null
-    return isSvg ? [{ ext: 'png', data: png }, { ext: 'svg', data: bytes }] : [{ ext: 'png', data: png }]
-  } finally {
-    URL.revokeObjectURL(objectUrl)
-  }
+  const isSvg = type.includes('svg') || /^\s*(<\?xml|<svg)/.test(new TextDecoder().decode(bytes.slice(0, 200)))
+  const scale = isSvg ? Math.max(1, 1600 / Math.max(natural.w, natural.h, 1)) : 1
+  // a data address is not sniffed as a blob is, so an SVG served without its type gets it here
+  const src = await dataAddress(isSvg ? new Blob([bytes], { type: 'image/svg+xml' }) : blob)
+  const png = await rasterize(src, natural.w * scale, natural.h * scale)
+  if (!png) return null
+  return isSvg ? [{ ext: 'png', data: png }, { ext: 'svg', data: bytes }] : [{ ext: 'png', data: png }]
 }
 
 /** Places a picture of natural size into a box as object-fit / background-size would, cropped to the visible part. */
@@ -352,13 +358,8 @@ async function svgShape(c: Ctx, svg: SVGSVGElement) {
   const text = new XMLSerializer().serializeToString(clone)
   const bytes = new TextEncoder().encode(text)
   const media = await c.media.get(`svg:${text}`, async () => {
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'image/svg+xml' }))
-    try {
-      const png = await rasterize(url, r.w * 2, r.h * 2)
-      return png ? [{ ext: 'png', data: png }, { ext: 'svg', data: bytes }] : null
-    } finally {
-      URL.revokeObjectURL(url)
-    }
+    const png = await rasterize(await dataAddress(new Blob([bytes], { type: 'image/svg+xml' })), r.w * 2, r.h * 2)
+    return png ? [{ ext: 'png', data: png }, { ext: 'svg', data: bytes }] : null
   })
   if (media === null) return
   placePicture(c, svg, svg.getAttribute('aria-label') || 'diagram', media, r, clipOf(svg, c), opacityOf(svg, c), svg.getAttribute('aria-label') || undefined)
