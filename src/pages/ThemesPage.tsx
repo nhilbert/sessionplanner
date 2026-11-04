@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { isDark } from '@/domain/color'
 import { useSearchParams } from 'react-router'
 import { Copy, Moon, Plus, Trash2, Upload, X } from 'lucide-react'
 import { api } from '@/api'
@@ -367,8 +368,9 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
         <section className="card p-5 lg:col-span-2">
           <SectionLabel>{t('themes.logo')}</SectionLabel>
           <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.logoHint')}</p>
+          <p className="mb-3 text-[12px] leading-snug text-ink-3">{isDark(tokens.colors.bg) ? t('themes.logoPrintDark') : t('themes.logoPrint')}</p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <LogoSlot label={t('themes.logo')} url={logoUrl} dark={false} onFile={async (f) => setLogos(await api.uploadThemeLogo(theme.id, f, 'logo'))} onRemove={async () => setLogos(await api.deleteThemeLogo(theme.id, 'logo'))} afterChange={() => reloadTheme(theme.id)} />
+            <LogoSlot label={t('themes.logo')} url={logoUrl} dark={isDark(tokens.colors.bg)} background={tokens.colors.bg} onFile={async (f) => setLogos(await api.uploadThemeLogo(theme.id, f, 'logo'))} onRemove={async () => setLogos(await api.deleteThemeLogo(theme.id, 'logo'))} afterChange={() => reloadTheme(theme.id)} />
             <LogoSlot label={t('themes.logoLight')} url={logoLightUrl} dark onFile={async (f) => setLogos(await api.uploadThemeLogo(theme.id, f, 'logoLight'))} onRemove={async () => setLogos(await api.deleteThemeLogo(theme.id, 'logoLight'))} afterChange={() => reloadTheme(theme.id)} background={tokens.colors.field} />
           </div>
         </section>

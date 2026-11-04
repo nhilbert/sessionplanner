@@ -20,6 +20,8 @@ export function Toolbar({
   onCopy,
   onDownload,
   copied,
+  logoSource,
+  themeName,
 }: {
   variant: PrintVariant
   onVariant: (v: PrintVariant) => void
@@ -31,6 +33,9 @@ export function Toolbar({
   onCopy: () => void
   onDownload: () => void
   copied: boolean
+  /** Where the logo in the head comes from, and the name of the workshop's theme, shown beside the switches. */
+  logoSource: 'theme' | 'owner' | null
+  themeName: string
 }) {
   const { t } = useTranslation()
   const choices = PRINT_CHOICES[variant]
@@ -73,7 +78,9 @@ export function Toolbar({
             )}
           </div>
         )}
-        <p className="w-full text-[11.5px] text-black/50">{t('print.hint')}</p>
+        <p className="w-full text-[11.5px] text-black/50">
+          {t(`print.logoSource.${logoSource ?? 'none'}`, { theme: themeName })} {t('print.hint')}
+        </p>
       </div>
     </div>
   )

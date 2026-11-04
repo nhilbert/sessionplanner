@@ -31,6 +31,8 @@ export interface PrintOptions {
   workshopNotes: boolean
   pageBreakDays: boolean
   landscape: boolean
+  /** The logo of the workshop's branding in the head. */
+  logo: boolean
   // Moderation plan only
   /** A box to tick per step and per piece of material. */
   checkboxes: boolean
@@ -55,6 +57,7 @@ const ALL: PrintOptions = {
   workshopNotes: true,
   pageBreakDays: true,
   landscape: false,
+  logo: true,
   checkboxes: true,
   dayOverview: true,
   appendPacking: false,
@@ -70,10 +73,10 @@ export const PRINT_DEFAULTS: Record<PrintVariant, PrintOptions> = {
 
 /** The switches each view offers, in the order they are shown. */
 export const PRINT_CHOICES: Record<PrintVariant, (keyof PrintOptions)[]> = {
-  overview: ['landscape', 'duration', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays'],
-  plan: ['checkboxes', 'dayOverview', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays', 'appendPacking'],
-  agenda: ['description', 'goal', 'lead', 'duration', 'breaks', 'markers', 'workshopGoal', 'pageBreakDays'],
-  packing: [],
+  overview: ['landscape', 'logo', 'duration', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays'],
+  plan: ['logo', 'checkboxes', 'dayOverview', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays', 'appendPacking'],
+  agenda: ['logo', 'description', 'goal', 'lead', 'duration', 'breaks', 'markers', 'workshopGoal', 'pageBreakDays'],
+  packing: ['logo'],
 }
 
 export const PRINT_VARIANTS: readonly PrintVariant[] = ['overview', 'plan', 'agenda', 'packing']

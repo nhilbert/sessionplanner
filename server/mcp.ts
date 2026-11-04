@@ -71,7 +71,7 @@ const workshopFields = {
   location: z.string().optional(),
   goal: z.string().optional(),
   notes: z.string().nullable().optional().describe('Notes on the workshop as a whole; null clears'),
-  theme: z.string().nullable().optional().describe('Slide theme (settings_get lists them); "default" is the built-in one, null follows the settings'),
+  theme: z.string().nullable().optional().describe('Slide theme and branding (settings_get lists them): the slides and the logo on the printouts; "default" is the built-in one, null follows the settings'),
 }
 
 type Input = Record<string, unknown>

@@ -153,7 +153,9 @@
     "copyTitle": "{{title}} (Kopie)",
     "daysFollow": "die weiteren Tage folgen",
     "duplicateHint": "Kopiert Tage, Gruppen, Punkte, Material und Dateien. Die Packliste beginnt unabgehakt.",
-    "days": "Tage"
+    "days": "Tage",
+    "branding": "Branding (Theme)",
+    "brandingHint": "Bestimmt die Folien und das Logo auf den Ausdrucken dieses Workshops. Hat das Theme kein Logo für Papier, steht dort das Ausdruck-Logo aus den Einstellungen. Themes werden unter Folien → Themes bearbeitet."
   },
   "packing": {
     "empty": "Noch kein Material. Ergänze Material an den Agendapunkten.",
@@ -226,7 +228,13 @@
       "landscape": "Querformat",
       "checkboxes": "Kästchen zum Abhaken",
       "dayOverview": "Tagesübersicht voranstellen",
-      "appendPacking": "Packliste anhängen"
+      "appendPacking": "Packliste anhängen",
+      "logo": "Logo"
+    },
+    "logoSource": {
+      "theme": "Logo aus dem Branding „{{theme}}“.",
+      "owner": "Logo aus den Einstellungen (das Branding „{{theme}}“ hat keins für Papier).",
+      "none": "Kein Logo: weder das Branding „{{theme}}“ noch die Einstellungen haben eins."
     }
   },
   "nav": {
@@ -250,7 +258,7 @@
     "newCategory": "Neue Kategorie",
     "removeCategory": "Kategorie entfernen",
     "logo": "Logo",
-    "logoHint": "Erscheint oben auf jedem Ausdruck. PNG, JPEG, WebP oder SVG, bis 2 MB.",
+    "logoHint": "Erscheint oben auf den Ausdrucken, wenn das Theme des Workshops kein eigenes Logo hat. PNG, JPEG, WebP oder SVG, bis 2 MB.",
     "uploadLogo": "Logo hochladen",
     "removeLogo": "Entfernen",
     "logoTooLarge": "Das Logo ist größer als 2 MB.",
@@ -267,8 +275,8 @@
     "disconnect": "Trennen",
     "agentsDisconnectConfirm": "{{name}} trennen? Der Zugriff endet sofort und muss neu freigegeben werden.",
     "agentsError": "Verbindungen konnten nicht geladen oder geändert werden ({{error}}). Bitte erneut versuchen; bis dahin bleiben sie unverändert.",
-    "theme": "Folien-Theme",
-    "themeHint": "Das Theme der Folien neuer Workshops; jeder Workshop kann im Tab „Folien“ ein anderes wählen. Theme-Ordner unter data/themes (theme.css, Schriften, Logos) erscheinen ebenfalls in der Auswahl.",
+    "theme": "Branding (Theme)",
+    "themeHint": "Das Branding neuer Workshops: Folien und Logo der Ausdrucke. Jeder Workshop kann in seinen Details oder im Tab „Folien“ ein anderes wählen. Theme-Ordner unter data/themes (theme.css, Schriften, Logos) erscheinen ebenfalls in der Auswahl.",
     "sweepHint": "Bilder, die keine Folie mehr zeigt (in Workshops, Bibliothek, Foliensammlung oder Vorlagen), werden gelöscht.",
     "slides": "Folien",
     "slidesHint": "Themes und Vorlagen findest du unter „Folien“ in der Navigation."
@@ -547,7 +555,8 @@
     "markup": "**fett** · *kursiv* · ==Akzent==",
     "generatedHint": "Diese Art Folie erzeugt die App aus dem Plan; schreib sie nur für einen Sonderfall selbst.",
     "openSlides": "Folien öffnen",
-    "deckTheme": "Theme dieses Workshops"
+    "deckTheme": "Branding (Theme)",
+    "themeDefaultNamed": "Standard (Einstellungen: {{name}})"
   },
   "editor": {
     "layout": "Layout",
@@ -706,7 +715,7 @@
   },
   "themes": {
     "title": "Folien-Themes",
-    "subtitle": "Farben, Schriften und Logo der Folien. Ein Theme wird je Workshop gewählt; die Layouts bleiben gleich.",
+    "subtitle": "Farben, Schriften und Logo der Folien; das Logo steht auch auf den Ausdrucken. Ein Theme wird je Workshop als Branding gewählt; die Layouts bleiben gleich.",
     "new": "Neues Theme",
     "newDark": "Neues dunkles Theme",
     "copy": "Kopieren",
@@ -715,7 +724,7 @@
     "name": "Name",
     "builtin": "Eingebaut",
     "folder": "Ordner (data/themes)",
-    "folderHint": "Dieses Theme ist ein Stylesheet auf dem Server und wird dort gepflegt.",
+    "folderHint": "Dieses Theme ist ein Stylesheet auf dem Server und wird dort gepflegt. Auf die Ausdrucke kommt eine Datei logo.svg, logo.png, logo.webp oder logo.jpg neben der theme.css; ohne sie das Ausdruck-Logo aus den Einstellungen.",
     "builtinHint": "Das neutrale Theme der App. Kopiere es, um eigene Farben zu setzen.",
     "colors": "Farben",
     "derived": "Abgeleitete Töne",
@@ -826,7 +835,9 @@
     "uploadFiles": "Dateien hochladen",
     "removeFile": "Datei entfernen",
     "fileFailed": "Die Datei konnte nicht hochgeladen werden (Schrift oder Bild, bis 5 MB).",
-    "filesEmpty": "Noch keine Dateien."
+    "filesEmpty": "Noch keine Dateien.",
+    "logoPrint": "Das Logo steht auch oben auf den Ausdrucken der Workshops mit diesem Theme (auf weißem Papier).",
+    "logoPrintDark": "Dunkles Theme: Sein Logo ist für den dunklen Grund gemacht und erscheint nicht auf den Ausdrucken; dort steht das Ausdruck-Logo aus den Einstellungen."
   },
   "templates": {
     "title": "Folienvorlagen",

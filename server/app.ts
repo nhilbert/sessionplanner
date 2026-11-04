@@ -200,8 +200,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!access) return c.json({ error: 'not_found' }, 404)
     if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
     const { clientId, ops } = validateOps(await jsonBody(c))
-    // Guests plan along; archiving stays with the owner.
-    if (access !== 'owner' && ops.some((o) => o.op === 'set' && o.entity === 'workshop' && 'archived' in o.fields)) return c.json({ error: 'forbidden' }, 403)
+    // Guests plan along; archiving and the branding (theme: slides and the logo on the printouts) stay with the owner.
+    if (access !== 'owner' && ops.some((o) => o.op === 'set' && o.entity === 'workshop' && ('archived' in o.fields || 'theme' in o.fields))) return c.json({ error: 'forbidden' }, 403)
     const stored = repo.applyOps(id, ops)
     if (!stored) return c.json({ error: 'not_found' }, 404)
     if (stored.length) hub.publish(id, { type: 'ops', clientId, ops: stored })
