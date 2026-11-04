@@ -28,16 +28,16 @@ describe('colour', () => {
 describe('workshop branding', () => {
   const themes = [
     { id: 'default', name: 'default', kind: 'builtin' as const },
-    { id: 'client', name: 'Client', kind: 'data' as const, logo: '/api/themes/client/logo?v=1' },
-    { id: 'plain', name: 'Plain', kind: 'data' as const, logo: null },
+    { id: 'client', name: 'Client', kind: 'data' as const, printLogo: '/api/themes/client/logo?v=1' },
+    { id: 'plain', name: 'Plain', kind: 'data' as const, printLogo: null },
   ]
   it("takes the workshop's theme, else the settings', else the default, and that theme's logo", () => {
-    expect(workshopBrand('client', 'plain', themes, '/api/settings/logo')).toEqual({ theme: 'client', logo: '/api/themes/client/logo?v=1' })
-    expect(workshopBrand('', 'client', themes, null)).toEqual({ theme: 'client', logo: '/api/themes/client/logo?v=1' })
-    expect(workshopBrand('', '', themes, null)).toEqual({ theme: 'default', logo: null })
+    expect(workshopBrand('client', 'plain', themes, '/api/settings/logo')).toEqual({ theme: 'client', logo: '/api/themes/client/logo?v=1', source: 'theme' })
+    expect(workshopBrand('', 'client', themes, null)).toEqual({ theme: 'client', logo: '/api/themes/client/logo?v=1', source: 'theme' })
+    expect(workshopBrand('', '', themes, null)).toEqual({ theme: 'default', logo: null, source: null })
   })
   it("falls back to the owner's printout logo when the theme has none or is gone", () => {
-    expect(workshopBrand('plain', '', themes, '/api/settings/logo')).toEqual({ theme: 'plain', logo: '/api/settings/logo' })
+    expect(workshopBrand('plain', '', themes, '/api/settings/logo')).toEqual({ theme: 'plain', logo: '/api/settings/logo', source: 'owner' })
     expect(workshopBrand('gone', '', themes, '/api/settings/logo').logo).toBe('/api/settings/logo')
     expect(workshopBrand('', '', themes, '/api/settings/logo').logo).toBe('/api/settings/logo')
   })

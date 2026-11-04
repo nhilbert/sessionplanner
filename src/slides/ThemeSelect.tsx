@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Select, useLocalState } from '@/components/ui'
 import { themeLabel, useThemes } from '@/store/useThemes'
+import { useSettings } from '@/store/useSettings'
 
 /**
  * The slide themes the server has (built in, folders in data/themes, themes kept as data), by name. Without
@@ -12,15 +13,18 @@ import { themeLabel, useThemes } from '@/store/useThemes'
 export function ThemeSelect({ value, onChange, withDefault, defaultLabel, className }: { value: string; onChange: (theme: string) => void; withDefault?: boolean; /** What '' means here, when it isn't the settings. */ defaultLabel?: string; className?: string }) {
   const { t } = useTranslation()
   const { themes, load } = useThemes()
+  const usual = useSettings((s) => s.settings.theme) || 'default'
   useEffect(() => {
     void load(true)
   }, [load])
+  // '' follows the settings: name the theme it stands for, so the choice says what the slides and printouts get.
+  const usualLabel = t('slides.themeDefaultNamed', { name: themeLabel(themes.find((x) => x.id === usual), usual, t) })
   const shown = !withDefault && value === 'default' ? '' : value
   // A theme chosen before it went away (deleted, folder removed) still shows as chosen, so it can be changed.
   const gone = !!shown && shown !== 'default' && !themes.some((x) => x.id === shown)
   return (
     <Select value={shown} onChange={(e) => onChange(e.target.value)} className={className ?? 'h-8 w-auto text-[13px]'} aria-label={t('slides.theme')}>
-      {withDefault && <option value="">{defaultLabel ?? t('slides.themeDefault')}</option>}
+      {withDefault && <option value="">{defaultLabel ?? usualLabel}</option>}
       {themes.map((info) => (
         <option key={info.id} value={info.id === 'default' && !withDefault ? '' : info.id}>
           {themeLabel(info, info.id, t)}

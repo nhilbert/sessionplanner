@@ -29,7 +29,7 @@ function pageCss(landscape: boolean, footer: string, page: string, of: string): 
 }
 
 /** One print view of a workshop with its switches; keyed by variant by the page, so the switches reload when it changes. */
-export default function PrintView({ data, variant, logo, categories, onVariant }: { data: WorkshopState; variant: PrintVariant; logo: string | null; categories: Category[]; onVariant: (v: PrintVariant) => void }) {
+export default function PrintView({ data, variant, logo, logoSource, themeName, categories, onVariant }: { data: WorkshopState; variant: PrintVariant; logo: string | null; logoSource: 'theme' | 'owner' | null; themeName: string; categories: Category[]; onVariant: (v: PrintVariant) => void }) {
   const { t } = useTranslation()
   const { options, update, reset, changed } = usePrintOptions(variant)
   const [copied, setCopied] = useState(false)
@@ -52,9 +52,9 @@ export default function PrintView({ data, variant, logo, categories, onVariant }
   return (
     <div className="print-root">
       <style>{pageCss(landscape, [title, dateRange(days, formatDate)].filter(Boolean).join(' · '), t('print.pageLabel'), t('print.pageOf'))}</style>
-      <Toolbar variant={variant} onVariant={onVariant} options={options} update={update} reset={reset} changed={changed} onPrint={() => window.print()} onCopy={() => void copy()} onDownload={() => downloadText(fileName, markdown())} copied={copied} />
+      <Toolbar variant={variant} onVariant={onVariant} options={options} update={update} reset={reset} changed={changed} onPrint={() => window.print()} onCopy={() => void copy()} onDownload={() => downloadText(fileName, markdown())} copied={copied} logoSource={logoSource} themeName={themeName} />
       <main className={cx('sheet mx-auto my-6 px-[12mm] py-[14mm] text-[12.5px] leading-[1.4] print:m-0 print:w-auto print:max-w-none print:p-0', landscape ? 'max-w-[297mm]' : 'max-w-[210mm]')}>
-        <Head data={data} variant={variant} options={options} logo={logo} />
+        <Head data={data} variant={variant} options={options} logo={options.logo ? logo : null} />
         {variant === 'packing' ? (
           <PackingSheet data={data} />
         ) : (

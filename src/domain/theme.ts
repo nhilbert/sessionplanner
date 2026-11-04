@@ -102,17 +102,22 @@ export interface ThemeInfo {
   name: string
   kind: 'builtin' | 'folder' | 'data'
   updatedAt?: string
-  /** The address of the theme's logo (an uploaded one, or a logo file beside a folder's theme.css); null or absent without one. */
-  logo?: string | null
+  /**
+   * The address of the logo the theme's printouts show, on white paper: the uploaded logo of a light theme, or a logo
+   * file beside a folder's theme.css; null or absent without one (a dark theme's logo is made for its dark ground).
+   */
+  printLogo?: string | null
 }
 
 /**
- * The branding of a workshop: the theme it is set to ('' follows the settings), and the logo its printouts show –
- * the theme's, or the owner's printout logo when the theme has none (docs/concept.md, section 6).
+ * The branding of a workshop: the theme it is set to ('' follows the settings), the logo its printouts show – the
+ * theme's printout logo, or the owner's printout logo when the theme has none (docs/concept.md, section 6) – and
+ * where that logo comes from.
  */
-export function workshopBrand(workshopTheme: string, settingsTheme: string, themes: ThemeInfo[], ownerLogo: string | null): { theme: string; logo: string | null } {
+export function workshopBrand(workshopTheme: string, settingsTheme: string, themes: ThemeInfo[], ownerLogo: string | null): { theme: string; logo: string | null; source: 'theme' | 'owner' | null } {
   const theme = workshopTheme || settingsTheme || 'default'
-  return { theme, logo: themes.find((x) => x.id === theme)?.logo || ownerLogo }
+  const own = themes.find((x) => x.id === theme)?.printLogo
+  return own ? { theme, logo: own, source: 'theme' } : { theme, logo: ownerLogo, source: ownerLogo ? 'owner' : null }
 }
 
 /** The neutral default, the same colours as themes/default.css. */

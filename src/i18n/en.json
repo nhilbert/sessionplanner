@@ -154,8 +154,8 @@
     "daysFollow": "the other days follow",
     "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked.",
     "days": "Days",
-    "branding": "Branding",
-    "brandingHint": "The theme of this workshop: its slides, and the logo on its printouts (the printout logo from the settings when the theme has none). Themes are edited under Slides → Themes."
+    "branding": "Branding (theme)",
+    "brandingHint": "Sets the slides and the logo on the printouts of this workshop. If the theme has no logo for paper, the printout logo from the settings is used. Themes are edited under Slides → Themes."
   },
   "packing": {
     "empty": "No material yet. Add material to the agenda items.",
@@ -228,7 +228,13 @@
       "landscape": "Landscape",
       "checkboxes": "Tick boxes",
       "dayOverview": "Day at a glance first",
-      "appendPacking": "Append packing list"
+      "appendPacking": "Append packing list",
+      "logo": "Logo"
+    },
+    "logoSource": {
+      "theme": "Logo from the branding “{{theme}}”.",
+      "owner": "Logo from the settings (the branding “{{theme}}” has none for paper).",
+      "none": "No logo: neither the branding “{{theme}}” nor the settings have one."
     }
   },
   "nav": {
@@ -269,8 +275,8 @@
     "disconnect": "Disconnect",
     "agentsDisconnectConfirm": "Disconnect {{name}}? It loses access immediately and has to be approved again.",
     "agentsError": "Could not load or change the connections ({{error}}). Try again; until then they stay as they were.",
-    "theme": "Slide theme",
-    "themeHint": "The theme (slides and printout logo) of new workshops; each workshop can choose another in its details or its Slides tab. Theme folders under data/themes (theme.css, fonts, logos) appear in the choice too.",
+    "theme": "Branding (theme)",
+    "themeHint": "The branding of new workshops: slides and the logo on printouts. Each workshop can choose another in its details or its Slides tab. Theme folders under data/themes (theme.css, fonts, logos) appear in the choice too.",
     "sweepHint": "Pictures no slide shows any more (in workshops, the library, the pool or templates) are deleted.",
     "slides": "Slides",
     "slidesHint": "Themes and templates are under “Slides” in the navigation."
@@ -549,7 +555,8 @@
     "markup": "**bold** · *italic* · ==accent==",
     "generatedHint": "The app generates this kind of slide from the plan; write one only for a special case.",
     "openSlides": "Open slides",
-    "deckTheme": "Theme of this workshop"
+    "deckTheme": "Branding (theme)",
+    "themeDefaultNamed": "Default (settings: {{name}})"
   },
   "editor": {
     "layout": "Layout",
@@ -708,7 +715,7 @@
   },
   "themes": {
     "title": "Slide themes",
-    "subtitle": "Colours, fonts and logo of the slides. A theme is chosen per workshop; the layouts stay the same.",
+    "subtitle": "Colours, fonts and logo of the slides; the logo also heads the printouts. A theme is chosen per workshop as its branding; the layouts stay the same.",
     "new": "New theme",
     "newDark": "New dark theme",
     "copy": "Copy",
@@ -717,7 +724,7 @@
     "name": "Name",
     "builtin": "Built in",
     "folder": "Folder (data/themes)",
-    "folderHint": "This theme is a stylesheet on the server and is maintained there.",
+    "folderHint": "This theme is a stylesheet on the server and is maintained there. Printouts show a file logo.svg, logo.png, logo.webp or logo.jpg beside its theme.css; without one, the printout logo from the settings.",
     "builtinHint": "The app's neutral theme. Copy it to set your own colours.",
     "colors": "Colours",
     "derived": "Derived tones",
@@ -828,7 +835,9 @@
     "uploadFiles": "Upload files",
     "removeFile": "Remove file",
     "fileFailed": "The file could not be uploaded (a font or picture, up to 5 MB).",
-    "filesEmpty": "No files yet."
+    "filesEmpty": "No files yet.",
+    "logoPrint": "The logo also heads the printouts of the workshops in this theme (on white paper).",
+    "logoPrintDark": "Dark theme: its logo is made for the dark ground and is not used on printouts; they show the printout logo from the settings."
   },
   "templates": {
     "title": "Slide templates",

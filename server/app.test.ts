@@ -569,6 +569,8 @@ describe('guests', () => {
     expect((await change(BEN, { duration: 90 })).status).toBe(200)
     const archive = await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: BEN, body: JSON.stringify({ clientId: 'g', ops: [{ op: 'set', entity: 'workshop', id, fields: { archived: true } }] }) })
     expect(archive.status).toBe(403)
+    const brand = await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: BEN, body: JSON.stringify({ clientId: 'g', ops: [{ op: 'set', entity: 'workshop', id, fields: { theme: 'default' } }] }) })
+    expect(brand.status).toBe(403)
     expect((await app.request(`${pub}/api/workshops/${id}`, { method: 'DELETE', headers: BEN })).status).toBe(403)
     expect((await app.request(`${pub}/api/workshops/${id}/duplicate`, { method: 'POST', headers: BEN, body: JSON.stringify({ title: 'x' }) })).status).toBe(403)
   })

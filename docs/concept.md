@@ -125,13 +125,16 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far. The presentation view is its seed; a break slide could show the re-forecast end.
 - Slides: a best-effort PPTX export from the format; moving a slide between items; updating placed copies from the library; themes and templates through the connector.
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
+- Logos named by their ground instead of by place: "on a light ground" and "on a dark ground" for each theme, chosen by the app by the brightness of what they stand on (slide background, field, white paper), so a dark partner theme can bring its colour logo for the printouts. Existing logos would move by the brightness of their theme's background. Wait for the first dark partner theme.
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
 
 **2026-11-04, branding per workshop** (revises "only the owner's logo on the printouts" of 2026-10-29)
 
-- A workshop's theme is its branding: it is chosen in the workshop's details (Branding) as well as in its Slides tab, and drives the slides and the printouts alike. The printouts show the theme's logo (an uploaded one, or `logo.svg`/`.png`/`.webp`/`.jpg` beside a folder theme's theme.css); the owner's printout logo in the settings is the fallback for a theme without one. The theme list (`GET /api/themes`) carries each theme's logo address, so guests' printouts show it too.
+- A workshop's theme is its branding, called "Branding (theme)" wherever it is chosen: in the workshop's details, in its Slides tab and, for new workshops, in the settings; "Default" there names the theme it stands for. It drives the slides and the printouts alike, and stays with the owner (guests with edit rights may not change it, like archiving).
+- The printouts show the theme's logo for paper: the uploaded logo of a light theme, or `logo.svg`/`.png`/`.webp`/`.jpg` beside a folder theme's theme.css. A dark theme's logo is made for its dark ground and would vanish on white paper, so a dark theme has none for paper. Without one, the owner's printout logo from the settings stands there. The theme list (`GET /api/themes`) carries each theme's `printLogo`, so guests' printouts show it too.
+- Each print view says where its logo comes from (the branding, or the settings and why) and has a switch "Logo", remembered like the others, for a neutral printout without changing the branding. The theme editor says that the logo heads the printouts, and that a dark theme's does not; its logo preview stands on the theme's own ground.
 - The printouts stay black on white: the theme gives them its logo, not its colours or fonts, so the rules of section 6 (no colour that carries meaning, readable on any printer) still hold.
 - Counter-argument considered: a client agenda for a workshop in a partner's theme now carries the partner's logo instead of the owner's. Wanted, since agenda and slides should look like one set; a workshop that should carry the owner's logo uses a theme without a logo, or the owner's theme.
 

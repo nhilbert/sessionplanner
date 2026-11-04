@@ -7,6 +7,7 @@ import { isPrintVariant, type PrintVariant } from '@/domain/print'
 import { useSettings } from '@/store/useSettings'
 import { useThemes } from '@/store/useThemes'
 import { workshopBrand } from '@/domain/theme'
+import { themeLabel } from '@/store/useThemes'
 import PrintView from '@/print/PrintView'
 import SlidesPrint from '@/slides/SlidesPrint'
 
@@ -41,6 +42,7 @@ export default function PrintPage() {
   if (failed) return <p className="p-8 text-rose">{t('common.missing')}</p>
   if (!data) return <p className="p-8 text-ink-2">{t('common.loading')}</p>
   if (variant === 'slides') return <SlidesPrint data={data} />
-  const { logo } = workshopBrand(data.workshop.theme, settings.theme, themes, api.logoUrl(settings))
-  return <PrintView key={v} data={data} variant={v} logo={logo} categories={settings.categories} onVariant={(next) => void navigate(`/w/${id}/print/${next}`, { replace: true })} />
+  const brand = workshopBrand(data.workshop.theme, settings.theme, themes, api.logoUrl(settings))
+  const info = themes.find((x) => x.id === brand.theme)
+  return <PrintView key={v} data={data} variant={v} logo={brand.logo} logoSource={brand.source} themeName={info ? themeLabel(info, info.id, t) : brand.theme} categories={settings.categories} onVariant={(next) => void navigate(`/w/${id}/print/${next}`, { replace: true })} />
 }

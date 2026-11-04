@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { type Theme, type ThemeInfo, themeLogoUrl } from '../src/domain/theme.ts'
+import { isDark } from '../src/domain/color.ts'
 
 /** A theme folder's name under data/themes, as the server accepts it in a URL and on a workshop. */
 export const THEME_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/
@@ -30,15 +31,16 @@ function folderLogo(themesDir: string, name: string): string | null {
 /**
  * Every slide theme the server has: the built-in default, the folders in `themesDir` and the themes kept as data
  * (`dataThemes`, from the repo). A data theme with the name of a folder hides the folder. Each carries the address
- * of its logo where it has one, so the printouts of a workshop can show the logo of its theme.
+ * of the logo its printouts show (`printLogo`), where it has one that stands on white paper: the uploaded logo of a
+ * light theme (a dark theme's logo is made for its dark ground), or the logo file beside a folder's theme.css.
  */
-export function listThemes(themesDir: string | undefined, dataThemes: (Pick<Theme, 'id' | 'name' | 'updatedAt'> & Partial<Pick<Theme, 'logo' | 'logoLight'>>)[] = []): ThemeInfo[] {
+export function listThemes(themesDir: string | undefined, dataThemes: (Pick<Theme, 'id' | 'name' | 'updatedAt'> & Partial<Pick<Theme, 'logo' | 'logoLight' | 'tokens'>>)[] = []): ThemeInfo[] {
   const data = new Set(dataThemes.map((t) => t.id))
   return [
     { id: 'default', name: 'default', kind: 'builtin' },
     ...folderThemes(themesDir)
       .filter((n) => n !== 'default' && !data.has(n))
-      .map((n): ThemeInfo => ({ id: n, name: n, kind: 'folder', logo: folderLogo(themesDir!, n) })),
-    ...dataThemes.filter((t) => t.id !== 'default').map((t): ThemeInfo => ({ id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, logo: themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo') })),
+      .map((n): ThemeInfo => ({ id: n, name: n, kind: 'folder', printLogo: folderLogo(themesDir!, n) })),
+    ...dataThemes.filter((t) => t.id !== 'default').map((t): ThemeInfo => ({ id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, printLogo: t.tokens && isDark(t.tokens.colors.bg) ? null : themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo') })),
   ]
 }

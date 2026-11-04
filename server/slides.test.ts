@@ -131,7 +131,7 @@ describe('slide assets', () => {
     const { app } = setup()
     expect(await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()).toEqual([
       { id: 'default', name: 'default', kind: 'builtin' },
-      { id: 'demo', name: 'demo', kind: 'folder', logo: null },
+      { id: 'demo', name: 'demo', kind: 'folder', printLogo: null },
     ])
     const css = await app.request(`${BASE}/api/themes/demo/theme.css`, { headers: H(GUEST) })
     expect(css.status).toBe(200)

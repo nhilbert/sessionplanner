@@ -46,10 +46,12 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
         <TextField multiline value={w.goal} onCommit={(goal) => set({ goal })} className="min-h-[64px]" />
       </Field>
       <NotesField value={w.notes} onCommit={(notes) => set({ notes })} label={t('workshop.notes')} />
-      <Field label={t('workshop.branding')}>
-        <ThemeSelect value={w.theme} onChange={(theme) => set({ theme })} withDefault className="h-8 w-full text-[13px]" />
-        <p className="mt-1 text-[12px] text-ink-3">{t('workshop.brandingHint')}</p>
-      </Field>
+      {owner && (
+        <Field label={t('workshop.branding')}>
+          <ThemeSelect value={w.theme} onChange={(theme) => set({ theme })} withDefault className="h-8 w-full text-[13px]" />
+          <p className="mt-1 text-[12px] text-ink-3">{t('workshop.brandingHint')}</p>
+        </Field>
+      )}
       {owner && (
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <DuplicateButton data={data} />
