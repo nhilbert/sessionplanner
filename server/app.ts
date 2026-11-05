@@ -17,6 +17,7 @@ import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckP
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
 import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
+import { filePaths, themeFolderFile } from './storage.ts'
 import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { withFilesOf } from '../src/domain/copy.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
@@ -71,10 +72,7 @@ const jsonBody = (c: Context): Promise<unknown> => c.req.json().catch(() => { th
 export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, quotas }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const quota = { ...QUOTAS, ...quotas }
-  const filePath = (id: string) => path.join(filesDir, id)
-  const assetPath = (hash: string) => path.join(filesDir, 'assets', hash)
-  /** A cut-out's variant for a dark ground (server/cutout.ts): derived from the cut-out when first asked for, kept beside the assets. */
-  const darkAssetPath = (hash: string) => path.join(filesDir, 'assets-dark', hash)
+  const { file: filePath, asset: assetPath, darkAsset: darkAssetPath, logo: logoPath, assetsDir, darkAssetsDir, themeLogosDir, themeLogo: themeLogoPath, themeFilesDir, themeFile } = filePaths(filesDir)
   const allow = rulesFor(repo)
   /** The workshop an attachment belongs to, for the rule of a route that names only the file. */
   const attachmentWorkshop = (c: Context<Env>) => repo.getAttachment(c.req.param('id')!)?.workshopId ?? null
@@ -342,7 +340,6 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // ---- settings and logo -------------------------------------------------------------------------
-  const logoPath = path.join(filesDir, 'logo')
   app.get('/api/settings', allow('signed-in'), (c) => c.json(repo.getSettings()))
   app.put('/api/settings', allow('owner'), async (c) => {
     const settings = validateSettings(await jsonBody(c))
@@ -519,7 +516,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     // A picture the server has already takes no more room.
     if (!repo.getAsset(hash) && !guestUpload(c, access, data.length)) return c.json({ error: 'upload_budget' }, 429)
     const known = repo.getAsset(hash)
-    await mkdir(path.join(filesDir, 'assets'), { recursive: true })
+    await mkdir(assetsDir, { recursive: true })
     await writeFile(assetPath(hash), data)
     const asset = known ?? repo.addAsset({ hash, mime, size: data.length })
     // An illustration on a flat background gets its cut-out, stored next to it as an asset of its own, once.
@@ -558,7 +555,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       else {
         const made = darkCutoutPng(data)
         if (made) {
-          await mkdir(path.join(filesDir, 'assets-dark'), { recursive: true })
+          await mkdir(darkAssetsDir, { recursive: true })
           await writeFile(darkAssetPath(hash), made)
           data = made
         }
@@ -623,8 +620,6 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   // ---- slide themes: kept as data (colours, fonts, logo; the stylesheet is generated) or as folders in data/themes ----
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
-  const themeLogoPath = (id: string, variant: 'logo' | 'logoLight') => path.join(filesDir, 'theme-logos', variant === 'logo' ? id : `${id}-light`)
-  const themeFilesDir = (id: string) => path.join(filesDir, 'theme-files', id)
   app.get('/api/themes', allow('signed-in'), (c) => c.json(listThemes(themesDir, repo.listThemes())))
   /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
   app.get('/api/themes/:id', allow('owner'), (c) => {
@@ -677,13 +672,13 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       }
       // the theme's own files, addressed by its rules (versioned there, so they may be kept)
       const file = data.files.find((f) => f.path === rel.join('/'))
-      const bytes = file && (await readFile(path.join(themeFilesDir(data.id), ...rel)).catch(() => null))
+      const bytes = file && (await readFile(themeFile(data.id, rel.join('/'))).catch(() => null))
       if (!file || !bytes) return c.json({ error: 'not_found' }, 404)
       return c.body(new Uint8Array(bytes), 200, { 'Content-Type': file.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=86400' })
     }
     if (!themesDir) return c.json({ error: 'not_found' }, 404)
     const type = THEME_TYPES[path.extname(rel[rel.length - 1]).toLowerCase()]
-    const bytes = type && (await readFile(path.join(themesDir, name, ...rel)).catch(() => null))
+    const bytes = type && (await readFile(themeFolderFile(themesDir, name, ...rel)).catch(() => null))
     if (!type || !bytes) return c.json({ error: 'not_found' }, 404)
     return c.body(new Uint8Array(bytes), 200, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
   })
@@ -705,7 +700,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
         await cp(themeFilesDir(from.id), themeFilesDir(id), { recursive: true }).catch(() => undefined)
         for (const f of from.files) repo.setThemeFile(id, f.path, { mime: f.mime, size: f.size, updatedAt: new Date().toISOString() })
       }
-      await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
+      await mkdir(themeLogosDir, { recursive: true })
       for (const variant of ['logo', 'logoLight'] as const) {
         const logo = from[variant]
         if (!logo) continue
@@ -740,7 +735,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!LOGO_TYPES.includes(file.type)) throw new BadRequest('png, jpeg, webp or svg only')
     if (file.size > MAX_LOGO) return c.json({ error: 'too_large' }, 413)
     const variant = logoVariant(c)
-    await mkdir(path.join(filesDir, 'theme-logos'), { recursive: true })
+    await mkdir(themeLogosDir, { recursive: true })
     await writeFile(themeLogoPath(theme.id, variant), Buffer.from(await file.arrayBuffer()))
     return c.json(repo.setThemeLogo(theme.id, variant, { mime: file.type, updatedAt: new Date().toISOString() }))
   })
@@ -755,7 +750,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (file.size > MAX_THEME_FILE) return c.json({ error: 'too_large' }, 413)
     // served by its extension, whatever the browser called it
     const mime = THEME_TYPES[path.extname(filePath).toLowerCase()]!
-    const target = path.join(themeFilesDir(theme.id), ...filePath.split('/'))
+    const target = themeFile(theme.id, filePath)
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, Buffer.from(await file.arrayBuffer()))
     return c.json(repo.setThemeFile(theme.id, filePath, { mime, size: file.size, updatedAt: new Date().toISOString() }), 201)
@@ -764,7 +759,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const theme = repo.getTheme(c.req.param('id')!)
     const filePath = c.req.query('path') ?? ''
     if (!theme || !theme.files.some((f) => f.path === filePath)) return c.json({ error: 'not_found' }, 404)
-    await rm(path.join(themeFilesDir(theme.id), ...filePath.split('/')), { force: true })
+    await rm(themeFile(theme.id, filePath), { force: true })
     return c.json(repo.setThemeFile(theme.id, filePath, null))
   })
   app.delete('/api/themes/:id/logo', allow('owner'), async (c) => {

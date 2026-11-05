@@ -1,10 +1,10 @@
 import { copyFile, mkdir } from 'node:fs/promises'
-import path from 'node:path'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
 import { BadRequest, isCalendarDate, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
+import { filePaths } from './storage.ts'
 import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import { DEFAULT_TIMEZONE, ZERO_KINDS } from '../src/domain/types.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
@@ -503,7 +503,8 @@ export class Ops {
     const result = this.repo.duplicateWorkshop(s.workshop.id, input)!
     if (this.filesDir && Object.keys(result.files).length) {
       await mkdir(this.filesDir, { recursive: true })
-      await Promise.all(Object.entries(result.files).map(([from, to]) => copyFile(path.join(this.filesDir!, from), path.join(this.filesDir!, to)).catch(() => undefined)))
+      const { file } = filePaths(this.filesDir)
+      await Promise.all(Object.entries(result.files).map(([from, to]) => copyFile(file(from), file(to)).catch(() => undefined)))
     }
     return this.workshopView(result.state)
   }

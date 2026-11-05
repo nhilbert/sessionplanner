@@ -8,17 +8,16 @@
  * Logs go to stderr, stdout belongs to the protocol.
  */
 import { existsSync } from 'node:fs'
-import path from 'node:path'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { createMcpServer } from './mcp.ts'
+import { dataPaths } from './storage.ts'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
 
-const DATA_DIR = process.env.SP_DATA_DIR || 'data'
-const DB_FILE = path.join(DATA_DIR, 'sessions.db')
+const { dbFile: DB_FILE, filesDir, themesDir } = dataPaths(process.env.SP_DATA_DIR || 'data')
 const db = openDb(DB_FILE)
-const server = createMcpServer(new Repo(db), { filesDir: path.join(DATA_DIR, 'files'), themesDir: path.join(DATA_DIR, 'themes') })
+const server = createMcpServer(new Repo(db), { filesDir, themesDir })
 await server.connect(new StdioServerTransport())
 console.error(`Session Planner MCP (stdio) on ${DB_FILE}`)
