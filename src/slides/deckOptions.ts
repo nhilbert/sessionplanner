@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { DECK_DEFAULTS, type DeckOptions } from '@/domain/deck'
+import { localName } from '@/domain/addresses'
 
 /**
  * The deck options (agenda slides, break slides), remembered per device and shared by everything that shows the deck
@@ -10,7 +11,7 @@ const KEY = 'sp.deck'
 
 function initial(): DeckOptions {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(localName(KEY))
     return raw ? { ...DECK_DEFAULTS, ...(JSON.parse(raw) as Partial<DeckOptions>) } : DECK_DEFAULTS
   } catch {
     return DECK_DEFAULTS
@@ -23,7 +24,7 @@ const useStore = create<{ options: DeckOptions; update: (patch: Partial<DeckOpti
     const options = { ...get().options, ...patch }
     set({ options })
     try {
-      localStorage.setItem(KEY, JSON.stringify(options))
+      localStorage.setItem(localName(KEY), JSON.stringify(options))
     } catch {
       // not remembered
     }

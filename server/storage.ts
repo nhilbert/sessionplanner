@@ -7,7 +7,7 @@ import path from 'node:path'
 
 /** A name for one step of a path. It may not lead out of the folder it is joined to: a refusal here is a bug elsewhere, as routes check their input first. */
 function inside(name: string): string {
-  if (!name || name === '..' || /[/\\\0]/.test(name)) throw new Error(`Refused a name that would leave its folder: ${JSON.stringify(name)}`)
+  if (!name || name === '.' || name === '..' || /[/\\\0]/.test(name)) throw new Error(`Refused a name that would leave its folder: ${JSON.stringify(name)}`)
   return name
 }
 
@@ -43,7 +43,7 @@ export function filePaths(filesDir: string) {
   }
 }
 
-/** A file in the folder of a folder theme (data/themes/<name>/…). */
+/** A file in the folder of a folder theme (data/themes/<name>/…). A step of '.' in its path goes nowhere, and is left out. */
 export function themeFolderFile(themesDir: string, name: string, ...file: string[]): string {
-  return path.join(themesDir, inside(name), ...file.map(inside))
+  return path.join(themesDir, inside(name), ...file.filter((step) => step !== '.').map(inside))
 }

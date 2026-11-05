@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Check, Search, X } from 'lucide-react'
 import { useOverlay } from './overlay'
+import { localName } from '@/domain/addresses'
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ')
@@ -338,7 +339,7 @@ export function Drawer({ open, onClose, children }: { open: boolean; onClose: ()
 export function useLocalState(key: string, initial: string): [string, (value: string) => void] {
   const [value, setValue] = useState(() => {
     try {
-      return localStorage.getItem(key) ?? initial
+      return localStorage.getItem(localName(key)) ?? initial
     } catch {
       return initial
     }
@@ -346,7 +347,7 @@ export function useLocalState(key: string, initial: string): [string, (value: st
   const set = (next: string) => {
     setValue(next)
     try {
-      localStorage.setItem(key, next)
+      localStorage.setItem(localName(key), next)
     } catch {
       // not remembered
     }

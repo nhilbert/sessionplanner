@@ -24,7 +24,8 @@ export function openDb(file: string, migrationsDir = MIGRATIONS_DIR): DatabaseSy
   }
 }
 
-const brokenLinks = (db: DatabaseSync) => db.prepare('PRAGMA foreign_key_check').all().length
+/** The rows that point at a parent that is not there, each by its table and row. */
+const brokenLinks = (db: DatabaseSync) => new Set((db.prepare('PRAGMA foreign_key_check').all() as { table: string; rowid: number | null; parent: string }[]).map((r) => `${r.table}:${r.rowid}:${r.parent}`))
 
 /**
  * Migrations run with foreign keys off: rebuilding a table means dropping it, and with them on that deletes everything
@@ -46,7 +47,7 @@ function runMigrations(db: DatabaseSync, migrationsDir: string): void {
       db.exec('BEGIN')
       try {
         db.exec(sql)
-        if (brokenLinks(db) > before) throw new Error(`Migration ${f} would leave rows without their parent`)
+        if ([...brokenLinks(db)].some((link) => !before.has(link))) throw new Error(`Migration ${f} would leave rows without their parent`)
         setMeta(db, 'schema', String(Number(f.slice(0, 4))))
         db.exec('COMMIT')
       } catch (err) {

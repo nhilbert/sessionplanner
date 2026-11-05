@@ -9,7 +9,7 @@ import { newId, type PresentPosition } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, sameToken } from './guard.ts'
-import { eventFor, forGuest, mayApply, mayEdit, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
+import { eventFor, forGuest, mayApply, mayDownload, mayEdit, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
 import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
@@ -18,6 +18,7 @@ import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, th
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
 import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
 import { filePaths, themeFolderFile } from './storage.ts'
+import { cleanBasePath } from '../src/domain/addresses.ts'
 import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { withFilesOf } from '../src/domain/copy.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
@@ -59,6 +60,8 @@ export interface AppOptions extends GuardOptions {
   oauth?: { routes: Hono; admin: Hono<Env> }
   /** Token for GET /api/link/workshops (SP_LINK_TOKEN): another app (the CRM) reads the list to link to workshops. */
   linkToken?: string
+  /** Where the browser reaches this app, if not at the root of its host (no slash at the end). Whoever puts it there passes it requests without it; this says what to write into addresses in answers. */
+  basePath?: string
   /** Other limits than QUOTAS (tests). */
   quotas?: Partial<typeof QUOTAS>
 }
@@ -69,7 +72,8 @@ const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-
 /** A request's JSON body; a missing or malformed one is the client's mistake (400), not the server's. */
 const jsonBody = (c: Context): Promise<unknown> => c.req.json().catch(() => { throw new BadRequest('invalid JSON body') })
 
-export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, quotas }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, basePath: givenBasePath, quotas }: AppOptions): Hono<Env> {
+  const basePath = cleanBasePath(givenBasePath)
   const app = new Hono<Env>()
   const quota = { ...QUOTAS, ...quotas }
   const { file: filePath, asset: assetPath, darkAsset: darkAssetPath, logo: logoPath, assetsDir, darkAssetsDir, themeLogosDir, themeLogo: themeLogoPath, themeFilesDir, themeFile } = filePaths(filesDir)
@@ -202,7 +206,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   app.get('/api/workshops/:id/events', allow('workshop-view'), (c) => {
     const id = c.req.param('id')!
     let access = c.get('access')
-    if (!repo.loadWorkshop(id)) return c.json({ error: 'not_found' }, 404)
+    if (!repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     const user = c.get('user')
     const email = user.email
     // A guest holds a bounded number of streams; the owner is not counted.
@@ -301,11 +305,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   app.get('/api/attachments/:id', allow('workshop-view', attachmentWorkshop), async (c) => {
     const att = repo.getAttachment(c.req.param('id')!)
-    const access = c.get('access')
-    const state = att && access !== 'owner' ? repo.loadWorkshop(att.workshopId) : null
-    // A guest gets the files their copy of the workshop lists, nothing else.
-    const listed = access === 'owner' || (state && forGuest(state, access).attachments.some((a) => a.id === att?.id))
-    return att && listed ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
+    return att && mayDownload(c.get('access'), att.id, () => repo.loadWorkshop(att.workshopId)) ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
   })
 
   app.patch('/api/attachments/:id', allow('workshop-edit', attachmentWorkshop), async (c) => {
@@ -620,7 +620,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   // ---- slide themes: kept as data (colours, fonts, logo; the stylesheet is generated) or as folders in data/themes ----
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
-  app.get('/api/themes', allow('signed-in'), (c) => c.json(listThemes(themesDir, repo.listThemes())))
+  app.get('/api/themes', allow('signed-in'), (c) => c.json(listThemes(themesDir, repo.listThemes(), basePath)))
   /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
   app.get('/api/themes/:id', allow('owner'), (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
@@ -659,7 +659,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const data = repo.getTheme(name)
     if (data) {
       if (rel.length === 1 && rel[0] === 'theme.css') {
-        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo'), logoLightUrl: themeLogoUrl(data, 'logoLight'), css: data.css, fileUrls: themeFileUrls(data) })
+        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo', basePath), logoLightUrl: themeLogoUrl(data, 'logoLight', basePath), css: data.css, fileUrls: themeFileUrls(data, basePath) })
         // Changed in the theme editor at any time: asked for again on every load (it is small).
         return c.body(css, 200, { 'Content-Type': THEME_TYPES['.css'], 'Cache-Control': 'private, no-cache' })
       }

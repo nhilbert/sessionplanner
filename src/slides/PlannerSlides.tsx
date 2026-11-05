@@ -14,6 +14,7 @@ import { poolPicturesNow, usePool } from '@/store/useThemes'
 import { SlideEditor } from './editor/SlideEditor'
 import { deckSource, listSource } from './editor/source'
 import { tr } from './editor/fields'
+import { pageUrl } from '@/domain/addresses'
 
 /**
  * Where the planner opens the slide editor: on a step (from its details or the slide count on its card) or on the
@@ -72,7 +73,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent }: { owner: boo
       const at = deckNow().findIndex((r) => r.key === deckKey)
       return at === -1 ? null : at + 1
     },
-    present: onPresent ?? ((n: number) => window.open(`/w/${data.workshop.id}/present?from=${n}`, '_blank', 'noopener')),
+    present: onPresent ?? ((n: number) => window.open(pageUrl(`/w/${data.workshop.id}/present?from=${n}`), '_blank', 'noopener')),
   }
   const base =
     target.kind === 'step'

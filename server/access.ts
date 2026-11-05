@@ -99,9 +99,11 @@ export function mayApply(access: WorkshopAccess, ops: Op[]): boolean {
   return access === 'owner' || !ops.some((o) => o.op === 'set' && o.entity === 'workshop' && ('archived' in o.fields || 'theme' in o.fields))
 }
 
+const seesNotes = (access: Access) => access.role === 'edit' || access.showNotes
+
 /** What a guest without the notes may not see: facilitation notes, note items and the files only note items link to. */
 export function forGuest(state: WorkshopState, access: Access): WorkshopState {
-  if (access.role === 'edit' || access.showNotes) return { ...state, access }
+  if (seesNotes(access)) return { ...state, access }
   const items = state.items.filter((i) => i.kind !== 'note')
   const shown = new Set(items.flatMap((i) => i.attachmentIds))
   const notesOnly = new Set(state.items.flatMap((i) => (i.kind === 'note' ? i.attachmentIds : [])).filter((id) => !shown.has(id)))
@@ -112,6 +114,13 @@ export function forGuest(state: WorkshopState, access: Access): WorkshopState {
     items: items.map((i) => ({ ...i, notes: '' })),
     attachments: state.attachments.filter((a) => !notesOnly.has(a.id)),
   }
+}
+
+/** Whether a caller gets a file of a workshop: a guest the files their copy of it lists, nothing else. The workshop is loaded only when that takes looking. */
+export function mayDownload(access: WorkshopAccess, attachmentId: string, workshop: () => WorkshopState | null): boolean {
+  if (access === 'owner' || seesNotes(access)) return true
+  const state = workshop()
+  return !!state && forGuest(state, access).attachments.some((a) => a.id === attachmentId)
 }
 
 /** What the live-update stream passes on of an event; null: nothing. A change of who has access is the stream's to handle. */

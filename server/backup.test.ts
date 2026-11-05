@@ -93,6 +93,14 @@ describe.each<[string, (keep?: number) => string | null | Promise<string | null>
   })
 })
 
+it('at start-up leaves nothing behind when it fails', () => {
+  mkdirSync(backups)
+  const closed = openDb(path.join(dir, 'other.db'))
+  closed.close()
+  expect(() => backupDaily(closed, dbFile, backups)).toThrow()
+  expect(readdirSync(backups)).toEqual([])
+})
+
 it('has nothing to do for a database in memory', () => {
   const memory = openDb(':memory:')
   expect(backupDaily(memory, ':memory:', backups)).toBeNull()
@@ -108,8 +116,17 @@ describe('a backup in the background', () => {
     await expect(backupDailyInBackground(dbFile, backups)).rejects.toThrow('disk full')
     copy.cutOff = false
     expect(existsSync(today())).toBe(false)
+    expect(readdirSync(backups), 'what is left of it may be what fills the disk').toEqual([])
     expect(await backupDailyInBackground(dbFile, backups)).toBe(today())
     expect(titlesIn(today())).toEqual({ titles: ['Kept'], check: 'ok' })
+  })
+
+  it('is one plain file, like the one at start-up: it opens read-only and leaves nothing beside it', async () => {
+    await backupDailyInBackground(dbFile, backups)
+    const copied = new DatabaseSync(today(), { readOnly: true })
+    expect(copied.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'delete' })
+    copied.close()
+    expect(readdirSync(backups)).toEqual(['sessions-2026-11-05.db'])
   })
 
   it('stays whole while the server goes on writing, every time', async () => {

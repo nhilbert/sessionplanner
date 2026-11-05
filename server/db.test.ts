@@ -83,6 +83,27 @@ describe('migrations', () => {
     db.close()
   })
 
+  it('are refused for a new broken link even when they clear an old one, so that the number stays the same', () => {
+    const { file, sql, set } = folder({ '0001_start.sql': START })
+    openDb(file, sql).close()
+    const raw = new DatabaseSync(file)
+    raw.exec('PRAGMA foreign_keys = OFF; INSERT INTO children VALUES (12, 99);')
+    raw.close()
+    const swap = set({ '0001_start.sql': START, '0002_swap.sql': 'DELETE FROM children WHERE id IN (11, 12); DELETE FROM parents;' })
+    expect(() => openDb(file, swap)).toThrow('would leave rows without their parent')
+  })
+
+  it('may rebuild a table that holds an old broken link', () => {
+    const { file, sql, set } = folder({ '0001_start.sql': START })
+    openDb(file, sql).close()
+    const raw = new DatabaseSync(file)
+    raw.exec('PRAGMA foreign_keys = OFF; INSERT INTO children VALUES (12, 99);')
+    raw.close()
+    const db = openDb(file, set({ '0001_start.sql': START, '0002_rebuild.sql': REBUILD }))
+    expect(getMeta(db, 'schema')).toBe('2')
+    db.close()
+  })
+
   it('that fail roll back, close the database and can be run again once fixed', () => {
     const close = vi.spyOn(DatabaseSync.prototype, 'close')
     const { file, sql, set } = folder({ '0001_start.sql': START })

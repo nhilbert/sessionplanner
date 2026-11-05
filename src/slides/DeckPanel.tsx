@@ -15,6 +15,7 @@ import { exportDeckPdf } from './pdf'
 import { useDeck } from './useDeck'
 import { ThemeSelect } from './ThemeSelect'
 import { useSlideEditing } from './PlannerSlides'
+import { pageUrl } from '@/domain/addresses'
 
 /**
  * The whole deck in agenda order, with the generated slides; present, save as a file, print; the workshop's theme.
@@ -37,7 +38,7 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
       else downloadBlob(`${fileSlug(title)}-folien.pptx`, await exportDeckPptx(deck, { ...common, onProgress }))
     } catch (err) {
       // a browser that will not hand out the drawn slides (a tainted canvas): the print view makes the PDF instead
-      if (kind === 'pdf' && err instanceof DOMException && err.name === 'SecurityError') window.open(`/w/${data.workshop.id}/print/slides`, '_blank', 'noopener')
+      if (kind === 'pdf' && err instanceof DOMException && err.name === 'SecurityError') window.open(pageUrl(`/w/${data.workshop.id}/print/slides`), '_blank', 'noopener')
       else reportFailure(err)
     } finally {
       setBusy(false)
@@ -47,15 +48,15 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/present`, '_blank', 'noopener')} disabled={!deck.length}>
+        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${data.workshop.id}/present`), '_blank', 'noopener')} disabled={!deck.length}>
           <Play size={13} />
           {t('slides.present')}
         </Button>
-        <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/presenter`, '_blank', 'noopener')} disabled={!deck.length}>
+        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${data.workshop.id}/presenter`), '_blank', 'noopener')} disabled={!deck.length}>
           <MonitorSpeaker size={13} />
           {t('slides.presenter')}
         </Button>
-        <Button size="sm" onClick={() => window.open(`/w/${data.workshop.id}/print/slides`, '_blank', 'noopener')} disabled={!deck.length}>
+        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${data.workshop.id}/print/slides`), '_blank', 'noopener')} disabled={!deck.length}>
           <Printer size={13} />
           {t('slides.printSlides')}
         </Button>

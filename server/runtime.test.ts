@@ -7,6 +7,19 @@ import { createRuntime, RefusedStart, type Runtime, type RuntimeOptions } from '
 import type { ServerEvent } from '../src/domain/ops.ts'
 import type { WorkshopState } from '../src/domain/types.ts'
 
+/** Lets the start fail after the database is open. */
+const startup = vi.hoisted(() => ({ fails: false }))
+vi.mock('./app.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./app.ts')>()
+  return {
+    ...real,
+    createApp: (...args: Parameters<typeof real.createApp>) => {
+      if (startup.fails) throw new Error('no app')
+      return real.createApp(...args)
+    },
+  }
+})
+
 const dirs: string[] = []
 const open: Runtime[] = []
 
@@ -82,6 +95,25 @@ describe('createRuntime', () => {
     expect(warn).toHaveBeenCalledTimes(1)
   })
 
+  it('writes each runtime\'s own base path into the addresses of its themes', async () => {
+    const png = new File([Uint8Array.of(0x89, 0x50, 0x4e, 0x47)], 'logo.png', { type: 'image/png' })
+    const logoOf = async (r: Runtime) => {
+      await call(r, '/api/themes', { method: 'POST', body: JSON.stringify({ name: 'Marke', id: 'marke' }) })
+      const form = new FormData()
+      form.set('file', png)
+      await r.app.request('http://127.0.0.1/api/themes/marke/logo', { method: 'POST', headers: { 'x-sp': '1' }, body: form })
+      const css = await (await call(r, '/api/themes/marke/theme.css')).text()
+      const list = (await (await call(r, '/api/themes')).json()) as { id: string; printLogo?: string | null }[]
+      return { css, printLogo: list.find((t) => t.id === 'marke')!.printLogo }
+    }
+    const [a, b, root] = [await logoOf(start({ basePath: '/base/a' })), await logoOf(start({ basePath: '/base/b' })), await logoOf(start())]
+    expect(a.printLogo).toMatch(/^\/base\/a\/api\/themes\/marke\/logo\?v=/)
+    expect(b.printLogo).toMatch(/^\/base\/b\/api\/themes\/marke\/logo\?v=/)
+    expect(root.printLogo).toMatch(/^\/api\/themes\/marke\/logo\?v=/)
+    expect(a.css).toContain('/base/a/api/themes/marke/logo')
+    expect(b.css).not.toContain('/base/a/')
+  })
+
   it('offers MCP and OAuth only when asked', async () => {
     const off = start()
     expect(off.mcp).toBeUndefined()
@@ -108,9 +140,60 @@ describe('createRuntime', () => {
     const close = vi.spyOn(DatabaseSync.prototype, 'close')
     const dataDir = mkdtempSync(path.join(tmpdir(), 'sp-runtime-'))
     dirs.push(dataDir)
-    writeFileSync(path.join(dataDir, 'backups'), 'a file where the folder belongs')
-    expect(() => createRuntime({ dataDir, owners: [], ownerHeader: 'x-auth-request-email' })).toThrow()
+    startup.fails = true
+    expect(() => createRuntime({ dataDir, owners: [], ownerHeader: 'x-auth-request-email' })).toThrow('no app')
+    startup.fails = false
     expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts although the backup at start fails, says so, and the hourly check makes it up', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
+    const failed = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'sp-runtime-'))
+    dirs.push(dataDir)
+    const backups = path.join(dataDir, 'backups')
+    writeFileSync(backups, 'a file where the folder belongs')
+    const r = createRuntime({ dataDir, owners: [], ownerHeader: 'x-auth-request-email' })
+    open.push(r)
+    expect(r.backup).toBeNull()
+    expect(failed).toHaveBeenCalledTimes(1)
+    await create(r, 'Up')
+    expect(await titles(r)).toEqual(['Up'])
+    rmSync(backups)
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    await vi.waitFor(() => expect(existsSync(path.join(backups, 'sessions-2026-11-05.db'))).toBe(true))
+  })
+
+  it('can make the day\'s backup after the start, for a runtime opened while others are in use', async () => {
+    const r = start({ backupInBackground: true })
+    expect(r.backup).toBeNull()
+    const backups = path.join(path.dirname(r.dbFile), 'backups')
+    await vi.waitFor(() => expect(existsSync(backups) && readdirSync(backups).filter((f) => f.endsWith('.db'))).toHaveLength(1))
+  })
+
+  it('may be closed twice', async () => {
+    const r = start()
+    open.splice(open.indexOf(r), 1)
+    await r.close()
+    await expect(r.close()).resolves.toBeUndefined()
+  })
+
+  it('refuses OAuth under a base path, which would announce the wrong addresses', () => {
+    const dataDir = path.join(tmpdir(), `sp-runtime-oauth-${process.pid}`)
+    expect(() => createRuntime({ dataDir, owners: [], ownerHeader: 'x', basePath: '/base', mcpOAuth: { baseUrl: new URL('https://sessions.example.com'), extraRedirects: [] } })).toThrow(RefusedStart)
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('refuses a base path that would make every address wrong, and tidies a slash at the end', async () => {
+    expect(() => start({ basePath: 'base' })).toThrow('Not a base path')
+    const r = start({ basePath: '/base/' })
+    await call(r, '/api/themes', { method: 'POST', body: JSON.stringify({ name: 'Marke', id: 'marke' }) })
+    const form = new FormData()
+    form.set('file', new File([Uint8Array.of(0x89, 0x50, 0x4e, 0x47)], 'logo.png', { type: 'image/png' }))
+    await r.app.request('http://127.0.0.1/api/themes/marke/logo', { method: 'POST', headers: { 'x-sp': '1' }, body: form })
+    const list = (await (await call(r, '/api/themes')).json()) as { id: string; printLogo?: string | null }[]
+    expect(list.find((t) => t.id === 'marke')!.printLogo).toMatch(/^\/base\/api\/themes\//)
   })
 
   it('survives a failed backup, says so, and tries again', async () => {

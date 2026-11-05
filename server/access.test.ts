@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Hono } from 'hono'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { decide, eventFor, type Rule, mayApply, requireRules, rulesFor, type WorkshopAccess } from './access.ts'
+import { decide, eventFor, type Rule, mayApply, mayDownload, requireRules, rulesFor, type WorkshopAccess } from './access.ts'
 import type { Env, User } from './guard.ts'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
@@ -126,6 +126,14 @@ describe('what guests get', () => {
     expect(mayApply(edit, set({ archived: true }))).toBe(false)
     expect(mayApply(edit, set({ theme: 'x' }))).toBe(false)
     expect(mayApply(edit, set({ title: 'x' }))).toBe(true)
+  })
+
+  it('looks into the workshop for a download only where a guest\'s copy can differ', () => {
+    const load = vi.fn(() => null)
+    for (const access of ['owner', edit, viewWithNotes] as WorkshopAccess[]) expect(mayDownload(access, 'f', load)).toBe(true)
+    expect(load).not.toHaveBeenCalled()
+    expect(mayDownload(view, 'f', load)).toBe(false)
+    expect(load).toHaveBeenCalledTimes(1)
   })
 
   const ops = { type: 'ops', clientId: 'c', ops: [] } as ServerEvent

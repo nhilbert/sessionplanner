@@ -30,6 +30,14 @@ function setup() {
 const post = (app: ReturnType<typeof setup>['app'], url: string, body: unknown, email = OWNER, method = 'POST') => app.request(`${BASE}${url}`, { method, headers: H(email), body: JSON.stringify(body) })
 
 describe('slide themes as data', () => {
+  it('refuses an id ending in -light, which would share its logo file with the light logo of another theme', async () => {
+    const { app } = setup()
+    const create = (id: string) => app.request(`${BASE}/api/themes`, { method: 'POST', headers: H(OWNER), body: JSON.stringify({ name: 'Foo', id }) })
+    expect((await create('foo-light')).status).toBe(400)
+    expect((await create('foo')).status).toBe(201)
+    expect((await create('light-foo')).status).toBe(201)
+  })
+
   it('creates a theme, serves its generated stylesheet to guests, lists it with the folder themes', async () => {
     const { app } = setup()
     const res = await post(app, '/api/themes', { name: 'Beispiel hell', tokens: { colors: { accent: '#AA3366' }, radius: 4, logo: 'all' } })
