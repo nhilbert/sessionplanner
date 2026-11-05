@@ -18,6 +18,10 @@ import { type Env, fromProxy } from './guard.ts'
  * Hosted, an owner approves a new connection only after starting it in Settings (arm, ARM_TTL_MS): a consent
  * link someone else sends cannot connect their agent to the owner's workshops at any other time. Locally a code
  * can only reach a program on this machine (loopback redirects; Claude's servers cannot reach it), so no arming.
+ *
+ * A build that hosts several protected addresses gives `resources` (OAuthResources): one sign-in service at the root,
+ * every token tied to the one address a client named and the person who approved it. The build then serves the
+ * resource metadata and the addresses themselves, and answers for who may connect.
  */
 
 export interface OAuthConfig {
@@ -35,11 +39,83 @@ export interface OAuthConfig {
   refreshTtlDays?: number
   /** Address of the connecting peer; defaults to the socket's. Injectable for tests. */
   remoteAddress?: (c: Context) => string | undefined
+  /** Several protected addresses instead of the one /mcp, decided by the build; `allowedUsers` and `userHeader` then do not count. */
+  resources?: OAuthResources
+  /** The name people see on the pages and in the metadata: plain text from the build, without characters HTML treats specially. */
+  product?: string
+  /** What a page says, for a build with other languages; what is left out stays English. */
+  texts?: (c: Context) => Partial<OAuthTexts>
 }
+
+/** What a build answers when it hosts several protected addresses (see OAuthServer). */
+export interface OAuthResources {
+  /** The address a client named, spelled the one way a token keeps it, and what the consent page calls it. Null for anything else, also when none is named. */
+  find(given: string | undefined): { resource: string; name: string } | null
+  /** Who is signed in, whatever they may do. */
+  signedIn(c: Context): string | null
+  /** Whether `user` may connect to `resource`. Asked at every step, so a change counts from the next call on. */
+  allowed(user: string, resource: string): boolean
+  /** How the consent page names `user`, when the id means nothing to a person. */
+  displayName?(user: string): string
+}
+
+/** What the approval pages say. The pages' bodies are HTML, and what is given to them is already escaped; titles are plain text, escaped when written. */
+export interface OAuthTexts {
+  lang: string
+  notArmedTitle: string
+  notArmed: (minutes: number) => string
+  unknownClientTitle: string
+  unknownClient: string
+  badRedirectTitle: string
+  badRedirect: string
+  notAllowedTitle: string
+  notAllowedLocal: string
+  notAllowedUser: string
+  sameUser: string
+  expiredTitle: string
+  expired: string
+  consentTitle: (target: string | null) => string
+  consent: (client: string | null, target: string | null) => string
+  /** Where the data goes beyond this app; empty says nothing. */
+  consentNote: string
+  sentTo: (host: string) => string
+  loopbackWarning: string
+  signedInAs: (user: string) => string
+  allow: string
+  deny: string
+}
+
+const englishTexts = (product: string): OAuthTexts => ({
+  lang: 'en',
+  notArmedTitle: `Start the connection in ${product} first`,
+  notArmed: (minutes) =>
+    `<p>A new connection can be approved only within ${minutes} minutes after you started it in ${product}: Settings → AI agents → <strong>Connect an agent</strong>. Then add or reconnect it in your application again.</p>` +
+    '<p class="warn">If you did not just set up a connection yourself, close this page: someone may be trying to connect their own agent to your workshops.</p>',
+  unknownClientTitle: 'Unknown client',
+  unknownClient: `<p>This application is not registered with ${product}.</p>`,
+  badRedirectTitle: 'Invalid redirect',
+  badRedirect: '<p>The redirect address is not registered for this application.</p>',
+  notAllowedTitle: 'Not allowed',
+  notAllowedLocal: `<p>Connections can only be approved in a browser on the computer running ${product}.</p>`,
+  notAllowedUser: `<p>Your account may not approve connections to ${product}.</p>`,
+  sameUser: '<p>The approval must come from the same signed-in user.</p>',
+  expiredTitle: 'Request expired',
+  expired: '<p>Start the connection again from your application.</p>',
+  consentTitle: (target) => `Connect to ${target ?? product}?`,
+  consent: (client, target) => `<p><strong>${client ?? 'An application'}</strong> wants to read and change ${target ? `the workshops of <strong>${target}</strong>` : 'your workshops'}: agendas, notes, material, packing lists and the library.</p>`,
+  consentNote: '',
+  sentTo: (host) => `After approval you are sent to <code>${host}</code>.`,
+  loopbackWarning: 'That is a program on this computer – approve only if you just started the connection yourself (e.g. in Claude Code).',
+  signedInAs: (user) => `Signed in as ${user}. You can disconnect it any time in ${product} under Settings.`,
+  allow: 'Allow',
+  deny: 'Deny',
+})
 
 export interface AccessInfo {
   clientId: string
   user: string
+  /** The address the token was issued for; with several, whoever serves an address must compare it. */
+  resource: string
 }
 
 export const CLAUDE_CALLBACKS = ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback']
@@ -56,6 +132,8 @@ const MAX_IDLE_CLIENTS = 200
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 const randomToken = () => randomBytes(32).toString('base64url')
+/** A start in Settings counts for one person and one address, so that it opens nothing else. */
+const armKey = (user: string, resource: string) => JSON.stringify([user, resource])
 const isLoopbackHost = (host: string) => host === '127.0.0.1' || host === 'localhost' || host === '[::1]'
 const isLoopbackAddress = (addr: string | undefined) => !!addr && (addr === '::1' || /^(::ffff:)?127\./.test(addr))
 
@@ -126,10 +204,11 @@ interface AuthRequest {
 
 export class OAuthServer {
   private db: DatabaseSync
-  private cfg: Required<Omit<OAuthConfig, 'userHeader' | 'proxySecret' | 'remoteAddress'>> & { userHeader?: string; proxySecret?: string; remoteAddress: (c: Context) => string | undefined }
+  private cfg: Required<Omit<OAuthConfig, 'userHeader' | 'proxySecret' | 'remoteAddress' | 'resources' | 'texts'>> &
+    Pick<OAuthConfig, 'userHeader' | 'proxySecret' | 'resources' | 'texts'> & { remoteAddress: (c: Context) => string | undefined }
   private pending = new Map<string, AuthRequest & { expires: number }>()
   private codes = new Map<string, AuthRequest & { expires: number }>()
-  /** Hosted: owners who started a connection in Settings, until when (see arm). */
+  /** Hosted: owners who started a connection in Settings for an address, until when (see arm). */
   private armed = new Map<string, number>()
 
   constructor(db: DatabaseSync, cfg: OAuthConfig) {
@@ -139,6 +218,7 @@ export class OAuthServer {
       refreshTtlDays: 30,
       allowedUsers: [],
       extraRedirects: [],
+      product: 'Session Planner',
       remoteAddress: socketAddress,
       ...cfg,
       userHeader: cfg.userHeader?.toLowerCase(),
@@ -156,18 +236,27 @@ export class OAuthServer {
     return `${this.issuer}/.well-known/oauth-protected-resource/mcp`
   }
   private get local(): boolean {
-    return this.cfg.allowedUsers.length === 0
+    return !this.cfg.resources && this.cfg.allowedUsers.length === 0
   }
-  /** Whether the user a token was issued to may still use it: an owner, or anyone in local mode. */
-  private allowed(user: string): boolean {
+  /** Whether the user a token was issued to may still use it: an owner, or anyone in local mode; with several addresses, the build's word. */
+  private allowed(user: string, resource: string): boolean {
+    if (this.cfg.resources) return this.cfg.resources.allowed(user, resource)
     return this.local || this.cfg.allowedUsers.includes(user)
+  }
+  /** The metadata of a protected address (RFC 9728), for a build that serves it itself. */
+  protectedResourceMetadata(resource: string) {
+    return { resource, authorization_servers: [this.issuer], scopes_supported: [SCOPE], bearer_methods_supported: ['header'], resource_name: this.cfg.product }
   }
 
   // ---------- policy ----------
 
   /** Who is approving (see signedInUser). */
   private approver(c: Context): string | null {
-    return signedInUser(c, this.cfg)
+    return this.cfg.resources ? this.cfg.resources.signedIn(c) : signedInUser(c, this.cfg)
+  }
+
+  private texts(c: Context): OAuthTexts {
+    return { ...englishTexts(this.cfg.product), ...this.cfg.texts?.(c) }
   }
 
   /** Redirect URIs a client may register: Claude's callbacks, loopback (Claude Code, RFC 8252) and configured extras. */
@@ -201,6 +290,7 @@ export class OAuthServer {
 
   /** The resource indicator (RFC 8707) must name this MCP endpoint; locally any loopback spelling of it. */
   private resourceOk(resource: string | undefined): boolean {
+    if (this.cfg.resources) return this.cfg.resources.find(resource) !== null
     if (!resource) return true
     try {
       const u = new URL(resource)
@@ -238,49 +328,59 @@ export class OAuthServer {
 
   /** Checks a bearer token from /mcp; returns who it belongs to, or null. */
   verifyAccess(token: string): AccessInfo | null {
-    const row = this.db.prepare(`SELECT client_id, user, expires_at FROM oauth_tokens WHERE hash = ? AND kind = 'access'`).get(sha256(token)) as
-      | { client_id: string; user: string; expires_at: number }
+    const row = this.db.prepare(`SELECT client_id, user, resource, expires_at FROM oauth_tokens WHERE hash = ? AND kind = 'access'`).get(sha256(token)) as
+      | { client_id: string; user: string; resource: string; expires_at: number }
       | undefined
     if (!row || row.expires_at < Date.now()) return null
     // The owner list decides who may use the tools, not only who may approve: someone taken off it (SP_OWNERS,
     // restart) is refused with their next call, however long their tokens would still live.
-    if (!this.allowed(row.user)) return null
+    if (!this.allowed(row.user, row.resource)) {
+      // With several addresses a person's standing is the build's and can change for good: the connection ends with it.
+      if (this.cfg.resources) this.db.prepare('DELETE FROM oauth_tokens WHERE user = ? AND resource = ?').run(row.user, row.resource)
+      return null
+    }
     const cutoff = new Date(Date.now() - 5 * 60_000).toISOString()
     this.db.prepare('UPDATE oauth_clients SET last_used_at = ? WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)').run(new Date().toISOString(), row.client_id, cutoff)
-    return { clientId: row.client_id, user: row.user }
+    return { clientId: row.client_id, user: row.user, resource: row.resource }
   }
 
-  /** Connected agents (clients holding a valid refresh token), for Settings. */
-  connections(): { id: string; name: string; user: string; createdAt: string; lastUsedAt: string | null }[] {
+  /** Connected agents (clients holding a valid refresh token), for Settings; with several addresses, those of `resource`. */
+  connections(resource?: string): { id: string; name: string; user: string; createdAt: string; lastUsedAt: string | null }[] {
     const rows = this.db
       .prepare(
         `SELECT c.id, c.data, c.created_at, c.last_used_at, MIN(t.user) AS user FROM oauth_clients c
-         JOIN oauth_tokens t ON t.client_id = c.id AND t.kind = 'refresh' AND t.used_at IS NULL AND t.expires_at > ?
+         JOIN oauth_tokens t ON t.client_id = c.id AND t.kind = 'refresh' AND t.used_at IS NULL AND t.expires_at > ? ${resource === undefined ? '' : 'AND t.resource = ?'}
          GROUP BY c.id ORDER BY c.created_at`,
       )
-      .all(Date.now()) as { id: string; data: string; created_at: string; last_used_at: string | null; user: string }[]
-    return rows.map((r) => ({ id: r.id, name: (JSON.parse(r.data) as Client).client_name ?? 'MCP client', user: r.user, createdAt: r.created_at, lastUsedAt: r.last_used_at }))
+      .all(...(resource === undefined ? [Date.now()] : [Date.now(), resource])) as { id: string; data: string; created_at: string; last_used_at: string | null; user: string }[]
+    return rows.filter((r) => resource === undefined || this.allowed(r.user, resource)).map((r) => ({ id: r.id, name: (JSON.parse(r.data) as Client).client_name ?? 'MCP client', user: r.user, createdAt: r.created_at, lastUsedAt: r.last_used_at }))
   }
 
-  /** Disconnect an agent: all its tokens stop working at once. */
-  disconnect(clientId: string): boolean {
+  /** Disconnect an agent: all its tokens stop working at once. With `resource`, only those for that address, and the client goes when nothing else is left. */
+  disconnect(clientId: string, resource?: string): boolean {
+    if (resource !== undefined) {
+      const removed = Number(this.db.prepare('DELETE FROM oauth_tokens WHERE client_id = ? AND resource = ?').run(clientId, resource).changes) > 0
+      if (removed) this.db.prepare('DELETE FROM oauth_clients WHERE id = ? AND id NOT IN (SELECT client_id FROM oauth_tokens)').run(clientId)
+      return removed
+    }
     this.db.prepare('DELETE FROM oauth_tokens WHERE client_id = ?').run(clientId)
     return Number(this.db.prepare('DELETE FROM oauth_clients WHERE id = ?').run(clientId).changes) > 0
   }
 
-  /** Hosted: lets `user` approve one new connection within ARM_TTL_MS (Settings → AI agents → Connect an agent). */
-  arm(user: string): string {
+  /** Hosted: lets `user` approve one new connection to `resource` within ARM_TTL_MS (Settings → AI agents → Connect an agent). */
+  arm(user: string, resource: string = this.resource): string {
     const until = Date.now() + ARM_TTL_MS
-    this.armed.set(user, until)
+    this.armed.set(armKey(user, resource), until)
     return new Date(until).toISOString()
   }
 
-  /** Until when `user` may approve a new connection, or null; locally always (no arming). */
-  armedUntil(user: string): number | null {
+  /** Until when `user` may approve a new connection to `resource`, or null; locally always (no arming). */
+  armedUntil(user: string, resource: string = this.resource): number | null {
     if (this.local) return Number.POSITIVE_INFINITY
-    const until = this.armed.get(user)
+    const key = armKey(user, resource)
+    const until = this.armed.get(key)
     if (until === undefined || until < Date.now()) {
-      this.armed.delete(user)
+      this.armed.delete(key)
       return null
     }
     return until
@@ -289,25 +389,21 @@ export class OAuthServer {
   // ---------- HTTP ----------
 
   private page(c: Context, title: string, body: string, status: 200 | 400 | 403 = 200) {
-    return simplePage(c, title, body, status)
+    return simplePage(c, title, body, status, this.texts(c).lang)
   }
 
   private notArmed(c: Context) {
-    return this.page(
-      c,
-      'Start the connection in Session Planner first',
-      `<p>A new connection can be approved only within ${ARM_TTL_MS / 60_000} minutes after you started it in Session Planner: Settings → AI agents → <strong>Connect an agent</strong>. Then add or reconnect it in your application again.</p>` +
-        '<p class="warn">If you did not just set up a connection yourself, close this page: someone may be trying to connect their own agent to your workshops.</p>',
-      403,
-    )
+    const t = this.texts(c)
+    return this.page(c, t.notArmedTitle, t.notArmed(ARM_TTL_MS / 60_000), 403)
   }
 
   routes(): Hono {
     const app = new Hono()
-    const protectedResource = (c: Context) =>
-      c.json({ resource: this.resource, authorization_servers: [this.issuer], scopes_supported: [SCOPE], bearer_methods_supported: ['header'], resource_name: 'Session Planner' })
-    app.get('/.well-known/oauth-protected-resource', protectedResource)
-    app.get('/.well-known/oauth-protected-resource/mcp', protectedResource)
+    if (!this.cfg.resources) {
+      const protectedResource = (c: Context) => c.json(this.protectedResourceMetadata(this.resource))
+      app.get('/.well-known/oauth-protected-resource', protectedResource)
+      app.get('/.well-known/oauth-protected-resource/mcp', protectedResource)
+    }
     app.get('/.well-known/oauth-authorization-server', (c) =>
       c.json({
         issuer: this.issuer,
@@ -355,10 +451,11 @@ export class OAuthServer {
 
     app.get('/oauth/authorize', (c) => {
       const q = c.req.query()
+      const t = this.texts(c)
       const client = this.client(q.client_id)
       // Until client and redirect URI are known to be good, errors are shown here and never redirected.
-      if (!client) return this.page(c, 'Unknown client', '<p>This application is not registered with Session Planner.</p>', 400)
-      if (!q.redirect_uri || !this.redirectMatches(client, q.redirect_uri)) return this.page(c, 'Invalid redirect', '<p>The redirect address is not registered for this application.</p>', 400)
+      if (!client) return this.page(c, t.unknownClientTitle, t.unknownClient, 400)
+      if (!q.redirect_uri || !this.redirectMatches(client, q.redirect_uri)) return this.page(c, t.badRedirectTitle, t.badRedirect, 400)
       const fail = (error: string) => {
         const u = new URL(q.redirect_uri)
         u.searchParams.set('error', error)
@@ -369,25 +466,27 @@ export class OAuthServer {
       if (q.response_type !== 'code') return fail('unsupported_response_type')
       if (!q.code_challenge || q.code_challenge_method !== 'S256') return fail('invalid_request')
       if (!this.resourceOk(q.resource)) return fail('invalid_target')
+      const named = this.cfg.resources?.find(q.resource) ?? null
+      const resource = named?.resource ?? this.resource
       const user = this.approver(c)
-      if (!user) {
-        return this.page(c, 'Not allowed', this.local ? '<p>Connections can only be approved in a browser on the computer running Session Planner.</p>' : '<p>Your account may not approve connections to Session Planner.</p>', 403)
-      }
-      if (this.armedUntil(user) === null) return this.notArmed(c)
+      if (!user || !this.allowed(user, resource)) return this.page(c, t.notAllowedTitle, this.local ? t.notAllowedLocal : t.notAllowedUser, 403)
+      if (this.armedUntil(user, resource) === null) return this.notArmed(c)
       const id = randomToken()
       const now = Date.now()
       for (const [k, v] of this.pending) if (v.expires < now) this.pending.delete(k)
-      this.pending.set(id, { clientId: client.client_id, redirectUri: q.redirect_uri, codeChallenge: q.code_challenge, state: q.state, resource: this.resource, user, expires: now + PENDING_TTL_MS })
+      this.pending.set(id, { clientId: client.client_id, redirectUri: q.redirect_uri, codeChallenge: q.code_challenge, state: q.state, resource, user, expires: now + PENDING_TTL_MS })
       const target = new URL(q.redirect_uri)
       const loopback = isLoopbackHost(target.hostname)
+      const place = named ? escapeHtml(named.name) : null
       return this.page(
         c,
-        'Connect to Session Planner?',
-        `<p><strong>${escapeHtml(client.client_name ?? 'An application')}</strong> wants to read and change your workshops: agendas, notes, material, packing lists and the library.</p>` +
-          `<p>After approval you are sent to <code>${escapeHtml(target.host)}</code>.${loopback ? ' <span class="warn">That is a program on this computer – approve only if you just started the connection yourself (e.g. in Claude Code).</span>' : ''}</p>` +
-          `<p style="color:#5d665f;font-size:.9rem">Signed in as ${escapeHtml(user)}. You can disconnect it any time in Session Planner under Settings.</p>` +
+        t.consentTitle(named ? named.name : null),
+        t.consent(client.client_name === undefined ? null : escapeHtml(client.client_name), place) +
+          (t.consentNote ? `<p>${t.consentNote}</p>` : '') +
+          `<p>${t.sentTo(escapeHtml(target.host))}${loopback ? ` <span class="warn">${t.loopbackWarning}</span>` : ''}</p>` +
+          `<p style="color:#5d665f;font-size:.9rem">${t.signedInAs(escapeHtml(this.cfg.resources?.displayName?.(user) ?? user))}</p>` +
           `<form method="post" action="/oauth/authorize"><input type="hidden" name="request" value="${id}">` +
-          `<button class="ok" name="decision" value="allow">Allow</button><button name="decision" value="deny">Deny</button></form>`,
+          `<button class="ok" name="decision" value="allow">${t.allow}</button><button name="decision" value="deny">${t.deny}</button></form>`,
       )
     })
 
@@ -396,13 +495,14 @@ export class OAuthServer {
       const id = typeof form.request === 'string' ? form.request : ''
       const req = this.pending.get(id)
       this.pending.delete(id)
-      if (!req || req.expires < Date.now()) return this.page(c, 'Request expired', '<p>Start the connection again from your application.</p>', 400)
-      if (this.approver(c) !== req.user) return this.page(c, 'Not allowed', '<p>The approval must come from the same signed-in user.</p>', 403)
+      const t = this.texts(c)
+      if (!req || req.expires < Date.now()) return this.page(c, t.expiredTitle, t.expired, 400)
+      if (this.approver(c) !== req.user || !this.allowed(req.user, req.resource)) return this.page(c, t.notAllowedTitle, t.sameUser, 403)
       const u = new URL(req.redirectUri)
       if (form.decision === 'allow') {
         // One approval per start in Settings: a second consent page opened meanwhile (someone else's link) is refused.
-        if (this.armedUntil(req.user) === null) return this.notArmed(c)
-        this.armed.delete(req.user)
+        if (this.armedUntil(req.user, req.resource) === null) return this.notArmed(c)
+        this.armed.delete(armKey(req.user, req.resource))
         const code = randomToken()
         // A code is removed when it is exchanged; one that never is (closed tab, crashed client) would stay for the
         // life of the process, so the expired ones go whenever a new one is issued, as with the pending requests.
@@ -432,7 +532,11 @@ export class OAuthServer {
         if (!entry || entry.expires < Date.now() || entry.clientId !== client.client_id || entry.redirectUri !== f('redirect_uri')) return err('invalid_grant')
         const verifier = f('code_verifier') ?? ''
         if (!/^[A-Za-z0-9\-._~]{43,128}$/.test(verifier) || createHash('sha256').update(verifier).digest('base64url') !== entry.codeChallenge) return err('invalid_grant')
-        if (!this.resourceOk(f('resource'))) return err('invalid_target')
+        if (this.cfg.resources) {
+          // The code was approved for one address, so naming it again is optional and only that one comes out of it; the person may have lost it in between.
+          if (f('resource') !== undefined && this.cfg.resources.find(f('resource'))?.resource !== entry.resource) return err('invalid_target')
+          if (!this.allowed(entry.user, entry.resource)) return err('invalid_grant')
+        } else if (!this.resourceOk(f('resource'))) return err('invalid_target')
         return c.json(this.issueTokens(client.client_id, entry.user, entry.resource))
       }
 
@@ -442,11 +546,13 @@ export class OAuthServer {
           | { client_id: string; family: string; user: string; resource: string; expires_at: number; used_at: number | null }
           | undefined
         if (!row || row.client_id !== client.client_id || row.expires_at < Date.now()) return err('invalid_grant')
-        if (!this.allowed(row.user)) {
+        if (!this.allowed(row.user, row.resource)) {
           // No longer an owner: the connection ends instead of being renewed for another 30 days.
           this.revokeFamily(row.family)
           return err('invalid_grant')
         }
+        // As with a code: naming the address is optional, and naming another one spends nothing.
+        if (this.cfg.resources && f('resource') !== undefined && this.cfg.resources.find(f('resource'))?.resource !== row.resource) return err('invalid_target')
         if (row.used_at !== null) {
           // Rotated before: a late retry is refused; a replay after that means the token leaked, so the whole family goes.
           if (Date.now() - row.used_at > REUSE_GRACE_MS) this.revokeFamily(row.family)

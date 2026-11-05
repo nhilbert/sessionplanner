@@ -298,3 +298,202 @@ describe('request bodies', () => {
     expect(res.status).toBe(413)
   })
 })
+
+describe('several protected addresses (a build with OAuthResources)', () => {
+  const ORIGIN = 'https://app.example.com'
+  const A = `${ORIGIN}/spaces/aaaa/mcp`
+  const B = `${ORIGIN}/spaces/bbbb/mcp`
+  const NAMES: Record<string, string> = { [A]: 'Team <A>', [B]: 'Team B' }
+
+  function hosted() {
+    const owners: Record<string, string> = { [A]: 'ann', [B]: 'ben' }
+    const db = openDb(':memory:')
+    const oauth = new OAuthServer(db, {
+      baseUrl: new URL(ORIGIN),
+      resources: {
+        find: (given) => (given !== undefined && NAMES[given] ? { resource: given, name: NAMES[given] } : null),
+        signedIn: (c) => c.req.header('x-who') ?? null,
+        allowed: (user, resource) => owners[resource] === user,
+        displayName: (user) => `${user}@example.com`,
+      },
+      product: 'Example',
+      texts: (c) => (c.req.header('accept-language') === 'de' ? { lang: 'de', allow: 'Erlauben', consentNote: 'Daten gehen an den Anbieter.' } : {}),
+    })
+    return { db, oauth, owners, app: oauth.routes() }
+  }
+  type Hosted = ReturnType<typeof hosted>
+
+  const consent = async (ctx: Hosted, who: string, resource: string | undefined, headers: Record<string, string> = {}) => {
+    const reg = await ctx.app.request('/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Claude', redirect_uris: [CALLBACK] }) })
+    const { client_id } = (await reg.json()) as { client_id: string }
+    const { verifier, challenge } = pkce()
+    const q = new URLSearchParams({ response_type: 'code', client_id, redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'S256', ...(resource ? { resource } : {}) })
+    const page = await ctx.app.request(`/oauth/authorize?${q}`, { headers: { 'x-who': who, ...headers } })
+    return { client_id, verifier, page }
+  }
+  const approve = async (ctx: Hosted, who: string, html: string) => {
+    const request = /name="request" value="([^"]+)"/.exec(html)![1]
+    return ctx.app.request('/oauth/authorize', { method: 'POST', headers: { 'x-who': who, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ request, decision: 'allow' }).toString() })
+  }
+  const tokenRequest = (ctx: Hosted, fields: Record<string, string>) =>
+    ctx.app.request('/oauth/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields).toString() })
+  const connect = async (ctx: Hosted, who: string, resource: string) => {
+    ctx.oauth.arm(who, resource)
+    const { client_id, verifier, page } = await consent(ctx, who, resource)
+    const done = await approve(ctx, who, await page.text())
+    const code = new URL(done.headers.get('location')!).searchParams.get('code')!
+    const res = await tokenRequest(ctx, { grant_type: 'authorization_code', code, redirect_uri: CALLBACK, client_id, code_verifier: verifier, resource })
+    return { clientId: client_id, tokens: (await res.json()) as { access_token: string; refresh_token: string } }
+  }
+
+  it('ties a token to the address that was named and the person who approved', async () => {
+    const ctx = hosted()
+    const { tokens, clientId } = await connect(ctx, 'ann', A)
+    expect(ctx.oauth.verifyAccess(tokens.access_token)).toEqual({ clientId, user: 'ann', resource: A })
+  })
+
+  it('leaves the metadata of a single address out, and describes each address on request', async () => {
+    const ctx = hosted()
+    expect((await ctx.app.request('/.well-known/oauth-protected-resource')).status).toBe(404)
+    expect((await ctx.app.request('/.well-known/oauth-protected-resource/mcp')).status).toBe(404)
+    expect(ctx.oauth.protectedResourceMetadata(A)).toMatchObject({ resource: A, authorization_servers: [ORIGIN], resource_name: 'Example' })
+  })
+
+  it.each([[undefined], [`${ORIGIN}/mcp`], [`${ORIGIN}/spaces/cccc/mcp`]])('refuses a client naming %s', async (resource) => {
+    const ctx = hosted()
+    ctx.oauth.arm('ann', A)
+    const { page } = await consent(ctx, 'ann', resource)
+    expect(page.status).toBe(302)
+    expect(new URL(page.headers.get('location')!).searchParams.get('error')).toBe('invalid_target')
+  })
+
+  it('shows consent only to whom the address allows, and only when signed in', async () => {
+    const ctx = hosted()
+    ctx.oauth.arm('ben', A)
+    expect((await consent(ctx, 'ben', A)).page.status).toBe(403)
+    const page = (await ctx.app.request(`/oauth/authorize?x=1`)).status
+    expect(page).toBe(400)
+    const { client_id } = await consent(ctx, 'ann', A)
+    const { challenge } = pkce()
+    const q = new URLSearchParams({ response_type: 'code', client_id, redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'S256', resource: A })
+    expect((await ctx.app.request(`/oauth/authorize?${q}`)).status).toBe(403)
+  })
+
+  it('a start in Settings opens one address for one person', async () => {
+    const ctx = hosted()
+    ctx.owners[B] = 'ann'
+    ctx.oauth.arm('ann', A)
+    expect((await consent(ctx, 'ann', B)).page.status).toBe(403)
+    expect((await consent(ctx, 'ann', A)).page.status).toBe(200)
+  })
+
+  it('names the place in the consent, escaped, with the texts of the build', async () => {
+    const ctx = hosted()
+    ctx.oauth.arm('ann', A)
+    const html = await (await consent(ctx, 'ann', A, { 'accept-language': 'de' })).page.text()
+    expect(html).toContain('Team &lt;A&gt;')
+    expect(html).not.toContain('Team <A>')
+    expect(html).toContain('Erlauben')
+    expect(html).toContain('Daten gehen an den Anbieter.')
+    expect(html).toContain('ann@example.com')
+    expect(html).toContain('<html lang="de">')
+  })
+
+  it('a code gives nothing for another address, and nothing to someone who lost the address meanwhile', async () => {
+    const ctx = hosted()
+    ctx.oauth.arm('ann', A)
+    const first = await consent(ctx, 'ann', A)
+    const code = new URL((await approve(ctx, 'ann', await first.page.text())).headers.get('location')!).searchParams.get('code')!
+    const other = await tokenRequest(ctx, { grant_type: 'authorization_code', code, redirect_uri: CALLBACK, client_id: first.client_id, code_verifier: first.verifier, resource: B })
+    expect(other.status).toBe(400)
+    expect(await other.json()).toEqual({ error: 'invalid_target' })
+
+    ctx.oauth.arm('ann', A)
+    const second = await consent(ctx, 'ann', A)
+    const code2 = new URL((await approve(ctx, 'ann', await second.page.text())).headers.get('location')!).searchParams.get('code')!
+    ctx.owners[A] = 'ben'
+    const gone = await tokenRequest(ctx, { grant_type: 'authorization_code', code: code2, redirect_uri: CALLBACK, client_id: second.client_id, code_verifier: second.verifier })
+    expect(await gone.json()).toEqual({ error: 'invalid_grant' })
+  })
+
+  it('an approval made after losing the address is refused', async () => {
+    const ctx = hosted()
+    ctx.oauth.arm('ann', A)
+    const html = await (await consent(ctx, 'ann', A)).page.text()
+    ctx.owners[A] = 'ben'
+    expect((await approve(ctx, 'ann', html)).status).toBe(403)
+  })
+
+  it('losing an address ends the connection for good, and only that one', async () => {
+    const ctx = hosted()
+    ctx.owners[B] = 'ann'
+    const a = await connect(ctx, 'ann', A)
+    const b = await connect(ctx, 'ann', B)
+    ctx.owners[A] = 'ben'
+    expect(ctx.oauth.connections(A)).toEqual([])
+    expect(ctx.oauth.verifyAccess(a.tokens.access_token)).toBeNull()
+    ctx.owners[A] = 'ann'
+    expect(ctx.oauth.verifyAccess(a.tokens.access_token)).toBeNull()
+    expect(ctx.oauth.connections(A)).toEqual([])
+    expect(ctx.oauth.verifyAccess(b.tokens.access_token)?.resource).toBe(B)
+  })
+
+  it('a refresh stays with its address, and ends with the standing', async () => {
+    const ctx = hosted()
+    const { clientId, tokens } = await connect(ctx, 'ann', A)
+    const res = await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId })
+    const next = (await res.json()) as { access_token: string; refresh_token: string }
+    expect(ctx.oauth.verifyAccess(next.access_token)?.resource).toBe(A)
+    ctx.owners[A] = 'ben'
+    expect((await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: next.refresh_token, client_id: clientId })).status).toBe(400)
+  })
+
+  it('a refresh naming another address is refused and spends nothing', async () => {
+    const ctx = hosted()
+    const { clientId, tokens } = await connect(ctx, 'ann', A)
+    for (const resource of [B, `${ORIGIN}/mcp`, 'https://elsewhere.example.com/x']) {
+      const res = await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId, resource })
+      expect(await res.json()).toEqual({ error: 'invalid_target' })
+    }
+    expect((await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId, resource: A })).status).toBe(200)
+  })
+
+  it('standing comes before the named address: someone who lost it ends the connection, whatever they name', async () => {
+    const ctx = hosted()
+    const { clientId, tokens } = await connect(ctx, 'ann', A)
+    ctx.owners[A] = 'ben'
+    const res = await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId, resource: B })
+    expect(await res.json()).toEqual({ error: 'invalid_grant' })
+    ctx.owners[A] = 'ann'
+    expect((await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId })).status).toBe(400)
+  })
+
+  it('lists and disconnects per address: one owner cannot end another address\'s connection', async () => {
+    const ctx = hosted()
+    const a = await connect(ctx, 'ann', A)
+    const b = await connect(ctx, 'ben', B)
+    expect(ctx.oauth.connections(A).map((c) => c.id)).toEqual([a.clientId])
+    expect(ctx.oauth.connections(B).map((c) => c.id)).toEqual([b.clientId])
+    expect(ctx.oauth.disconnect(b.clientId, A)).toBe(false)
+    expect(ctx.oauth.verifyAccess(b.tokens.access_token)?.user).toBe('ben')
+    expect(ctx.oauth.disconnect(a.clientId, A)).toBe(true)
+    expect(ctx.oauth.verifyAccess(a.tokens.access_token)).toBeNull()
+    expect(ctx.db.prepare('SELECT id FROM oauth_clients WHERE id = ?').get(a.clientId)).toBeUndefined()
+  })
+
+  it('a client connected to two addresses keeps the other when one is disconnected', async () => {
+    const ctx = hosted()
+    ctx.owners[B] = 'ann'
+    const a = await connect(ctx, 'ann', A)
+    ctx.oauth.arm('ann', B)
+    const { challenge, verifier } = pkce()
+    const q = new URLSearchParams({ response_type: 'code', client_id: a.clientId, redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'S256', resource: B })
+    const page = await ctx.app.request(`/oauth/authorize?${q}`, { headers: { 'x-who': 'ann' } })
+    const code = new URL((await approve(ctx, 'ann', await page.text())).headers.get('location')!).searchParams.get('code')!
+    const b = (await (await tokenRequest(ctx, { grant_type: 'authorization_code', code, redirect_uri: CALLBACK, client_id: a.clientId, code_verifier: verifier, resource: B })).json()) as { access_token: string }
+    expect(ctx.oauth.disconnect(a.clientId, A)).toBe(true)
+    expect(ctx.oauth.verifyAccess(a.tokens.access_token)).toBeNull()
+    expect(ctx.oauth.verifyAccess(b.access_token)?.resource).toBe(B)
+    expect(ctx.oauth.connections(B).map((c) => c.id)).toEqual([a.clientId])
+  })
+})
