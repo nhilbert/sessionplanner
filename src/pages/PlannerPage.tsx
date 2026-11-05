@@ -6,6 +6,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { AlignLeft, CalendarPlus, ChevronLeft, FolderOpen, PanelRight, Printer, Redo2, Rows2, Rows3, Rows4, Undo2, X } from 'lucide-react'
 import { PRINT_VARIANTS } from '@/domain/print'
 import { VARIANT_LABEL } from '@/print/options'
+import { workshopToolFor } from '@/features'
 import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { itemColor, useSettings } from '@/store/useSettings'
@@ -468,6 +469,7 @@ export default function PlannerPage() {
                   <CalendarPlus size={15} />
                 </IconButton>
                 <Menu label={t('planner.print')} trigger={<Printer size={15} />} className="max-md:hidden" items={printItems} />
+                {workshopToolFor(data.workshop.id)}
                 <Menu
                   label={t('planner.actions')}
                   className="md:hidden"

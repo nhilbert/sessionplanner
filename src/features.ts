@@ -1,5 +1,8 @@
-/** What a build can switch off in the app (src/start.tsx). Set once, before anything is shown. */
+import type { ReactNode } from 'react'
+
+/** What a build can switch off or add in the app (src/start.tsx). Set once, before anything is shown. */
 let workshopSharing = true
+let workshopTool: ((workshopId: string) => ReactNode) | undefined
 
 export const setWorkshopSharing = (on: boolean): void => {
   workshopSharing = on
@@ -7,3 +10,10 @@ export const setWorkshopSharing = (on: boolean): void => {
 
 /** Whether a workshop offers sharing by e-mail: a build with its own way of inviting people turns it off. */
 export const hasWorkshopSharing = (): boolean => workshopSharing
+
+export const setWorkshopTool = (tool: ((workshopId: string) => ReactNode) | undefined): void => {
+  workshopTool = tool
+}
+
+/** What a build shows in a workshop's header, or nothing. */
+export const workshopToolFor = (workshopId: string): ReactNode => workshopTool?.(workshopId) ?? null

@@ -24,6 +24,8 @@ export interface Extensions {
   menu?: (options: { folded: boolean }) => ReactNode
   /** Leaves out a workshop's sharing by e-mail, for a build with its own way of inviting people. */
   workshopSharing?: false
+  /** One place in a workshop's header for something of its own. */
+  workshopTool?: (workshopId: string) => ReactNode
 }
 
 /** The owner's pages (library, slides area): a guest who types their address lands on the workshops shared with them. */
