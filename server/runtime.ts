@@ -1,4 +1,3 @@
-import path from 'node:path'
 import type { Hono } from 'hono'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
@@ -8,6 +7,7 @@ import { type AppOptions, createApp } from './app.ts'
 import type { Env, GuardOptions } from './guard.ts'
 import { mcpRoutes } from './mcp.ts'
 import { OAuthServer } from './oauth.ts'
+import { dataPaths } from './storage.ts'
 
 const BACKUP_CHECK_MS = 60 * 60 * 1000
 
@@ -48,17 +48,14 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
     console.warn('SP_PROXY_SECRET is not set: the login e-mail header is trusted from anyone who reaches this port. Set it here and in the reverse proxy (docs/mcp.md, Hosting).')
   }
 
-  const dbFile = path.join(dataDir, 'sessions.db')
+  const { dbFile, backupDir, filesDir, themesDir } = dataPaths(dataDir)
   const db = openDb(dbFile)
   const repo = new Repo(db)
-  const backupDir = path.join(dataDir, 'backups')
   const backup = backupDaily(db, dbFile, backupDir)
   const backupTimer = setInterval(() => backupDaily(db, dbFile, backupDir), BACKUP_CHECK_MS)
   backupTimer.unref()
 
   const hub = new Hub()
-  const filesDir = path.join(dataDir, 'files')
-  const themesDir = path.join(dataDir, 'themes')
 
   // MCP endpoint for AI agents at /mcp: with a static token and/or OAuth for Claude's connectors (docs/mcp.md).
   // Hosted, the owners (checked by the login proxy) approve connections; locally a browser on this machine.

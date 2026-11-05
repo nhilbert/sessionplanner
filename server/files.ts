@@ -1,9 +1,9 @@
 import { copyFileSync, rmSync } from 'node:fs'
-import path from 'node:path'
 import { newId } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
 import type { Attachment, ItemContent, LibraryEntry } from '../src/domain/types.ts'
 import type { LibraryFile, Repo } from './repo.ts'
+import { filePaths } from './storage.ts'
 
 /**
  * Attachment files going between the library and the workshops. A copy is a file of its own under its own id:
@@ -20,7 +20,8 @@ type Dir = string | undefined
 const copied = (filesDir: Dir, from: string, to: string): boolean => {
   if (!filesDir) return false
   try {
-    copyFileSync(path.join(filesDir, from), path.join(filesDir, to))
+    const { file } = filePaths(filesDir)
+    copyFileSync(file(from), file(to))
     return true
   } catch {
     return false
@@ -28,7 +29,7 @@ const copied = (filesDir: Dir, from: string, to: string): boolean => {
 }
 
 export function removeFiles(filesDir: Dir, ids: string[]): void {
-  if (filesDir) for (const id of ids) rmSync(path.join(filesDir, id), { force: true })
+  if (filesDir) for (const id of ids) rmSync(filePaths(filesDir).file(id), { force: true })
 }
 
 /**

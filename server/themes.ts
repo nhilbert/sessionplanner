@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import path from 'node:path'
+import { themeFolderFile } from './storage.ts'
 import { type Theme, type ThemeInfo, themeLogoUrl } from '../src/domain/theme.ts'
 import { isDark } from '../src/domain/color.ts'
 
@@ -12,7 +12,7 @@ export function folderThemes(themesDir: string | undefined): string[] {
   if (themesDir && existsSync(themesDir)) {
     try {
       for (const entry of readdirSync(themesDir, { withFileTypes: true })) {
-        if (entry.isDirectory() && THEME_NAME.test(entry.name) && existsSync(path.join(themesDir, entry.name, 'theme.css'))) names.push(entry.name)
+        if (entry.isDirectory() && THEME_NAME.test(entry.name) && existsSync(themeFolderFile(themesDir, entry.name, 'theme.css'))) names.push(entry.name)
       }
     } catch {
       // unreadable folder: only the built-in theme
@@ -24,14 +24,14 @@ export function folderThemes(themesDir: string | undefined): string[] {
 /** The logo a theme folder keeps beside its theme.css (`logo.svg`, `logo.png`, …), the first found, or null. */
 export const FOLDER_LOGOS = ['logo.svg', 'logo.png', 'logo.webp', 'logo.jpg', 'logo.jpeg']
 function folderLogo(themesDir: string, name: string): string | null {
-  const file = FOLDER_LOGOS.find((f) => existsSync(path.join(themesDir, name, f)))
+  const file = FOLDER_LOGOS.find((f) => existsSync(themeFolderFile(themesDir, name, f)))
   return file ? `/api/themes/${name}/${file}` : null
 }
 
 /** Whether a theme folder's stylesheet sets a dark ground (its `--bg`); false when it names none the server can read. */
 function folderDark(themesDir: string, name: string): boolean {
   try {
-    const m = /--bg:\s*(#[0-9a-fA-F]{6})\b/.exec(readFileSync(path.join(themesDir, name, 'theme.css'), 'utf8'))
+    const m = /--bg:\s*(#[0-9a-fA-F]{6})\b/.exec(readFileSync(themeFolderFile(themesDir, name, 'theme.css'), 'utf8'))
     return !!m && isDark(m[1])
   } catch {
     return false
