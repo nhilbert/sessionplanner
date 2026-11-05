@@ -82,6 +82,25 @@ describe('createRuntime', () => {
     expect(warn).toHaveBeenCalledTimes(1)
   })
 
+  it('writes each runtime\'s own base path into the addresses of its themes', async () => {
+    const png = new File([Uint8Array.of(0x89, 0x50, 0x4e, 0x47)], 'logo.png', { type: 'image/png' })
+    const logoOf = async (r: Runtime) => {
+      await call(r, '/api/themes', { method: 'POST', body: JSON.stringify({ name: 'Marke', id: 'marke' }) })
+      const form = new FormData()
+      form.set('file', png)
+      await r.app.request('http://127.0.0.1/api/themes/marke/logo', { method: 'POST', headers: { 'x-sp': '1' }, body: form })
+      const css = await (await call(r, '/api/themes/marke/theme.css')).text()
+      const list = (await (await call(r, '/api/themes')).json()) as { id: string; printLogo?: string | null }[]
+      return { css, printLogo: list.find((t) => t.id === 'marke')!.printLogo }
+    }
+    const [a, b, root] = [await logoOf(start({ basePath: '/base/a' })), await logoOf(start({ basePath: '/base/b' })), await logoOf(start())]
+    expect(a.printLogo).toMatch(/^\/base\/a\/api\/themes\/marke\/logo\?v=/)
+    expect(b.printLogo).toMatch(/^\/base\/b\/api\/themes\/marke\/logo\?v=/)
+    expect(root.printLogo).toMatch(/^\/api\/themes\/marke\/logo\?v=/)
+    expect(a.css).toContain('/base/a/api/themes/marke/logo')
+    expect(b.css).not.toContain('/base/a/')
+  })
+
   it('offers MCP and OAuth only when asked', async () => {
     const off = start()
     expect(off.mcp).toBeUndefined()

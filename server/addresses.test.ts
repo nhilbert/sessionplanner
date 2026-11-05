@@ -18,6 +18,17 @@ describe('domain/addresses.ts', () => {
     expect(written.map((f) => path.relative(root, f))).toEqual([])
   })
 
+  it('gives the pages their address in new windows, and nothing reads the raw path of the page', () => {
+    const files = sources(path.join(root, 'src'))
+    const raw = files.filter((f) => /window\.open\(`\/|[^.\w]location\.pathname/.test(readFileSync(f, 'utf8')))
+    expect(raw.map((f) => path.relative(root, f))).toEqual([])
+  })
+
+  it('is set only in the browser: a server process may hold several apps with a base path each', () => {
+    const server = readdirSync(path.join(root, 'server')).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+    expect(server.filter((f) => readFileSync(path.join(root, 'server', f), 'utf8').includes('setBasePath'))).toEqual([])
+  })
+
   it('also writes the addresses the server puts into its answers', () => {
     expect(readFileSync(path.join(root, 'server', 'themes.ts'), 'utf8')).not.toMatch(/[`'"]\/api\//)
   })

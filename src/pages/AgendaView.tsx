@@ -8,6 +8,7 @@ import { formatDate } from '@/i18n'
 import { itemColor, useSettings } from '@/store/useSettings'
 import { Button, Chip, cx } from '@/components/ui'
 import Markdown from '@/components/Markdown'
+import { pageUrl } from '@/domain/addresses'
 
 /** The read-only agenda for guests with view access: times, groups, descriptions, material, files (and notes if shared). */
 export default function AgendaView({ data }: { data: WorkshopState }) {
@@ -16,7 +17,7 @@ export default function AgendaView({ data }: { data: WorkshopState }) {
   const days = sortedDays(data.days)
   const w = data.workshop
   const dates = days.length ? (days.length === 1 ? formatDate(days[0].date) : `${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`) : ''
-  const print = (variant: 'agenda' | 'plan') => window.open(`/w/${w.id}/print/${variant}`, '_blank', 'noopener')
+  const print = (variant: 'agenda' | 'plan') => window.open(pageUrl(`/w/${w.id}/print/${variant}`), '_blank', 'noopener')
 
   return (
     <div className="h-full overflow-y-auto">

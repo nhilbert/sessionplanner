@@ -14,7 +14,7 @@ const BACKUP_CHECK_MS = 60 * 60 * 1000
 /** Start-up was refused because of its configuration: the message says what to set, a stack trace would add nothing. */
 export class RefusedStart extends Error {}
 
-export interface RuntimeOptions extends GuardOptions, Pick<AppOptions, 'staticDir' | 'guestsFile' | 'linkToken'> {
+export interface RuntimeOptions extends GuardOptions, Pick<AppOptions, 'staticDir' | 'guestsFile' | 'linkToken' | 'basePath'> {
   /** Holds everything of this runtime: sessions.db, backups/, files/ and themes/. Two runtimes never share one. */
   dataDir: string
   /** Static token for the MCP endpoint at /mcp. */
@@ -41,7 +41,7 @@ export interface Runtime {
  * called several times in a process, with a `dataDir` each; what exists once per process (the environment, the port)
  * stays with the caller, as in server/index.ts.
  */
-export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySecret, staticDir, guestsFile, linkToken, mcpToken, mcpOAuth }: RuntimeOptions): Runtime {
+export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySecret, staticDir, guestsFile, linkToken, basePath, mcpToken, mcpOAuth }: RuntimeOptions): Runtime {
   // Hosted without an owner list the API would trust the proxy alone; refuse instead of failing open.
   if (publicUrl && !owners.length) throw new RefusedStart('SP_PUBLIC_URL is set but SP_OWNERS is empty: name the e-mail address(es) the login lets in.')
   if (publicUrl && !proxySecret) {
@@ -74,6 +74,7 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
       mcp,
       oauth: oauth && { routes: oauth.routes(), admin: oauth.adminRoutes() },
       linkToken,
+      basePath,
     })
 
     // A failed copy must not take the server with it: it is reported, and the next check tries again.

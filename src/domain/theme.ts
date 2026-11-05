@@ -249,14 +249,14 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
 }
 
 /** The address of a theme's uploaded logo (or its light variant), versioned by the upload, or null without one. */
-export function themeLogoUrl(theme: Pick<Theme, 'id' | 'logo' | 'logoLight'>, variant: 'logo' | 'logoLight'): string | null {
+export function themeLogoUrl(theme: Pick<Theme, 'id' | 'logo' | 'logoLight'>, variant: 'logo' | 'logoLight', base?: string): string | null {
   const logo = variant === 'logo' ? theme.logo : theme.logoLight
-  return logo ? themeUrl(theme.id, `${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}`) : null
+  return logo ? themeUrl(theme.id, `${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}`, base) : null
 }
 
 /** The addresses of a theme's files by their path, versioned by the upload. */
-export function themeFileUrls(theme: Pick<Theme, 'id' | 'files'>): Record<string, string> {
-  return Object.fromEntries(theme.files.map((f) => [f.path, themeUrl(theme.id, `${f.path}?v=${encodeURIComponent(f.updatedAt)}`)]))
+export function themeFileUrls(theme: Pick<Theme, 'id' | 'files'>, base?: string): Record<string, string> {
+  return Object.fromEntries(theme.files.map((f) => [f.path, themeUrl(theme.id, `${f.path}?v=${encodeURIComponent(f.updatedAt)}`, base)]))
 }
 
 /** The ids a theme may have: the same rule as theme folders (server/themes.ts). */

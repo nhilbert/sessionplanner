@@ -24,9 +24,9 @@ export function folderThemes(themesDir: string | undefined): string[] {
 
 /** The logo a theme folder keeps beside its theme.css (`logo.svg`, `logo.png`, …), the first found, or null. */
 export const FOLDER_LOGOS = ['logo.svg', 'logo.png', 'logo.webp', 'logo.jpg', 'logo.jpeg']
-function folderLogo(themesDir: string, name: string): string | null {
+function folderLogo(themesDir: string, name: string, base: string): string | null {
   const file = FOLDER_LOGOS.find((f) => existsSync(themeFolderFile(themesDir, name, f)))
-  return file ? themeUrl(name, file) : null
+  return file ? themeUrl(name, file, base) : null
 }
 
 /** Whether a theme folder's stylesheet sets a dark ground (its `--bg`); false when it names none the server can read. */
@@ -46,16 +46,16 @@ function folderDark(themesDir: string, name: string): boolean {
  * light theme (a dark theme's logo is made for its dark ground), or the logo file beside a folder's theme.css; and
  * whether its ground is dark (`dark`), which the slide host reads to ask for the cut-outs made for a dark ground.
  */
-export function listThemes(themesDir: string | undefined, dataThemes: (Pick<Theme, 'id' | 'name' | 'updatedAt'> & Partial<Pick<Theme, 'logo' | 'logoLight' | 'tokens'>>)[] = []): ThemeInfo[] {
+export function listThemes(themesDir: string | undefined, dataThemes: (Pick<Theme, 'id' | 'name' | 'updatedAt'> & Partial<Pick<Theme, 'logo' | 'logoLight' | 'tokens'>>)[] = [], base = ''): ThemeInfo[] {
   const data = new Set(dataThemes.map((t) => t.id))
   return [
     { id: 'default', name: 'default', kind: 'builtin', dark: false },
     ...folderThemes(themesDir)
       .filter((n) => n !== 'default' && !data.has(n))
-      .map((n): ThemeInfo => ({ id: n, name: n, kind: 'folder', printLogo: folderLogo(themesDir!, n), dark: folderDark(themesDir!, n) })),
+      .map((n): ThemeInfo => ({ id: n, name: n, kind: 'folder', printLogo: folderLogo(themesDir!, n, base), dark: folderDark(themesDir!, n) })),
     ...dataThemes.filter((t) => t.id !== 'default').map((t): ThemeInfo => {
       const dark = !!t.tokens && isDark(t.tokens.colors.bg)
-      return { id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, printLogo: dark ? null : themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo'), dark }
+      return { id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, printLogo: dark ? null : themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo', base), dark }
     }),
   ]
 }

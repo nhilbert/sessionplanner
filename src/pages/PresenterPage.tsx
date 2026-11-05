@@ -14,6 +14,7 @@ import { useDeck } from '@/slides/useDeck'
 import { usePresentSync } from '@/slides/presentSync'
 import { useWakeLock } from '@/slides/useWakeLock'
 import { PlannerSlideEditor, useSlideEditing } from '@/slides/PlannerSlides'
+import { pageUrl } from '@/domain/addresses'
 
 /**
  * The presenter view (docs/slides.md): the facilitator's screen while the workshop runs, on the laptop or on a phone
@@ -110,7 +111,7 @@ export default function PresenterPage() {
         <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-accent' : 'bg-amber')} />
         {!live && <span className="text-[12px] text-amber">{t('planner.offline')}</span>}
         <span className="ml-auto hidden text-ink-3 md:inline">{t('slides.presenterHint')}</span>
-        <Button size="sm" onClick={() => window.open(`/w/${id}/present`, '_blank', 'noopener')} className="max-md:ml-auto max-md:hidden">
+        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${id}/present`), '_blank', 'noopener')} className="max-md:ml-auto max-md:hidden">
           <ExternalLink size={13} />
           {t('slides.projector')}
         </Button>

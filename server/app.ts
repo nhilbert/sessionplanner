@@ -59,6 +59,8 @@ export interface AppOptions extends GuardOptions {
   oauth?: { routes: Hono; admin: Hono<Env> }
   /** Token for GET /api/link/workshops (SP_LINK_TOKEN): another app (the CRM) reads the list to link to workshops. */
   linkToken?: string
+  /** Where the browser reaches this app, if not at the root of its host (no slash at the end). Whoever puts it there passes it requests without it; this says what to write into addresses in answers. */
+  basePath?: string
   /** Other limits than QUOTAS (tests). */
   quotas?: Partial<typeof QUOTAS>
 }
@@ -69,7 +71,7 @@ const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-
 /** A request's JSON body; a missing or malformed one is the client's mistake (400), not the server's. */
 const jsonBody = (c: Context): Promise<unknown> => c.req.json().catch(() => { throw new BadRequest('invalid JSON body') })
 
-export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, quotas }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, basePath = '', quotas }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const quota = { ...QUOTAS, ...quotas }
   const { file: filePath, asset: assetPath, darkAsset: darkAssetPath, logo: logoPath, assetsDir, darkAssetsDir, themeLogosDir, themeLogo: themeLogoPath, themeFilesDir, themeFile } = filePaths(filesDir)
@@ -620,7 +622,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   // ---- slide themes: kept as data (colours, fonts, logo; the stylesheet is generated) or as folders in data/themes ----
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
-  app.get('/api/themes', allow('signed-in'), (c) => c.json(listThemes(themesDir, repo.listThemes())))
+  app.get('/api/themes', allow('signed-in'), (c) => c.json(listThemes(themesDir, repo.listThemes(), basePath)))
   /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
   app.get('/api/themes/:id', allow('owner'), (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
@@ -659,7 +661,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const data = repo.getTheme(name)
     if (data) {
       if (rel.length === 1 && rel[0] === 'theme.css') {
-        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo'), logoLightUrl: themeLogoUrl(data, 'logoLight'), css: data.css, fileUrls: themeFileUrls(data) })
+        const css = themeCss(data.id, data.tokens, { logoUrl: themeLogoUrl(data, 'logo', basePath), logoLightUrl: themeLogoUrl(data, 'logoLight', basePath), css: data.css, fileUrls: themeFileUrls(data, basePath) })
         // Changed in the theme editor at any time: asked for again on every load (it is small).
         return c.body(css, 200, { 'Content-Type': THEME_TYPES['.css'], 'Cache-Control': 'private, no-cache' })
       }

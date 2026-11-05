@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
+import { type ReactNode, useState } from 'react'
+import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router'
 import AppShell from './components/AppShell'
 import WorkshopsPage from './pages/WorkshopsPage'
 import PlannerPage from './pages/PlannerPage'
@@ -14,17 +14,28 @@ import TemplatesPage from './pages/TemplatesPage'
 import PicturesPage from './pages/PicturesPage'
 import { useSettings } from './store/useSettings'
 
+/** What a build can add to the app without changing it. */
+export interface Extensions {
+  /** Where the app lies under its host, without a slash at the end: the pages, and the API below it. */
+  basePath?: string
+  /** More pages inside the app's frame. */
+  routes?: RouteObject[]
+  /** One place in the navigation for something of its own; `folded`: only icons fit. */
+  menu?: (options: { folded: boolean }) => ReactNode
+}
+
 /** The owner's pages (library, slides area): a guest who types their address lands on the workshops shared with them. */
 function OwnerOnly({ children }: { children: ReactNode }) {
   const owner = useSettings((s) => s.me.owner)
   return owner ? children : <Navigate to="/" replace />
 }
 
-const router = createBrowserRouter([
+const routes = ({ routes: extra = [], menu }: Extensions): RouteObject[] => [
   {
     path: '/',
-    element: <AppShell />,
+    element: <AppShell menu={menu} />,
     children: [
+      ...extra,
       { index: true, element: <WorkshopsPage /> },
       { path: 'w/:id', element: <PlannerPage /> },
       { path: 'library', element: <OwnerOnly><LibraryPage /></OwnerOnly> },
@@ -46,8 +57,9 @@ const router = createBrowserRouter([
   { path: '/w/:id/present', element: <PresentPage /> },
   { path: '/w/:id/presenter', element: <PresenterPage /> },
   { path: '*', element: <Navigate to="/" replace /> },
-])
+]
 
-export default function App() {
+export default function App({ extensions }: { extensions: Extensions }) {
+  const [router] = useState(() => createBrowserRouter(routes(extensions), { basename: extensions.basePath || undefined }))
   return <RouterProvider router={router} />
 }

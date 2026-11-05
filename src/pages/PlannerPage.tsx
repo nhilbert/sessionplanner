@@ -29,6 +29,7 @@ import type { InsertKind } from '@/planner/Insert'
 import type { Preview } from '@/planner/DayColumn'
 import AgendaView from './AgendaView'
 import { PlannerSlideEditor, useSlideEditing } from '@/slides/PlannerSlides'
+import { pageUrl } from '@/domain/addresses'
 
 const ZOOM: Record<string, number> = { s: 1, m: 1.6, l: 2.6 }
 const EMPTY = { workshop: { id: '' }, days: [], groups: [], items: [], attachments: [] } as unknown as WorkshopState
@@ -403,9 +404,9 @@ export default function PlannerPage() {
     ...PRINT_VARIANTS.map((v) => ({
       label: t(VARIANT_LABEL[v]),
       icon: <Printer size={15} />,
-      onSelect: () => window.open(`/w/${data.workshop.id}/print/${v}`, '_blank', 'noopener'),
+      onSelect: () => window.open(pageUrl(`/w/${data.workshop.id}/print/${v}`), '_blank', 'noopener'),
     })),
-    { label: t('slides.printSlides'), icon: <Printer size={15} />, onSelect: () => window.open(`/w/${data.workshop.id}/print/slides`, '_blank', 'noopener') },
+    { label: t('slides.printSlides'), icon: <Printer size={15} />, onSelect: () => window.open(pageUrl(`/w/${data.workshop.id}/print/slides`), '_blank', 'noopener') },
   ]
   const zoomItems = [
     { value: 's', label: t('planner.zoomS'), icon: <Rows4 size={15} /> },
