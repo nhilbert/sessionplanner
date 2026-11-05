@@ -308,6 +308,10 @@ What neither protects against:
 - Everything a tool returns is sent to the agent's model provider – workshop titles, client names, notes.
 - Text from briefs or notes that the agent processes can contain instructions (prompt injection). The agent then acts with your permissions. Review what it reports it changed; daily backups (`data/backups/`) allow restoring.
 
+### Several addresses in one build
+
+A build that hosts more than one protected address passes `resources` (`OAuthResources` in `server/oauth.ts`) to `OAuthServer`. There is then one sign-in service at the root of the host, and a client must name the address it wants (RFC 8707). Each token is tied to that address and to the person who approved it, and the build decides at every step who may connect. `verifyAccess` reports the token's address, and whoever serves an address must compare it. Without `resources` nothing changes.
+
 ## Operations
 
 - **Disconnect an agent:** Session Planner → Settings → AI agents → Disconnect. All its tokens stop working at once; it must be approved again.

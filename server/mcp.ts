@@ -90,9 +90,9 @@ async function run(fn: () => unknown) {
   }
 }
 
-export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer {
+export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions & { product?: string } = {}): McpServer {
   const ops = new Ops(repo, options)
-  const server = new McpServer({ name: 'sessionplanner', version: '0.1.0' }, { instructions: INSTRUCTIONS })
+  const server = new McpServer({ name: product?.toLowerCase().replace(/[^a-z0-9]+/g, '-') ?? 'sessionplanner', version: '0.1.0' }, { instructions: product ? INSTRUCTIONS.replaceAll('Session Planner', product) : INSTRUCTIONS })
   /** `destructive`: may delete or overwrite what the user wrote, so clients should ask first; `write` only adds or reversibly changes. */
   const tool = (name: string, description: string, inputSchema: z.ZodRawShape, fn: (a: Input) => unknown, kind: 'read' | 'write' | 'destructive' = 'write') =>
     server.registerTool(name, { description, inputSchema, annotations: { readOnlyHint: kind === 'read', destructiveHint: kind === 'destructive' } }, (a: Input) => run(() => fn(a)))
@@ -355,7 +355,7 @@ export interface McpAuth {
  * token; without either configured the route is not mounted at all (see index.ts). The 401 points
  * OAuth clients to the protected resource metadata, which starts their sign-in.
  */
-export function mcpRoutes(repo: Repo, auth: McpAuth, options: OpsOptions = {}): Hono {
+export function mcpRoutes(repo: Repo, auth: McpAuth, options: OpsOptions & { product?: string } = {}): Hono {
   const app = new Hono()
   app.all('/', async (c) => {
     const given = bearerToken(c.req.raw.headers)
