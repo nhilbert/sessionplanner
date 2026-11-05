@@ -754,6 +754,31 @@ describe('guests', () => {
     expect(edit.items.length).toBe(2)
   })
 
+  it('without the notes get no file that only note items link to, in the list or as a download', async () => {
+    const { app, id } = await prepared()
+    const { 'content-type': _json, ...upload } = OWNER as Record<string, string>
+    const file = async (name: string) => {
+      const form = new FormData()
+      form.set('file', new File(['text'], name))
+      return ((await (await app.request(`${pub}/api/workshops/${id}/attachments`, { method: 'POST', headers: upload, body: form })).json()) as Attachment).id
+    }
+    const [noteOnly, both, loose] = [await file('note-only.md'), await file('both.md'), await file('loose.md')]
+    const link = (item: string, attachmentIds: string[]) => ({ op: 'set', entity: 'item', id: item, fields: { attachmentIds } })
+    await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ clientId: 'c', ops: [link('n', [noteOnly, both]), link('a', [both])] }) })
+    await share(app, id, 'anna@example.com', 'view', false)
+    await share(app, id, 'ben@example.com', 'view', true)
+    const names = async (headers: Record<string, string>) => ((await (await app.request(`${pub}/api/workshops/${id}`, { headers })).json()) as WorkshopState).attachments.map((a) => a.name).sort()
+    const download = async (headers: Record<string, string>, attachment: string) => (await app.request(`${pub}/api/attachments/${attachment}`, { headers })).status
+
+    expect(await names(ANNA)).toEqual(['both.md', 'loose.md'])
+    expect(await download(ANNA, noteOnly)).toBe(404)
+    expect(await download(ANNA, both)).toBe(200)
+    expect(await download(ANNA, loose)).toBe(200)
+    expect(await names(BEN)).toEqual(['both.md', 'loose.md', 'note-only.md'])
+    expect(await download(BEN, noteOnly)).toBe(200)
+    expect(await download(OWNER, noteOnly)).toBe(200)
+  })
+
   it('may change the agenda only with edit access, and never archive or delete', async () => {
     const { app, id } = await prepared()
     await share(app, id, 'anna@example.com', 'view', true)

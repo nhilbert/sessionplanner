@@ -303,7 +303,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   app.get('/api/attachments/:id', allow('workshop-view', attachmentWorkshop), async (c) => {
     const att = repo.getAttachment(c.req.param('id')!)
-    return att ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
+    const access = c.get('access')
+    const state = att && access !== 'owner' ? repo.loadWorkshop(att.workshopId) : null
+    // A guest gets the files their copy of the workshop lists, nothing else.
+    const listed = access === 'owner' || (state && forGuest(state, access).attachments.some((a) => a.id === att?.id))
+    return att && listed ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
   })
 
   app.patch('/api/attachments/:id', allow('workshop-edit', attachmentWorkshop), async (c) => {

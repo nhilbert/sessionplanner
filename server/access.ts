@@ -99,14 +99,18 @@ export function mayApply(access: WorkshopAccess, ops: Op[]): boolean {
   return access === 'owner' || !ops.some((o) => o.op === 'set' && o.entity === 'workshop' && ('archived' in o.fields || 'theme' in o.fields))
 }
 
-/** What a guest without the notes may not see: facilitation notes and note items. */
+/** What a guest without the notes may not see: facilitation notes, note items and the files only note items link to. */
 export function forGuest(state: WorkshopState, access: Access): WorkshopState {
   if (access.role === 'edit' || access.showNotes) return { ...state, access }
+  const items = state.items.filter((i) => i.kind !== 'note')
+  const shown = new Set(items.flatMap((i) => i.attachmentIds))
+  const notesOnly = new Set(state.items.flatMap((i) => (i.kind === 'note' ? i.attachmentIds : [])).filter((id) => !shown.has(id)))
   return {
     ...state,
     access,
     workshop: { ...state.workshop, notes: '' },
-    items: state.items.filter((i) => i.kind !== 'note').map((i) => ({ ...i, notes: '' })),
+    items: items.map((i) => ({ ...i, notes: '' })),
+    attachments: state.attachments.filter((a) => !notesOnly.has(a.id)),
   }
 }
 
