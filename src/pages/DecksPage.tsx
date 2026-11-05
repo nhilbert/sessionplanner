@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Trash2, Upload } from 'lucide-react'
+import { FileDown, FolderUp, Trash2, Upload } from 'lucide-react'
 import { api, reportFailure } from '@/api'
 import type { Deck, DeckSlide } from '@/domain/types'
 import { formatDate } from '@/i18n'
@@ -10,7 +10,9 @@ import { Button, cx, Empty, IconButton, PageHeader } from '@/components/ui'
 import { Option } from '@/slides/Option'
 import { SlideView } from '@/slides/SlideView'
 import { forgetDecks } from '@/slides/SlidePicker'
-import { findDecks, type FoundDeck, importDeck } from '@/slides/importDeck'
+import { filesFromZip, findDecks, type FoundDeck, importDeck } from '@/slides/importDeck'
+import { DECK_SKILL_FILE, deckSkill } from '@/slides/deckSkill'
+import { downloadText } from '@/print/options'
 import { SlideEditor } from '@/slides/editor/SlideEditor'
 import { poolSource } from '@/slides/editor/source'
 import { SlidesTabs } from '@/slides/SlidesTabs'
@@ -33,6 +35,7 @@ export default function DecksPage() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   /** The slides shown in another theme than their deck's, to see how they look there. */
   const [view, setView] = useViewTheme('sp.decks.theme')
   const themeOf = (deck: Deck) => view || deck.theme || settings.theme || 'default'
@@ -63,6 +66,27 @@ export default function DecksPage() {
     }
     setFound(list)
     setChosen(list.map((d) => d.folder))
+  }
+
+  /** What did not come across, in the person's language; a kind without a text of its own stays as the importer named it. */
+  const lostLabel = (what: string) => {
+    const format = /^(\S+) picture$/.exec(what)?.[1]
+    return format && format !== 'linked' ? t('slides.lostPicture', { format }) : t(`slides.lost.${what}` as never, { defaultValue: what })
+  }
+
+  /** A .zip from an AI, or a .pptx read right here: nothing of it leaves the browser until the import. */
+  const chooseFile = async (file: File) => {
+    try {
+      if (/\.pptx$/i.test(file.name)) {
+        const { deckFromPptx } = await import('@/slides/pptx/read')
+        const { found: deck, warnings } = await deckFromPptx(file)
+        setFound([deck])
+        setChosen([deck.folder])
+        if (warnings.length) setNotice(t('slides.pptxWarnings', { count: warnings.length, list: [...new Set(warnings.map((w) => lostLabel(w.what)))].join(', ') }))
+      } else await choose(await filesFromZip(file))
+    } catch (err) {
+      setNotice(t('slides.notZip', { reason: err instanceof Error ? err.message : String(err) }))
+    }
   }
 
   const run = async () => {
@@ -123,9 +147,17 @@ export default function DecksPage() {
           right={
             <>
               {!!decks?.length && <ViewThemeSelect value={view} onChange={setView} defaultLabel={t('slides.themeOfDeck')} />}
-              <Button size="sm" onClick={() => input.current?.click()} disabled={!!progress}>
+              <Button size="sm" variant="ghost" onClick={() => downloadText(DECK_SKILL_FILE, deckSkill())}>
+                <FileDown size={13} />
+                {t('slides.aiSkill')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => input.current?.click()} disabled={!!progress}>
+                <FolderUp size={13} />
+                {t('slides.uploadFolder')}
+              </Button>
+              <Button size="sm" onClick={() => fileInput.current?.click()} disabled={!!progress}>
                 <Upload size={13} />
-                {t('slides.uploadDeck')}
+                {t('slides.uploadFile')}
               </Button>
             </>
           }
@@ -143,7 +175,19 @@ export default function DecksPage() {
             if (files.length) void choose(files)
           }}
         />
-        <p className="mb-6 text-[13px] text-ink-3">{t('slides.uploadHint')}</p>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".pptx,.zip"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (file) void chooseFile(file)
+          }}
+        />
+        <p className="mb-2 text-[13px] text-ink-3">{t('slides.uploadHint')}</p>
+        <p className="mb-6 text-[13px] text-ink-3">{t('slides.aiSkillHint')}</p>
         {notice && (
           <div className="mb-4 rounded-lg bg-accent-soft px-4 py-2 text-[13px]">
             {notice}
@@ -164,6 +208,7 @@ export default function DecksPage() {
             </ul>
             <div className="mt-3">
               <Option checked={createEntries} onChange={setCreateEntries}>{t('slides.createEntries')}</Option>
+              {found.some((d) => d.folder === '' && d.meta.entries?.length) && <p className="mt-1 text-[12px] text-ink-3">{t('slides.notesInEntries')}</p>}
             </div>
             <div className="mt-3 flex items-center gap-2">
               <Button size="sm" onClick={() => void run()} disabled={!chosen.length || !!progress}>
