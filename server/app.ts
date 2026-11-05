@@ -9,7 +9,7 @@ import { newId, type PresentPosition } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, sameToken } from './guard.ts'
-import { eventFor, forGuest, mayApply, mayEdit, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
+import { eventFor, forGuest, mayApply, mayDownload, mayEdit, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
 import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
@@ -18,6 +18,7 @@ import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, th
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
 import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
 import { filePaths, themeFolderFile } from './storage.ts'
+import { cleanBasePath } from '../src/domain/addresses.ts'
 import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { withFilesOf } from '../src/domain/copy.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
@@ -71,7 +72,8 @@ const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-
 /** A request's JSON body; a missing or malformed one is the client's mistake (400), not the server's. */
 const jsonBody = (c: Context): Promise<unknown> => c.req.json().catch(() => { throw new BadRequest('invalid JSON body') })
 
-export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, basePath = '', quotas }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, basePath: givenBasePath, quotas }: AppOptions): Hono<Env> {
+  const basePath = cleanBasePath(givenBasePath)
   const app = new Hono<Env>()
   const quota = { ...QUOTAS, ...quotas }
   const { file: filePath, asset: assetPath, darkAsset: darkAssetPath, logo: logoPath, assetsDir, darkAssetsDir, themeLogosDir, themeLogo: themeLogoPath, themeFilesDir, themeFile } = filePaths(filesDir)
@@ -204,7 +206,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   app.get('/api/workshops/:id/events', allow('workshop-view'), (c) => {
     const id = c.req.param('id')!
     let access = c.get('access')
-    if (!repo.loadWorkshop(id)) return c.json({ error: 'not_found' }, 404)
+    if (!repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     const user = c.get('user')
     const email = user.email
     // A guest holds a bounded number of streams; the owner is not counted.
@@ -303,11 +305,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   app.get('/api/attachments/:id', allow('workshop-view', attachmentWorkshop), async (c) => {
     const att = repo.getAttachment(c.req.param('id')!)
-    const access = c.get('access')
-    const state = att && access !== 'owner' ? repo.loadWorkshop(att.workshopId) : null
-    // A guest gets the files their copy of the workshop lists, nothing else.
-    const listed = access === 'owner' || (state && forGuest(state, access).attachments.some((a) => a.id === att?.id))
-    return att && listed ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
+    return att && mayDownload(c.get('access'), att.id, () => repo.loadWorkshop(att.workshopId)) ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
   })
 
   app.patch('/api/attachments/:id', allow('workshop-edit', attachmentWorkshop), async (c) => {

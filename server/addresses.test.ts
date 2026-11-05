@@ -24,6 +24,10 @@ describe('domain/addresses.ts', () => {
     expect(raw.map((f) => path.relative(root, f))).toEqual([])
   })
 
+  it('takes the frame\'s logo from the build, not from the root of the host', () => {
+    expect(readFileSync(path.join(root, 'src', 'components', 'AppShell.tsx'), 'utf8')).not.toMatch(/src="\//)
+  })
+
   it('is set only in the browser: a server process may hold several apps with a base path each', () => {
     const server = readdirSync(path.join(root, 'server')).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
     expect(server.filter((f) => readFileSync(path.join(root, 'server', f), 'utf8').includes('setBasePath'))).toEqual([])

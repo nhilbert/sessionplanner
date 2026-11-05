@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { apiUrl, isApiUrl, pageUrl, setBasePath, themeUrl } from './addresses'
+import { apiUrl, cleanBasePath, isApiUrl, localName, pageUrl, setBasePath, themeUrl } from './addresses'
 import { themeFileUrls, themeLogoUrl } from './theme'
 
 describe('addresses of the API', () => {
@@ -34,6 +34,23 @@ describe('a base path', () => {
     expect(themeLogoUrl(theme, 'logo', '/base/two')).toBe('/base/two/api/themes/brand/logo?v=t')
     expect(themeFileUrls(theme, '/base/two')).toEqual({ 'a.woff2': '/base/two/api/themes/brand/a.woff2?v=t' })
     expect(apiUrl('/me', '')).toBe('/api/me')
+  })
+
+  it('is cleaned or refused in one place', () => {
+    expect(cleanBasePath()).toBe('')
+    expect(cleanBasePath('')).toBe('')
+    expect(cleanBasePath('/')).toBe('')
+    expect(cleanBasePath('/app/')).toBe('/app')
+    expect(cleanBasePath('/base/one')).toBe('/base/one')
+    for (const bad of ['app', '//evil.example.com', '/a//b', 'https://example.com/a', '/a b', '/a?b']) expect(() => cleanBasePath(bad), bad).toThrow('Not a base path')
+    setBasePath('/')
+    expect(apiUrl('/me')).toBe('/api/me')
+  })
+
+  it('keeps what a browser stores and its channels apart between apps, and changes nothing at the root', () => {
+    expect(localName('sp.deck')).toBe('sp.deck')
+    setBasePath('/base/one')
+    expect(localName('sp.deck')).toBe('/base/one:sp.deck')
   })
 
   it('is empty by default, and nothing changes', () => {

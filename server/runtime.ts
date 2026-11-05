@@ -21,6 +21,8 @@ export interface RuntimeOptions extends GuardOptions, Pick<AppOptions, 'staticDi
   mcpToken?: string
   /** OAuth for the MCP endpoint (docs/mcp.md): the address it issues tokens for, and redirects allowed beyond Claude's and loopback. */
   mcpOAuth?: { baseUrl: URL; extraRedirects: string[] }
+  /** Makes the day's backup after the start instead of before it, for a runtime opened while others are in use; `backup` then stays null. */
+  backupInBackground?: boolean
 }
 
 export interface Runtime {
@@ -41,9 +43,11 @@ export interface Runtime {
  * called several times in a process, with a `dataDir` each; what exists once per process (the environment, the port)
  * stays with the caller, as in server/index.ts.
  */
-export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySecret, staticDir, guestsFile, linkToken, basePath, mcpToken, mcpOAuth }: RuntimeOptions): Runtime {
+export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySecret, staticDir, guestsFile, linkToken, basePath, mcpToken, mcpOAuth, backupInBackground }: RuntimeOptions): Runtime {
   // Hosted without an owner list the API would trust the proxy alone; refuse instead of failing open.
   if (publicUrl && !owners.length) throw new RefusedStart('SP_PUBLIC_URL is set but SP_OWNERS is empty: name the e-mail address(es) the login lets in.')
+  // OAuth announces addresses at the root of the host, which is not where this app would be.
+  if (basePath && mcpOAuth) throw new RefusedStart('OAuth for the MCP endpoint does not work under a base path: leave out one of them.')
   if (publicUrl && !proxySecret) {
     console.warn('SP_PROXY_SECRET is not set: the login e-mail header is trusted from anyone who reaches this port. Set it here and in the reverse proxy (docs/mcp.md, Hosting).')
   }
@@ -52,7 +56,16 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
   const db = openDb(dbFile)
   try {
     const repo = new Repo(db)
-    const backup = backupDaily(db, dbFile, backupDir)
+    // A failed copy must not take the server with it: it is reported, and the next check tries again.
+    const failed = (err: Error) => console.error(`Backup of ${dbFile} failed, trying again in an hour:`, err.message)
+    let backup: string | null = null
+    if (!backupInBackground) {
+      try {
+        backup = backupDaily(db, dbFile, backupDir)
+      } catch (err) {
+        failed(err as Error)
+      }
+    }
     const hub = new Hub()
 
     // MCP endpoint for AI agents at /mcp: with a static token and/or OAuth for Claude's connectors (docs/mcp.md).
@@ -77,15 +90,17 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
       basePath,
     })
 
-    // A failed copy must not take the server with it: it is reported, and the next check tries again.
     let running: Promise<void> | null = null
-    const backupTimer = setInterval(() => {
+    const check = () => {
       running ??= backupDailyInBackground(dbFile, backupDir)
         .then(() => undefined)
-        .catch((err: Error) => console.error(`Backup of ${dbFile} failed, trying again in an hour:`, err.message))
+        .catch(failed)
         .finally(() => (running = null))
-    }, BACKUP_CHECK_MS)
+    }
+    const backupTimer = setInterval(check, BACKUP_CHECK_MS)
     backupTimer.unref()
+    if (backupInBackground) check()
+    let closed = false
 
     return {
       app,
@@ -96,6 +111,8 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
       mcp,
       oauth,
       async close() {
+        if (closed) return
+        closed = true
         clearInterval(backupTimer)
         await running
         db.close()

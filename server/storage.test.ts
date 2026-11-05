@@ -33,7 +33,7 @@ describe('where data lies', () => {
 
 describe('a name that would leave its folder', () => {
   const f = filePaths('data/files')
-  const bad = ['..', '../sessions.db', '../../other/sessions.db', '/etc/passwd', 'a/b', 'a\\b', '..\\x', 'a\0b', '']
+  const bad = ['.', '..', '../sessions.db', '../../other/sessions.db', '/etc/passwd', 'a/b', 'a\\b', '..\\x', 'a\0b', '']
 
   it.each(bad)('is refused as %j', (name) => {
     expect(() => f.file(name)).toThrow('Refused')
@@ -42,11 +42,20 @@ describe('a name that would leave its folder', () => {
     expect(() => f.themeLogo(name, 'logo')).toThrow('Refused')
     expect(() => f.themeFilesDir(name)).toThrow('Refused')
     expect(() => themeFolderFile('data/themes', name, 'theme.css')).toThrow('Refused')
-    expect(() => themeFolderFile('data/themes', 'brand', name)).toThrow('Refused')
+    if (name !== '.') expect(() => themeFolderFile('data/themes', 'brand', name)).toThrow('Refused')
   })
 
   it('is refused anywhere in a theme file path', () => {
     for (const file of ['../x', 'fonts/../../x', 'fonts//x', '/x', 'x/', 'fonts/..']) expect(() => f.themeFile('brand', file), file).toThrow('Refused')
+  })
+
+  it('cannot reach the folder of all theme files', () => {
+    expect(() => f.themeFilesDir('.')).toThrow('Refused')
+    expect(() => f.themeFile('.', 'a.woff2')).toThrow('Refused')
+  })
+
+  it('leaves out a step that goes nowhere in the path of a folder theme, as it always has', () => {
+    expect(themeFolderFile('data/themes', 'brand', '.', 'theme.css')).toBe('data/themes/brand/theme.css')
   })
 
   it('does not take ordinary names for one', () => {

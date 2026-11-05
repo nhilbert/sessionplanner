@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { BookMarked, CalendarDays, Images, PanelLeftClose, PanelLeftOpen, Presentation, Settings } from 'lucide-react'
@@ -15,10 +15,20 @@ const NAV = [
   { to: '/pictures', key: 'nav.pictures', icon: Images, end: true, owner: true },
 ] as const
 
+/** The width from which the navigation stands on the left (Tailwind's md). */
+const wideScreen = () => window.matchMedia('(min-width: 48rem)')
+const onWidthChange = (listener: () => void) => {
+  const query = wideScreen()
+  query.addEventListener('change', listener)
+  return () => query.removeEventListener('change', listener)
+}
+
 /** The frame shared with Zendo and the Revenue Tracker: navigation on the left (icons only when folded), a bottom bar on phones. */
 export default function AppShell({ menu }: { menu?: (options: { folded: boolean }) => ReactNode }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
+  // The two navigations are both in the page, one hidden; what a build adds appears once, in the one that shows.
+  const wide = useSyncExternalStore(onWidthChange, () => wideScreen().matches)
   const [folded, setFolded] = useLocalState('sp.nav', 'open')
   const { load, loadMe, me } = useSettings()
   const collapsed = folded === 'folded'
@@ -57,11 +67,11 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
     <div className="flex h-dvh">
       <aside className={cx('no-print sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line py-7 md:flex', collapsed ? 'w-[60px] px-2' : 'w-[216px] px-4')}>
         <div className={cx('mb-8 flex items-center gap-2', collapsed ? 'justify-center' : 'px-2')}>
-          <img src="/favicon.svg" alt="" className="h-5 w-5 shrink-0" />
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-5 w-5 shrink-0" />
           {!collapsed && <span className="text-[15px] font-medium tracking-[-0.01em]">{t('app.name')}</span>}
         </div>
         <nav className="flex flex-col gap-0.5">{nav.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>
-        {menu?.({ folded: collapsed })}
+        {wide && menu?.({ folded: collapsed })}
         <div className="mt-auto flex flex-col gap-0.5">
           {!me.owner && me.email && !collapsed && <p className="mb-2 truncate px-2.5 text-[12px] text-ink-3" title={me.email}>{t('guest.signedInAs', { email: me.email })}</p>}
           {link('/settings', t('nav.settings'), Settings, true)}
@@ -94,7 +104,7 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
             {t(key)}
           </NavLink>
         ))}
-        {menu?.({ folded: true })}
+        {!wide && menu?.({ folded: true })}
       </nav>
     </div>
   )

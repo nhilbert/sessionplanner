@@ -36,8 +36,23 @@ export function backupDaily(db: DatabaseSync, dbFile: string, dir: string, keep 
   const target = dueToday(dbFile, dir)
   if (!target) return null
   rmSync(unfinished(target), { force: true })
-  db.exec(`VACUUM INTO '${unfinished(target).replace(/'/g, "''")}'`)
+  try {
+    db.exec(`VACUUM INTO '${unfinished(target).replace(/'/g, "''")}'`)
+  } catch (err) {
+    rmSync(unfinished(target), { force: true })
+    throw err
+  }
   return finish(target, dir, keep)
+}
+
+/** A copy like the ones at start-up: one file that opens anywhere, also read-only, and leaves nothing beside it. */
+function plainFile(file: string): void {
+  const copy = new DatabaseSync(file)
+  try {
+    copy.exec('PRAGMA journal_mode = DELETE')
+  } finally {
+    copy.close()
+  }
 }
 
 /** Pages per step of a copy: more than a database here will have, so that it is one read of one moment. */
@@ -55,6 +70,11 @@ export async function backupDailyInBackground(dbFile: string, dir: string, keep 
   const source = new DatabaseSync(dbFile, { readOnly: true })
   try {
     await backup(source, unfinished(target), { rate: WHOLE_DATABASE })
+    plainFile(unfinished(target))
+  } catch (err) {
+    // What is left of it may be what fills the disk.
+    rmSync(unfinished(target), { force: true })
+    throw err
   } finally {
     source.close()
   }

@@ -235,7 +235,7 @@ const themeRules = z
   .max(MAX_THEME_CSS)
   .refine((css) => !/<\/style/i.test(css), 'no </style>')
   .refine((css) => !/@import/i.test(css), 'no @import')
-const themeBody = z.strictObject({ name: text(100), id: z.string().regex(THEME_ID, 'a folder-safe id').optional(), tokens: tokensBody.optional(), css: themeRules.optional(), from: text(60).optional() })
+const themeBody = z.strictObject({ name: text(100), id: z.string().regex(THEME_ID, 'a folder-safe id').refine((id) => !id.endsWith('-light'), 'an id that does not end in -light: the light logo of a theme is kept under that name').optional(), tokens: tokensBody.optional(), css: themeRules.optional(), from: text(60).optional() })
 const themePatch = z.strictObject({ name: text(100).optional(), tokens: tokensBody.optional(), css: themeRules.optional() })
 
 /** A new theme: its name, and either tokens or the id of a theme to copy them from (`from`). */

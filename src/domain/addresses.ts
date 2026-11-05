@@ -8,10 +8,20 @@
 const API = '/api'
 let current = ''
 
-/** The browser's base path, before anything is loaded: no slash at the end, '' for the root. */
-export function setBasePath(path: string): void {
-  current = path
+/** A base path as the rest expects it: '' for the root, otherwise /one/or/more without a slash at the end. Anything else is refused, as every address would come out wrong. */
+export function cleanBasePath(path = ''): string {
+  const clean = path.replace(/\/+$/, '')
+  if (clean && !/^(\/[^/?#\s]+)+$/.test(clean)) throw new Error(`Not a base path: ${JSON.stringify(path)}`)
+  return clean
 }
+
+/** The browser's base path, before anything is loaded. */
+export function setBasePath(path: string): void {
+  current = cleanBasePath(path)
+}
+
+/** A name for what this browser keeps per app: apps under one host share its storage and its channels. Unchanged at the root. */
+export const localName = (name: string): string => (current ? `${current}:${name}` : name)
 
 /** The address of a page of the app, as a new window needs it (links inside the app go through the router). */
 export const pageUrl = (path: string): string => `${current}${path}`
