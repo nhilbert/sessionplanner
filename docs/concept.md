@@ -21,8 +21,8 @@ Decisions of 2026-10-29 are in section 10; the stages are in section 9.
 | **Material** | list on an item (or on the workshop as a whole): label, quantity, optional link | Rolls up into the workshop's packing list (section 5). |
 | **Group** | title | A heading over consecutive items of a day or the parking lot. Groups and ungrouped items share the day's order; members have their own order inside the group. |
 | **Category** | name, colour | Shared by all workshops (settings); an item has one, and may override its colour. |
-| **Library entry** | an item's content, or a group with its items | Shared by all workshops; inserting makes a copy. No files. |
-| **Attachment** | a file of the workshop (slides, handout, worksheet) | Belongs to the workshop; linked to any number of items. |
+| **Library entry** | an item's content, or a group with its items, with their files | Shared by all workshops; inserting makes a copy, of the files too. |
+| **Attachment** | a file of the workshop (slides, handout, worksheet) | Belongs to the workshop; linked to any number of items. A library entry holds files of its own, per item. |
 
 Item **kinds**:
 
@@ -62,7 +62,9 @@ Computing a day (pure function, `src/domain/time.ts`):
 
 - Material entries on an item: label, quantity, optional link.
 - **Packing list** of the workshop: entries grouped by label (case and spaces ignored). The quantity is the *largest* quantity of any single item, not the sum, because two steps with two flipcharts each need two flipcharts. The quantity can be overridden (e.g. cards are used up), each line can be ticked off, and marked "at the venue".
-- **Attachments**: upload files to the workshop (up to 25 MB each, 500 MB per workshop), link them to items, download them. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `Content-Type: application/octet-stream`, `nosniff`, sandbox CSP), so a file can never run as a page, nor be loaded by one as script or stylesheet.
+- **Attachments**: PDF, pictures, Word, Excel, PowerPoint and Markdown files (with their open counterparts, plain text and CSV; no macro formats), up to 5 MB each and 500 MB per workshop. The server checks both, by the file's ending; files uploaded before these limits stay as they are. They are uploaded to the workshop or to a step, and every file of the workshop shows in its list of files with the steps that use it, however it arrived. Stored in `data/files/`, delivered only through the API (never as a public path), always as a download (`Content-Disposition: attachment`, `Content-Type: application/octet-stream`, `nosniff`, sandbox CSP), so a file can never run as a page, nor be loaded by one as script or stylesheet.
+- **Library files**: a library entry holds files too, each on one of its items (in a group entry on the item they belong to). Files travel as copies, each a file of its own under its own id: inserting an entry gives the workshop copies linked to the new items, saving a step to the library gives the entry copies. A new version in the library, or a file deleted there, leaves existing workshops alone, and the other way round. A new version keeps the file's id, so its links stay.
+- **Managing files**, the same in all three places: drop several at once or choose them; what is on its way and what was refused show in the list; per file download, rename (the ending stays), upload a new version, and remove. In a step, removing unlinks; the file stays in the workshop. Guests who may edit can upload and rename; a new version and deleting wipe the old file and are the owner's. Only downloads, no preview in the app.
 
 ## 6. Output
 
@@ -177,7 +179,7 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 
 - Slides are text, not pictures: a small HTML subset with a fixed catalogue of layouts, one stylesheet owned by the app, themes as data chosen per workshop. Pictures collapse too much (no search, no agent access, blurry at scale); PowerPoint objects are too much (merging masters, previews need LibreOffice). The way back to PowerPoint is an export (docs/slides.md, section 5a), not a round trip: the PPTX is written from the laid-out slides and never read back.
 - Existing decks are translated once, by Claude with the `deck-translate` skill, against the catalogue; the result is reviewed in a static preview before it is uploaded. The translated decks form a slide pool in the app; slides are copied from the pool into items and library entries, so the pool is a source, not a dependency.
-- Slides are item content and travel with the library, copies and duplicates; the library's "no files" rule now reads "no attachments". Pictures are assets stored once by content hash, served through the API with the workshop's access check.
+- Slides are item content and travel with the library, copies and duplicates; the library's "no files" rule then read "no attachments" (since 2026-11-05 entries hold attachments too, section 5). Pictures are assets stored once by content hash, served through the API with the workshop's access check.
 - Nothing a guest writes may run: slides are sanitised on write and on render with an allowlist, SVG included; assets are raster only.
 - Nothing a guest does may fill the server: a guest uploads at most 250 MB a day (files and slide pictures together; a picture the server already has costs nothing) and holds at most 10 live-update streams at once (one per window); the files of a workshop take at most 500 MB, the owner's too. The day's count and the streams are kept in memory, so a restart starts afresh (`QUOTAS` in `server/app.ts`).
 - The app generates what the plan knows: title, agenda and break slides with the computed times; the facts panel of an exercise can come from the item later.
@@ -231,7 +233,7 @@ The same app, not a reduced one; what differs follows the device, consistently:
 - Colour coding by method categories (Input, Übung, Diskussion, Reflexion, Energizer, Organisatorisches – editable), per item overridable, and subtle: a thin bar and the faintest tint.
 - Title, start time and duration are edited right on the card; short descriptions can be hidden.
 - Groups: a heading over consecutive items (topic or sub-session) with time range and subtotal; collapsible, dragged as a whole; made from a Shift-click selection or by dragging items under a new heading.
-- Library shared by all workshops for items and groups; inserting makes a copy (later library edits do not change workshops). Files stay with each workshop.
+- Library shared by all workshops for items and groups; inserting makes a copy (later library edits do not change workshops). Files come along as copies; each workshop keeps its own.
 - Material can be added in the packing list, for the workshop in general or for an item.
 - Only the owner's logo on the printouts. *(Revised 2026-11-04: see "branding per workshop".)*
 

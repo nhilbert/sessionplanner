@@ -15,6 +15,12 @@ const MAX_UNDO = 200
 /** A broken stream retries every few seconds; asking the API what is going on once in a while is enough. */
 const ERROR_RELOAD_MS = 10_000
 
+/** A file new to the workshop joins the list; a known one (renamed, replaced) takes its place there. */
+const withAttachment = (s: WorkshopState, a: Attachment): WorkshopState => ({
+  ...s,
+  attachments: s.attachments.some((x) => x.id === a.id) ? s.attachments.map((x) => (x.id === a.id ? a : x)) : [...s.attachments, a],
+})
+
 interface Entry {
   redo: Op[]
   undo: Op[]
@@ -52,6 +58,7 @@ interface PlannerStore {
   endGroup: (key: string) => void
   undo: () => void
   redo: () => void
+  /** A file new to the workshop, or one renamed or replaced. */
   addAttachment: (a: Attachment) => void
   removeAttachment: (id: string) => void
   dismissSyncError: () => void
@@ -161,7 +168,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       }
       if (!sync || get().id !== id) return
       if (event.type === 'ops') show(applyRemote(sync, event.clientId, event.ops))
-      else if (event.type === 'attachment') show(patchConfirmed(sync, (s) => (s.attachments.some((a) => a.id === event.attachment.id) ? s : { ...s, attachments: [...s.attachments, event.attachment] })))
+      else if (event.type === 'attachment') show(patchConfirmed(sync, (s) => withAttachment(s, event.attachment)))
       else if (event.type === 'attachment-deleted') show(patchConfirmed(sync, (s) => ({ ...s, attachments: s.attachments.filter((a) => a.id !== event.id) })))
       else if (event.type === 'workshop-deleted' || event.type === 'revoked') {
         source?.close()
@@ -236,7 +243,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     },
 
     addAttachment: (a) => {
-      if (sync) show(patchConfirmed(sync, (s) => (s.attachments.some((x) => x.id === a.id) ? s : { ...s, attachments: [...s.attachments, a] })))
+      if (sync) show(patchConfirmed(sync, (s) => withAttachment(s, a)))
     },
 
     removeAttachment: (id) => {

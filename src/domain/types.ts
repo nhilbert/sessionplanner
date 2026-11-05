@@ -208,11 +208,15 @@ export interface WorkshopSummary {
 }
 
 /** The content of an item without its place in a workshop (library entries, copies). */
-export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'slides' | 'categoryId' | 'color'>
+/** attachmentIds name the files of the place the content is in: a workshop's attachments, or the library entry's. */
+export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'attachmentIds' | 'slides' | 'categoryId' | 'color'>
+
+/** A file of a library entry; inserting the entry gives the workshop a copy of it. */
+export type LibraryAttachment = Omit<Attachment, 'workshopId'> & { entryId: string }
 
 export type LibraryEntry =
-  | { id: string; kind: 'item'; title: string; data: ItemContent; createdAt: string; updatedAt: string }
-  | { id: string; kind: 'group'; title: string; data: { items: ItemContent[] }; createdAt: string; updatedAt: string }
+  | { id: string; kind: 'item'; title: string; data: ItemContent; attachments: LibraryAttachment[]; createdAt: string; updatedAt: string }
+  | { id: string; kind: 'group'; title: string; data: { items: ItemContent[] }; attachments: LibraryAttachment[]; createdAt: string; updatedAt: string }
 
 export type MemberRole = 'view' | 'edit'
 

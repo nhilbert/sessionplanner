@@ -16,6 +16,12 @@ export class ApiError extends Error {
 
 export const LOGIN_REQUIRED = 'sp:login-required'
 
+const fileForm = (file: File): FormData => {
+  const form = new FormData()
+  form.append('file', file)
+  return form
+}
+
 /** Tells the user that an action failed, with the server's reason, where the action has no place of its own to show it. */
 export function reportFailure(err: unknown): void {
   // An expired login has its own banner (components/AppShell.tsx).
@@ -82,12 +88,10 @@ export const api = {
   duplicateWorkshop: (id: string, input: { title: string; firstDate?: string }) => call<WorkshopState>(`/api/workshops/${id}/duplicate`, { method: 'POST', body: JSON.stringify(input) }),
   deleteWorkshop: (id: string) => call<{ ok: true }>(`/api/workshops/${id}`, { method: 'DELETE' }),
   sendOps: (id: string, clientId: string, ops: Op[]) => call<{ ok: true; ops: Op[] }>(`/api/workshops/${id}/ops`, { method: 'POST', body: JSON.stringify({ clientId, ops }) }),
-  upload: (id: string, file: File) => {
-    const form = new FormData()
-    form.append('file', file)
-    return call<Attachment>(`/api/workshops/${id}/attachments`, { method: 'POST', body: form })
-  },
+  upload: (id: string, file: File) => call<Attachment>(`/api/workshops/${id}/attachments`, { method: 'POST', body: fileForm(file) }),
   deleteAttachment: (id: string) => call<{ ok: true }>(`/api/attachments/${id}`, { method: 'DELETE' }),
+  renameAttachment: (id: string, name: string) => call<Attachment>(`/api/attachments/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  replaceAttachment: (id: string, file: File) => call<Attachment>(`/api/attachments/${id}/file`, { method: 'PUT', body: fileForm(file) }),
   getSettings: () => call<Settings>('/api/settings'),
   saveSettings: (settings: Omit<Settings, 'logo'>) => call<Settings>('/api/settings', { method: 'PUT', body: JSON.stringify(settings) }),
   uploadLogo: (file: File) => {
@@ -106,6 +110,17 @@ export const api = {
   saveLibraryEntry: (entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>, id?: string) =>
     call<LibraryEntry>(id ? `/api/library/${id}` : '/api/library', { method: id ? 'PUT' : 'POST', body: JSON.stringify(entry) }),
   deleteLibraryEntry: (id: string) => call<{ ok: true }>(`/api/library/${id}`, { method: 'DELETE' }),
+  /** The answers are the entry as it now is. `item`: which item of a group entry holds the file. */
+  uploadLibraryFile: (entryId: string, item: number, file: File) => {
+    const form = fileForm(file)
+    form.append('item', String(item))
+    return call<LibraryEntry>(`/api/library/${entryId}/attachments`, { method: 'POST', body: form })
+  },
+  renameLibraryFile: (id: string, name: string) => call<LibraryEntry>(`/api/library/attachments/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  replaceLibraryFile: (id: string, file: File) => call<LibraryEntry>(`/api/library/attachments/${id}/file`, { method: 'PUT', body: fileForm(file) }),
+  deleteLibraryFile: (id: string) => call<LibraryEntry>(`/api/library/attachments/${id}`, { method: 'DELETE' }),
+  /** Copies an entry's files into a workshop: library attachment id → the workshop's copy. */
+  copyLibraryFiles: (entryId: string, workshopId: string) => call<Record<string, Attachment>>(`/api/library/${entryId}/copies/${workshopId}`, { method: 'POST' }),
   eventsUrl: (id: string) => `/api/workshops/${id}/events`,
   /** Pages the presentation of a workshop: every window that presents or leads it follows (docs/slides.md, Presenting). */
   present: (id: string, position: PresentPosition) => call<{ ok: true }>(`/api/workshops/${id}/present`, { method: 'POST', body: JSON.stringify(position) }),
@@ -161,4 +176,5 @@ export const api = {
   updateDeck: (id: string, patch: { title?: string; theme?: string }) => call<Deck>(`/api/decks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteDeck: (id: string) => call<{ ok: true }>(`/api/decks/${id}`, { method: 'DELETE' }),
   downloadUrl: (attachmentId: string) => `/api/attachments/${attachmentId}`,
+  libraryFileUrl: (attachmentId: string) => `/api/library/attachments/${attachmentId}`,
 }

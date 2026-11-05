@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Copy, ExternalLink, Paperclip, Plus, Trash2, Upload, UserMinus, UserPlus, X } from 'lucide-react'
+import { Copy, ExternalLink, Plus, Trash2, UserMinus, UserPlus, X } from 'lucide-react'
 import type { Attachment, Member, MemberRole, PackingState, WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
@@ -10,9 +10,9 @@ import { api, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { Button, Checkbox, cx, Field, IconButton, Input, Modal, Segmented } from '@/components/ui'
 import { sortedDays } from '@/domain/order'
-import { QtyField, TextField, TimeField, formatSize } from './fields'
+import { QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
-import { uploadFiles } from './upload'
+import { FileManager } from './FileManager'
 import { ThemeSelect } from '@/slides/ThemeSelect'
 
 export function WorkshopPanel({ data, change, owner, onDayDate }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onDayDate: (dayId: string, date: string) => void }) {
@@ -183,61 +183,32 @@ function AddMaterial({ data, change }: { data: WorkshopState; change: (ops: Op[]
   )
 }
 
+/** All files of the workshop, those of its steps included: each is one file of the workshop, linked to any number of steps. */
 export function FilesPanel({ data, onAttachment, onRemove, owner }: { data: WorkshopState; onAttachment: (a: Attachment) => void; onRemove: (id: string) => void; owner: boolean }) {
   const { t } = useTranslation()
-  const input = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
-  const uses = (id: string) => data.items.filter((i) => i.attachmentIds.includes(id)).length
+  const usedAt = (id: string) => data.items.filter((i) => i.attachmentIds.includes(id)).map((i) => i.title || t(`kinds.${i.kind}`))
   return (
-    <div>
-      <Button size="sm" disabled={busy} onClick={() => input.current?.click()}>
-        <Upload size={13} />
-        {busy ? t('common.uploading') : t('common.upload')}
-      </Button>
-      <input
-        ref={input}
-        type="file"
-        multiple
-        hidden
-        onChange={async (e) => {
-          const files = [...(e.target.files ?? [])]
-          e.target.value = ''
-          setBusy(true)
-          ;(await uploadFiles(data.workshop.id, files, t)).forEach(onAttachment)
-          setBusy(false)
-        }}
-      />
-      {!data.attachments.length && <p className="mt-4 text-[14px] text-ink-2">{t('files.empty')}</p>}
-      <ul className="mt-4 divide-y divide-line">
-        {data.attachments.map((a) => (
-          <li key={a.id} className="flex items-center gap-3 py-2">
-            <Paperclip size={14} className="shrink-0 text-ink-3" />
-            <div className="min-w-0 flex-1">
-              <a href={api.downloadUrl(a.id)} download className="block truncate text-[14px] hover:underline">
-                {a.name}
-              </a>
-              <div className="text-[12px] text-ink-3">
-                {formatSize(a.size)} · {t('files.linked', { count: uses(a.id) })}
-              </div>
-            </div>
-            {owner && <IconButton
-              label={t('common.delete')}
-              onClick={async () => {
+    <FileManager
+      files={data.attachments.map((a) => ({ ...a, note: usedAt(a.id).join(', ') || t('files.unlinked') }))}
+      href={api.downloadUrl}
+      empty={t('files.empty')}
+      onUpload={async (file) => onAttachment(await api.upload(data.workshop.id, file))}
+      onRename={async (id, name) => onAttachment(await api.renameAttachment(id, name))}
+      onReplace={owner ? async (id, file) => onAttachment(await api.replaceAttachment(id, file)) : undefined}
+      remove={
+        owner
+          ? {
+              label: t('common.delete'),
+              danger: true,
+              run: async (a) => {
                 if (!window.confirm(t('files.deleteConfirm', { name: a.name }))) return
-                try {
-                  await api.deleteAttachment(a.id)
-                  onRemove(a.id)
-                } catch (err) {
-                  reportFailure(err)
-                }
-              }}
-            >
-              <Trash2 size={14} />
-            </IconButton>}
-          </li>
-        ))}
-      </ul>
-    </div>
+                await api.deleteAttachment(a.id)
+                onRemove(a.id)
+              },
+            }
+          : undefined
+      }
+    />
   )
 }
 

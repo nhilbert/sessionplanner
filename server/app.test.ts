@@ -6,10 +6,11 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
-import { createApp, MAX_FILE, PRESENT_HOURS, type QUOTAS } from './app.ts'
+import { createApp, PRESENT_HOURS, type QUOTAS } from './app.ts'
+import { MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { decodePng, encodePng } from './cutout.ts'
 import type { Op, ServerEvent } from '../src/domain/ops.ts'
-import type { Item, WorkshopState } from '../src/domain/types.ts'
+import type { Attachment, Item, ItemContent, LibraryEntry, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
 const H = { 'content-type': 'application/json', 'x-sp': '1' }
@@ -32,6 +33,14 @@ function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; d
     pingSeconds: opts.pingSeconds,
   })
   return { app, repo, hub, db }
+}
+
+/** Uploads a small file; the answer of the route (an attachment, or a library entry). */
+async function attach(app: ReturnType<typeof setup>['app'], route: string, name: string, text: string, fields: Record<string, string> = {}): Promise<any> {
+  const form = new FormData()
+  form.append('file', new File([text], name))
+  for (const [k, v] of Object.entries(fields)) form.append(k, v)
+  return (await app.request(`${BASE}${route}`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()
 }
 
 const item = (id: string, workshopId: string, dayId: string | null, over: Partial<Item> = {}): Item => ({
@@ -246,7 +255,7 @@ describe('attachments', () => {
     const ws = await create(app)
     const id = ws.workshop.id
     const form = new FormData()
-    form.append('file', new File(['<script>alert(1)</script>'], 'evil.html', { type: 'text/html' }))
+    form.append('file', new File(['<script>alert(1)</script>'], 'evil.svg', { type: 'image/svg+xml' }))
     const up = await app.request(`${BASE}/api/workshops/${id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })
     expect(up.status).toBe(201)
     const att = await up.json()
@@ -268,7 +277,7 @@ describe('attachments', () => {
   it('never serves a file as something a page could run or style itself with', async () => {
     const { app } = setup()
     const ws = await create(app)
-    for (const [name, type] of [['x.js', 'text/javascript'], ['x.mjs', 'application/javascript'], ['x.css', 'text/css'], ['x.pdf', 'application/pdf']]) {
+    for (const [name, type] of [['x.txt', 'text/javascript'], ['x.md', 'text/css'], ['x.svg', 'image/svg+xml'], ['x.pdf', 'application/pdf']]) {
       const form = new FormData()
       form.append('file', new File(['x'], name, { type }))
       const att = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()) as { id: string; mime: string }
@@ -284,7 +293,7 @@ describe('attachments', () => {
     const ws = await create(app)
     const upload = async (type: string) => {
       const form = new FormData()
-      form.append('file', new File(['x'], 'a.bin', { type }))
+      form.append('file', new File(['x'], 'a.pdf', { type }))
       return (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()) as { id: string; mime: string }
     }
     expect((await upload('application/pdf')).mime).toBe('application/pdf')
@@ -295,6 +304,40 @@ describe('attachments', () => {
     // stored before the check
     db.prepare('UPDATE attachments SET mime = ? WHERE id = ?').run('text/html; ' + 'y'.repeat(300), odd.id)
     expect((await app.request(`${BASE}/api/attachments/${odd.id}`)).headers.get('content-type')).toBe('application/octet-stream')
+  })
+
+  it('takes the allowed types up to 5 MB and refuses the rest, whatever the browser calls them', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const status = async (name: string, bytes = 1, type = '') => {
+      const form = new FormData()
+      form.append('file', new File([new Uint8Array(bytes)], name, { type }))
+      const res = await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })
+      return res.status
+    }
+    for (const name of ['a.pdf', 'a.PNG', 'a.jpeg', 'a.docx', 'a.md', 'a.xlsx', 'a.pptx', 'a.csv']) expect(await status(name)).toBe(201)
+    for (const name of ['a.exe', 'a.html', 'a.js', 'a.zip', 'a.docm', 'a.pdf.exe', 'noending']) expect(await status(name, 1, 'application/pdf')).toBe(415)
+    expect(await status('a.pdf', MAX_ATTACHMENT)).toBe(201)
+    expect(await status('a.pdf', MAX_ATTACHMENT + 1)).toBe(413)
+  })
+
+  it('renames a file within its type, and replaces it keeping the links; guests may rename but not replace', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const id = ws.workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'plan.pdf', 'one')
+    await ops(app, id, { clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item('a', id, null, { attachmentIds: [att.id] }) }] })
+    const rename = (name: string) => app.request(`${BASE}/api/attachments/${att.id}`, { method: 'PATCH', headers: H, body: JSON.stringify({ name }) })
+    expect(((await (await rename('Ablauf.pdf')).json()) as { name: string }).name).toBe('Ablauf.pdf')
+    for (const name of ['Ablauf.exe', 'Ablauf', 'a/b.pdf', '  ']) expect((await rename(name)).status).toBe(400)
+
+    const form = new FormData()
+    form.append('file', new File(['two!'], 'plan v2.docx'))
+    const replaced = await (await app.request(`${BASE}/api/attachments/${att.id}/file`, { method: 'PUT', headers: { 'x-sp': '1' }, body: form })).json()
+    expect(replaced).toMatchObject({ id: att.id, name: 'plan v2.docx', size: 4 })
+    expect(await (await app.request(`${BASE}/api/attachments/${att.id}`)).text()).toBe('two!')
+    const state = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
+    expect(state.items[0].attachmentIds).toEqual([att.id])
   })
 
   it('removes the files with the workshop', async () => {
@@ -494,11 +537,116 @@ describe('request bodies', () => {
     expect((await ops(app, id, batch)).status).toBe(200)
     const upload = async (bytes: number) => {
       const form = new FormData()
-      form.append('file', new File([new Uint8Array(bytes)], 'f.bin', { type: 'application/octet-stream' }))
+      form.append('file', new File([new Uint8Array(bytes)], 'f.pdf', { type: 'application/pdf' }))
       return (await app.request(`${BASE}/api/workshops/${id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).status
     }
     expect(await upload(2 * 1024 * 1024)).toBe(201)
-    expect(await upload(MAX_FILE + 1)).toBe(413)
+    expect(await upload(MAX_ATTACHMENT + 1)).toBe(413)
+  })
+})
+
+describe('library attachments', () => {
+  const entry = async (app: ReturnType<typeof setup>['app'], body: unknown) => (await (await app.request(`${BASE}/api/library`, { method: 'POST', headers: H, body: JSON.stringify(body) })).json()) as LibraryEntry
+  const content = (title: string, attachmentIds: string[] = []) => ({ kind: 'block', title, description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds, categoryId: null, color: null })
+  const copies = async (app: ReturnType<typeof setup>['app'], entryId: string, workshopId: string) => (await (await app.request(`${BASE}/api/library/${entryId}/copies/${workshopId}`, { method: 'POST', headers: H })).json()) as Record<string, Attachment>
+
+  it('holds files on an entry, under the same rules as a workshop', async () => {
+    const { app } = setup()
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl') })
+    const up = await attach(app, `/api/library/${e.id}/attachments`, 'Anleitung.pdf', 'text')
+    expect(up.attachments.map((a: { name: string }) => a.name)).toEqual(['Anleitung.pdf'])
+    expect(up.data.attachmentIds).toEqual([up.attachments[0].id])
+    const down = await app.request(`${BASE}/api/library/attachments/${up.attachments[0].id}`)
+    expect(down.headers.get('content-disposition')).toContain('attachment')
+    expect(down.headers.get('content-type')).toBe('application/octet-stream')
+    expect(await down.text()).toBe('text')
+    const form = new FormData()
+    form.append('file', new File(['x'], 'a.exe'))
+    expect((await app.request(`${BASE}/api/library/${e.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).status).toBe(415)
+    const big = new FormData()
+    big.append('file', new File([new Uint8Array(MAX_ATTACHMENT + 1)], 'a.pdf'))
+    expect((await app.request(`${BASE}/api/library/${e.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: big })).status).toBe(413)
+  })
+
+  it('attaches to one item of a group entry and keeps the files through a save that does not know of them', async () => {
+    const { app } = setup()
+    const e = await entry(app, { kind: 'group', title: 'Einstieg', data: { items: [content('Ankommen'), content('Check-in')] } })
+    const up = await attach(app, `/api/library/${e.id}/attachments`, 'Karten.pdf', 'x', { item: '1' })
+    const [first, second] = up.data.items
+    expect(first.attachmentIds).toEqual([])
+    expect(second.attachmentIds).toEqual([up.attachments[0].id])
+    // a save from a window that loaded the entry before the upload
+    const saved = (await (await app.request(`${BASE}/api/library/${e.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ kind: 'group', title: 'Start', data: e.data }) })).json()) as LibraryEntry & { data: { items: ItemContent[] } }
+    expect(saved.title).toBe('Start')
+    expect(saved.data.items[1].attachmentIds).toEqual([up.attachments[0].id])
+    expect(saved.attachments).toHaveLength(1)
+  })
+
+  it('gives a workshop copies that a later change in the library does not touch', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl') })
+    const up = await attach(app, `/api/library/${e.id}/attachments`, 'Anleitung.pdf', 'version 1')
+    const source = up.attachments[0].id as string
+    const copy = (await copies(app, e.id, ws.workshop.id))[source]
+    expect(copy.id).not.toBe(source)
+    expect(copy).toMatchObject({ workshopId: ws.workshop.id, name: 'Anleitung.pdf' })
+
+    const form = new FormData()
+    form.append('file', new File(['version 2'], 'Anleitung neu.pdf'))
+    expect((await app.request(`${BASE}/api/library/attachments/${source}/file`, { method: 'PUT', headers: { 'x-sp': '1' }, body: form })).status).toBe(200)
+    expect(await (await app.request(`${BASE}/api/library/attachments/${source}`)).text()).toBe('version 2')
+    expect(await (await app.request(`${BASE}/api/attachments/${copy.id}`)).text()).toBe('version 1')
+
+    expect((await app.request(`${BASE}/api/library/attachments/${source}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/library/attachments/${source}`)).status).toBe(404)
+    expect(await (await app.request(`${BASE}/api/attachments/${copy.id}`)).text()).toBe('version 1')
+  })
+
+  it('refuses copies that would not fit the workshop, leaving nothing behind', async () => {
+    const { app } = setup({ quotas: { workshopFiles: 8 } })
+    const ws = await create(app)
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl') })
+    await attach(app, `/api/library/${e.id}/attachments`, 'a.pdf', '123456789')
+    const res = await app.request(`${BASE}/api/library/${e.id}/copies/${ws.workshop.id}`, { method: 'POST', headers: H })
+    expect(res.status).toBe(413)
+    expect(((await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}`)).json()) as WorkshopState).attachments).toEqual([])
+  })
+
+  it('saved from a workshop, an entry holds copies of the workshop files', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const att = await attach(app, `/api/workshops/${ws.workshop.id}/attachments`, 'Handout.docx', 'original')
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl', [att.id, 'unknown']) })
+    expect(e.attachments.map((a) => a.name)).toEqual(['Handout.docx'])
+    expect(e.attachments[0].id).not.toBe(att.id)
+    expect((e.data as ItemContent).attachmentIds).toEqual([e.attachments[0].id])
+    await app.request(`${BASE}/api/attachments/${att.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    expect(await (await app.request(`${BASE}/api/library/attachments/${e.attachments[0].id}`)).text()).toBe('original')
+  })
+
+  it('removes the files with the entry', async () => {
+    const { app } = setup()
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl') })
+    const up = await attach(app, `/api/library/${e.id}/attachments`, 'a.pdf', 'x')
+    await app.request(`${BASE}/api/library/${e.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    expect((await app.request(`${BASE}/api/library/attachments/${up.attachments[0].id}`)).status).toBe(404)
+  })
+
+  it('stays the owner\'s: a guest neither reads nor changes library files', async () => {
+    const pub = 'https://sessions.example.com'
+    const { app } = setup({ owners: ['me@example.com'], publicUrl: new URL(pub) })
+    const OWNER = { 'x-auth-request-email': 'me@example.com', origin: pub, 'x-sp': '1' }
+    const GUEST = { 'x-auth-request-email': 'ben@example.com', origin: pub, 'x-sp': '1' }
+    const e = (await (await app.request(`${pub}/api/library`, { method: 'POST', headers: { ...OWNER, 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'item', title: 'F', data: content('F') }) })).json()) as LibraryEntry
+    const form = new FormData()
+    form.append('file', new File(['x'], 'a.pdf'))
+    const up = (await (await app.request(`${pub}/api/library/${e.id}/attachments`, { method: 'POST', headers: OWNER, body: form })).json()) as LibraryEntry
+    const file = up.attachments[0].id
+    expect((await app.request(`${pub}/api/library/attachments/${file}`, { headers: GUEST })).status).toBe(403)
+    expect((await app.request(`${pub}/api/library/attachments/${file}`, { method: 'DELETE', headers: GUEST })).status).toBe(403)
+    expect((await app.request(`${pub}/api/library/attachments/${file}/file`, { method: 'PUT', headers: GUEST, body: form })).status).toBe(403)
+    expect((await app.request(`${pub}/api/library/${e.id}/copies/x`, { method: 'POST', headers: GUEST })).status).toBe(403)
   })
 })
 

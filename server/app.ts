@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { streamSSE } from 'hono/streaming'
-import { copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -12,12 +12,14 @@ import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken }
 import type { Access, Asset, WorkshopState } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
+import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
+import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
+import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
+import { withFilesOf } from '../src/domain/copy.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
 
-export const MAX_FILE = 25 * 1024 * 1024
 export const MAX_LOGO = 2 * 1024 * 1024
 /** A theme's own file: a font or a picture its rules use. */
 export const MAX_THEME_FILE = 5 * 1024 * 1024
@@ -28,7 +30,7 @@ export const MAX_ASSET = 10 * 1024 * 1024
 /** Limits that keep the disk and the server's connections from being filled, by guests in particular. */
 export const QUOTAS = {
   /** The files of one workshop together, in bytes. */
-  workshopFiles: 500 * 1024 * 1024,
+  workshopFiles: MAX_WORKSHOP_FILES,
   /** What one guest may upload per day, files and slide pictures together, in bytes. The owner has no such limit. */
   guestUploadsPerDay: 250 * 1024 * 1024,
   /** Live-update streams one guest may hold open at once (one per open window). */
@@ -142,7 +144,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   // kilobytes, the OAuth forms and registrations) gets a megabyte.
   const tooLarge = (c: Context) => c.json({ error: 'too_large' }, 413)
   const limits = {
-    upload: bodyLimit({ maxSize: MAX_FILE + 64 * 1024, onError: tooLarge }),
+    attachment: bodyLimit({ maxSize: MAX_ATTACHMENT + 64 * 1024, onError: tooLarge }),
+    upload: bodyLimit({ maxSize: MAX_ASSET + 64 * 1024, onError: tooLarge }),
     logo: bodyLimit({ maxSize: MAX_LOGO + 64 * 1024, onError: tooLarge }),
     themeFile: bodyLimit({ maxSize: MAX_THEME_FILE + 64 * 1024, onError: tooLarge }),
     ops: bodyLimit({ maxSize: 4 * 1024 * 1024, onError: tooLarge }),
@@ -150,7 +153,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   }
   app.use('/api/*', (c, next) => {
     const p = c.req.path
-    const limit = /^\/api\/(workshops\/[^/]+\/attachments|workshops\/[^/]+\/assets|library\/assets|themes\/[^/]+\/pool)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : /^\/api\/themes\/[^/]+\/files$/.test(p) ? limits.themeFile : limits.json
+    const limit = /^\/api\/((workshops|library)\/[^/]+\/attachments|(library\/)?attachments\/[^/]+\/file)$/.test(p) ? limits.attachment : /^\/api\/(workshops\/[^/]+\/assets|library\/assets|themes\/[^/]+\/pool)$/.test(p) ? limits.upload : /^\/api\/(workshops\/[^/]+\/ops|decks|slide-templates(\/[^/]+)?)$/.test(p) ? limits.ops : p === '/api/settings/logo' || /^\/api\/themes\/[^/]+\/logo$/.test(p) ? limits.logo : /^\/api\/themes\/[^/]+\/files$/.test(p) ? limits.themeFile : limits.json
     return limit(c, next)
   })
   // Agents write whole agendas and slide decks in one call, like the app's operation batches.
@@ -276,32 +279,24 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     })
   })
 
-  app.post('/api/workshops/:id/attachments', async (c) => {
-    const access = accessTo(c, c.req.param('id')!)
-    if (!access) return c.json({ error: 'not_found' }, 404)
-    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
-    const body = await c.req.parseBody()
-    const file = body.file
+  /** The uploaded file of a request, or the answer refusing it: every attachment keeps to the same size and types. */
+  const attachmentUpload = async (c: Context<Env>): Promise<{ file: File; fields: Record<string, unknown> } | Response> => {
+    const fields = await c.req.parseBody()
+    const file = fields.file
     if (!(file instanceof File)) throw new BadRequest('file required')
-    if (file.size > MAX_FILE) return c.json({ error: 'too_large' }, 413)
-    if (repo.attachmentBytes(c.req.param('id')!) + file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
-    if (!guestUpload(c, access, file.size)) return c.json({ error: 'upload_budget' }, 429)
-    const id = newId()
+    if (file.size > MAX_ATTACHMENT) return c.json({ error: 'too_large' }, 413)
+    if (!fileKind(file.name)) return c.json({ error: 'file_type' }, 415)
+    return { file, fields }
+  }
+  const facts = (file: File) => ({ name: (file.name || 'file').replace(/[\\/\r\n]/g, '_').slice(0, 250), mime: safeMime(file.type), size: file.size })
+  /** Writes the file under its id; a file replaced is whole until the new one is. */
+  const storeAttachment = async (id: string, file: File) => {
     await mkdir(filesDir, { recursive: true })
-    await writeFile(filePath(id), Buffer.from(await file.arrayBuffer()))
-    const name = (file.name || 'file').replace(/[\\/\r\n]/g, '_').slice(0, 250)
-    const attachment = repo.addAttachment(c.req.param('id')!, { id, name, mime: safeMime(file.type), size: file.size })
-    if (!attachment) {
-      await rm(filePath(id), { force: true })
-      return c.json({ error: 'not_found' }, 404)
-    }
-    hub.publish(attachment.workshopId, { type: 'attachment', attachment })
-    return c.json(attachment, 201)
-  })
-
-  app.get('/api/attachments/:id', async (c) => {
-    const att = repo.getAttachment(c.req.param('id')!)
-    if (!att || !accessTo(c, att.workshopId)) return c.json({ error: 'not_found' }, 404)
+    const temp = filePath(`${id}.new`)
+    await writeFile(temp, Buffer.from(await file.arrayBuffer()))
+    await rename(temp, filePath(id))
+  }
+  const sendAttachment = async (c: Context<Env>, att: { id: string; name: string }) => {
     const data = await readFile(filePath(att.id)).catch(() => null)
     if (!data) return c.json({ error: 'not_found' }, 404)
     // Always a download, never rendered in the app's origin (an uploaded HTML or SVG file must not run), and never
@@ -313,6 +308,56 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       'Content-Security-Policy': 'sandbox',
       'Cache-Control': 'private, no-store',
     })
+  }
+
+  app.post('/api/workshops/:id/attachments', async (c) => {
+    const access = accessTo(c, c.req.param('id')!)
+    if (!access) return c.json({ error: 'not_found' }, 404)
+    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
+    const upload = await attachmentUpload(c)
+    if (upload instanceof Response) return upload
+    const { file } = upload
+    if (repo.attachmentBytes(c.req.param('id')!) + file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
+    if (!guestUpload(c, access, file.size)) return c.json({ error: 'upload_budget' }, 429)
+    const id = newId()
+    await storeAttachment(id, file)
+    const attachment = repo.addAttachment(c.req.param('id')!, { id, ...facts(file) })
+    if (!attachment) {
+      await rm(filePath(id), { force: true })
+      return c.json({ error: 'not_found' }, 404)
+    }
+    hub.publish(attachment.workshopId, { type: 'attachment', attachment })
+    return c.json(attachment, 201)
+  })
+
+  app.get('/api/attachments/:id', async (c) => {
+    const att = repo.getAttachment(c.req.param('id')!)
+    if (!att || !accessTo(c, att.workshopId)) return c.json({ error: 'not_found' }, 404)
+    return sendAttachment(c, att)
+  })
+
+  app.patch('/api/attachments/:id', async (c) => {
+    const att = repo.getAttachment(c.req.param('id')!)
+    const access = att && accessTo(c, att.workshopId)
+    if (!att || !access) return c.json({ error: 'not_found' }, 404)
+    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
+    const attachment = repo.updateAttachment(att.id, { name: validateFileName(await jsonBody(c), att.name) })!
+    hub.publish(att.workshopId, { type: 'attachment', attachment })
+    return c.json(attachment)
+  })
+
+  // A new version under the same id: the links to the items stay. It wipes the old file, so like deleting it is the owner's.
+  app.put('/api/attachments/:id/file', ownerOnly, async (c) => {
+    const att = repo.getAttachment(c.req.param('id')!)
+    if (!att) return c.json({ error: 'not_found' }, 404)
+    const upload = await attachmentUpload(c)
+    if (upload instanceof Response) return upload
+    if (repo.attachmentBytes(att.workshopId) - att.size + upload.file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
+    await storeAttachment(att.id, upload.file)
+    const attachment = repo.updateAttachment(att.id, facts(upload.file))
+    if (!attachment) return c.json({ error: 'not_found' }, 404)
+    hub.publish(att.workshopId, { type: 'attachment', attachment })
+    return c.json(attachment)
   })
 
   app.delete('/api/attachments/:id', ownerOnly, async (c) => {
@@ -390,12 +435,78 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   app.use('/api/library', ownerOnly)
   app.use('/api/library/*', ownerOnly)
   app.get('/api/library', (c) => c.json(repo.listLibrary()))
-  app.post('/api/library', async (c) => c.json(repo.saveLibraryEntry(null, validateLibraryEntry(await jsonBody(c))), 201))
+  // Saved from a workshop: the file lists name its attachments, and the entry gets copies of its own.
+  app.post('/api/library', async (c) => {
+    const { entry, files } = copyToLibrary(repo, filesDir, validateLibraryEntry(await jsonBody(c)))
+    return c.json(repo.saveLibraryEntry(null, entry, files), 201)
+  })
   app.put('/api/library/:id', async (c) => {
-    const entry = repo.saveLibraryEntry(c.req.param('id')!, validateLibraryEntry(await jsonBody(c)))
+    const id = c.req.param('id')!
+    const body = validateLibraryEntry(await jsonBody(c))
+    const stored = repo.getLibraryEntry(id)
+    if (!stored) return c.json({ error: 'not_found' }, 404)
+    repo.saveLibraryEntry(id, withFilesOf(body, stored))
+    removeFiles(filesDir, repo.pruneLibraryAttachments(id))
+    return c.json(repo.getLibraryEntry(id))
+  })
+  app.delete('/api/library/:id', (c) => {
+    const files = repo.deleteLibraryEntry(c.req.param('id')!)
+    if (!files) return c.json({ error: 'not_found' }, 404)
+    removeFiles(filesDir, files)
+    return c.json({ ok: true })
+  })
+
+  // Files of an entry; an answer is the entry as it now is. In a group entry `item` says which of its items holds the file.
+  app.post('/api/library/:id/attachments', async (c) => {
+    const entryId = c.req.param('id')!
+    if (!repo.getLibraryEntry(entryId)) return c.json({ error: 'not_found' }, 404)
+    const upload = await attachmentUpload(c)
+    if (upload instanceof Response) return upload
+    const item = Number(upload.fields.item ?? 0)
+    const id = newId()
+    await storeAttachment(id, upload.file)
+    const entry = repo.addLibraryAttachment(entryId, item, { id, ...facts(upload.file) })
+    if (!entry) {
+      await rm(filePath(id), { force: true })
+      return c.json({ error: 'not_found' }, 404)
+    }
+    return c.json(entry, 201)
+  })
+  app.get('/api/library/attachments/:id', async (c) => {
+    const att = repo.getLibraryAttachment(c.req.param('id')!)
+    return att ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
+  })
+  app.patch('/api/library/attachments/:id', async (c) => {
+    const att = repo.getLibraryAttachment(c.req.param('id')!)
+    if (!att) return c.json({ error: 'not_found' }, 404)
+    return c.json(repo.updateLibraryAttachment(att.id, { name: validateFileName(await jsonBody(c), att.name) }))
+  })
+  // The entry's next version; the copies in workshops stay as they are.
+  app.put('/api/library/attachments/:id/file', async (c) => {
+    const att = repo.getLibraryAttachment(c.req.param('id')!)
+    if (!att) return c.json({ error: 'not_found' }, 404)
+    const upload = await attachmentUpload(c)
+    if (upload instanceof Response) return upload
+    await storeAttachment(att.id, upload.file)
+    const entry = repo.updateLibraryAttachment(att.id, facts(upload.file))
     return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
   })
-  app.delete('/api/library/:id', (c) => (repo.deleteLibraryEntry(c.req.param('id')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
+  app.delete('/api/library/attachments/:id', async (c) => {
+    const entry = repo.deleteLibraryAttachment(c.req.param('id')!)
+    if (!entry) return c.json({ error: 'not_found' }, 404)
+    await rm(filePath(c.req.param('id')!), { force: true })
+    return c.json(entry)
+  })
+  /** Copies an entry's files into a workshop, before the entry is placed there: library attachment id → the workshop's copy. */
+  app.post('/api/library/:id/copies/:workshopId', (c) => {
+    const entry = repo.getLibraryEntry(c.req.param('id')!)
+    const workshopId = c.req.param('workshopId')!
+    if (!entry || !repo.loadWorkshop(workshopId)) return c.json({ error: 'not_found' }, 404)
+    const copies = copyEntryFiles(repo, filesDir, entry, workshopId, quota.workshopFiles)
+    if (!copies) return c.json({ error: 'quota' }, 413)
+    for (const attachment of Object.values(copies)) hub.publish(workshopId, { type: 'attachment', attachment })
+    return c.json(copies, 201)
+  })
 
   // ---- the slide pool (owner only): decks uploaded once, slides picked from them as copies ----------------
   app.use('/api/decks', ownerOnly)

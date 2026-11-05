@@ -44,6 +44,10 @@ export default function Menu({
     window.addEventListener('mousedown', close)
     return () => window.removeEventListener('mousedown', close)
   }, [open, phone])
+  // Near the end of a panel the dropdown would open below what is in view.
+  useEffect(() => {
+    if (open && !phone) list.current?.scrollIntoView({ block: 'nearest' })
+  }, [open, phone])
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
   const pick = (it: MenuItem) => {
     setOpen(false)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { openDb } from './db.ts'
@@ -216,6 +216,55 @@ describe('packing list and library', () => {
     // copies: the library entry stays as it was when the workshop changes
     ops.itemUpdate(other.id!, inserted[1].id!, { duration: 20 })
     expect(repo.listLibrary().find((e) => e.title === 'Erwartungen')).toMatchObject({ data: { duration: 60 } })
+  })
+
+  it('carries files as copies in both directions, and clears them with their entry or item', () => {
+    const { ops, repo, filesDir } = setup()
+    const id = ops.workshopCreate({ title: 'Quelle', date: '2026-11-10' }).id!
+    ops.itemCreate(id, 1, { title: 'Karten' })
+    const placed = repo.loadWorkshop(id)!.items[0]
+    const source = 'source-file'
+    writeFileSync(path.join(filesDir, source), 'original')
+    repo.addAttachment(id, { id: source, name: 'Karten.pdf', mime: 'application/pdf', size: 8 })
+    repo.applyOps(id, [{ op: 'set', entity: 'item', id: placed.id, fields: { attachmentIds: [source] } }])
+
+    // workshop → library: a copy of its own
+    expect(ops.librarySave(id, { item: 'Karten' })).toMatchObject({ item: { attachments: ['Karten.pdf'] } })
+    const entry = repo.listLibrary()[0]
+    const held = entry.attachments[0].id
+    expect(held).not.toBe(source)
+    writeFileSync(path.join(filesDir, source), 'changed in the workshop')
+    expect(readFileSync(path.join(filesDir, held), 'utf8')).toBe('original')
+
+    // library → workshop: linked at the new item, listed in the workshop, a file of its own
+    const target = ops.workshopCreate({ title: 'Ziel', date: '2026-11-11' }).id!
+    ops.libraryInsert(target, entry.id, 1)
+    const state = repo.loadWorkshop(target)!
+    expect(state.attachments.map((a) => a.name)).toEqual(['Karten.pdf'])
+    expect(state.items[0].attachmentIds).toEqual([state.attachments[0].id])
+    expect(state.attachments[0].id).not.toBe(held)
+    writeFileSync(path.join(filesDir, held), 'a new version')
+    expect(readFileSync(path.join(filesDir, state.attachments[0].id), 'utf8')).toBe('original')
+
+    // deleting the entry takes its files, not the copies
+    ops.libraryDelete(entry.id)
+    expect(existsSync(path.join(filesDir, held))).toBe(false)
+    expect(existsSync(path.join(filesDir, state.attachments[0].id))).toBe(true)
+  })
+
+  it('moves the file lists with a group entry\'s items and drops the files of removed items', () => {
+    const { ops, repo, filesDir } = setup()
+    ops.libraryCreate({ title: 'Einstieg', items: [{ title: 'Eins' }, { title: 'Zwei' }] })
+    const entry = repo.listLibrary()[0]
+    writeFileSync(path.join(filesDir, 'f1'), 'x')
+    writeFileSync(path.join(filesDir, 'f2'), 'x')
+    repo.addLibraryAttachment(entry.id, 0, { id: 'f1', name: 'eins.pdf', mime: 'application/pdf', size: 1 })
+    repo.addLibraryAttachment(entry.id, 1, { id: 'f2', name: 'zwei.pdf', mime: 'application/pdf', size: 1 })
+    expect(ops.libraryUpdate(entry.id, { item: 'Zwei', at: 0 })).toMatchObject({ items: [{ title: 'Zwei', attachments: ['zwei.pdf'] }, { title: 'Eins', attachments: ['eins.pdf'] }] })
+    ops.libraryUpdate(entry.id, { removeItems: ['Eins'] })
+    expect(repo.getLibraryEntry(entry.id)!.attachments.map((a) => a.name)).toEqual(['zwei.pdf'])
+    expect(existsSync(path.join(filesDir, 'f1'))).toBe(false)
+    expect(existsSync(path.join(filesDir, 'f2'))).toBe(true)
   })
 
   it('adds, reads, changes and deletes library entries without touching placed copies', () => {
