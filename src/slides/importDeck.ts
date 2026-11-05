@@ -3,6 +3,7 @@ import type { Deck, ItemContent, ItemKind } from '@/domain/types'
 import { newId } from '@/domain/ops'
 import { normalizeSlideHtml, slideTitle } from '@/domain/slides'
 import { withCutouts } from '@/domain/cutouts'
+import { readZip } from './unzip'
 
 /** The manifest of a translated deck (docs/slides.md, section 6; .claude/skills/deck-translate). */
 export interface DeckMeta {
@@ -45,6 +46,12 @@ export async function findDecks(files: File[]): Promise<FoundDeck[]> {
     if (fragments.length) found.push({ folder, meta, fragments, all })
   }
   return found.sort((a, b) => a.folder.localeCompare(b.folder))
+}
+
+/** The files of an uploaded archive, as a folder selection would give them, for findDecks. */
+export async function filesFromZip(archive: File): Promise<File[]> {
+  const entries = await readZip(new Uint8Array(await archive.arrayBuffer()))
+  return [...entries].map(([name, data]) => Object.defineProperty(new File([data as BlobPart], name.split('/').pop()!), 'webkitRelativePath', { value: name }))
 }
 
 /** A referenced picture: next to the deck, else anywhere in the selection under assets/. */
