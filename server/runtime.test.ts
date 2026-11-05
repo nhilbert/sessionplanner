@@ -1,0 +1,112 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { createRuntime, RefusedStart, type Runtime, type RuntimeOptions } from './runtime.ts'
+import type { ServerEvent } from '../src/domain/ops.ts'
+import type { WorkshopState } from '../src/domain/types.ts'
+
+const dirs: string[] = []
+const open: Runtime[] = []
+
+/** A local runtime in a folder of its own. */
+function start(options: Partial<RuntimeOptions> = {}): Runtime {
+  const dataDir = mkdtempSync(path.join(tmpdir(), 'sp-runtime-'))
+  dirs.push(dataDir)
+  const runtime = createRuntime({ dataDir, owners: [], ownerHeader: 'x-auth-request-email', ...options })
+  open.push(runtime)
+  return runtime
+}
+
+const call = (r: Runtime, url: string, init: RequestInit = {}) =>
+  r.app.request(`http://127.0.0.1${url}`, { ...init, headers: { 'x-sp': '1', 'content-type': 'application/json', ...init.headers } })
+const create = async (r: Runtime, title: string) => (await (await call(r, '/api/workshops', { method: 'POST', body: JSON.stringify({ title }) })).json()) as WorkshopState
+const titles = async (r: Runtime) => ((await (await call(r, '/api/workshops')).json()) as { title: string }[]).map((w) => w.title)
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  for (const r of open.splice(0)) r.close()
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
+
+describe('createRuntime', () => {
+  it('keeps two runtimes in one process apart', async () => {
+    const a = start()
+    const b = start()
+    const made = await create(a, 'Only in A')
+    await create(b, 'Only in B')
+    expect(await titles(a)).toEqual(['Only in A'])
+    expect(await titles(b)).toEqual(['Only in B'])
+    expect((await call(b, `/api/workshops/${made.workshop.id}`)).status).toBe(404)
+  })
+
+  it('passes live updates only within a runtime', () => {
+    const a = start()
+    const b = start()
+    const heard: ServerEvent[] = []
+    b.hub.subscribe('same-id', (e) => heard.push(e))
+    a.hub.publish('same-id', { type: 'workshop-deleted' })
+    expect(heard).toEqual([])
+    b.hub.publish('same-id', { type: 'workshop-deleted' })
+    expect(heard).toEqual([{ type: 'workshop-deleted' }])
+  })
+
+  it('keeps database, backups and files in its own folder', async () => {
+    const r = start()
+    const dataDir = path.dirname(r.dbFile)
+    expect(r.dbFile).toBe(path.join(dataDir, 'sessions.db'))
+    expect(r.backup).toMatch(new RegExp(`^${dataDir}/backups/sessions-\\d{4}-\\d{2}-\\d{2}\\.db$`))
+    expect(existsSync(r.backup!)).toBe(true)
+    const made = await create(r, 'With a file')
+    const form = new FormData()
+    form.set('file', new File(['hello'], 'notes.txt', { type: 'text/plain' }))
+    const res = await r.app.request(`http://127.0.0.1/api/workshops/${made.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })
+    expect(res.status).toBe(201)
+    expect(readdirSync(path.join(dataDir, 'files'))).toHaveLength(1)
+  })
+
+  it('refuses a hosted start without owners, before it touches the disk', () => {
+    const dataDir = path.join(tmpdir(), `sp-runtime-refused-${process.pid}`)
+    expect(() => createRuntime({ dataDir, publicUrl: new URL('https://sessions.example.com'), owners: [], ownerHeader: 'x-auth-request-email' })).toThrow(RefusedStart)
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('warns once per hosted runtime without a proxy secret, and not with one', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const hosted = { publicUrl: new URL('https://sessions.example.com'), owners: ['owner@example.com'] }
+    start({ ...hosted, proxySecret: 'secret' })
+    expect(warn).not.toHaveBeenCalled()
+    start(hosted)
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers MCP and OAuth only when asked', async () => {
+    const off = start()
+    expect(off.mcp).toBeUndefined()
+    expect(off.oauth).toBeUndefined()
+    const token = start({ mcpToken: 'token' })
+    expect(token.mcp).toBeDefined()
+    expect(token.oauth).toBeUndefined()
+    const both = start({ mcpOAuth: { baseUrl: new URL('http://127.0.0.1:5175'), extraRedirects: [] } })
+    expect(both.mcp).toBeDefined()
+    expect(both.oauth?.resource).toBe('http://127.0.0.1:5175/mcp')
+  })
+
+  it('checks hourly for a new day, and close stops that', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
+    const r = start()
+    const backups = path.join(path.dirname(r.dbFile), 'backups')
+    expect(readdirSync(backups)).toEqual(['sessions-2026-11-05.db'])
+    vi.setSystemTime(new Date('2026-11-06T10:00:00Z'))
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    expect(readdirSync(backups)).toEqual(['sessions-2026-11-05.db', 'sessions-2026-11-06.db'])
+
+    open.splice(open.indexOf(r), 1)
+    r.close()
+    vi.setSystemTime(new Date('2026-11-07T10:00:00Z'))
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    expect(readdirSync(backups)).toHaveLength(2)
+  })
+})
