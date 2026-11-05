@@ -8,8 +8,9 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { newId, type PresentPosition } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
-import { bearerToken, type Env, guard, type GuardOptions, ownerOnly, sameToken } from './guard.ts'
-import type { Access, Asset, WorkshopState } from '../src/domain/types.ts'
+import { bearerToken, type Env, guard, type GuardOptions, sameToken } from './guard.ts'
+import { eventFor, forGuest, mayApply, mayEdit, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
+import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
@@ -67,17 +68,6 @@ const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-
 /** A request's JSON body; a missing or malformed one is the client's mistake (400), not the server's. */
 const jsonBody = (c: Context): Promise<unknown> => c.req.json().catch(() => { throw new BadRequest('invalid JSON body') })
 
-/** What a guest without the notes may not see: facilitation notes and note items. */
-export function forGuest(state: WorkshopState, access: Access): WorkshopState {
-  if (access.role === 'edit' || access.showNotes) return { ...state, access }
-  return {
-    ...state,
-    access,
-    workshop: { ...state.workshop, notes: '' },
-    items: state.items.filter((i) => i.kind !== 'note').map((i) => ({ ...i, notes: '' })),
-  }
-}
-
 export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, quotas }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const quota = { ...QUOTAS, ...quotas }
@@ -85,19 +75,14 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   const assetPath = (hash: string) => path.join(filesDir, 'assets', hash)
   /** A cut-out's variant for a dark ground (server/cutout.ts): derived from the cut-out when first asked for, kept beside the assets. */
   const darkAssetPath = (hash: string) => path.join(filesDir, 'assets-dark', hash)
-  /** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
-  const accessTo = (c: Context<Env>, workshopId: string): 'owner' | Access | null => {
-    const user = c.get('user')
-    if (user.owner) return 'owner'
-    const member = user.email ? repo.getMember(workshopId, user.email) : null
-    return member ? { role: member.role, showNotes: member.showNotes } : null
-  }
-  const canEdit = (a: 'owner' | Access | null) => a === 'owner' || a?.role === 'edit'
+  const allow = rulesFor(repo)
+  /** The workshop an attachment belongs to, for the rule of a route that names only the file. */
+  const attachmentWorkshop = (c: Context<Env>) => repo.getAttachment(c.req.param('id')!)?.workshopId ?? null
 
   // Guests' uploads per day and their open live-update streams, kept in memory: a restart starts afresh.
   const uploaded = new Map<string, { day: string; bytes: number }>()
   /** Books an upload of a guest against the day's budget; false when it would go over. The owner has none. */
-  const guestUpload = (c: Context<Env>, access: 'owner' | Access, size: number): boolean => {
+  const guestUpload = (c: Context<Env>, access: WorkshopAccess, size: number): boolean => {
     if (access === 'owner') return true
     const email = c.get('user').email ?? ''
     const day = new Date().toISOString().slice(0, 10)
@@ -128,11 +113,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     // a proxy. A route with a policy of its own (the logo's short cache) keeps it.
     if (c.req.path.startsWith('/api/') && !c.res.headers.has('cache-control')) c.header('Cache-Control', 'no-store')
   })
-  app.get('/api/health', (c) => c.json({ ok: true }))
+  app.get('/api/health', allow('public'), (c) => c.json({ ok: true }))
   // Another app (the CRM) links its deliveries to workshops: with its own token, before the login's guard, it
   // reads id, title, client and dates of all workshops – nothing else, and nothing it could change.
   if (linkToken) {
-    app.get('/api/link/workshops', (c) => {
+    app.get('/api/link/workshops', allow('own-token'), (c) => {
       const given = bearerToken(c.req.raw.headers)
       if (given === null || !sameToken(given, linkToken)) return c.json({ error: 'unauthorized' }, 401)
       return c.json(repo.listWorkshops().map(({ id, title, client, archived, firstDate, lastDate }) => ({ id, title, client, archived, firstDate, lastDate })))
@@ -165,22 +150,19 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ error: 'error' }, 500)
   })
 
-  app.get('/api/me', (c) => c.json(c.get('user')))
-  app.get('/api/workshops', (c) => {
-    const user = c.get('user')
-    return c.json(user.owner ? repo.listWorkshops() : repo.listWorkshops(user.email ?? ''))
-  })
-  app.post('/api/workshops', ownerOnly, async (c) => c.json(repo.createWorkshop(validateNewWorkshop(await c.req.json().catch(() => ({})))), 201))
-  app.get('/api/workshops/:id', (c) => {
+  app.get('/api/me', allow('signed-in'), (c) => c.json(c.get('user')))
+  app.get('/api/workshops', allow('signed-in'), (c) => c.json(visibleWorkshops(repo, c.get('user'))))
+  app.post('/api/workshops', allow('owner'), async (c) => c.json(repo.createWorkshop(validateNewWorkshop(await c.req.json().catch(() => ({})))), 201))
+  app.get('/api/workshops/:id', allow('workshop-view'), (c) => {
     const id = c.req.param('id')!
-    const access = accessTo(c, id)
-    const state = access && repo.loadWorkshop(id)
-    if (!access || !state) return c.json({ error: 'not_found' }, 404)
+    const access = c.get('access')
+    const state = repo.loadWorkshop(id)
+    if (!state) return c.json({ error: 'not_found' }, 404)
     if (access === 'owner') return c.json(state)
     repo.touchMember(id, c.get('user').email!)
     return c.json(forGuest(state, access))
   })
-  app.delete('/api/workshops/:id', ownerOnly, async (c) => {
+  app.delete('/api/workshops/:id', allow('owner'), async (c) => {
     const id = c.req.param('id')!
     const files = repo.deleteWorkshop(id)
     if (!files) return c.json({ error: 'not_found' }, 404)
@@ -190,7 +172,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ ok: true })
   })
 
-  app.post('/api/workshops/:id/duplicate', ownerOnly, async (c) => {
+  app.post('/api/workshops/:id/duplicate', allow('owner'), async (c) => {
     const result = repo.duplicateWorkshop(c.req.param('id')!, validateDuplicate(await jsonBody(c)))
     if (!result) return c.json({ error: 'not_found' }, 404)
     await mkdir(filesDir, { recursive: true })
@@ -199,14 +181,10 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json(result.state, 201)
   })
 
-  app.post('/api/workshops/:id/ops', async (c) => {
+  app.post('/api/workshops/:id/ops', allow('workshop-edit'), async (c) => {
     const id = c.req.param('id')!
-    const access = accessTo(c, id)
-    if (!access) return c.json({ error: 'not_found' }, 404)
-    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
     const { clientId, ops } = validateOps(await jsonBody(c))
-    // Guests plan along; archiving and the branding (theme: slides and the logo on the printouts) stay with the owner.
-    if (access !== 'owner' && ops.some((o) => o.op === 'set' && o.entity === 'workshop' && ('archived' in o.fields || 'theme' in o.fields))) return c.json({ error: 'forbidden' }, 403)
+    if (!mayApply(c.get('access'), ops)) return c.json({ error: 'forbidden' }, 403)
     const stored = repo.applyOps(id, ops)
     if (!stored) return c.json({ error: 'not_found' }, 404)
     if (stored.length) hub.publish(id, { type: 'ops', clientId, ops: stored })
@@ -214,22 +192,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // Paging in a presentation, presenter view or remote: those who can edit lead it, and all their windows follow.
-  app.post('/api/workshops/:id/present', async (c) => {
+  app.post('/api/workshops/:id/present', allow('workshop-edit'), async (c) => {
     const id = c.req.param('id')!
-    const access = accessTo(c, id)
-    if (!access || !repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
-    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
+    if (!repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     const position = validatePresent(await jsonBody(c))
     positions.set(id, { ...position, at: Date.now() })
     hub.publish(id, { type: 'present', ...position })
     return c.json({ ok: true })
   })
 
-  app.get('/api/workshops/:id/events', (c) => {
+  app.get('/api/workshops/:id/events', allow('workshop-view'), (c) => {
     const id = c.req.param('id')!
-    let access = accessTo(c, id)
-    if (!access || !repo.loadWorkshop(id)) return c.json({ error: 'not_found' }, 404)
-    const email = c.get('user').email
+    let access = c.get('access')
+    if (!repo.loadWorkshop(id)) return c.json({ error: 'not_found' }, 404)
+    const user = c.get('user')
+    const email = user.email
     // A guest holds a bounded number of streams; the owner is not counted.
     const guest = access === 'owner' ? null : (email ?? '')
     if (guest !== null && (streams.get(guest) ?? 0) >= quota.guestStreams) return c.json({ error: 'too_many_streams' }, 429)
@@ -240,20 +217,17 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       const unsubscribe = hub.subscribe(id, (event) => {
         if (access !== 'owner' && event.type === 'members-changed') {
           // A guest whose access ended loses the stream at once; changed access applies from here on.
-          const member = email ? repo.getMember(id, email) : null
-          if (!member) {
+          const now = workshopAccess(repo, user, id)
+          if (!now) {
             void stream.writeSSE({ data: JSON.stringify({ type: 'revoked' }) }).then(() => stream.abort())
             return
           }
-          access = { role: member.role, showNotes: member.showNotes }
+          access = now
           void stream.writeSSE({ data: JSON.stringify({ type: 'changed' }) })
           return
         }
-        if (event.type === 'members-changed') return
-        if (event.type === 'present' && !canEdit(access)) return
-        // Without the notes, guests only learn that something changed and load their filtered copy again.
-        const filtered = access !== 'owner' && access!.role === 'view' && !access!.showNotes && event.type !== 'workshop-deleted'
-        void stream.writeSSE({ data: JSON.stringify(filtered ? { type: 'changed' } : event) })
+        const shown = eventFor(access, event)
+        if (shown) void stream.writeSSE({ data: JSON.stringify(shown) })
       })
       let released = false
       const release = () => {
@@ -268,7 +242,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       stream.onAbort(release)
       try {
         // Those who lead presentations learn where one stands as they connect (null: none yet since the server started).
-        await stream.writeSSE({ event: 'hello', data: canEdit(access) ? JSON.stringify({ present: positionOf(id) }) : '' })
+        await stream.writeSSE({ event: 'hello', data: mayEdit(access) ? JSON.stringify({ present: positionOf(id) }) : '' })
         while (!stream.aborted && !stream.closed) {
           await stream.sleep(pingSeconds * 1000)
           if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: '' })
@@ -310,15 +284,12 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     })
   }
 
-  app.post('/api/workshops/:id/attachments', async (c) => {
-    const access = accessTo(c, c.req.param('id')!)
-    if (!access) return c.json({ error: 'not_found' }, 404)
-    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
+  app.post('/api/workshops/:id/attachments', allow('workshop-edit'), async (c) => {
     const upload = await attachmentUpload(c)
     if (upload instanceof Response) return upload
     const { file } = upload
     if (repo.attachmentBytes(c.req.param('id')!) + file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
-    if (!guestUpload(c, access, file.size)) return c.json({ error: 'upload_budget' }, 429)
+    if (!guestUpload(c, c.get('access'), file.size)) return c.json({ error: 'upload_budget' }, 429)
     const id = newId()
     await storeAttachment(id, file)
     const attachment = repo.addAttachment(c.req.param('id')!, { id, ...facts(file) })
@@ -330,24 +301,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json(attachment, 201)
   })
 
-  app.get('/api/attachments/:id', async (c) => {
+  app.get('/api/attachments/:id', allow('workshop-view', attachmentWorkshop), async (c) => {
     const att = repo.getAttachment(c.req.param('id')!)
-    if (!att || !accessTo(c, att.workshopId)) return c.json({ error: 'not_found' }, 404)
-    return sendAttachment(c, att)
+    return att ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
   })
 
-  app.patch('/api/attachments/:id', async (c) => {
+  app.patch('/api/attachments/:id', allow('workshop-edit', attachmentWorkshop), async (c) => {
     const att = repo.getAttachment(c.req.param('id')!)
-    const access = att && accessTo(c, att.workshopId)
-    if (!att || !access) return c.json({ error: 'not_found' }, 404)
-    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
+    if (!att) return c.json({ error: 'not_found' }, 404)
     const attachment = repo.updateAttachment(att.id, { name: validateFileName(await jsonBody(c), att.name) })!
     hub.publish(att.workshopId, { type: 'attachment', attachment })
     return c.json(attachment)
   })
 
   // A new version under the same id: the links to the items stay. It wipes the old file, so like deleting it is the owner's.
-  app.put('/api/attachments/:id/file', ownerOnly, async (c) => {
+  app.put('/api/attachments/:id/file', allow('owner'), async (c) => {
     const att = repo.getAttachment(c.req.param('id')!)
     if (!att) return c.json({ error: 'not_found' }, 404)
     const upload = await attachmentUpload(c)
@@ -360,7 +328,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json(attachment)
   })
 
-  app.delete('/api/attachments/:id', ownerOnly, async (c) => {
+  app.delete('/api/attachments/:id', allow('owner'), async (c) => {
     const result = repo.deleteAttachment(c.req.param('id')!)
     if (!result) return c.json({ error: 'not_found' }, 404)
     await rm(filePath(c.req.param('id')!), { force: true })
@@ -371,15 +339,15 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   // ---- settings and logo -------------------------------------------------------------------------
   const logoPath = path.join(filesDir, 'logo')
-  app.get('/api/settings', (c) => c.json(repo.getSettings()))
-  app.put('/api/settings', ownerOnly, async (c) => {
+  app.get('/api/settings', allow('signed-in'), (c) => c.json(repo.getSettings()))
+  app.put('/api/settings', allow('owner'), async (c) => {
     const settings = validateSettings(await jsonBody(c))
     // A theme that is gone (deleted in another window) is not set as the default again.
     if (settings.theme && !listThemes(themesDir, repo.listThemes()).some((t) => t.id === settings.theme)) settings.theme = ''
     return c.json(repo.saveSettings({ ...settings, logo: repo.getSettings().logo }))
   })
 
-  app.post('/api/settings/logo', ownerOnly, async (c) => {
+  app.post('/api/settings/logo', allow('owner'), async (c) => {
     const file = (await c.req.parseBody()).file
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (!LOGO_TYPES.includes(file.type)) throw new BadRequest('png, jpeg, webp or svg only')
@@ -388,21 +356,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     await writeFile(logoPath, Buffer.from(await file.arrayBuffer()))
     return c.json(repo.saveSettings({ ...repo.getSettings(), logo: { mime: file.type, updatedAt: new Date().toISOString() } }))
   })
-  app.get('/api/settings/logo', async (c) => {
+  app.get('/api/settings/logo', allow('signed-in'), async (c) => {
     const logo = repo.getSettings().logo
     const data = logo && (await readFile(logoPath).catch(() => null))
     if (!logo || !data) return c.json({ error: 'not_found' }, 404)
     // Shown as <img>; opened on its own, an SVG still cannot run script in the app's origin.
     return c.body(new Uint8Array(data), 200, { 'Content-Type': logo.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
   })
-  app.delete('/api/settings/logo', ownerOnly, async (c) => {
+  app.delete('/api/settings/logo', allow('owner'), async (c) => {
     await rm(logoPath, { force: true })
     return c.json(repo.saveSettings({ ...repo.getSettings(), logo: null }))
   })
 
   // ---- guests (owner only) ----------------------------------------------------------------------------
   /** People to share with: the login's allow-list (without the owners) and everyone shared with before. */
-  app.get('/api/people', ownerOnly, async (c) => {
+  app.get('/api/people', allow('owner'), async (c) => {
     const listed = guestsFile
       ? (await readFile(guestsFile, 'utf8').catch(() => ''))
           .split('\n')
@@ -415,8 +383,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       emails.map((email) => ({ email, allowed: guestsFile ? listed.includes(email) : null, workshops: shared.find((s) => s.email === email)?.workshops ?? 0 })),
     )
   })
-  app.get('/api/workshops/:id/members', ownerOnly, (c) => c.json(repo.listMembers(c.req.param('id')!)))
-  app.put('/api/workshops/:id/members/:email', ownerOnly, async (c) => {
+  app.get('/api/workshops/:id/members', allow('owner'), (c) => c.json(repo.listMembers(c.req.param('id')!)))
+  app.put('/api/workshops/:id/members/:email', allow('owner'), async (c) => {
     const id = c.req.param('id')!
     const { role, showNotes } = validateMember(await jsonBody(c))
     const member = repo.setMember(id, validEmail(c.req.param('email')!), role, showNotes)
@@ -424,7 +392,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     hub.publish(id, { type: 'members-changed' })
     return c.json(member)
   })
-  app.delete('/api/workshops/:id/members/:email', ownerOnly, (c) => {
+  app.delete('/api/workshops/:id/members/:email', allow('owner'), (c) => {
     const id = c.req.param('id')!
     if (!repo.removeMember(id, validEmail(c.req.param('email')!))) return c.json({ error: 'not_found' }, 404)
     hub.publish(id, { type: 'members-changed' })
@@ -432,8 +400,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // ---- library (owner only) ---------------------------------------------------------------------------
-  app.use('/api/library', ownerOnly)
-  app.use('/api/library/*', ownerOnly)
+  app.use('/api/library', allow('owner'))
+  app.use('/api/library/*', allow('owner'))
   app.get('/api/library', (c) => c.json(repo.listLibrary()))
   // Saved from a workshop: the file lists name its attachments, and the entry gets copies of its own.
   app.post('/api/library', async (c) => {
@@ -509,8 +477,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // ---- the slide pool (owner only): decks uploaded once, slides picked from them as copies ----------------
-  app.use('/api/decks', ownerOnly)
-  app.use('/api/decks/*', ownerOnly)
+  app.use('/api/decks', allow('owner'))
+  app.use('/api/decks/*', allow('owner'))
   app.get('/api/decks', (c) => c.json(repo.listDecks()))
   app.post('/api/decks', async (c) => c.json(repo.createDeck(validateDeck(await jsonBody(c))), 201))
   app.get('/api/decks/:id', (c) => {
@@ -537,7 +505,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
    * Stores an uploaded picture once by its content; the record (with the hash of the cut-out made from a PNG with a
    * flat background, server/cutout.ts), or the answer that refuses it (too large, over the guest's budget).
    */
-  const saveUpload = async (c: Context<Env>, access: 'owner' | Access, file: unknown): Promise<(Asset & { cutout: string | null }) | Response> => {
+  const saveUpload = async (c: Context<Env>, access: WorkshopAccess, file: unknown): Promise<(Asset & { cutout: string | null }) | Response> => {
     if (!(file instanceof File)) throw new BadRequest('file required')
     if (file.size > MAX_ASSET) return c.json({ error: 'too_large' }, 413)
     const data = Buffer.from(await file.arrayBuffer())
@@ -569,7 +537,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const pair = HASH.test(hash) ? repo.assetPair(hash) : null
     return pair ? c.json({ hash, ...pair }) : c.json({ error: 'not_found' }, 404)
   }
-  const storeAsset = async (c: Context<Env>, access: 'owner' | Access) => {
+  const storeAsset = async (c: Context<Env>, access: WorkshopAccess) => {
     const saved = await saveUpload(c, access, (await c.req.parseBody()).file)
     return saved instanceof Response ? saved : c.json(saved, 201)
   }
@@ -595,23 +563,18 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     // Content-addressed: the same address always holds the same bytes, so a browser may keep it for good.
     return c.body(new Uint8Array(data), 200, { 'Content-Type': asset.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=31536000, immutable' })
   }
-  app.post('/api/workshops/:id/assets', async (c) => {
-    const access = accessTo(c, c.req.param('id')!)
-    if (!access) return c.json({ error: 'not_found' }, 404)
-    if (!canEdit(access)) return c.json({ error: 'forbidden' }, 403)
-    return storeAsset(c, access)
-  })
-  app.get('/api/workshops/:id/assets/:hash/info', (c) => {
+  app.post('/api/workshops/:id/assets', allow('workshop-edit'), async (c) => storeAsset(c, c.get('access')))
+  app.get('/api/workshops/:id/assets/:hash/info', allow('workshop-view'), (c) => {
     const id = c.req.param('id')!
     const hash = c.req.param('hash')!
-    if (!accessTo(c, id) || !HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
+    if (!HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
     return assetInfo(c, hash)
   })
-  app.get('/api/workshops/:id/assets/:hash', (c) => {
+  app.get('/api/workshops/:id/assets/:hash', allow('workshop-view'), (c) => {
     const id = c.req.param('id')!
     const hash = c.req.param('hash')!
     // A guest of the workshop sees what its slides show, nothing else.
-    if (!accessTo(c, id) || !HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
+    if (!HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
     return sendAsset(c, hash, c.req.query('ground'))
   })
   app.post('/api/library/assets', (c) => storeAsset(c, 'owner'))
@@ -623,7 +586,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
    * illustration whole on the ground take it (src/domain/cutouts.ts) – in the workshops, the library, the pool and
    * the templates. Running it again changes nothing; the editor's switch still leads back to the original.
    */
-  app.post('/api/assets/cutouts', ownerOnly, async (c) => {
+  app.post('/api/assets/cutouts', allow('owner'), async (c) => {
     const shown = new Set<string>()
     repo.rewriteSlides((html) => {
       for (const m of html.matchAll(/asset:([0-9a-f]{64})/g)) shown.add(m[1])
@@ -648,7 +611,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const slides = repo.rewriteSlides((html) => withCutouts(html, (h) => current.get(h) ?? null))
     return c.json({ pictures: new Set([...current.values()].filter(Boolean)).size, made, slides })
   })
-  app.post('/api/assets/sweep', ownerOnly, async (c) => {
+  app.post('/api/assets/sweep', allow('owner'), async (c) => {
     const gone = repo.sweepAssets()
     await Promise.all(gone.flatMap((h) => [rm(assetPath(h), { force: true }), rm(darkAssetPath(h), { force: true })]))
     return c.json({ removed: gone.length })
@@ -658,19 +621,19 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   const THEME_TYPES: Record<string, string> = { '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
   const themeLogoPath = (id: string, variant: 'logo' | 'logoLight') => path.join(filesDir, 'theme-logos', variant === 'logo' ? id : `${id}-light`)
   const themeFilesDir = (id: string) => path.join(filesDir, 'theme-files', id)
-  app.get('/api/themes', (c) => c.json(listThemes(themesDir, repo.listThemes())))
+  app.get('/api/themes', allow('signed-in'), (c) => c.json(listThemes(themesDir, repo.listThemes())))
   /** The full record of a data theme (owner): tokens and logos, for the theme editor. */
-  app.get('/api/themes/:id', ownerOnly, (c) => {
+  app.get('/api/themes/:id', allow('owner'), (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
     return theme ? c.json(theme) : c.json({ error: 'not_found' }, 404)
   })
   // ---- the asset pool of a theme: pictures the generated slides take in turn, icons for cards (docs/slides.md, section 4) ----
-  app.get('/api/themes/:id/pool', (c) => {
+  app.get('/api/themes/:id/pool', allow('signed-in'), (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
     return theme ? c.json(repo.listPool(theme.id)) : c.json({ error: 'not_found' }, 404)
   })
   /** A picture into the pool: uploaded (multipart: file, kind, tags) or one the server has already (JSON: hash, kind, tags). */
-  app.post('/api/themes/:id/pool', ownerOnly, async (c) => {
+  app.post('/api/themes/:id/pool', allow('owner'), async (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
     if (!theme) return c.json({ error: 'not_found' }, 404)
     let entry: { hash: string; kind: PoolKind; tags: string[] }
@@ -685,12 +648,12 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     }
     return c.json(repo.addPoolAsset(theme.id, entry), 201)
   })
-  app.put('/api/themes/:id/pool/:hash', ownerOnly, async (c) => {
+  app.put('/api/themes/:id/pool/:hash', allow('owner'), async (c) => {
     const entry = repo.updatePoolAsset(c.req.param('id')!, c.req.param('hash')!, validatePoolPatch(await jsonBody(c)))
     return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
   })
-  app.delete('/api/themes/:id/pool/:hash', ownerOnly, (c) => (repo.removePoolAsset(c.req.param('id')!, c.req.param('hash')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
-  app.get('/api/themes/:name/*', async (c) => {
+  app.delete('/api/themes/:id/pool/:hash', allow('owner'), (c) => (repo.removePoolAsset(c.req.param('id')!, c.req.param('hash')!) ? c.json({ ok: true }) : c.json({ error: 'not_found' }, 404)))
+  app.get('/api/themes/:name/*', allow('signed-in'), async (c) => {
     const name = c.req.param('name')!
     const rel = c.req.path.slice(`/api/themes/${name}/`.length).split('/')
     if (!THEME_NAME.test(name) || !rel.length || rel.some((s) => !/^[A-Za-z0-9._-]+$/.test(s) || s === '..')) return c.json({ error: 'not_found' }, 404)
@@ -720,7 +683,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!type || !bytes) return c.json({ error: 'not_found' }, 404)
     return c.body(new Uint8Array(bytes), 200, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=300' })
   })
-  app.post('/api/themes', ownerOnly, async (c) => {
+  app.post('/api/themes', allow('owner'), async (c) => {
     const input = validateTheme(await jsonBody(c))
     // Copied from another theme, started dark, or the neutral default.
     const from = input.from ? repo.getTheme(input.from) : null
@@ -748,13 +711,13 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     }
     return c.json(repo.getTheme(id), 201)
   })
-  app.put('/api/themes/:id', ownerOnly, async (c) => {
+  app.put('/api/themes/:id', allow('owner'), async (c) => {
     const current = repo.getTheme(c.req.param('id')!)
     if (!current) return c.json({ error: 'not_found' }, 404)
     const theme = repo.updateTheme(current.id, validateThemePatch(await jsonBody(c), current.tokens))
     return c.json(theme)
   })
-  app.delete('/api/themes/:id', ownerOnly, async (c) => {
+  app.delete('/api/themes/:id', allow('owner'), async (c) => {
     const id = c.req.param('id')!
     if (!isThemeId(id)) return c.json({ error: 'not_found' }, 404)
     const result = repo.deleteTheme(id)
@@ -765,7 +728,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ ok: true })
   })
   const logoVariant = (c: Context): 'logo' | 'logoLight' => (c.req.query('variant') === 'light' ? 'logoLight' : 'logo')
-  app.post('/api/themes/:id/logo', ownerOnly, async (c) => {
+  app.post('/api/themes/:id/logo', allow('owner'), async (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
     if (!theme) return c.json({ error: 'not_found' }, 404)
     const file = (await c.req.parseBody()).file
@@ -778,7 +741,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json(repo.setThemeLogo(theme.id, variant, { mime: file.type, updatedAt: new Date().toISOString() }))
   })
   /** A file of the theme (multipart: file, path), addressed by its rules relative to the stylesheet; one with the same path is replaced. */
-  app.post('/api/themes/:id/files', ownerOnly, async (c) => {
+  app.post('/api/themes/:id/files', allow('owner'), async (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
     if (!theme) return c.json({ error: 'not_found' }, 404)
     const body = await c.req.parseBody()
@@ -793,14 +756,14 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     await writeFile(target, Buffer.from(await file.arrayBuffer()))
     return c.json(repo.setThemeFile(theme.id, filePath, { mime, size: file.size, updatedAt: new Date().toISOString() }), 201)
   })
-  app.delete('/api/themes/:id/files', ownerOnly, async (c) => {
+  app.delete('/api/themes/:id/files', allow('owner'), async (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
     const filePath = c.req.query('path') ?? ''
     if (!theme || !theme.files.some((f) => f.path === filePath)) return c.json({ error: 'not_found' }, 404)
     await rm(path.join(themeFilesDir(theme.id), ...filePath.split('/')), { force: true })
     return c.json(repo.setThemeFile(theme.id, filePath, null))
   })
-  app.delete('/api/themes/:id/logo', ownerOnly, async (c) => {
+  app.delete('/api/themes/:id/logo', allow('owner'), async (c) => {
     const theme = repo.getTheme(c.req.param('id')!)
     if (!theme) return c.json({ error: 'not_found' }, 404)
     const variant = logoVariant(c)
@@ -809,8 +772,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // ---- template slides (owner only): named slides to start from, shared by all workshops --------------------------
-  app.use('/api/slide-templates', ownerOnly)
-  app.use('/api/slide-templates/*', ownerOnly)
+  app.use('/api/slide-templates', allow('owner'))
+  app.use('/api/slide-templates/*', allow('owner'))
   app.get('/api/slide-templates', (c) => c.json(repo.listSlideTemplates()))
   app.post('/api/slide-templates', async (c) => c.json(repo.saveSlideTemplate(null, validateSlideTemplate(await jsonBody(c))), 201))
   app.put('/api/slide-templates/:id', async (c) => {
@@ -821,7 +784,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   // ---- AI agents (owner only): connections approved over OAuth, each can be disconnected ------------------
   if (oauth) {
-    app.use('/api/mcp/*', ownerOnly)
+    app.use('/api/mcp/*', allow('owner'))
     app.route('/api/mcp', oauth.admin)
   }
 
@@ -837,5 +800,6 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const index = path.join(staticDir, 'index.html')
     app.get('*', async (c) => c.html(await readFile(index, 'utf8')))
   }
+  requireRules(app)
   return app
 }

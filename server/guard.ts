@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono'
 import { timingSafeEqual } from 'node:crypto'
+import type { WorkshopAccess } from './access.ts'
 
 export interface GuardOptions {
   /** Public address when hosted behind the login proxy (SP_PUBLIC_URL); its host and origin pass next to loopback. */
@@ -53,7 +54,7 @@ export interface User {
   owner: boolean
 }
 
-export type Env = { Variables: { user: User } }
+export type Env = { Variables: { user: User; access: WorkshopAccess } }
 
 /**
  * Hosted, the login proxy sets the signed-in e-mail (Caddy strips it from incoming requests, and only Caddy can
@@ -89,10 +90,4 @@ export function sameToken(given: string, expected: string): boolean {
   const a = Buffer.from(given)
   const b = Buffer.from(expected)
   return a.length === b.length && timingSafeEqual(a, b)
-}
-
-/** For routes only the owner may use. */
-export async function ownerOnly(c: Context<Env>, next: Next): Promise<Response | void> {
-  if (!c.get('user').owner) return c.json({ error: 'forbidden' }, 403)
-  await next()
 }
