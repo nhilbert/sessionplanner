@@ -103,7 +103,7 @@ How it is enforced:
 - The reverse proxy strips `X-Auth-Request-Email` from incoming requests; the login sets it. With `SP_PROXY_SECRET` the header counts only on requests that carry the proxy's secret (section 11).
 - Guests share the owner's origin, so nothing a guest writes may run as code: notes are rendered as text (or sanitised Markdown), a strict Content-Security-Policy, attachments as downloads only (section 5). What a guest may upload and hold open is limited (section 10, 2026-11-01, slides).
 
-No public access, so no share links: every person reaches the app through the Microsoft login, guests included. Draft 4 planned links without an account (a token per link, with a label, password and expiry); they were dropped for this reason, and guest access went in by signed-in e-mail on 2026-10-29. So a guest needs an invitation at the login, and there is no password or expiry per guest. Only machines come past the login, each with its own credentials: agents over `/mcp` and OAuth, and the CRM's link list (section 11).
+On the owner's hosted instance there is no public access, so no share links: every person reaches the app through the Microsoft login, guests included. Draft 4 planned links without an account (a token per link, with a label, password and expiry); they were dropped for this reason, and guest access went in by signed-in e-mail on 2026-10-29. So a guest needs an invitation at the login, and there is no password or expiry per guest. Only machines come past the login, each with its own credentials: agents over `/mcp` and OAuth, and the CRM's link list (section 11).
 
 ## 9. Stages and backlog
 
@@ -133,10 +133,12 @@ No public access, so no share links: every person reaches the app through the Mi
 **2026-11-05, several workspaces later**
 
 - The core should be able to serve several separate workspaces later. A workspace holds everything that belongs together: workshops, library, decks, themes, templates, settings and files. Nothing of one workspace is reachable from another, through any route, export, live update or agent connection.
-- Local use and today's hosted instance go on as they are, without choosing a workspace. Nothing is built yet, and users see no change.
+- Local use and today's hosted instance go on as they are, without choosing a workspace and without moving any data. Several workspaces are for a separate second instance, for invited partners. Nothing is built yet, and users see no change.
 - Login and accounts stay outside the core, behind a small interface, so the core depends on no provider.
-- Guests of a workshop (section 8) stay a thing of their own, apart from belonging to a workspace.
-- Open: how the data is kept apart, by one database and files folder per workspace or by one shared database with a workspace on every record. A trial decides, before any data model changes.
+- Guests of a workshop (section 8) stay a thing of their own, apart from belonging to a workspace. Two roles in a workspace: the owner, who alone invites, and members, who see and edit everything in it.
+- One database and files folder per workspace, plus a small central database for people and memberships: nothing of one workspace can be reached by a wrong query in another, and today's queries stay as they are. A new workspace gets copies of a starter pack, nothing shared.
+- This holds only while nothing is shared live between workspaces, workshops never move between them and one server runs the app. A feature that breaks one of these reopens the decision.
+- An instance can switch on a read-only agenda page per workshop, reachable without signing in: the client agenda and nothing else, revocable, created by owners and members. Off by default, and the owner's hosted instance stays without it.
 
 **2026-11-04, branding per workshop** (revises "only the owner's logo on the printouts" of 2026-10-29)
 
