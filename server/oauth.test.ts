@@ -448,6 +448,26 @@ describe('several protected addresses (a build with OAuthResources)', () => {
     expect((await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: next.refresh_token, client_id: clientId })).status).toBe(400)
   })
 
+  it('a refresh naming another address is refused and spends nothing', async () => {
+    const ctx = hosted()
+    const { clientId, tokens } = await connect(ctx, 'ann', A)
+    for (const resource of [B, `${ORIGIN}/mcp`, 'https://elsewhere.example.com/x']) {
+      const res = await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId, resource })
+      expect(await res.json()).toEqual({ error: 'invalid_target' })
+    }
+    expect((await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId, resource: A })).status).toBe(200)
+  })
+
+  it('standing comes before the named address: someone who lost it ends the connection, whatever they name', async () => {
+    const ctx = hosted()
+    const { clientId, tokens } = await connect(ctx, 'ann', A)
+    ctx.owners[A] = 'ben'
+    const res = await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId, resource: B })
+    expect(await res.json()).toEqual({ error: 'invalid_grant' })
+    ctx.owners[A] = 'ann'
+    expect((await tokenRequest(ctx, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId })).status).toBe(400)
+  })
+
   it('lists and disconnects per address: one owner cannot end another address\'s connection', async () => {
     const ctx = hosted()
     const a = await connect(ctx, 'ann', A)

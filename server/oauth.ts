@@ -551,6 +551,8 @@ export class OAuthServer {
           this.revokeFamily(row.family)
           return err('invalid_grant')
         }
+        // As with a code: naming the address is optional, and naming another one spends nothing.
+        if (this.cfg.resources && f('resource') !== undefined && this.cfg.resources.find(f('resource'))?.resource !== row.resource) return err('invalid_target')
         if (row.used_at !== null) {
           // Rotated before: a late retry is refused; a replay after that means the token leaked, so the whole family goes.
           if (Date.now() - row.used_at > REUSE_GRACE_MS) this.revokeFamily(row.family)
