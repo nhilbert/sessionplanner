@@ -1,31 +1,19 @@
 import type { TFunction } from 'i18next'
-import { api, ApiError } from '@/api'
-import type { Attachment } from '@/domain/types'
+import { ApiError } from '@/api'
+import { fileKind, MAX_ATTACHMENT } from '@/domain/attachments'
 
-export const MAX_FILE = 25 * 1024 * 1024
+/** Why a file may not be attached, in words, before anything is sent. */
+export function fileProblem(file: File, t: TFunction): string | null {
+  if (!fileKind(file.name)) return t('files.wrongType', { name: file.name })
+  if (file.size > MAX_ATTACHMENT) return t('files.tooLarge', { name: file.name })
+  return null
+}
 
 /** Why an upload failed, in words: the workshop's files are full, a guest's day is used up, or something else. */
 export function uploadProblem(err: unknown, name: string, t: TFunction): string {
   if (err instanceof ApiError && err.message === 'quota') return t('files.quota', { name })
   if (err instanceof ApiError && err.message === 'upload_budget') return t('files.budget', { name })
+  if (err instanceof ApiError && err.message === 'too_large') return t('files.tooLarge', { name })
+  if (err instanceof ApiError && err.message === 'file_type') return t('files.wrongType', { name })
   return t('files.failed', { name })
-}
-
-/** Uploads one file after the other; files over the limit or failing are reported and skipped. */
-export async function uploadFiles(workshopId: string, files: File[], t: TFunction): Promise<Attachment[]> {
-  const added: Attachment[] = []
-  const problems: string[] = []
-  for (const file of files) {
-    if (file.size > MAX_FILE) {
-      problems.push(t('files.tooLarge', { name: file.name }))
-      continue
-    }
-    try {
-      added.push(await api.upload(workshopId, file))
-    } catch (err) {
-      problems.push(uploadProblem(err, file.name, t))
-    }
-  }
-  if (problems.length) window.alert(problems.join('\n'))
-  return added
 }

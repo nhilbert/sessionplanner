@@ -6,7 +6,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { AlignLeft, CalendarPlus, ChevronLeft, FolderOpen, PanelRight, Printer, Redo2, Rows2, Rows3, Rows4, Undo2, X } from 'lucide-react'
 import { PRINT_VARIANTS } from '@/domain/print'
 import { VARIANT_LABEL } from '@/print/options'
-import { reportFailure } from '@/api'
+import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { itemColor, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
@@ -83,8 +83,22 @@ export default function PlannerPage() {
   const setPosition = (x: string, position: number): Op => (groups[x] ? { op: 'set', entity: 'group', id: x, fields: { position } } : { op: 'set', entity: 'item', id: x, fields: { position } })
 
   // ---- library entries arrive as copies ---------------------------------------------------------
-  const insertLibrary = (entry: LibraryEntry, to: string, index: number) => {
+  const insertLibrary = async (entry: LibraryEntry, to: string, index: number) => {
     if (!data) return
+    // The workshop gets its own copies of the entry's files first, so that the new items can name them.
+    const files: Record<string, string> = {}
+    if (entry.attachments.length) {
+      try {
+        for (const [from, copy] of Object.entries(await api.copyLibraryFiles(entry.id, data.workshop.id))) {
+          addAttachment(copy)
+          files[from] = copy.id
+        }
+      } catch (err) {
+        if (err instanceof ApiError && err.message === 'quota') window.alert(t('files.quotaEntry', { title: entry.title }))
+        else reportFailure(err)
+        return
+      }
+    }
     let key = to
     let at = index
     if (entry.kind === 'group' && key.startsWith('in:')) {
@@ -94,7 +108,7 @@ export default function PlannerPage() {
       at = (board.lists[key] ?? []).indexOf(gid) + 1
     }
     const { dayId, groupId } = placeOf(data, key)
-    const { group, items: created } = fromLibrary(entry, data.workshop.id, dayId, groupId, 0)
+    const { group, items: created } = fromLibrary(entry, data.workshop.id, dayId, groupId, 0, files)
     const topId = group?.id ?? created[0].id
     const { position, ops } = placeIn(state, board.lists[key] ?? [], topId, at)
     if (group) ops.push({ op: 'create', entity: 'group', record: { ...group, position } }, ...created.map((i): Op => ({ op: 'create', entity: 'item', record: i })))
@@ -107,7 +121,7 @@ export default function PlannerPage() {
     change,
     onLibraryDrop: (entryId, to, index) => {
       const entry = library.entries.find((e) => e.id === entryId)
-      if (entry) insertLibrary(entry, to, index)
+      if (entry) void insertLibrary(entry, to, index)
     },
   })
 

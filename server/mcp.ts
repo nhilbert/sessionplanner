@@ -24,7 +24,7 @@ const INSTRUCTIONS = `Session Planner holds workshop agendas: a workshop has day
 - Drafting from a brief: workshop_create, then item_create_many per day in order, with goal, method and lead where known. Use kind "break" for pauses, "marker" for points in time (arrival, end) and "note" for cues. Keep stretches without a break under 90 minutes.
 - Facilitation notes (notes) are the facilitator's own; appendNotes adds to them instead of replacing.
 - The packing list is computed from the material of all placed items (largest quantity per label, not the sum); packing_update ticks lines, overrides quantities and adds workshop-wide material.
-- The library holds reusable items and groups shared by all workshops, as copies both ways: library_insert copies an entry into an agenda, and changing or deleting an entry leaves the placed copies alone. Read library_get before library_update.
+- The library holds reusable items and groups shared by all workshops, as copies both ways: library_insert copies an entry with its files into an agenda, and changing or deleting an entry leaves the placed copies alone. Read library_get before library_update.
 - Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show, or the theme's pool (theme_pool: pictures for figures, icons for cards).
 - Prefer small, reversible changes and say what you changed. Workshops cannot be deleted through these tools; archive instead.`
 
@@ -223,13 +223,13 @@ export function createMcpServer(repo: Repo, options: OpsOptions = {}): McpServer
   tool('library_list', 'Reusable items and groups shared by all workshops.', {}, () => ops.libraryList(), 'read')
   tool(
     'library_save',
-    'Save an item, or a group with its items, of a workshop to the library (a copy; later edits do not affect the workshop).',
+    'Save an item, or a group with its items, of a workshop to the library (a copy with copies of its files; later edits do not affect the workshop).',
     { workshop: workshopRef, item: itemRef.optional(), group: groupRef.optional(), title: z.string().optional().describe('Library title; default the item\'s or group\'s') },
     (a) => ops.librarySave(a.workshop as string, a as never),
   )
   tool(
     'library_insert',
-    'Insert a copy of a library entry (item or group) into a day or the parking lot.',
+    'Insert a copy of a library entry (item or group) into a day or the parking lot; its files arrive as copies of the workshop.',
     { workshop: workshopRef, entry: entryRef, day: dayRef, ...placement },
     (a) => ops.libraryInsert(a.workshop as string, a.entry as string, a.day as never, a as never),
   )

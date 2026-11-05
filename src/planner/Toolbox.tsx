@@ -244,6 +244,12 @@ function LibraryRow({ entry, onInsert }: { entry: LibraryEntry; onInsert: () => 
           <span className="block truncate text-[12px] text-ink-3">{entry.kind === 'group' ? entry.data.items.map((i) => i.title || t(`kinds.${i.kind}`)).join(' · ') : entry.data.description}</span>
         )}
       </span>
+      {entry.attachments.length > 0 && (
+        <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-ink-3 tnum" title={t('files.count', { count: entry.attachments.length })}>
+          <Paperclip size={11} aria-hidden />
+          {entry.attachments.length}
+        </span>
+      )}
       <span className="shrink-0 text-[11px] text-ink-3 tnum">
         {entry.kind === 'group' && `${t('library.items', { count: items.length })} · `}
         {formatDuration(minutes)}

@@ -2,6 +2,7 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
+import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
 import { BadRequest, isCalendarDate, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
@@ -24,7 +25,7 @@ import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
 export interface OpsOptions {
   /** Open windows learn about changes at once (server process); absent over stdio, where the page is reloaded by hand. */
   hub?: Hub
-  /** Where attachment files live (data/files), so a duplicated workshop gets its files too. */
+  /** Where attachment files live (data/files), so a duplicate, an inserted library entry or one saved from a workshop gets its files too. */
   filesDir?: string
   /** Where the slide themes live (data/themes), so a workshop's theme can be checked and listed. */
   themesDir?: string
@@ -305,7 +306,7 @@ export class Ops {
 
   /** Fresh content with the defaults for the kind (itemFields lays the agent's fields over it, a duration included). */
   private blankContent(kind: ItemKind = 'block'): ItemContent {
-    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], slides: [], categoryId: null, color: null }
+    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], slides: [], categoryId: null, color: null }
   }
 
   /** The content fields an input carries, title aside: whether the agent meant to change an item's content. */
@@ -319,7 +320,7 @@ export class Ops {
   }
 
   private newItem(workshopId: string, dayId: string | null, groupId: string | null, position: number, input: ItemInput): Item {
-    return { id: newId(), workshopId, dayId, position, groupId, fixedStart: null, attachmentIds: [], ...this.blankContent(input.kind), ...this.itemFields(input) }
+    return { id: newId(), workshopId, dayId, position, groupId, fixedStart: null, ...this.blankContent(input.kind), ...this.itemFields(input) }
   }
 
   // ---------- views ----------
@@ -431,6 +432,7 @@ export class Ops {
         lead: c.lead,
         notes: full ? c.notes : undefined,
         materials: c.materials.map((m) => compact({ label: m.label, qty: m.qty, link: m.link })),
+        attachments: c.attachmentIds.map((id) => e.attachments.find((a) => a.id === id)?.name).filter(Boolean),
         category: c.categoryId,
         color: full ? c.color : undefined,
         slides: full ? (c.slides ?? []).map((x, i) => ({ n: i + 1, id: x.id, layout: slideLayout(x.html), title: slideTitle(x.html) })) : c.slides?.length || undefined,
@@ -957,7 +959,24 @@ export class Ops {
   private saveEntry(id: string | null, entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) {
     const saved = this.repo.saveLibraryEntry(id, validateLibraryEntry(entry))
     if (!saved) throw new BadRequest('no such library entry')
-    return this.libraryView(saved, true)
+    // Items taken out of a group take their files with them.
+    const gone = this.repo.pruneLibraryAttachments(saved.id)
+    removeFiles(this.filesDir, gone)
+    return this.libraryView(gone.length ? this.repo.getLibraryEntry(saved.id)! : saved, true)
+  }
+
+  /** A workshop's copies of an entry's files, which the open windows learn about: library attachment id → the copy's id. */
+  private copyFiles(entry: LibraryEntry, workshopId: string): Record<string, string> {
+    const copies = copyEntryFiles(this.repo, this.filesDir, entry, workshopId, MAX_WORKSHOP_FILES)
+    if (!copies) throw new BadRequest('the files of this entry do not fit the workshop: its files may take up 500 MB together')
+    for (const attachment of Object.values(copies)) this.hub?.publish(workshopId, { type: 'attachment', attachment })
+    return Object.fromEntries(Object.entries(copies).map(([from, a]) => [from, a.id]))
+  }
+
+  /** A workshop's item as a new entry's content: its file list names the workshop's attachments, and the entry gets copies. */
+  private saveCopy(entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) {
+    const { entry: stored, files } = copyToLibrary(this.repo, this.filesDir, validateLibraryEntry(entry))
+    return this.libraryView(this.repo.saveLibraryEntry(null, stored, files)!, true)
   }
 
   libraryList() {
@@ -1016,26 +1035,27 @@ export class Ops {
   /** Deletes an entry for good; copies placed in workshops stay. */
   libraryDelete(ref: string) {
     const entry = this.entry(ref)
-    this.repo.deleteLibraryEntry(entry.id)
+    const files = this.repo.deleteLibraryEntry(entry.id)
+    removeFiles(this.filesDir, files ?? [])
     return { deleted: entry.title, kind: entry.kind }
   }
 
   private content(i: Item | ItemContent): ItemContent {
-    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
+    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
   }
 
-  /** Saves an item, or a group with its items, of a workshop to the library (a copy; files stay with the workshop). */
+  /** Saves an item, or a group with its items, of a workshop to the library: a copy, its files too. */
   librarySave(ref: string, input: { item?: string; group?: string; title?: string }) {
     const s = this.state(ref)
     if (input.item) {
       const item = this.item(s, input.item)
-      return this.saveEntry(null, { kind: 'item', title: (input.title ?? item.title).trim() || item.title, data: this.content(item) })
+      return this.saveCopy({ kind: 'item', title: (input.title ?? item.title).trim() || item.title, data: this.content(item) })
     }
     if (input.group) {
       const group = this.group(s, input.group)
       const items = membersOf(s.items, group.id)
       if (!items.length) throw new BadRequest('the group has no items')
-      return this.saveEntry(null, { kind: 'group', title: (input.title ?? group.title).trim() || group.title, data: { items: items.map((i) => this.content(i)) } })
+      return this.saveCopy({ kind: 'group', title: (input.title ?? group.title).trim() || group.title, data: { items: items.map((i) => this.content(i)) } })
     }
     throw new BadRequest('give an item or a group to save')
   }
@@ -1046,9 +1066,10 @@ export class Ops {
     const s = this.state(ref)
     const day = this.day(s, dayRef)
     const dayId = day?.id ?? null
+    const copyOf = (c: ItemContent, files: Record<string, string>) => ({ ...this.content(c), attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])) })
     if (entry.kind === 'item') {
       const { position, ops } = this.place(s, dayId, null, 'new', where)
-      const record: Item = { ...this.newItem(s.workshop.id, dayId, null, position, {}), ...this.content(entry.data) }
+      const record: Item = { ...this.newItem(s.workshop.id, dayId, null, position, {}), ...copyOf(entry.data, this.copyFiles(entry, s.workshop.id)) }
       this.apply(s.workshop.id, [...ops, { op: 'create', entity: 'item', record }])
       return this.itemsResult(this.repo.loadWorkshop(s.workshop.id)!, [record.id], dayId)
     }
@@ -1056,8 +1077,9 @@ export class Ops {
     const { position, ops } = this.place(s, dayId, null, groupId, where)
     ops.push({ op: 'create', entity: 'group', record: { id: groupId, workshopId: s.workshop.id, dayId, position, title: entry.title } })
     const ids: string[] = []
+    const files = this.copyFiles(entry, s.workshop.id)
     entry.data.items.forEach((c, n) => {
-      const record: Item = { ...this.newItem(s.workshop.id, dayId, groupId, n + 1, {}), ...this.content(c) }
+      const record: Item = { ...this.newItem(s.workshop.id, dayId, groupId, n + 1, {}), ...copyOf(c, files) }
       ids.push(record.id)
       ops.push({ op: 'create', entity: 'item', record })
     })

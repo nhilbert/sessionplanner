@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
 import { PALETTE, type ItemContent, type Settings } from '../src/domain/types.ts'
+import { extensionOf } from '../src/domain/attachments.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
 import { DERIVED_COLOR_KEYS, FAMILY_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_FILE_PATH, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
@@ -63,6 +64,7 @@ const itemContent = z.strictObject({
   lead: text(300),
   notes: text(100_000),
   materials: z.array(material).max(200),
+  attachmentIds: z.array(id).max(200).default([]),
   slides: slides.default([]),
   categoryId: id.nullable(),
   color: color.nullable(),
@@ -142,6 +144,13 @@ export function validateLibraryEntry(body: unknown): { kind: 'item'; title: stri
   const parsed = libraryBody.safeParse(body)
   if (!parsed.success) throw new BadRequest(`invalid library entry: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
   return parsed.data
+}
+
+/** A new name for a file: readable as a file name, and with the ending it has, which says what the file is. */
+export function validateFileName(body: unknown, current: string): string {
+  const parsed = z.strictObject({ name: z.string().trim().min(1).max(250).regex(/^[^\\/\r\n]+$/) }).safeParse(body)
+  if (!parsed.success || extensionOf(parsed.data.name) !== extensionOf(current)) throw new BadRequest('invalid file name')
+  return parsed.data.name
 }
 
 const deckSlide = z.strictObject({ html: text(200_000).transform(normalizeSlideHtml), caption: text(300).default('') })

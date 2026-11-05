@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive, BookmarkPlus, Copy, Minus, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Archive, BookmarkPlus, Copy, Minus, Plus, Trash2, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, Material, WorkshopState } from '@/domain/types'
 import { newId, type ItemFields, type Op } from '@/domain/ops'
 import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
@@ -12,9 +12,9 @@ import Swatches from '@/components/Swatches'
 import { MAX_DURATION, SNAP } from '@/domain/time'
 import { api, reportFailure } from '@/api'
 import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/components/ui'
-import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField, formatSize } from './fields'
+import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
-import { uploadFiles } from './upload'
+import { FileManager } from './FileManager'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
 import { usePlanner } from '@/store/usePlanner'
@@ -157,7 +157,7 @@ export default function ItemPanel({
       )}
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
-      {item.kind !== 'note' && <Files item={item} data={data} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
+      {item.kind !== 'note' && <Files item={item} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
       {(item.kind === 'block' || item.kind === 'break') && (
         <SlideStrip
           slides={item.slides}
@@ -238,33 +238,35 @@ function Materials({ materials, onChange }: { materials: Material[]; onChange: (
   )
 }
 
-function Files({ item, data, onLink, onAttachment }: { item: Item; data: WorkshopState; onLink: (ids: string[]) => void; onAttachment: (a: Attachment) => void }) {
+function Files({ item, data, owner, onLink, onAttachment }: { item: Item; data: WorkshopState; owner: boolean; onLink: (ids: string[]) => void; onAttachment: (a: Attachment) => void }) {
   const { t } = useTranslation()
-  const input = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
+  // Several files dropped at once arrive one after the other: each adds to the list as it stands by then.
+  const links = useRef(item.attachmentIds)
+  links.current = item.attachmentIds
+  const link = (ids: string[]) => {
+    links.current = ids
+    onLink(ids)
+  }
   const linked = item.attachmentIds.map((id) => data.attachments.find((a) => a.id === id)).filter((a): a is Attachment => !!a)
   const others = data.attachments.filter((a) => !item.attachmentIds.includes(a.id))
 
   return (
     <div>
       <SectionLabel>{t('item.files')}</SectionLabel>
-      <ul className="space-y-1">
-        {linked.map((a) => (
-          <li key={a.id} className="flex items-center gap-2 text-[13px]">
-            <Paperclip size={13} className="shrink-0 text-ink-3" />
-            <a href={api.downloadUrl(a.id)} className="min-w-0 flex-1 truncate hover:underline" download>
-              {a.name}
-            </a>
-            <span className="shrink-0 text-[11px] text-ink-3">{formatSize(a.size)}</span>
-            <IconButton label={t('item.unlink')} onClick={() => onLink(item.attachmentIds.filter((x) => x !== a.id))}>
-              <X size={14} />
-            </IconButton>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <FileManager
+        files={linked}
+        href={api.downloadUrl}
+        onUpload={async (file) => {
+          const a = await api.upload(data.workshop.id, file)
+          onAttachment(a)
+          link([...links.current, a.id])
+        }}
+        onRename={async (id, name) => onAttachment(await api.renameAttachment(id, name))}
+        onReplace={owner ? async (id, file) => onAttachment(await api.replaceAttachment(id, file)) : undefined}
+        remove={{ label: t('item.unlink'), run: (a) => link(links.current.filter((x) => x !== a.id)) }}
+      >
         {others.length > 0 && (
-          <select className="field h-8 w-auto max-w-[220px] text-[13px]" value="" onChange={(e) => e.target.value && onLink([...item.attachmentIds, e.target.value])}>
+          <select className="field mt-2 h-8 w-full text-[13px]" aria-label={t('item.linkFile')} value="" onChange={(e) => e.target.value && link([...links.current, e.target.value])}>
             <option value="">{t('item.linkFile')}</option>
             {others.map((a) => (
               <option key={a.id} value={a.id}>
@@ -273,26 +275,7 @@ function Files({ item, data, onLink, onAttachment }: { item: Item; data: Worksho
             ))}
           </select>
         )}
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => input.current?.click()}>
-          <Upload size={13} />
-          {busy ? t('common.uploading') : t('common.upload')}
-        </Button>
-        <input
-          ref={input}
-          type="file"
-          multiple
-          hidden
-          onChange={async (e) => {
-            const files = [...(e.target.files ?? [])]
-            e.target.value = ''
-            setBusy(true)
-            const added = await uploadFiles(data.workshop.id, files, t)
-            setBusy(false)
-            added.forEach(onAttachment)
-            if (added.length) onLink([...item.attachmentIds, ...added.map((a) => a.id)])
-          }}
-        />
-      </div>
+      </FileManager>
     </div>
   )
 }

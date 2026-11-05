@@ -107,6 +107,7 @@ export async function importDeck(found: FoundDeck, options: { createEntries: boo
         lead: '',
         notes: e.notes ?? '',
         materials: (e.material ?? '').split(',').map((m) => m.trim()).filter(Boolean).map((label) => ({ id: newId(), label, qty: 1 })),
+        attachmentIds: [],
         slides: e.slides.map((f) => byFile.get(f)).filter((h): h is string => !!h).map((html) => ({ id: newId(), html })),
         categoryId: e.category && options.categories.includes(e.category) ? e.category : null,
         color: null,

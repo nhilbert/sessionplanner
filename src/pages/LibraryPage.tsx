@@ -1,12 +1,14 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Coffee, Flag, FolderOpen, NotebookPen, Package, Square, StickyNote, Trash2 } from 'lucide-react'
+import { Coffee, Flag, FolderOpen, NotebookPen, Package, Paperclip, Square, StickyNote, Trash2 } from 'lucide-react'
 import type { Category, ItemContent, ItemKind, LibraryEntry } from '@/domain/types'
 import { durationOf, formatDuration } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { categoryName, itemColor, useSettings } from '@/store/useSettings'
-import { cx, Empty, Field, IconButton, PageHeader, SearchField } from '@/components/ui'
-import { reportFailure } from '@/api'
+import { cx, Empty, Field, IconButton, PageHeader, SearchField, SectionLabel } from '@/components/ui'
+import { api, reportFailure } from '@/api'
+import { entryItems } from '@/domain/copy'
+import { FileManager } from '@/planner/FileManager'
 import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
 import { SlideStrip } from '@/slides/SlideStrip'
@@ -106,6 +108,41 @@ function LibrarySlideEditor({ entryId, start, mode, theme, onClose, onFailed }: 
   return <SlideEditor source={source} start={start} mode={mode} onClose={onClose} theme={theme} scope="library" owner canEdit known={known} />
 }
 
+/** The files of one item of an entry; a workshop gets copies of them when the entry is inserted, and keeps those whatever happens here. */
+function EntryFiles({ entry, item, compact }: { entry: LibraryEntry; item: number; compact?: boolean }) {
+  const { t } = useTranslation()
+  const changeFiles = useLibrary((s) => s.changeFiles)
+  const files = entryItems(entry)[item].attachmentIds.flatMap((id) => entry.attachments.filter((a) => a.id === id))
+  return (
+    <FileManager
+      files={files}
+      href={api.libraryFileUrl}
+      compact={compact}
+      onUpload={(file) => changeFiles(entry.id, () => api.uploadLibraryFile(entry.id, item, file))}
+      onRename={(id, name) => changeFiles(entry.id, () => api.renameLibraryFile(id, name))}
+      onReplace={(id, file) => changeFiles(entry.id, () => api.replaceLibraryFile(id, file))}
+      remove={{
+        label: t('common.delete'),
+        danger: true,
+        run: async (a) => {
+          if (window.confirm(t('files.deleteLibraryConfirm', { name: a.name }))) await changeFiles(entry.id, () => api.deleteLibraryFile(a.id))
+        },
+      }}
+    />
+  )
+}
+
+/** How many files an entry holds, for its card. */
+function FileCount({ entry }: { entry: LibraryEntry }) {
+  const { t } = useTranslation()
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Paperclip size={12} />
+      {t('files.count', { count: entry.attachments.length })}
+    </span>
+  )
+}
+
 /** A small coloured dot with the category's name (or the colour alone when the item has its own colour only). */
 function CategoryTag({ item, categories }: { item: ItemContent; categories: Category[] }) {
   const { t } = useTranslation()
@@ -150,6 +187,11 @@ function EntryCard({ entry, theme, slides = true }: { entry: LibraryEntry; theme
           })}
           {rest > 0 && <li className="text-[12px] text-ink-3">{t('library.more', { count: rest })}</li>}
         </ol>
+        {entry.attachments.length > 0 && (
+          <div className="mt-2 text-[12px] text-ink-3">
+            <FileCount entry={entry} />
+          </div>
+        )}
       </>
     )
   }
@@ -196,7 +238,7 @@ function EntryCard({ entry, theme, slides = true }: { entry: LibraryEntry; theme
             ))}
           </div>
         )}
-        {(i.materials.length > 0 || i.notes.trim() || i.slides.length > 3) && (
+        {(i.materials.length > 0 || i.notes.trim() || i.slides.length > 3 || entry.attachments.length > 0) && (
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-3">
             {i.slides.length > 3 && <span>{t('slides.count', { count: i.slides.length })}</span>}
             {i.materials.length > 0 && (
@@ -211,6 +253,7 @@ function EntryCard({ entry, theme, slides = true }: { entry: LibraryEntry; theme
                 {t('item.notes')}
               </span>
             )}
+            {entry.attachments.length > 0 && <FileCount entry={entry} />}
           </div>
         )}
       </div>
@@ -243,11 +286,14 @@ function Row({ entry, theme, open, onToggle, onSave, onDelete, onOpenSlide, list
               <Field label={t('group.title')}>
                 <TextField value={entry.title} onCommit={(title) => onSave({ kind: 'group', title, data: entry.data })} />
               </Field>
-              <ol className="space-y-1 text-[14px]">
+              <ol className="space-y-2 text-[14px]">
                 {entry.data.items.map((i, n) => (
-                  <li key={n} className="flex justify-between gap-3">
-                    <span className="truncate">{i.title || t(`kinds.${i.kind}`)}</span>
-                    <span className="shrink-0 text-ink-3 tnum">{durationOf(i) ? formatDuration(durationOf(i)) : ''}</span>
+                  <li key={n}>
+                    <div className="flex justify-between gap-3">
+                      <span className="truncate">{i.title || t(`kinds.${i.kind}`)}</span>
+                      <span className="shrink-0 text-ink-3 tnum">{durationOf(i) ? formatDuration(durationOf(i)) : ''}</span>
+                    </div>
+                    {i.kind !== 'note' && <EntryFiles entry={entry} item={n} compact />}
                   </li>
                 ))}
               </ol>
@@ -283,6 +329,12 @@ function Row({ entry, theme, open, onToggle, onSave, onDelete, onOpenSlide, list
               <Field label={t('item.notes')}>
                 <TextField multiline value={entry.data.notes} onCommit={(notes) => setItem({ notes })} />
               </Field>
+              {entry.data.kind !== 'note' && (
+                <div>
+                  <SectionLabel>{t('item.files')}</SectionLabel>
+                  <EntryFiles entry={entry} item={0} />
+                </div>
+              )}
               <SlideStrip slides={entry.data.slides} list={list} onOpen={onOpenSlide} scope="library" theme={theme} canEdit owner />
             </>
           )}

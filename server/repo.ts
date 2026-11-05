@@ -1,10 +1,14 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE } from '../src/domain/types.ts'
+import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type ItemContent, type LibraryAttachment, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE } from '../src/domain/types.ts'
 import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
+import { entryItems } from '../src/domain/copy.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
 import { BadRequest } from './validate.ts'
+
+/** A file about to join a library entry. */
+export type LibraryFile = Pick<LibraryAttachment, 'id' | 'name' | 'mime' | 'size'>
 
 type Codec = 'text' | 'num' | 'bool' | 'json'
 type Columns = Record<string, [column: string, codec: Codec]>
@@ -145,20 +149,23 @@ const toTemplate = (r: Row): SlideTemplate => ({ id: r.id as string, name: r.nam
 const toAsset = (r: Row): Asset => ({ hash: r.hash as string, mime: r.mime as string, size: r.size as number, createdAt: r.created_at as string, cutoutOf: (r.cutout_of as string | null) ?? null })
 const toPoolAsset = (r: Row): PoolAsset => ({ hash: r.hash as string, kind: r.kind as PoolKind, tags: JSON.parse(r.tags as string) as string[], position: r.position as number, createdAt: r.created_at as string })
 
-const toLibraryEntry = (r: Row): LibraryEntry =>
+const toLibraryAttachment = (r: Row): LibraryAttachment => ({ id: r.id as string, entryId: r.entry_id as string, name: r.name as string, mime: r.mime as string, size: r.size as number, createdAt: r.created_at as string })
+
+const toLibraryEntry = (r: Row, attachments: LibraryAttachment[]): LibraryEntry =>
   ({
     id: r.id as string,
     kind: r.kind as LibraryEntry['kind'],
     title: r.title as string,
-    data: withSlides(JSON.parse(r.data as string)),
+    data: entryDefaults(JSON.parse(r.data as string)),
+    attachments,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   }) as unknown as LibraryEntry
 
-/** Entries saved before slides existed get an empty list. */
-function withSlides(data: { items?: Record<string, unknown>[] } & Record<string, unknown>) {
-  if (Array.isArray(data.items)) return { ...data, items: data.items.map((i) => ({ slides: [], ...i })) }
-  return { slides: [], ...data }
+/** Entries saved before slides and files existed get empty lists. */
+function entryDefaults(data: { items?: Record<string, unknown>[] } & Record<string, unknown>) {
+  if (Array.isArray(data.items)) return { ...data, items: data.items.map((i) => ({ slides: [], attachmentIds: [], ...i })) }
+  return { slides: [], attachmentIds: [], ...data }
 }
 
 const toMember = (r: Row): Member => ({
@@ -445,6 +452,14 @@ export class Repo {
     return r ? toAttachment(r) : null
   }
 
+  /** A new name, or (with a new file under the same id) new facts; the links to items stay. */
+  updateAttachment(id: string, fields: { name: string; mime?: string; size?: number }): Attachment | null {
+    const att = this.getAttachment(id)
+    if (!att) return null
+    this.db.prepare('UPDATE attachments SET name = ?, mime = ?, size = ? WHERE id = ?').run(fields.name, fields.mime ?? att.mime, fields.size ?? att.size, id)
+    return this.getAttachment(id)
+  }
+
   /** Removes the attachment and unlinks it from its items; returns those changes for the other windows. */
   deleteAttachment(id: string): { workshopId: string; ops: Op[] } | null {
     const att = this.getAttachment(id)
@@ -506,26 +521,98 @@ export class Repo {
     return settings
   }
 
+  private entryAttachments(entryId: string): LibraryAttachment[] {
+    return (this.db.prepare('SELECT * FROM library_attachments WHERE entry_id = ? ORDER BY created_at').all(entryId) as Row[]).map(toLibraryAttachment)
+  }
+
   getLibraryEntry(id: string): LibraryEntry | null {
     const r = this.db.prepare('SELECT * FROM library WHERE id = ?').get(id) as Row | undefined
-    return r ? toLibraryEntry(r) : null
+    return r ? toLibraryEntry(r, this.entryAttachments(id)) : null
   }
 
   listLibrary(): LibraryEntry[] {
-    return (this.db.prepare('SELECT * FROM library ORDER BY title COLLATE NOCASE').all() as Row[]).map(toLibraryEntry)
+    const files = new Map<string, LibraryAttachment[]>()
+    for (const r of this.db.prepare('SELECT * FROM library_attachments ORDER BY created_at').all() as Row[]) {
+      const a = toLibraryAttachment(r)
+      files.set(a.entryId, [...(files.get(a.entryId) ?? []), a])
+    }
+    return (this.db.prepare('SELECT * FROM library ORDER BY title COLLATE NOCASE').all() as Row[]).map((r) => toLibraryEntry(r, files.get(r.id as string) ?? []))
   }
 
-  saveLibraryEntry(id: string | null, entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>): LibraryEntry | null {
+  /** Stores an entry, with the records of files that came along with a new one (their ids are in its attachmentIds). */
+  saveLibraryEntry(id: string | null, entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>, files: LibraryFile[] = []): LibraryEntry | null {
     const t = now()
-    if (id === null) {
-      id = newId()
-      this.db.prepare('INSERT INTO library (id, kind, title, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, entry.kind, entry.title, JSON.stringify(entry.data), t, t)
-    } else if (!this.db.prepare('UPDATE library SET kind = ?, title = ?, data = ?, updated_at = ? WHERE id = ?').run(entry.kind, entry.title, JSON.stringify(entry.data), t, id).changes) return null
-    return toLibraryEntry(this.db.prepare('SELECT * FROM library WHERE id = ?').get(id) as Row)
+    const saved = this.tx(() => {
+      if (id === null) {
+        id = newId()
+        this.db.prepare('INSERT INTO library (id, kind, title, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, entry.kind, entry.title, JSON.stringify(entry.data), t, t)
+      } else if (!this.db.prepare('UPDATE library SET kind = ?, title = ?, data = ?, updated_at = ? WHERE id = ?').run(entry.kind, entry.title, JSON.stringify(entry.data), t, id).changes) return false
+      for (const f of files) this.insertLibraryFile(id, f, t)
+      return true
+    })
+    return saved ? this.getLibraryEntry(id!) : null
   }
 
-  deleteLibraryEntry(id: string): boolean {
-    return this.db.prepare('DELETE FROM library WHERE id = ?').run(id).changes > 0
+  private insertLibraryFile(entryId: string, file: LibraryFile, createdAt: string): void {
+    this.db.prepare('INSERT INTO library_attachments (id, entry_id, name, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(file.id, entryId, file.name, file.mime, file.size, createdAt)
+  }
+
+  /** Writes a change to the items of an entry. */
+  private setEntryItems(entry: LibraryEntry, change: (item: ItemContent, n: number) => ItemContent): void {
+    const items = entryItems(entry).map(change)
+    this.db.prepare('UPDATE library SET data = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(entry.kind === 'group' ? { ...entry.data, items } : items[0]), now(), entry.id)
+  }
+
+  /** Attaches a file to an entry's item (`item`: the position in a group, else 0); null when there is no such item. */
+  addLibraryAttachment(entryId: string, item: number, file: LibraryFile): LibraryEntry | null {
+    const entry = this.getLibraryEntry(entryId)
+    if (!entry || !entryItems(entry)[item]) return null
+    this.tx(() => {
+      this.insertLibraryFile(entryId, file, now())
+      this.setEntryItems(entry, (c, n) => (n === item ? { ...c, attachmentIds: [...c.attachmentIds, file.id] } : c))
+    })
+    return this.getLibraryEntry(entryId)
+  }
+
+  getLibraryAttachment(id: string): LibraryAttachment | null {
+    const r = this.db.prepare('SELECT * FROM library_attachments WHERE id = ?').get(id) as Row | undefined
+    return r ? toLibraryAttachment(r) : null
+  }
+
+  /** A new name, or (with a new file under the same id) new facts; answers with the entry. */
+  updateLibraryAttachment(id: string, fields: { name: string; mime?: string; size?: number }): LibraryEntry | null {
+    const att = this.getLibraryAttachment(id)
+    if (!att) return null
+    this.db.prepare('UPDATE library_attachments SET name = ?, mime = ?, size = ? WHERE id = ?').run(fields.name, fields.mime ?? att.mime, fields.size ?? att.size, id)
+    return this.getLibraryEntry(att.entryId)
+  }
+
+  /** Removes the file from its entry; answers with the entry. */
+  deleteLibraryAttachment(id: string): LibraryEntry | null {
+    const att = this.getLibraryAttachment(id)
+    const entry = att && this.getLibraryEntry(att.entryId)
+    if (!entry) return null
+    this.tx(() => {
+      this.setEntryItems(entry, (c) => ({ ...c, attachmentIds: c.attachmentIds.filter((x) => x !== id) }))
+      this.db.prepare('DELETE FROM library_attachments WHERE id = ?').run(id)
+    })
+    return this.getLibraryEntry(entry.id)
+  }
+
+  /** Forgets the files no item of the entry names any more (its items were cut down); returns their ids, whose files can go. */
+  pruneLibraryAttachments(entryId: string): string[] {
+    const entry = this.getLibraryEntry(entryId)
+    if (!entry) return []
+    const named = new Set(entryItems(entry).flatMap((c) => c.attachmentIds))
+    const gone = entry.attachments.filter((a) => !named.has(a.id)).map((a) => a.id)
+    for (const id of gone) this.db.prepare('DELETE FROM library_attachments WHERE id = ?').run(id)
+    return gone
+  }
+
+  /** Deletes the entry with its file records; returns their ids (files to remove), or null without such an entry. */
+  deleteLibraryEntry(id: string): string[] | null {
+    const files = this.entryAttachments(id).map((a) => a.id)
+    return this.db.prepare('DELETE FROM library WHERE id = ?').run(id).changes > 0 ? files : null
   }
 
   // ---- assets: pictures of slides, once per content hash ----------------------------------------------
