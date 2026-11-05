@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { createRuntime, RefusedStart, type Runtime, type RuntimeOptions } from './runtime.ts'
 import type { ServerEvent } from '../src/domain/ops.ts'
 import type { WorkshopState } from '../src/domain/types.ts'
@@ -23,10 +24,10 @@ const call = (r: Runtime, url: string, init: RequestInit = {}) =>
 const create = async (r: Runtime, title: string) => (await (await call(r, '/api/workshops', { method: 'POST', body: JSON.stringify({ title }) })).json()) as WorkshopState
 const titles = async (r: Runtime) => ((await (await call(r, '/api/workshops')).json()) as { title: string }[]).map((w) => w.title)
 
-afterEach(() => {
+afterEach(async () => {
   vi.useRealTimers()
   vi.restoreAllMocks()
-  for (const r of open.splice(0)) r.close()
+  for (const r of open.splice(0)) await r.close()
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
 })
 
@@ -93,7 +94,58 @@ describe('createRuntime', () => {
     expect(both.oauth?.resource).toBe('http://127.0.0.1:5175/mcp')
   })
 
-  it('checks hourly for a new day, and close stops that', () => {
+  it('keeps a bad data folder from stopping another one', async () => {
+    const bad = mkdtempSync(path.join(tmpdir(), 'sp-runtime-'))
+    dirs.push(bad)
+    writeFileSync(path.join(bad, 'sessions.db'), 'this is not a database, and it is long enough to be read as one')
+    expect(() => createRuntime({ dataDir: bad, owners: [], ownerHeader: 'x-auth-request-email' })).toThrow()
+    const good = start()
+    await create(good, 'Still here')
+    expect(await titles(good)).toEqual(['Still here'])
+  })
+
+  it('closes the database again when the start fails after opening it', () => {
+    const close = vi.spyOn(DatabaseSync.prototype, 'close')
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'sp-runtime-'))
+    dirs.push(dataDir)
+    writeFileSync(path.join(dataDir, 'backups'), 'a file where the folder belongs')
+    expect(() => createRuntime({ dataDir, owners: [], ownerHeader: 'x-auth-request-email' })).toThrow()
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('survives a failed backup, says so, and tries again', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
+    const failed = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const r = start()
+    const backups = path.join(path.dirname(r.dbFile), 'backups')
+    rmSync(backups, { recursive: true })
+    writeFileSync(backups, 'a file where the folder belongs')
+    vi.setSystemTime(new Date('2026-11-06T10:00:00Z'))
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledTimes(1))
+    expect(failed.mock.calls[0][0]).toContain('Backup of')
+    await create(r, 'Still answering')
+    expect(await titles(r)).toEqual(['Still answering'])
+
+    rmSync(backups)
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    await vi.waitFor(() => expect(existsSync(path.join(backups, 'sessions-2026-11-06.db'))).toBe(true))
+  })
+
+  it('waits for a backup under way before it closes', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
+    const r = start()
+    const backups = path.join(path.dirname(r.dbFile), 'backups')
+    vi.setSystemTime(new Date('2026-11-06T10:00:00Z'))
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    open.splice(open.indexOf(r), 1)
+    await r.close()
+    expect(readdirSync(backups).sort()).toEqual(['sessions-2026-11-05.db', 'sessions-2026-11-06.db'])
+  })
+
+  it('checks hourly for a new day, and close stops that', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
     const r = start()
@@ -101,10 +153,10 @@ describe('createRuntime', () => {
     expect(readdirSync(backups)).toEqual(['sessions-2026-11-05.db'])
     vi.setSystemTime(new Date('2026-11-06T10:00:00Z'))
     vi.advanceTimersByTime(60 * 60 * 1000)
-    expect(readdirSync(backups)).toEqual(['sessions-2026-11-05.db', 'sessions-2026-11-06.db'])
+    await vi.waitFor(() => expect(readdirSync(backups)).toEqual(['sessions-2026-11-05.db', 'sessions-2026-11-06.db']))
 
     open.splice(open.indexOf(r), 1)
-    r.close()
+    await r.close()
     vi.setSystemTime(new Date('2026-11-07T10:00:00Z'))
     vi.advanceTimersByTime(60 * 60 * 1000)
     expect(readdirSync(backups)).toHaveLength(2)
