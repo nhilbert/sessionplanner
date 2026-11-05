@@ -1,7 +1,4 @@
 {
-  "app": {
-    "name": "Session Planner"
-  },
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",

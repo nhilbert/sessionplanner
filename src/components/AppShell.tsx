@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { BookMarked, CalendarDays, Images, PanelLeftClose, PanelLeftOpen, Presentation, Settings } from 'lucide-react'
 import { useSettings } from '@/store/useSettings'
 import { LOGIN_REQUIRED } from '@/api'
+import { productName } from '@/features'
 import { cx, useLocalState } from './ui'
 
 const NAV = [
@@ -68,7 +69,7 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
       <aside className={cx('no-print sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line py-7 md:flex', collapsed ? 'w-[60px] px-2' : 'w-[216px] px-4')}>
         <div className={cx('mb-8 flex items-center gap-2', collapsed ? 'justify-center' : 'px-2')}>
           <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-5 w-5 shrink-0" />
-          {!collapsed && <span className="text-[15px] font-medium tracking-[-0.01em]">{t('app.name')}</span>}
+          {!collapsed && <span className="text-[15px] font-medium tracking-[-0.01em]">{productName()}</span>}
         </div>
         <nav className="flex flex-col gap-0.5">{nav.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>
         {wide && menu?.({ folded: collapsed })}

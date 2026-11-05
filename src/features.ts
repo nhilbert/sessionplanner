@@ -4,6 +4,14 @@ import type { ReactNode } from 'react'
 let workshopSharing = true
 let workshopTool: ((workshopId: string) => ReactNode) | undefined
 let settingsSection: (() => ReactNode) | undefined
+let product = 'Session Planner'
+
+export const setProduct = (name = 'Session Planner'): void => {
+  product = name
+}
+
+/** What the app calls itself on screen: at the top of the navigation and in the browser's tab. */
+export const productName = (): string => product
 
 export const setWorkshopSharing = (on: boolean): void => {
   workshopSharing = on

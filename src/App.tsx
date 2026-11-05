@@ -16,6 +16,8 @@ import { useSettings } from './store/useSettings'
 
 /** What a build can add to the app without changing it. */
 export interface Extensions {
+  /** The name the app shows, for a build with a name of its own. */
+  product?: string
   /** Where the app lies under its host, without a slash at the end: the pages, and the API below it. */
   basePath?: string
   /** More pages inside the app's frame. */

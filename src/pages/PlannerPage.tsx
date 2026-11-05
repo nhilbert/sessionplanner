@@ -6,7 +6,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { AlignLeft, CalendarPlus, ChevronLeft, FolderOpen, PanelRight, Printer, Redo2, Rows2, Rows3, Rows4, Undo2, X } from 'lucide-react'
 import { PRINT_VARIANTS } from '@/domain/print'
 import { VARIANT_LABEL } from '@/print/options'
-import { workshopToolFor } from '@/features'
+import { productName, workshopToolFor } from '@/features'
 import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { itemColor, useSettings } from '@/store/useSettings'
@@ -70,7 +70,7 @@ export default function PlannerPage() {
     }
   }, [id, open, close])
   useEffect(() => {
-    document.title = data?.workshop.title ? `${data.workshop.title} · Session Planner` : 'Session Planner'
+    document.title = data?.workshop.title ? `${data.workshop.title} · ${productName()}` : productName()
   }, [data?.workshop.title])
   useEffect(() => {
     if (!notice) return
