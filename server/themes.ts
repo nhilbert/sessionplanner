@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { themeFolderFile } from './storage.ts'
+import { themeUrl } from '../src/domain/addresses.ts'
 import { type Theme, type ThemeInfo, themeLogoUrl } from '../src/domain/theme.ts'
 import { isDark } from '../src/domain/color.ts'
 
@@ -25,7 +26,7 @@ export function folderThemes(themesDir: string | undefined): string[] {
 export const FOLDER_LOGOS = ['logo.svg', 'logo.png', 'logo.webp', 'logo.jpg', 'logo.jpeg']
 function folderLogo(themesDir: string, name: string): string | null {
   const file = FOLDER_LOGOS.find((f) => existsSync(themeFolderFile(themesDir, name, f)))
-  return file ? `/api/themes/${name}/${file}` : null
+  return file ? themeUrl(name, file) : null
 }
 
 /** Whether a theme folder's stylesheet sets a dark ground (its `--bg`); false when it names none the server can read. */

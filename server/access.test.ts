@@ -159,7 +159,7 @@ describe('print views and exports', () => {
   })
 
   it('the slide export reads only the theme and the pictures the rules hand out', () => {
-    // '/api/' is the filter on addresses a theme's stylesheet names: its logos, under the same rules.
-    expect([...read('slides', 'export.ts').matchAll(/[`'"](\/api\/[^`'"$]*)/g)].map((m) => m[1])).toEqual(['/api/themes/', '/api/'])
+    expect(read('slides', 'export.ts')).not.toMatch(/[`'"]\/api\//)
+    expect(read('slides', 'export.ts')).toMatch(/themeUrl\(theme\)/)
   })
 })
