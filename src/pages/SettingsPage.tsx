@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Upload } from 'lucide-react'
 import { api } from '@/api'
+import { settingsSectionOf } from '@/features'
 import { newId } from '@/domain/ops'
 import { categoryName, useSettings } from '@/store/useSettings'
 import { changeLocale } from '@/i18n'
@@ -135,6 +136,7 @@ export default function SettingsPage() {
         </section>
 
         <AgentConnections />
+        {settingsSectionOf()}
           </>
         )}
       </div>

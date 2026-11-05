@@ -26,6 +26,8 @@ export interface Extensions {
   workshopSharing?: false
   /** One place in a workshop's header for something of its own. */
   workshopTool?: (workshopId: string) => ReactNode
+  /** One place at the end of the owner's settings for something of its own. */
+  settingsSection?: () => ReactNode
 }
 
 /** The owner's pages (library, slides area): a guest who types their address lands on the workshops shared with them. */

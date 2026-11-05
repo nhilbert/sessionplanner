@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 /** What a build can switch off or add in the app (src/start.tsx). Set once, before anything is shown. */
 let workshopSharing = true
 let workshopTool: ((workshopId: string) => ReactNode) | undefined
+let settingsSection: (() => ReactNode) | undefined
 
 export const setWorkshopSharing = (on: boolean): void => {
   workshopSharing = on
@@ -17,3 +18,10 @@ export const setWorkshopTool = (tool: ((workshopId: string) => ReactNode) | unde
 
 /** What a build shows in a workshop's header, or nothing. */
 export const workshopToolFor = (workshopId: string): ReactNode => workshopTool?.(workshopId) ?? null
+
+export const setSettingsSection = (section: (() => ReactNode) | undefined): void => {
+  settingsSection = section
+}
+
+/** What a build shows at the end of the owner's settings, or nothing. */
+export const settingsSectionOf = (): ReactNode => settingsSection?.() ?? null
