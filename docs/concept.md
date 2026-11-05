@@ -98,6 +98,7 @@ Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 por
 How it is enforced:
 
 - One API, `/api/…`, behind the login. The app looks the guest up on every request (table `members`): owner routes refuse guests, and a workshop not shared with them answers as if it did not exist.
+- Every route says who may use it, in the route inventory (`server/routes.test.ts`). The test calls each route as every kind of caller and compares the answers with that rule; a route that is not listed fails it.
 - A view guest without the notes gets the workshop without facilitation notes and note items. Live updates only tell such a guest that something changed, and the window loads its filtered copy again.
 - Removing a guest takes effect at once, also on an open page: their live-update stream ends. Changed access applies from that moment.
 - The reverse proxy strips `X-Auth-Request-Email` from incoming requests; the login sets it. With `SP_PROXY_SECRET` the header counts only on requests that carry the proxy's secret (section 11).
