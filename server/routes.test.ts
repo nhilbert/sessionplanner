@@ -227,7 +227,7 @@ const LAYERS = [
   'ALL /*', // security headers, the built client's files
   'ALL /api/*', // the login's guard, body limits, unknown addresses
   'ALL /oauth/*', // body limit
-  'ALL /api/library', // ownerOnly for everything under these
+  'ALL /api/library', // the owner's rule for everything under these
   'ALL /api/library/*',
   'ALL /api/decks',
   'ALL /api/decks/*',
