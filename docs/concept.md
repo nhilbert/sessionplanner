@@ -103,7 +103,7 @@ How it is enforced:
 - The reverse proxy strips `X-Auth-Request-Email` from incoming requests; the login sets it. With `SP_PROXY_SECRET` the header counts only on requests that carry the proxy's secret (section 11).
 - Guests share the owner's origin, so nothing a guest writes may run as code: notes are rendered as text (or sanitised Markdown), a strict Content-Security-Policy, attachments as downloads only (section 5). What a guest may upload and hold open is limited (section 10, 2026-11-01, slides).
 
-Draft 4 planned share links without an account (a token per link, with a label, password and expiry). They were not built: guest access went in by signed-in e-mail on 2026-10-29. So a guest needs an invitation at the login, and there is no password or expiry per guest.
+No public access, so no share links: every person reaches the app through the Microsoft login, guests included. Draft 4 planned links without an account (a token per link, with a label, password and expiry); they were dropped for this reason, and guest access went in by signed-in e-mail on 2026-10-29. So a guest needs an invitation at the login, and there is no password or expiry per guest. Only machines come past the login, each with its own credentials: agents over `/mcp` and OAuth, and the CRM's link list (section 11).
 
 ## 9. Stages and backlog
 
