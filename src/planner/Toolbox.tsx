@@ -12,6 +12,7 @@ import { cx, IconButton, SearchField, useLocalState } from '@/components/ui'
 import { AddBar, Entries, List } from './DayColumn'
 import ItemPanel from './ItemPanel'
 import { AccessPanel, FilesPanel, PackingPanel, WorkshopPanel } from './panels'
+import { hasWorkshopSharing } from '@/features'
 import { DeckPanel } from '@/slides/DeckPanel'
 import { LIB, PARKING } from './board'
 
@@ -61,7 +62,7 @@ export default function Toolbox(p: Props) {
   const width = clampWidth(Number(widthRaw) || DEFAULT_WIDTH)
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, files: p.data.attachments.length }
-  const tabs = TABS.filter((x) => p.owner || (x.id !== 'library' && x.id !== 'access'))
+  const tabs = TABS.filter((x) => (p.owner || (x.id !== 'library' && x.id !== 'access')) && (x.id !== 'access' || hasWorkshopSharing()))
   const tab: Tab = tabs.some((x) => x.id === p.tab) ? p.tab : 'parking'
 
   if (!p.open && !p.mobile)

@@ -22,6 +22,8 @@ export interface Extensions {
   routes?: RouteObject[]
   /** One place in the navigation for something of its own; `folded`: only icons fit. */
   menu?: (options: { folded: boolean }) => ReactNode
+  /** Leaves out a workshop's sharing by e-mail, for a build with its own way of inviting people. */
+  workshopSharing?: false
 }
 
 /** The owner's pages (library, slides area): a guest who types their address lands on the workshops shared with them. */
