@@ -2,7 +2,7 @@ import type { Hono } from 'hono'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
-import { backupDaily } from './backup.ts'
+import { backupDaily, backupDailyInBackground } from './backup.ts'
 import { type AppOptions, createApp } from './app.ts'
 import type { Env, GuardOptions } from './guard.ts'
 import { mcpRoutes } from './mcp.ts'
@@ -32,8 +32,8 @@ export interface Runtime {
   backup: string | null
   mcp?: Hono
   oauth?: OAuthServer
-  /** Stops the backup timer and closes the database. Not while requests or live-update streams are open. */
-  close(): void
+  /** Stops the backup timer, waits for a backup under way and closes the database. Not while requests or live-update streams are open. */
+  close(): Promise<void>
 }
 
 /**
@@ -50,45 +50,59 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
 
   const { dbFile, backupDir, filesDir, themesDir } = dataPaths(dataDir)
   const db = openDb(dbFile)
-  const repo = new Repo(db)
-  const backup = backupDaily(db, dbFile, backupDir)
-  const backupTimer = setInterval(() => backupDaily(db, dbFile, backupDir), BACKUP_CHECK_MS)
-  backupTimer.unref()
+  try {
+    const repo = new Repo(db)
+    const backup = backupDaily(db, dbFile, backupDir)
+    const hub = new Hub()
 
-  const hub = new Hub()
+    // MCP endpoint for AI agents at /mcp: with a static token and/or OAuth for Claude's connectors (docs/mcp.md).
+    // Hosted, the owners (checked by the login proxy) approve connections; locally a browser on this machine.
+    const oauth = mcpOAuth && new OAuthServer(db, { baseUrl: mcpOAuth.baseUrl, allowedUsers: owners, userHeader: ownerHeader, proxySecret, extraRedirects: mcpOAuth.extraRedirects })
+    const mcp = mcpToken || oauth ? mcpRoutes(repo, { token: mcpToken, oauth }, { hub, filesDir, themesDir }) : undefined
 
-  // MCP endpoint for AI agents at /mcp: with a static token and/or OAuth for Claude's connectors (docs/mcp.md).
-  // Hosted, the owners (checked by the login proxy) approve connections; locally a browser on this machine.
-  const oauth = mcpOAuth && new OAuthServer(db, { baseUrl: mcpOAuth.baseUrl, allowedUsers: owners, userHeader: ownerHeader, proxySecret, extraRedirects: mcpOAuth.extraRedirects })
-  const mcp = mcpToken || oauth ? mcpRoutes(repo, { token: mcpToken, oauth }, { hub, filesDir, themesDir }) : undefined
+    const app = createApp({
+      repo,
+      hub,
+      filesDir,
+      themesDir,
+      staticDir,
+      publicUrl,
+      owners,
+      ownerHeader,
+      proxySecret,
+      guestsFile,
+      mcp,
+      oauth: oauth && { routes: oauth.routes(), admin: oauth.adminRoutes() },
+      linkToken,
+    })
 
-  const app = createApp({
-    repo,
-    hub,
-    filesDir,
-    themesDir,
-    staticDir,
-    publicUrl,
-    owners,
-    ownerHeader,
-    proxySecret,
-    guestsFile,
-    mcp,
-    oauth: oauth && { routes: oauth.routes(), admin: oauth.adminRoutes() },
-    linkToken,
-  })
+    // A failed copy must not take the server with it: it is reported, and the next check tries again.
+    let running: Promise<void> | null = null
+    const backupTimer = setInterval(() => {
+      running ??= backupDailyInBackground(dbFile, backupDir)
+        .then(() => undefined)
+        .catch((err: Error) => console.error(`Backup of ${dbFile} failed, trying again in an hour:`, err.message))
+        .finally(() => (running = null))
+    }, BACKUP_CHECK_MS)
+    backupTimer.unref()
 
-  return {
-    app,
-    repo,
-    hub,
-    dbFile,
-    backup,
-    mcp,
-    oauth,
-    close() {
-      clearInterval(backupTimer)
-      db.close()
-    },
+    return {
+      app,
+      repo,
+      hub,
+      dbFile,
+      backup,
+      mcp,
+      oauth,
+      async close() {
+        clearInterval(backupTimer)
+        await running
+        db.close()
+      },
+    }
+  } catch (err) {
+    // A start that fails leaves nothing behind, so that others in the process can go on.
+    db.close()
+    throw err
   }
 }
