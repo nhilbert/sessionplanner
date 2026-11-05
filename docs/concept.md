@@ -1,14 +1,14 @@
-# Session Planner – Concept (draft 4, 2026-10-29)
+# Session Planner – Concept (draft 5, 2026-11-05)
 
-Plan the agenda of a workshop by moving its steps around until the time works, keep the facilitator's notes, material and files with each step, and later share the plan with co-facilitators and clients by link. A third app next to Zendo and the Revenue Tracker, on the same server (`sessions.` subdomain), built the same way as Zendo.
+Plan the agenda of a workshop by moving its steps around until the time works, keep the facilitator's notes, material and files with each step, and share the plan with co-facilitators and clients. A third app next to Zendo and the Revenue Tracker, on the same server (`sessions.` subdomain), built the same way as Zendo.
 
-Decisions of 2026-10-29 are in section 10; the stages are in section 9.
+Decisions are in section 10; the stages are in section 9.
 
 ## 1. Purpose
 
 - One place per workshop: the agenda with times, what happens in each step and why, who leads it, what is needed, and what to keep in mind while facilitating.
 - Planning is hands-on: steps are dragged into place, stretched and shrunk, parked and brought back; the times follow at once, and the app shows where the plan does not fit.
-- Several people can work on the same plan at the same time and see each other's changes (first your own devices and windows, later guests with a link).
+- Several people can work on the same plan at the same time and see each other's changes (your own devices and windows, and invited guests).
 - Later: run the workshop against the clock on a laptop or phone (live mode).
 
 ## 2. Core concepts
@@ -82,41 +82,39 @@ Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 por
 - After a lost connection the window reloads the workshop from the server, once the changes it was sending are through. No offline editing in the first stages (co-editing matters more than offline use).
 - Undo works on your own changes in this window.
 
-## 8. Access model (stage 3)
+## 8. Access model
 
 **Owner (you).** Signs in with Microsoft 365 through the existing login in front of every app (oauth2-proxy, e-mail allow-list). From stage 1, the app additionally requires the e-mail header set by the login (configurable owner list), so a routing mistake fails closed.
 
-**Guests (co-facilitators, clients).** No account; a **share link** grants access to *one* workshop and nothing else.
+**Guests (co-facilitators, clients).** Guests sign in like the owner: the owner invites them as guests in Entra, puts their e-mail on the login's allow-list and shares single workshops with them in the sidebar (Zugriff). A guest sees only the workshops shared with their e-mail.
 
 | Property | Choices |
 |---|---|
-| Label | "Anna (co-facilitation)", "Client HR team" – shown to you and wherever the guest's changes appear |
-| Role | **View** · **Edit** (agenda, notes, material, not the links) |
-| Internal notes | hidden (default for view) · shown (default for edit) |
-| Password | none · set (scrypt hash; changing it signs out everyone who used the old one) |
-| Expiry | none · date (end of that day in the workshop's time zone) |
-| Status | active · revoked; "last opened" |
+| E-mail | as the login reports it, in lower case; one entry per person and workshop |
+| Role | **View** · **Edit** (agenda, notes, material, slides, uploading and renaming files; not sharing, replacing or deleting files, the library, themes or templates) |
+| Internal notes | hidden · shown, for a view guest; a guest who may edit always sees them |
+| Last opened | set when the guest opens the workshop |
 
 How it is enforced:
 
-- Link `https://<host>/s/<token>`, random 256-bit token; the database keeps only its SHA-256.
-- Two API surfaces: owner API `/api/…` behind the login; guest API `/api/s/<token>/…`, public at the edge, where the app checks token, password cookie, role, expiry and revocation on every request. No guest route takes a workshop id.
-- Caddy: the `sessions.` block strips `X-Auth-Request-Email` from incoming requests; `/s/*`, `/api/s/*` and the hashed build files under `/assets/*` bypass the login.
-- Password: answered with a signed, HttpOnly, Secure cookie per link (`__Host-` prefix, link id in the name), rate-limited per link and per client address (from `X-Forwarded-For`, trusting Caddy only).
-- Guests share the owner's origin, so nothing a guest writes may run as code: notes are rendered as text (or sanitised Markdown), a strict Content-Security-Policy, attachments as downloads only (section 5).
-- Guest pages: `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, `Cache-Control: no-store`; URLs are never logged by the app. Revoking or expiring a link closes its open live-update streams.
+- One API, `/api/…`, behind the login. The app looks the guest up on every request (table `members`): owner routes refuse guests, and a workshop not shared with them answers as if it did not exist.
+- A view guest without the notes gets the workshop without facilitation notes and note items. Live updates only tell such a guest that something changed, and the window loads its filtered copy again.
+- Removing a guest takes effect at once, also on an open page: their live-update stream ends. Changed access applies from that moment.
+- The reverse proxy strips `X-Auth-Request-Email` from incoming requests; the login sets it. With `SP_PROXY_SECRET` the header counts only on requests that carry the proxy's secret (section 11).
+- Guests share the owner's origin, so nothing a guest writes may run as code: notes are rendered as text (or sanitised Markdown), a strict Content-Security-Policy, attachments as downloads only (section 5). What a guest may upload and hold open is limited (section 10, 2026-11-01, slides).
 
-Heavier alternatives (guest accounts in Entra, own user accounts) are not worth it for a handful of guests; an e-mail magic link can be added later without changing the model.
+Draft 4 planned share links without an account (a token per link, with a label, password and expiry). They were not built: guest access went in by signed-in e-mail on 2026-10-29. So a guest needs an invitation at the login, and there is no password or expiry per guest.
 
 ## 9. Stages and backlog
 
 1. **Planning core** – done (2026-10-29).
 2. **Planning comfort** – done (2026-10-29): layout and settings, categories and colours, editing title, time and duration on the card (any common way of writing a length or time), description switch, groups, library, packing-list additions, logo on printouts, duplicating a workshop with moved dates.
-3. **Sharing** – in progress: section 8.
+3. **Sharing** – done (2026-10-29): guests sign in and see only the workshops shared with them, as view or edit, with or without the notes; section 8.
 4. **Claude connector (MCP)** – done (2026-10-29): Claude reads and edits workshops (draft an agenda from a brief, adjust timings, group and park items, fill the packing list, use the library), over stdio locally and over `/mcp` with OAuth as in Zendo; see [mcp.md](mcp.md).
 5. **Import of the owner's sample sessions** into the hosted instance once the feature baseline stands (private material, never in this repository).
 6. **Slides** – done (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
 7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7.
+8. **Preparing for several workspaces** – in preparation: section 10, 2026-11-05. No change for users.
 
 **Backlog** (no order):
 
@@ -131,6 +129,14 @@ Heavier alternatives (guest accounts in Entra, own user accounts) are not worth 
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
+
+**2026-11-05, several workspaces later**
+
+- The core should be able to serve several separate workspaces later. A workspace holds everything that belongs together: workshops, library, decks, themes, templates, settings and files. Nothing of one workspace is reachable from another, through any route, export, live update or agent connection.
+- Local use and today's hosted instance go on as they are, without choosing a workspace. Nothing is built yet, and users see no change.
+- Login and accounts stay outside the core, behind a small interface, so the core depends on no provider.
+- Guests of a workshop (section 8) stay a thing of their own, apart from belonging to a workspace.
+- Open: how the data is kept apart, by one database and files folder per workspace or by one shared database with a workspace on every record. A trial decides, before any data model changes.
 
 **2026-11-04, branding per workshop** (revises "only the owner's logo on the printouts" of 2026-10-29)
 
