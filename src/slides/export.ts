@@ -1,4 +1,5 @@
 import { type AssetScope, assetUrl } from '@/api'
+import { isApiUrl, themeUrl } from '@/domain/addresses'
 import i18n from '@/i18n'
 import type { DeckSlideRef } from '@/domain/deck'
 import { cjkCodePoints, codePoints } from '@/domain/deck'
@@ -50,13 +51,13 @@ const toDataUrl = async (url: string): Promise<string | null> => {
  */
 async function themeCss(theme: string): Promise<{ id: string; css: string }> {
   if (theme === 'default') return { id: 'default', css: defaultThemeCss }
-  const base = `/api/themes/${encodeURIComponent(theme)}/`
+  const base = themeUrl(theme)
   const res = await fetch(`${base}theme.css`).catch(() => null)
   if (res?.status === 404) return { id: 'default', css: defaultThemeCss }
   if (!res?.ok) throw new Error(i18n.t('slides.themeUnavailable'))
   let css = await res.text()
-  // Relative addresses are files beside a folder theme; /api/… addresses are the logos of a data theme.
-  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:)/.test(u) && (!u.startsWith('/') || u.startsWith('/api/'))))]
+  // Relative addresses are files beside a folder theme; addresses in the API are the logos of a data theme.
+  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:)/.test(u) && (!u.startsWith('/') || isApiUrl(u))))]
   for (const ref of refs) {
     const data = await toDataUrl(ref.startsWith('/') ? ref : base + ref.replace(/^\.\//, ''))
     if (data) css = css.split(`url(${ref})`).join(`url(${data})`).split(`url('${ref}')`).join(`url('${data}')`).split(`url("${ref}")`).join(`url("${data}")`)

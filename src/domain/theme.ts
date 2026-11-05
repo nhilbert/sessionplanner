@@ -1,3 +1,4 @@
+import { themeUrl } from './addresses.ts'
 import { isDark, isHex, mixHex, parseHex } from './color.ts'
 import { familyCss, type FamilyKey } from './families.ts'
 
@@ -250,12 +251,12 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
 /** The address of a theme's uploaded logo (or its light variant), versioned by the upload, or null without one. */
 export function themeLogoUrl(theme: Pick<Theme, 'id' | 'logo' | 'logoLight'>, variant: 'logo' | 'logoLight'): string | null {
   const logo = variant === 'logo' ? theme.logo : theme.logoLight
-  return logo ? `/api/themes/${encodeURIComponent(theme.id)}/${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}` : null
+  return logo ? themeUrl(theme.id, `${variant === 'logo' ? 'logo' : 'logo-light'}?v=${encodeURIComponent(logo.updatedAt)}`) : null
 }
 
 /** The addresses of a theme's files by their path, versioned by the upload. */
 export function themeFileUrls(theme: Pick<Theme, 'id' | 'files'>): Record<string, string> {
-  return Object.fromEntries(theme.files.map((f) => [f.path, `/api/themes/${encodeURIComponent(theme.id)}/${f.path}?v=${encodeURIComponent(f.updatedAt)}`]))
+  return Object.fromEntries(theme.files.map((f) => [f.path, themeUrl(theme.id, `${f.path}?v=${encodeURIComponent(f.updatedAt)}`)]))
 }
 
 /** The ids a theme may have: the same rule as theme folders (server/themes.ts). */
