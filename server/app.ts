@@ -22,6 +22,7 @@ import { cleanBasePath } from '../src/domain/addresses.ts'
 import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { withFilesOf } from '../src/domain/copy.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
+import { dataZip, exportDate, mediaZip, workshopZip, workshopZipName } from './exports.ts'
 
 export const MAX_LOGO = 2 * 1024 * 1024
 /** A theme's own file: a font or a picture its rules use. */
@@ -182,6 +183,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     await Promise.all(Object.entries(result.files).map(([from, to]) => copyFile(filePath(from), filePath(to)).catch(() => undefined)))
     return c.json(result.state, 201)
   })
+
+  // ---- exports (server/exports.ts): ZIP archives, streamed while they are written ---------------------------
+  const sendZip = (c: Context<Env>, stream: ReadableStream<Uint8Array>, name: string) =>
+    c.body(stream, 200, {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+      'Cache-Control': 'private, no-store',
+    })
+  app.get('/api/workshops/:id/export', allow('owner'), (c) => {
+    const state = repo.loadWorkshop(c.req.param('id')!)
+    const stream = state && workshopZip(repo, filesDir, state.workshop.id)
+    return stream ? sendZip(c, stream, workshopZipName(state)) : c.json({ error: 'not_found' }, 404)
+  })
+  app.get('/api/export/data', allow('owner'), (c) => sendZip(c, dataZip(repo), `session-planner-data-${exportDate()}.zip`))
+  app.get('/api/export/media', allow('owner'), (c) => sendZip(c, mediaZip(repo, filesDir, themesDir), `session-planner-media-${exportDate()}.zip`))
 
   app.post('/api/workshops/:id/ops', allow('workshop-edit'), async (c) => {
     const id = c.req.param('id')!

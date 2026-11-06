@@ -22,22 +22,24 @@ type ButtonProps = ComponentProps<'button'> & {
   size?: 'sm' | 'md'
 }
 
-export function Button({ variant = 'default', size = 'md', className, type = 'button', ...props }: ButtonProps) {
-  return (
-    <button
-      type={type}
-      className={cx(
-        'inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-medium transition-colors disabled:pointer-events-none disabled:opacity-40',
-        size === 'sm' ? 'h-7 px-2.5 text-[13px] pointer-coarse:h-9' : 'h-9 px-3.5 text-sm pointer-coarse:h-10',
-        variant === 'primary' && 'bg-accent text-accent-ink hover:opacity-90',
-        variant === 'default' && 'border border-line bg-surface text-ink hover:bg-surface-2',
-        variant === 'ghost' && 'text-ink-2 hover:bg-surface-2 hover:text-ink',
-        variant === 'danger' && 'text-rose hover:bg-rose-soft',
-        className,
-      )}
-      {...props}
-    />
+const buttonClass = (variant: NonNullable<ButtonProps['variant']>, size: NonNullable<ButtonProps['size']>, className?: string) =>
+  cx(
+    'inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-medium transition-colors disabled:pointer-events-none disabled:opacity-40',
+    size === 'sm' ? 'h-7 px-2.5 text-[13px] pointer-coarse:h-9' : 'h-9 px-3.5 text-sm pointer-coarse:h-10',
+    variant === 'primary' && 'bg-accent text-accent-ink hover:opacity-90',
+    variant === 'default' && 'border border-line bg-surface text-ink hover:bg-surface-2',
+    variant === 'ghost' && 'text-ink-2 hover:bg-surface-2 hover:text-ink',
+    variant === 'danger' && 'text-rose hover:bg-rose-soft',
+    className,
   )
+
+export function Button({ variant = 'default', size = 'md', className, type = 'button', ...props }: ButtonProps) {
+  return <button type={type} className={buttonClass(variant, size, className)} {...props} />
+}
+
+/** A download that looks like a button: the browser fetches the address itself, so a large archive streams to disk. */
+export function DownloadButton({ href, variant = 'default', size = 'md', className, ...props }: Omit<ComponentProps<'a'>, 'href'> & { href: string } & Pick<ButtonProps, 'variant' | 'size'>) {
+  return <a href={href} download className={buttonClass(variant, size, className)} {...props} />
 }
 
 export function IconButton({ className, label, ...props }: ComponentProps<'button'> & { label: string }) {

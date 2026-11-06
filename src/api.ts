@@ -178,5 +178,9 @@ export const api = {
   updateDeck: (id: string, patch: { title?: string; theme?: string }) => call<Deck>(`/decks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteDeck: (id: string) => call<{ ok: true }>(`/decks/${id}`, { method: 'DELETE' }),
   downloadUrl: (attachmentId: string) => apiUrl(`/attachments/${attachmentId}`),
+  /** ZIP archives (server/exports.ts), the owner's: one workshop with its files and pictures; all data; all media. */
+  workshopExportUrl: (id: string) => apiUrl(`/workshops/${id}/export`),
+  dataExportUrl: () => apiUrl('/export/data'),
+  mediaExportUrl: () => apiUrl('/export/media'),
   libraryFileUrl: (attachmentId: string) => apiUrl(`/library/attachments/${attachmentId}`),
 }
