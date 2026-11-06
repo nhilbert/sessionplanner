@@ -20,6 +20,15 @@ export function AgendaList({ rows, options }: { rows: PrintRow[]; options: Print
       </colgroup>
       <tbody>
         {rows.map((r) => {
+          // Without its steps, a group reads as one step of its own, so what follows does not look like part of it.
+          if (r.kind === 'group' && !options.groupItems)
+            return (
+              <tr key={r.id} className="border-b border-black/10">
+                <td className={cx(time, 'pl-1.5 font-medium')}>{r.start !== null && r.end !== null ? timeRange(r.start, r.end) : ''}</td>
+                <td className="py-2 font-semibold">{r.title || t('group.untitled')}</td>
+                {options.duration && <td className="py-2 pr-1.5 text-right align-top text-black/55 tnum">{r.start !== null && r.end !== null ? formatDuration(r.end - r.start) : ''}</td>}
+              </tr>
+            )
           if (r.kind === 'group')
             return (
               <tr key={r.id} className="keep-next">

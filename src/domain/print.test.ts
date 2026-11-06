@@ -93,6 +93,15 @@ describe('dayRows', () => {
     const bare = dayRows(state, state.days[0], 'agenda', { ...PRINT_DEFAULTS.agenda, breaks: false, markers: false }).rows
     expect(bare.map((r) => (r.kind === 'item' ? r.item.id : r.title))).toEqual(['Arrival', 'welcome', 'checkin'])
   })
+  it('lists groups as headings only when their steps are switched off, with the times and numbers unchanged', () => {
+    const rows = dayRows(state, state.days[0], 'agenda', { ...PRINT_DEFAULTS.agenda, groupItems: false }).rows
+    expect(rows.map((r) => (r.kind === 'item' ? r.item.id : `G:${r.title}`))).toEqual(['arrive', 'G:Arrival', 'lunch'])
+    const group = rows[1]
+    expect(group.kind === 'group' && [group.start, group.end]).toEqual([540, 585])
+    const md = workshopMarkdown(state, 'agenda', { ...PRINT_DEFAULTS.agenda, groupItems: false }, labels, date)
+    expect(md).toContain('| 09:00–09:45 | **Arrival** |')
+    expect(md).not.toContain('Check-in')
+  })
   it('skips a group whose members are all hidden', () => {
     const only = { ...state, items: state.items.map((i) => (i.groupId ? { ...i, kind: 'note' as const, duration: 0 } : i)) }
     expect(dayRows(only, only.days[0], 'agenda', PRINT_DEFAULTS.agenda).rows.some((r) => r.kind === 'group')).toBe(false)
