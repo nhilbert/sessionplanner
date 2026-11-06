@@ -71,6 +71,10 @@ let sync: Sync | null = null
 let batchNo = 0
 let reloadQueued = false
 let lastErrorReload = 0
+/** Counts the openings: a change knows the one it was made in, even when the same workshop is open again by now. */
+let opening = 0
+/** A change failed with no workshop open to say so: the next one to open does. */
+let failedAway = false
 /** The open session whose changes share one undo entry (beginGroup). */
 let group: string | null = null
 
@@ -112,17 +116,23 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     const id = get().id
     if (!id || !ops.length || !sync) return
     const tag = `${WINDOW_ID}.${++batchNo}`
+    const made = opening
     show(addLocal(sync, tag, ops))
     queue = queue.then(async () => {
-      if (get().id !== id || !sync) return
-      sync = markSent(sync, tag)
+      // The change was shown as made, so it goes out even when the workshop was left meanwhile; only the view of it ends there.
+      const here = () => made === opening && sync !== null
+      if (here()) sync = markSent(sync!, tag)
       try {
         const res = await api.sendOps(id, tag, ops)
         // Nothing stored (its records were gone meanwhile): no echo will come.
-        if (!res.ops.length && sync && get().id === id) show(settle(sync, tag))
+        if (!res.ops.length && here()) show(settle(sync!, tag))
       } catch (err) {
-        if (get().id !== id || !sync) return
-        show(settle(sync, tag))
+        if (!here()) {
+          failedAway = !get().id
+          set({ syncError: true })
+          return
+        }
+        show(settle(sync!, tag))
         // The undo history was built on a state the server never had.
         set({ past: [], future: [] })
         if (err instanceof ApiError && err.status === 401) set({ status: 'login' })
@@ -193,16 +203,19 @@ export const usePlanner = create<PlannerStore>((set, get) => {
 
     open: (id) => {
       if (get().id === id) return
+      const mine = ++opening
       sync = null
       group = null
       reloadQueued = false
-      set({ id, data: null, status: 'loading', live: false, presenting: null, past: [], future: [], syncError: false })
-      // Nothing of this workshop is on its way yet: no need to wait for the queue.
-      void load(id)
+      set({ id, data: null, status: 'loading', live: false, presenting: null, past: [], future: [], syncError: failedAway })
+      failedAway = false
+      // Changes from a moment ago may still be on their way: the workshop is read after them, so it shows them.
+      void queue.then(() => (mine === opening ? load(id) : undefined))
       connect(id)
     },
 
     close: () => {
+      opening++
       source?.close()
       source = null
       sync = null
