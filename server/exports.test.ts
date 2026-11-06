@@ -50,6 +50,45 @@ async function unpack(stream: ReadableStream<Uint8Array>): Promise<Map<string, s
   return new Map([...files].map(([k, v]) => [k, new TextDecoder().decode(v)]))
 }
 
+describe('what lies in the trash', () => {
+  it('stays in the data export, apart and marked, until it goes for good', async () => {
+    const { repo, id } = setup()
+    const kept = repo.createWorkshop({ title: 'Bleibt' }).workshop.id
+    repo.trashWorkshop(id, '2026-11-01T10:00:00.000Z')
+    const files = await unpack(dataZip(repo))
+    const names = [...files.keys()]
+    expect(names.filter((n) => n.startsWith('workshops/'))).toHaveLength(1)
+    const [path] = names.filter((n) => n.startsWith('trash/'))
+    expect(path).toContain('Teamtag')
+    const record = JSON.parse(files.get(path)!)
+    expect(record.workshop.id).toBe(id)
+    expect(record.items.map((i: Item) => i.title)).toEqual(['Einstieg'])
+    const manifest = JSON.parse(files.get('manifest.json')!)
+    expect(manifest.workshops.map((w: { id: string }) => w.id)).toEqual([kept])
+    expect(manifest.counts).toMatchObject({ workshops: 1, trash: 1 })
+    expect(manifest.trash).toEqual([expect.objectContaining({ id, title: 'Teamtag: Planung/2027', file: path, deletedAt: '2026-11-01T10:00:00.000Z', purgeAt: expect.any(String) })])
+  })
+
+  it('keeps its files in the media export, and names those that are missing', async () => {
+    const { repo, filesDir, themesDir, id } = setup()
+    repo.trashWorkshop(id)
+    const files = await unpack(mediaZip(repo, filesDir, themesDir))
+    const dir = 'trash-attachments/Teamtag_ Planung_2027'
+    expect(files.get(`${dir}/Ablauf.pdf`)).toBe('f1-bytes')
+    const media = JSON.parse(files.get('media.json')!)
+    expect(media.files.find((f: { file: string }) => f.file === `${dir}/Ablauf.pdf`)).toMatchObject({ kind: 'attachment', workshopId: id, inTrash: true })
+    expect(media.missing).toEqual([expect.objectContaining({ id: 'f3', workshopId: id, inTrash: true })])
+  })
+
+  it('is gone from the exports once deleted for good', async () => {
+    const { repo, filesDir, themesDir, id } = setup()
+    repo.trashWorkshop(id)
+    repo.deleteWorkshop(id)
+    expect([...(await unpack(dataZip(repo))).keys()].filter((n) => n.startsWith('trash/'))).toEqual([])
+    expect([...(await unpack(mediaZip(repo, filesDir, themesDir))).keys()].filter((n) => n.startsWith('trash-'))).toEqual([])
+  })
+})
+
 describe('the export of a workshop', () => {
   it('holds the record, its files under their names and the pictures its slides show', async () => {
     const { repo, filesDir, id } = setup()

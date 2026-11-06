@@ -99,11 +99,13 @@ export function workshopZip(repo: Repo, filesDir: string, id: string, options?: 
 /**
  * All data without the media: `manifest.json`, `settings.json`, one file per workshop in `workshops/`, `library.json`,
  * `decks.json` (with their slides), `themes.json` (data themes with their pools), `slide-templates.json` and
- * `assets.json` (the pictures' records; the pictures themselves are in the media export).
+ * `assets.json` (the pictures' records; the pictures themselves are in the media export). Workshops in the trash can
+ * still come back, so an archive of everything holds them too, in `trash/` and named in the manifest with their dates.
  */
 export function dataZip(repo: Repo, options?: { zip64Over?: number }): ReadableStream<Uint8Array> {
   const exportedAt = new Date().toISOString()
   const summaries = repo.listWorkshops()
+  const inTrash = repo.listTrash()
   const library = repo.listLibrary()
   const decks = repo.listDecks().flatMap((d) => repo.getDeck(d.id) ?? [])
   const themes = repo.listThemes().map((t) => ({ ...t, pool: repo.listPool(t.id) }))
@@ -119,6 +121,14 @@ export function dataZip(repo: Repo, options?: { zip64Over?: number }): ReadableS
       workshops.push({ id: s.id, title: record.workshop.title, file: at })
       yield json(at, record)
     }
+    const trash: { id: string; title: string; file: string; deletedAt: string; purgeAt: string }[] = []
+    for (const t of inTrash) {
+      const state = repo.loadTrashedWorkshop(t.id)
+      if (!state) continue // restored or gone since the list was read
+      const at = unique(taken, `trash/${safePart(state.workshop.title, 'Workshop')} – ${t.id.slice(0, 8)}.json`)
+      trash.push({ id: t.id, title: state.workshop.title, file: at, deletedAt: t.deletedAt, purgeAt: t.purgeAt })
+      yield json(at, state)
+    }
     yield json('settings.json', repo.getSettings())
     yield json('library.json', library)
     yield json('decks.json', decks)
@@ -130,7 +140,8 @@ export function dataZip(repo: Repo, options?: { zip64Over?: number }): ReadableS
       version: EXPORT_VERSION,
       exportedAt,
       workshops,
-      counts: { workshops: workshops.length, library: library.length, decks: decks.length, themes: themes.length, slideTemplates: templates.length, assets: assets.length },
+      trash,
+      counts: { workshops: workshops.length, trash: trash.length, library: library.length, decks: decks.length, themes: themes.length, slideTemplates: templates.length, assets: assets.length },
       media: 'The files, pictures, theme files and logos are in the media export; its media.json ties each to the ids here.',
     })
   }
@@ -143,6 +154,8 @@ interface MediaEntry {
   kind: 'attachment' | 'library-attachment' | 'picture' | 'theme-file' | 'theme-logo' | 'logo' | 'folder-theme'
   id?: string
   workshopId?: string
+  /** A file of a workshop in the trash. */
+  inTrash?: boolean
   entryId?: string
   themeId?: string
   name?: string
@@ -151,13 +164,14 @@ interface MediaEntry {
 }
 
 /**
- * All media: `attachments/<workshop>/`, `library/<entry>/`, `pictures/<hash>.<ext>`, `theme-files/<theme>/`,
+ * All media: `attachments/<workshop>/`, `trash-attachments/<workshop>/`, `library/<entry>/`, `pictures/<hash>.<ext>`, `theme-files/<theme>/`,
  * `theme-logos/`, `logo.<ext>` (the printouts' logo), `themes/<folder>/` (folder themes) and `media.json`, which names
  * each file's kind and the ids it belongs to, and the files that were missing on disk.
  */
 export function mediaZip(repo: Repo, filesDir: string, themesDir: string | undefined, options?: { zip64Over?: number }): ReadableStream<Uint8Array> {
   const { file, asset, themeFile, themeLogo, logo } = filePaths(filesDir)
   const summaries = repo.listWorkshops()
+  const inTrash = repo.listTrash()
   const library = repo.listLibrary()
   const assets = repo.listAssets()
   const themes = repo.listThemes()
@@ -189,6 +203,12 @@ export function mediaZip(repo: Repo, filesDir: string, themesDir: string | undef
       if (!state?.attachments.length) continue
       const dir = folderOf('attachments', state.workshop.title, s.id)
       for (const a of state.attachments) yield* add(file(a.id), `${dir}/${safePart(a.name, a.id)}`, { kind: 'attachment', id: a.id, workshopId: s.id, name: a.name, mime: a.mime })
+    }
+    for (const t of inTrash) {
+      const state = repo.loadTrashedWorkshop(t.id)
+      if (!state?.attachments.length) continue
+      const dir = folderOf('trash-attachments', state.workshop.title, t.id)
+      for (const a of state.attachments) yield* add(file(a.id), `${dir}/${safePart(a.name, a.id)}`, { kind: 'attachment', id: a.id, workshopId: t.id, inTrash: true, name: a.name, mime: a.mime })
     }
     for (const e of library) {
       if (!e.attachments.length) continue
