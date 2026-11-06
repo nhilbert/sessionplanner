@@ -1,4 +1,4 @@
-# Session Planner – Concept (draft 5, 2026-11-05)
+# Session Planner – Concept (draft 5, 2026-11-06)
 
 Plan the agenda of a workshop by moving its steps around until the time works, keep the facilitator's notes, material and files with each step, and share the plan with co-facilitators and clients. A third app next to Zendo and the Revenue Tracker, on the same server (`sessions.` subdomain), built the same way as Zendo.
 
@@ -131,6 +131,13 @@ On the owner's hosted instance there is no public access, so no share links: eve
 
 ## 10. Decisions
 
+**2026-11-06, a trash for workshops**
+
+- Deleting a workshop puts it into the trash for 30 days (`TRASH_DAYS`); then it is deleted for good, with its files. Until then the owner restores it from the trash, at the end of the list of workshops, or deletes it for good there.
+- In the trash a workshop is gone for everyone at once: its address, files, live updates and agents answer as for a workshop that does not exist, open windows close, and it is left out of every list (the CRM's link list included). Its days, items and files stay as they were, on disk too.
+- Sharing ends when it goes into the trash: a restored workshop is shared with nobody. Deleting is also how access is taken away, and a restore should not hand it back unasked.
+- The server empties the trash at the start and at every hourly check (with the backup), and before it lists the trash. Backups keep what was in the database on their day, as before.
+
 **2026-11-05, several workspaces later**
 
 - The core should be able to serve several separate workspaces later. A workspace holds everything that belongs together: workshops, library, decks, themes, templates, settings and files. Nothing of one workspace is reachable from another, through any route, export, live update or agent connection.
@@ -261,7 +268,7 @@ The same app, not a reduced one; what differs follows the device, consistently:
 
 - **Stack** as Zendo: React 19 + Vite + Tailwind 4, Hono on Node 24, SQLite via `node:sqlite` with numbered SQL migrations, TypeScript, Vitest, `@dnd-kit`, i18next.
 - **Domain logic** in `src/domain/` without UI or clock (time rules, ordering, packing list, operations), shared by browser and server and tested in isolation.
-- **API**: `GET /api/workshops`, `POST /api/workshops`, `GET|DELETE /api/workshops/:id`, `POST /api/workshops/:id/ops` (a batch of operations, applied in one transaction), `GET /api/workshops/:id/events` (server-sent events), attachments under `/api/workshops/:id/attachments` and `/api/attachments/:id`.
+- **API**: `GET /api/workshops`, `POST /api/workshops`, `GET|DELETE /api/workshops/:id` (delete puts it into the trash), `GET /api/trash`, `POST /api/trash/:id/restore`, `DELETE /api/trash/:id` (for good, owner only), `POST /api/workshops/:id/ops` (a batch of operations, applied in one transaction), `GET /api/workshops/:id/events` (server-sent events), attachments under `/api/workshops/:id/attachments` and `/api/attachments/:id`.
 - **Order** by a fractional position per day / parking lot; renumbered when two positions get too close.
 - **Guard** as in Zendo: changes only with the app's header, from its own host and origin; hosted, the owner's e-mail header must be present and listed (`SP_OWNERS`), and with `SP_PROXY_SECRET` it counts only on requests that carry the login proxy's secret, so reaching the container port past the proxy is not enough to forge it.
 - **MCP** (`/mcp`, outside `/api`, only with `SP_MCP_OAUTH=1` or `SP_MCP_TOKEN`): MCP over Streamable HTTP for AI agents, authenticated with `Authorization: Bearer` (an OAuth access token or the static token). `server/oauth.ts` serves the OAuth discovery and `/oauth/*` endpoints (clients and token hashes in `oauth_clients` / `oauth_tokens`, migration 0004); `GET/DELETE /api/mcp/connections` and `POST /api/mcp/arm` (owner only) back Settings → AI agents; hosted, a new connection can be approved only within 10 minutes after **Connect an agent** there, once, so a consent link someone else sends cannot connect their agent. The tools (`server/mcp.ts`) wrap `server/ops.ts`, which turns an agent's request into a batch of operations, validates it like the browser's, applies it through `Repo.applyOps` and publishes it on the hub. The same tools run over stdio (`npm run mcp`). See [mcp.md](mcp.md).

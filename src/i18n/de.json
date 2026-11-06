@@ -39,7 +39,15 @@
     "untitled": "Workshop ohne Titel",
     "titleLabel": "Titel",
     "client": "Kunde",
-    "firstDay": "Erster Tag"
+    "firstDay": "Erster Tag",
+    "trash": "Papierkorb ({{count}})",
+    "hideTrash": "Papierkorb ausblenden",
+    "trashHint": "Gelöschte Workshops bleiben {{days}} Tage hier und werden dann endgültig gelöscht, mit ihren Dateien. Wiederhergestellt sind sie mit niemandem geteilt.",
+    "deletedOn": "gelöscht am {{date}}",
+    "purgeOn": "endgültig weg am {{date}}",
+    "restore": "Wiederherstellen",
+    "purge": "Endgültig löschen",
+    "purgeConfirm": "„{{title}}“ mit allen Tagen, Punkten und Dateien endgültig löschen? Das lässt sich nicht rückgängig machen."
   },
   "planner": {
     "parking": "Themenspeicher",
@@ -145,7 +153,7 @@
     "archive": "Archivieren",
     "unarchive": "Aus dem Archiv holen",
     "delete": "Workshop löschen",
-    "deleteConfirm": "„{{title}}“ mit allen Tagen, Punkten und Dateien löschen? Das lässt sich nicht rückgängig machen.",
+    "deleteConfirm": "„{{title}}“ löschen? Der Workshop kommt in den Papierkorb und wird nach {{days}} Tagen endgültig gelöscht; bis dahin kannst du ihn in der Workshop-Liste wiederherstellen. Freigaben für Gäste enden sofort.",
     "duplicate": "Duplizieren",
     "copyTitle": "{{title}} (Kopie)",
     "daysFollow": "die weiteren Tage folgen",

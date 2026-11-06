@@ -77,6 +77,8 @@ const RULES: Record<Access, Record<Caller, Answer>> = {
 
 interface Records {
   workshop: string
+  /** A workshop in the trash. */
+  trashed: string
   attachment: string
   entry: string
   entryAttachment: string
@@ -160,6 +162,9 @@ const ROUTES: Route[] = [
   { route: 'POST /api/workshops', access: 'owner', body: () => ({}) },
   { route: 'DELETE /api/workshops/:id', access: 'owner' },
   { route: 'POST /api/workshops/:id/duplicate', access: 'owner', body: () => ({ title: 'Copy' }) },
+  { route: 'GET /api/trash', access: 'owner' },
+  { route: 'POST /api/trash/:id/restore', access: 'owner' },
+  { route: 'DELETE /api/trash/:id', access: 'owner' },
   { route: 'GET /api/workshops/:id/export', access: 'owner' },
   { route: 'GET /api/workshops/:id/members', access: 'owner' },
   { route: 'PUT /api/workshops/:id/members/:email', access: 'owner', body: () => ({ role: 'view', showNotes: true }) },
@@ -307,6 +312,8 @@ async function fixture(): Promise<{ app: App; records: Records }> {
   await made(`/api/themes/${theme.id}/logo`, pictureForm())
   await made(`/api/themes/${theme.id}/files`, form({ file: picture(), path: 'mark.jpg' }))
   const template = await made<{ id: string }>('/api/slide-templates', { name: 'Quote', html: slide })
+  const trashed = (await made<WorkshopState>('/api/workshops', { title: 'Gelöscht' })).workshop.id
+  expect((await call(app, 'owner', 'DELETE', `/api/workshops/${trashed}`)).status, "the fixture's trash").toBe(200)
 
   const client = await made<{ client_id: string }>('/oauth/register', { client_name: 'Agent', redirect_uris: [CALLBACK] })
   oauth.arm(OWNER)
@@ -316,7 +323,7 @@ async function fixture(): Promise<{ app: App; records: Records }> {
 
   return {
     app,
-    records: { workshop: workshop.id, attachment: attachment.id, entry: library.id, entryAttachment: withFile.data.attachmentIds[0], deck: deck.id, theme: theme.id, template: template.id, hash, client: client.client_id, consent, pending },
+    records: { workshop: workshop.id, trashed, attachment: attachment.id, entry: library.id, entryAttachment: withFile.data.attachmentIds[0], deck: deck.id, theme: theme.id, template: template.id, hash, client: client.client_id, consent, pending },
   }
 }
 
@@ -327,6 +334,7 @@ const address = (route: string, r: Records) =>
     .replace(/^\/assets\/\*$/, '/assets/old-build.js')
     .replace(/^(\/api\/themes\/:name)\/\*$/, '$1/theme.css')
     .replace(/^\/api\/workshops\/:id/, `/api/workshops/${r.workshop}`)
+    .replace(/^\/api\/trash\/:id/, `/api/trash/${r.trashed}`)
     .replace(/^\/api\/attachments\/:id/, `/api/attachments/${r.attachment}`)
     .replace(/^\/api\/library\/attachments\/:id/, `/api/library/attachments/${r.entryAttachment}`)
     .replace(/^\/api\/library\/:id/, `/api/library/${r.entry}`)

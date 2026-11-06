@@ -8,6 +8,7 @@ import type { Env, GuardOptions } from './guard.ts'
 import { mcpRoutes } from './mcp.ts'
 import { OAuthServer } from './oauth.ts'
 import { dataPaths } from './storage.ts'
+import { emptyTrash } from './files.ts'
 
 const BACKUP_CHECK_MS = 60 * 60 * 1000
 
@@ -92,8 +93,18 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
       basePath,
     })
 
+    // The trash lets go of what has waited its days there, at the start and with every hour's check.
+    const sweepTrash = () => {
+      try {
+        emptyTrash(repo, filesDir)
+      } catch (err) {
+        console.error(`The trash of ${dbFile} could not be emptied, trying again in an hour:`, (err as Error).message)
+      }
+    }
+    sweepTrash()
     let running: Promise<void> | null = null
     const check = () => {
+      sweepTrash()
       running ??= backupDailyInBackground(dbFile, backupDir)
         .then(() => undefined)
         .catch(failed)

@@ -207,6 +207,21 @@ export interface WorkshopSummary {
   updatedAt: string
 }
 
+/** How long a deleted workshop waits in the trash before it is deleted for good. */
+export const TRASH_DAYS = 30
+
+/** A workshop in the trash, as its list shows it. */
+export interface TrashedWorkshop {
+  id: string
+  title: string
+  client: string
+  firstDate: string | null
+  lastDate: string | null
+  deletedAt: string
+  /** When it goes for good: TRASH_DAYS after it was deleted. */
+  purgeAt: string
+}
+
 /** The content of an item without its place in a workshop (library entries, copies). */
 /** attachmentIds name the files of the place the content is in: a workshop's attachments, or the library entry's. */
 export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'attachmentIds' | 'slides' | 'categoryId' | 'color'>

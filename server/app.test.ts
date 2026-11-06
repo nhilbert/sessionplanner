@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
@@ -10,7 +10,8 @@ import { createApp, PRESENT_HOURS, type QUOTAS } from './app.ts'
 import { MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { decodePng, encodePng } from './cutout.ts'
 import type { Op, ServerEvent } from '../src/domain/ops.ts'
-import type { Attachment, Item, ItemContent, LibraryEntry, WorkshopState } from '../src/domain/types.ts'
+import { type Attachment, type Item, type ItemContent, type LibraryEntry, TRASH_DAYS, type TrashedWorkshop, type WorkshopState } from '../src/domain/types.ts'
+import { emptyTrash } from './files.ts'
 
 const BASE = 'http://127.0.0.1'
 const H = { 'content-type': 'application/json', 'x-sp': '1' }
@@ -19,10 +20,11 @@ function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; d
   const db = opts.db ?? openDb(':memory:')
   const repo = new Repo(db)
   const hub = new Hub()
+  const filesDir = mkdtempSync(path.join(tmpdir(), 'sp-files-'))
   const app = createApp({
     repo,
     hub,
-    filesDir: mkdtempSync(path.join(tmpdir(), 'sp-files-')),
+    filesDir,
     owners: opts.owners ?? [],
     ownerHeader: 'x-auth-request-email',
     publicUrl: opts.publicUrl,
@@ -32,7 +34,7 @@ function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; d
     quotas: opts.quotas,
     pingSeconds: opts.pingSeconds,
   })
-  return { app, repo, hub, db }
+  return { app, repo, hub, db, filesDir }
 }
 
 /** Uploads a small file; the answer of the route (an attachment, or a library entry). */
@@ -340,14 +342,63 @@ describe('attachments', () => {
     expect(state.items[0].attachmentIds).toEqual([att.id])
   })
 
-  it('removes the files with the workshop', async () => {
-    const { app } = setup()
+  it('puts a deleted workshop into the trash: gone for everyone, its files kept until it goes for good', async () => {
+    const { app, filesDir } = setup()
     const ws = await create(app)
-    const form = new FormData()
-    form.append('file', new File(['x'], 'a.txt', { type: 'text/plain' }))
-    const att = await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/attachments`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })).json()
-    expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
+    const id = ws.workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    expect((await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/workshops/${id}`)).status).toBe(404)
     expect((await app.request(`${BASE}/api/attachments/${att.id}`)).status).toBe(404)
+    expect((await (await app.request(`${BASE}/api/workshops`)).json()) as unknown[]).toEqual([])
+    expect((await ops(app, id, { clientId: 'c', ops: [{ op: 'set', entity: 'workshop', id, fields: { title: 'x' } }] })).status).toBe(404)
+    expect((await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status, 'not twice').toBe(404)
+    expect(existsSync(path.join(filesDir, att.id))).toBe(true)
+    const trash = (await (await app.request(`${BASE}/api/trash`)).json()) as TrashedWorkshop[]
+    expect(trash).toHaveLength(1)
+    expect(trash[0]).toMatchObject({ id, title: ws.workshop.title })
+    expect(Date.parse(trash[0].purgeAt) - Date.parse(trash[0].deletedAt)).toBe(TRASH_DAYS * 86_400_000)
+  })
+
+  it('restores a workshop from the trash as it was, files included', async () => {
+    const { app } = setup()
+    const id = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    expect((await app.request(`${BASE}/api/trash/${id}/restore`, { method: 'POST', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/trash/${id}/restore`, { method: 'POST', headers: { 'x-sp': '1' } })).status, 'only from the trash').toBe(404)
+    const state = (await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState
+    expect(state.attachments.map((a) => a.id)).toEqual([att.id])
+    expect(await (await app.request(`${BASE}/api/attachments/${att.id}`)).text()).toBe('x')
+    expect((await (await app.request(`${BASE}/api/trash`)).json()) as unknown[]).toEqual([])
+  })
+
+  it('deletes from the trash for good, with the files, and only what is in it', async () => {
+    const { app, filesDir } = setup()
+    const id = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    expect((await app.request(`${BASE}/api/trash/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status, 'a workshop in use is not in the trash').toBe(404)
+    await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    expect((await app.request(`${BASE}/api/trash/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect(existsSync(path.join(filesDir, att.id))).toBe(false)
+    expect((await app.request(`${BASE}/api/trash/${id}/restore`, { method: 'POST', headers: { 'x-sp': '1' } })).status).toBe(404)
+    expect((await (await app.request(`${BASE}/api/trash`)).json()) as unknown[]).toEqual([])
+  })
+
+  it('empties the trash of what has waited its days there, files included, and keeps the rest', async () => {
+    const { app, repo, filesDir } = setup()
+    const old = (await create(app)).workshop.id
+    const young = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${old}/attachments`, 'a.txt', 'x')
+    const day = 86_400_000
+    const start = Date.parse('2026-10-01T10:00:00Z')
+    repo.trashWorkshop(old, new Date(start).toISOString())
+    repo.trashWorkshop(young, new Date(start + 2 * day).toISOString())
+    expect(emptyTrash(repo, filesDir, new Date(start + TRASH_DAYS * day - 1))).toEqual([])
+    expect(emptyTrash(repo, filesDir, new Date(start + TRASH_DAYS * day))).toEqual([att.id])
+    expect(existsSync(path.join(filesDir, att.id))).toBe(false)
+    expect(repo.listTrash().map((w) => w.id)).toEqual([young])
+    expect(repo.inTrash(old)).toBe(false)
   })
 })
 
@@ -793,6 +844,20 @@ describe('guests', () => {
     expect(brand.status).toBe(403)
     expect((await app.request(`${pub}/api/workshops/${id}`, { method: 'DELETE', headers: BEN })).status).toBe(403)
     expect((await app.request(`${pub}/api/workshops/${id}/duplicate`, { method: 'POST', headers: BEN, body: JSON.stringify({ title: 'x' }) })).status).toBe(403)
+  })
+
+  it('lose a workshop put into the trash, and do not get it back when it is restored', async () => {
+    const { app, id } = await prepared()
+    await share(app, id, 'anna@example.com', 'edit', true)
+    expect((await app.request(`${pub}/api/workshops/${id}`, { headers: ANNA })).status).toBe(200)
+    expect((await app.request(`${pub}/api/trash`, { headers: ANNA })).status).toBe(403)
+    expect((await app.request(`${pub}/api/workshops/${id}`, { method: 'DELETE', headers: OWNER })).status).toBe(200)
+    expect((await app.request(`${pub}/api/workshops/${id}`, { headers: ANNA })).status).toBe(404)
+    expect((await (await app.request(`${pub}/api/workshops`, { headers: ANNA })).json()) as unknown[]).toEqual([])
+    expect((await app.request(`${pub}/api/trash/${id}/restore`, { method: 'POST', headers: ANNA })).status).toBe(403)
+    expect((await app.request(`${pub}/api/trash/${id}/restore`, { method: 'POST', headers: OWNER })).status).toBe(200)
+    expect((await app.request(`${pub}/api/workshops/${id}`, { headers: ANNA })).status).toBe(404)
+    expect((await app.request(`${pub}/api/workshops/${id}`, { headers: OWNER })).status).toBe(200)
   })
 
   it('cannot manage access, settings or the library', async () => {

@@ -32,6 +32,13 @@ export function removeFiles(filesDir: Dir, ids: string[]): void {
   if (filesDir) for (const id of ids) rmSync(filePaths(filesDir).file(id), { force: true })
 }
 
+/** Deletes for good the workshops that have been in the trash for TRASH_DAYS days, with their files; answers the ids of the files removed. */
+export function emptyTrash(repo: Repo, filesDir: Dir, at = new Date()): string[] {
+  const files = repo.purgeTrash(at)
+  removeFiles(filesDir, files)
+  return files
+}
+
 /**
  * Copies the files of a library entry into a workshop: library attachment id → the workshop's copy. A file missing on
  * disk is left out. Null when the copies would not fit the workshop's limit; nothing is copied then.

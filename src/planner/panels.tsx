@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Copy, Download, ExternalLink, Plus, Trash2, UserMinus, UserPlus, X } from 'lucide-react'
-import type { Attachment, Member, MemberRole, PackingState, WorkshopState } from '@/domain/types'
+import { type Attachment, type Member, type MemberRole, type PackingState, TRASH_DAYS, type WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
 import { packingList } from '@/domain/packing'
@@ -66,7 +66,7 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
           size="sm"
           variant="danger"
           onClick={async () => {
-            if (!window.confirm(t('workshop.deleteConfirm', { title: w.title || t('workshops.untitled') }))) return
+            if (!window.confirm(t('workshop.deleteConfirm', { title: w.title || t('workshops.untitled'), days: TRASH_DAYS }))) return
             // Stop listening first: the deletion's own notice would show "this workshop does not exist" on the way out.
             usePlanner.getState().close()
             try {

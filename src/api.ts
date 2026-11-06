@@ -1,4 +1,4 @@
-import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, SlideTemplate, WorkshopState, WorkshopSummary } from './domain/types'
+import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, SlideTemplate, TrashedWorkshop, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op, PresentPosition } from './domain/ops'
 import { apiUrl, themeUrl } from './domain/addresses'
 import { type PoolAsset, type PoolKind, type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
@@ -89,6 +89,9 @@ export const api = {
   loadWorkshop: (id: string) => call<WorkshopState>(`/workshops/${id}`),
   duplicateWorkshop: (id: string, input: { title: string; firstDate?: string }) => call<WorkshopState>(`/workshops/${id}/duplicate`, { method: 'POST', body: JSON.stringify(input) }),
   deleteWorkshop: (id: string) => call<{ ok: true }>(`/workshops/${id}`, { method: 'DELETE' }),
+  listTrash: () => call<TrashedWorkshop[]>('/trash'),
+  restoreWorkshop: (id: string) => call<{ ok: true }>(`/trash/${id}/restore`, { method: 'POST' }),
+  purgeWorkshop: (id: string) => call<{ ok: true }>(`/trash/${id}`, { method: 'DELETE' }),
   sendOps: (id: string, clientId: string, ops: Op[]) => call<{ ok: true; ops: Op[] }>(`/workshops/${id}/ops`, { method: 'POST', body: JSON.stringify({ clientId, ops }) }),
   upload: (id: string, file: File) => call<Attachment>(`/workshops/${id}/attachments`, { method: 'POST', body: fileForm(file) }),
   deleteAttachment: (id: string) => call<{ ok: true }>(`/attachments/${id}`, { method: 'DELETE' }),
