@@ -434,6 +434,76 @@ describe('deckFromPptx, reading the file', () => {
     expect(warnings).toEqual([{ slide: 1, what: 'SmartArt' }])
   })
 
+  describe('a chart whose series has gaps', () => {
+    const frame = '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="9" name="d"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="1000000" y="1500000"/><a:ext cx="9000000" cy="4000000"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rC"/></a:graphicData></a:graphic></p:graphicFrame>'
+    const points = (values: [number, string][]) => values.map(([i, v]) => `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`).join('')
+    const str = (values: [number, string][]) => `<c:strRef><c:f>A</c:f><c:strCache><c:ptCount val="3"/>${points(values)}</c:strCache></c:strRef>`
+    const num = (values: [number, string][]) => `<c:numRef><c:f>B</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="3"/>${points(values)}</c:numCache></c:numRef>`
+    const series = (name: string, cat: string, val: string) => `<c:ser><c:tx>${str([[0, name]])}</c:tx><c:cat>${cat}</c:cat><c:val>${val}</c:val></c:ser>`
+    const chart = (...parts: string[]) => `<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart><c:plotArea><c:barChart>${parts.join('')}</c:barChart></c:plotArea></c:chart></c:chartSpace>`
+    const rowsOf = async (data: string) => {
+      const { html } = await read([{ shapes: title('Zahlen') + frame, rels: [['rC', `${REL}/chart`, '../charts/chart1.xml']] }], {}, undefined, [{ path: 'ppt/charts/chart1.xml', data }])
+      return [...html[0].matchAll(/<tr>(.*?)<\/tr>/g)].map((row) => [...row[1].matchAll(/<t[dh][^>]*>(.*?)<\/t[dh]>/g)].map((c) => c[1].replace(/<[^>]+>/g, '')))
+    }
+    const quarters = str([[0, 'Q1'], [1, 'Q2'], [2, 'Q3']])
+
+    it('keeps each number on its row', async () => {
+      expect(await rowsOf(chart(series('Team A', quarters, num([[0, '1'], [2, '3']]))))).toEqual([['', 'Team A'], ['Q1', '1'], ['Q2', ''], ['Q3', '3']])
+    })
+
+    it('keeps the rows of two series together when only one has the gap', async () => {
+      expect(await rowsOf(chart(series('A', quarters, num([[1, '5']])), series('B', quarters, num([[0, '1'], [1, '2'], [2, '3']]))))).toEqual([['', 'A', 'B'], ['Q1', '', '1'], ['Q2', '5', '2'], ['Q3', '', '3']])
+    })
+
+    it('takes the numbers in the order of their places, however the file lists them', async () => {
+      expect(await rowsOf(chart(series('A', quarters, num([[2, '3'], [0, '1'], [1, '2']]))))).toEqual([['', 'A'], ['Q1', '1'], ['Q2', '2'], ['Q3', '3']])
+    })
+
+    it('shows the inner level of categories on several levels', async () => {
+      const cat = `<c:multiLvlStrRef><c:f>A</c:f><c:multiLvlStrCache><c:ptCount val="2"/><c:lvl>${points([[0, 'Mai'], [1, 'Juni']])}</c:lvl><c:lvl>${points([[0, '2026']])}</c:lvl></c:multiLvlStrCache></c:multiLvlStrRef>`
+      expect(await rowsOf(chart(series('A', cat, num([[0, '1'], [1, '2']]))))).toEqual([['', 'A'], ['Mai', '1'], ['Juni', '2']])
+    })
+
+    it('makes no table of a place far beyond what a table holds', async () => {
+      const { html } = await read([{ shapes: title('Zahlen') + frame, rels: [['rC', `${REL}/chart`, '../charts/chart1.xml']] }], {}, undefined, [{ path: 'ppt/charts/chart1.xml', data: chart(series('A', quarters, num([[1000000000, '1']]))) }])
+      expect(html[0]).not.toContain('<table')
+    })
+  })
+
+  describe('text at the edges of a short slide', () => {
+    const source = textBox(0.1, 0.88, 0.8, 0.08, 'Quelle: Beispiel 2019')
+    const kicker = textBox(0.1, 0.05, 0.5, 0.06, 'Leitfrage')
+    const heading = placeholder('type="title"', ['Warum das zählt'])
+
+    it('keeps the source of a sentence that becomes a statement', async () => {
+      const { html } = await read([{ shapes: title('Was soll bleiben, wenn wir gehen?') + source }])
+      expect(html[0]).toContain('slide statement')
+      expect(html[0]).toContain('<footer><span class="source">Quelle: Beispiel 2019</span></footer>')
+    })
+
+    it('keeps the source of a short title that becomes a section', async () => {
+      const { html } = await read([{ shapes: title('Teil zwei') + source }])
+      expect(html[0]).toContain('slide section')
+      expect(html[0]).toContain('<footer><span class="source">Quelle: Beispiel 2019</span></footer>')
+    })
+
+    it('keeps the source of one sentence under a title', async () => {
+      const { html } = await read([{ shapes: heading + textBox(0.1, 0.4, 0.8, 0.2, 'Wer fragt, führt das Gespräch.') + source }])
+      expect(html[0]).toContain('Wer fragt, führt das Gespräch.')
+      expect(html[0]).toContain('<span class="source">Quelle: Beispiel 2019</span>')
+    })
+
+    it('keeps kicker and title both, when a statement has room for only one of them', async () => {
+      const { html } = await read([{ shapes: kicker + placeholder('type="title"', ['Warum das zählt'], xfrm(0.1, 0.15, 0.8, 0.1)) + textBox(0.1, 0.4, 0.8, 0.2, 'Wer fragt, führt das Gespräch.') + source }])
+      for (const text of ['Leitfrage', 'Warum das zählt', 'Wer fragt, führt das Gespräch.', 'Quelle: Beispiel 2019']) expect(html[0]).toContain(text)
+    })
+
+    it('keeps the source of a long title that a section gives to a statement', async () => {
+      const { html } = await read([{ shapes: placeholder('type="ctrTitle"', ['Ein Titel, der für einen Abschnitt viel zu lang geraten ist und nicht passt']) + source }])
+      expect(html[0]).toContain('Quelle: Beispiel 2019')
+    })
+  })
+
   it('keeps the numbers of a chart as a table, and says so', async () => {
     const frame = '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="9" name="d"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="1000000" y="1500000"/><a:ext cx="9000000" cy="4000000"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rC"/></a:graphicData></a:graphic></p:graphicFrame>'
     const data = '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart><c:plotArea><c:barChart><c:ser><c:tx><c:v>Team A</c:v></c:tx><c:cat><c:pt><c:v>Mai</c:v></c:pt><c:pt><c:v>Juni</c:v></c:pt></c:cat><c:val><c:pt><c:v>4.4000000000000004</c:v></c:pt><c:pt><c:v>2</c:v></c:pt></c:val></c:ser></c:barChart></c:plotArea></c:chart></c:chartSpace>'

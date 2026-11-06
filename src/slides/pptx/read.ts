@@ -451,7 +451,19 @@ function chartTable(graphic: XmlNode, box: Box, ctx: SlideContext): void {
   if (!rel || rel.external || !ctx.pkg.files.has(rel.target)) return
   // Spreadsheets store 4.4 as 4.4000000000000004.
   const shown = (v: string) => (v.trim() && Number.isFinite(Number(v)) ? String(Number(Number(v).toPrecision(12))) : v)
-  const values = (node: XmlNode | undefined) => (node ? descendants(node, 'c:v').map((v) => textHtml(shown(clean(v.text)))) : [])
+  // A blank cell has no point at all, so a value's place is its idx, not its turn in the file. Of categories on several levels, the inner one.
+  const values = (node: XmlNode | undefined) => {
+    if (!node) return []
+    const points = descendants(descendants(node, 'c:lvl')[0] ?? node, 'c:pt')
+    if (!points.length) return descendants(node, 'c:v').map((v) => textHtml(shown(clean(v.text))))
+    const placed: string[] = []
+    points.forEach((p, turn) => {
+      const place = Number(p.attrs.idx ?? turn)
+      const value = child(p, 'c:v')
+      if (value && Number.isInteger(place) && place >= 0) placed[place] = textHtml(shown(clean(value.text)))
+    })
+    return placed
+  }
   const series = descendants(ctx.pkg.xml(rel.target), 'c:ser')
   const categories = values(child(series[0], 'c:cat'))
   const columns = series.map((ser) => values(child(ser, 'c:val')))
@@ -704,7 +716,7 @@ function header(h: Head): string {
   return `<header>${eyebrow}${title}${lead}</header>`
 }
 
-const footer = (h: Head): string => (h.source ? `<footer><span class="source">${textHtml(h.source)}</span></footer>` : '')
+const footer = (h: Pick<Head, 'source'>): string => (h.source ? `<footer><span class="source">${textHtml(h.source)}</span></footer>` : '')
 
 const pointHtml = (p: Point): string => `<li>${p.html}${p.kids.length ? `<ul>${p.kids.map((k) => `<li>${k.html}</li>`).join('')}</ul>` : ''}</li>`
 
@@ -715,17 +727,17 @@ function listBlock(points: Point[], ordered: boolean, extra = ''): string {
 
 function sectionSlide(h: Head): Draft {
   // A divider's type is for a few words; a whole sentence reads better as a statement.
-  if (h.title.length > 55) return statementSlide(h.eyebrow, h.title, h.lead)
+  if (h.title.length > 55) return statementSlide(h.eyebrow, h.title, h.lead, h.source)
   const eyebrow = h.eyebrow ? `<div class="eyebrow">${textHtml(h.eyebrow)}</div>` : ''
   const lead = h.lead ? `<p class="lead">${textHtml(h.lead)}</p>` : ''
-  return slide('section', `<div class="text">${eyebrow}<h1>${textHtml(h.title)}</h1>${lead}</div>`)
+  return slide('section', `<div class="text">${eyebrow}<h1>${textHtml(h.title)}</h1>${lead}</div>${footer(h)}`)
 }
 
-function statementSlide(eyebrow: string, sentence: string, sub = ''): Draft {
+function statementSlide(eyebrow: string, sentence: string, sub = '', source = ''): Draft {
   const long = words(sentence) > 12 ? ' long' : ''
   const kicker = eyebrow ? `<div class="eyebrow">${textHtml(eyebrow)}</div>` : ''
   const below = sub ? `<p class="sub">${textHtml(sub)}</p>` : ''
-  return slide('statement', `<div class="text${long}">${kicker}<p class="big">${textHtml(sentence)}</p>${below}</div>`)
+  return slide('statement', `<div class="text${long}">${kicker}<p class="big">${textHtml(sentence)}</p>${below}</div>${footer({ source })}`)
 }
 
 /** Reads as one sentence rather than a heading. */
@@ -1171,13 +1183,14 @@ function translate(s: RawSlide, aspect: number, warn: (what: string) => void): D
   if (!pics.length) {
     if (!panels.length) {
       if (!head.title && !head.lead) return []
-      if (head.title && !head.lead && !cover && isSentence(head.title)) return [statementSlide(head.eyebrow, head.title)]
-      return [head.title ? sectionSlide(head) : statementSlide(head.eyebrow, head.lead)]
+      if (head.title && !head.lead && !cover && isSentence(head.title)) return [statementSlide(head.eyebrow, head.title, '', head.source)]
+      return [head.title ? sectionSlide(head) : statementSlide(head.eyebrow, head.lead, '', head.source)]
     }
     if (panels.length === 1 && panels[0].paras.length <= 1 && !head.lead) {
       const only = panels[0].paras[0]?.text ?? panels[0].head
       if (divider && head.title && words(only) <= 25) return [sectionSlide({ ...head, lead: only })]
-      if (words(only) <= 40 && (!head.title || head.title.length <= 60) && !panels[0].head && !only.endsWith(':')) return [statementSlide(head.title || head.eyebrow, only)]
+      // A statement has one line above its sentence: a kicker and a title together need a slide with a header.
+      if (words(only) <= 40 && (!head.title || head.title.length <= 60) && !(head.title && head.eyebrow) && !panels[0].head && !only.endsWith(':')) return [statementSlide(head.title || head.eyebrow, only, '', head.source)]
     }
     if (divider && head.title && words(text) <= 25) {
       return [sectionSlide({ ...head, lead: [head.lead, text].filter(Boolean).join(' ') })]
