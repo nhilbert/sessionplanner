@@ -705,7 +705,8 @@ describe('parseXml', () => {
     const started = performance.now()
     expect(parseXml(`<a>${'<b c="1">text</b>'.repeat(300_000)}</a>`).children).toHaveLength(300_000)
     expect(performance.now() - started).toBeLessThan(5000)
-  })
+    // The limit above is what this test is about; three million elements before it take their time when all tests run at once.
+  }, 30_000)
 
   it('leaves the prototype of attributes alone', () => {
     const root = parseXml('<a __proto__="x" constructor="y"/>')
