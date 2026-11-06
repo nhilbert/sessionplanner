@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { CalendarDays, Clock, MapPin, Plus } from 'lucide-react'
+import { CalendarDays, Clock, MapPin, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { api, reportFailure } from '@/api'
-import type { WorkshopSummary } from '@/domain/types'
+import { TRASH_DAYS, type TrashedWorkshop, type WorkshopSummary } from '@/domain/types'
 import { formatDuration } from '@/domain/time'
 import { formatDate } from '@/i18n'
 import { Button, Chip, Empty, Field, Input, Modal, PageHeader, SearchField } from '@/components/ui'
@@ -23,6 +23,30 @@ export default function WorkshopsPage() {
   useEffect(() => {
     api.listWorkshops().then(setList, () => setFailed(true))
   }, [])
+  // The trash is the owner's: deleted workshops wait there TRASH_DAYS days before they go for good.
+  const [trash, setTrash] = useState<TrashedWorkshop[]>([])
+  const [showTrash, setShowTrash] = useState(false)
+  useEffect(() => {
+    if (me.owner) api.listTrash().then(setTrash, () => undefined)
+  }, [me.owner])
+  const restore = async (w: TrashedWorkshop) => {
+    try {
+      await api.restoreWorkshop(w.id)
+      setTrash((list) => list.filter((x) => x.id !== w.id))
+      setList(await api.listWorkshops())
+    } catch (err) {
+      reportFailure(err)
+    }
+  }
+  const purge = async (w: TrashedWorkshop) => {
+    if (!window.confirm(t('workshops.purgeConfirm', { title: w.title || t('workshops.untitled') }))) return
+    try {
+      await api.purgeWorkshop(w.id)
+      setTrash((list) => list.filter((x) => x.id !== w.id))
+    } catch (err) {
+      reportFailure(err)
+    }
+  }
 
   // A search looks through archived workshops too (they carry their chip); every word typed has to match somewhere.
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
@@ -96,6 +120,49 @@ export default function WorkshopsPage() {
           </Button>
         </div>
       )}
+      {me.owner && trash.length > 0 && !words.length && (
+        <div className="mt-6">
+          <div className="text-center">
+            <Button variant="ghost" size="sm" onClick={() => setShowTrash(!showTrash)}>
+              <Trash2 size={14} />
+              {showTrash ? t('workshops.hideTrash') : t('workshops.trash', { count: trash.length })}
+            </Button>
+          </div>
+          {showTrash && (
+            <section aria-label={t('workshops.trash', { count: trash.length })} className="mt-3">
+              <p className="mb-2 text-[13px] text-ink-3">{t('workshops.trashHint', { days: TRASH_DAYS })}</p>
+              <ul className="space-y-2">
+                {trash.map((w) => (
+                  <li key={w.id} className="card flex flex-wrap items-start gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-ink-2">{w.title || t('workshops.untitled')}</div>
+                      {w.client && <div className="truncate text-[14px] text-ink-3">{w.client}</div>}
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-ink-3">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays size={13} className="shrink-0" />
+                          {w.firstDate ? dateRange(w.firstDate, w.lastDate) : t('workshops.noDate')}
+                        </span>
+                        <span>{t('workshops.deletedOn', { date: formatDate(localDay(w.deletedAt)) })}</span>
+                        <span>{t('workshops.purgeOn', { date: formatDate(localDay(w.purgeAt)) })}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void restore(w)}>
+                        <RotateCcw size={13} />
+                        {t('workshops.restore')}
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => void purge(w)}>
+                        <Trash2 size={13} />
+                        {t('workshops.purge')}
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      )}
       <NewWorkshop open={creating} onClose={() => setCreating(false)} onCreated={(id) => navigate(`/w/${id}`)} />
     </div>
     </div>
@@ -107,6 +174,9 @@ function lengthOf(w: WorkshopSummary, t: TFunction): string {
   if (!w.minutes) return t('workshops.notPlanned')
   return w.days > 1 ? `${t('workshops.days', { count: w.days })} · ${formatDuration(w.minutes)}` : formatDuration(w.minutes)
 }
+
+/** The calendar day of a moment, on this device. */
+const localDay = (iso: string) => new Date(iso).toLocaleDateString('sv')
 
 function dateRange(first: string, last: string | null): string {
   return !last || last === first ? formatDate(first) : `${formatDate(first)} – ${formatDate(last)}`

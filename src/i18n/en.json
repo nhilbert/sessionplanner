@@ -39,7 +39,15 @@
     "untitled": "Untitled workshop",
     "titleLabel": "Title",
     "client": "Client",
-    "firstDay": "First day"
+    "firstDay": "First day",
+    "trash": "Trash ({{count}})",
+    "hideTrash": "Hide trash",
+    "trashHint": "Deleted workshops stay here for {{days}} days, then they are deleted for good, with their files. Once restored, they are shared with nobody.",
+    "deletedOn": "deleted on {{date}}",
+    "purgeOn": "gone for good on {{date}}",
+    "restore": "Restore",
+    "purge": "Delete for good",
+    "purgeConfirm": "Delete “{{title}}” with all days, items and files for good? This cannot be undone."
   },
   "planner": {
     "parking": "Parking lot",
@@ -145,7 +153,7 @@
     "archive": "Archive",
     "unarchive": "Restore from archive",
     "delete": "Delete workshop",
-    "deleteConfirm": "Delete “{{title}}” with all days, items and files? This cannot be undone.",
+    "deleteConfirm": "Delete “{{title}}”? It goes to the trash and is deleted for good after {{days}} days; until then you can restore it from the list of workshops. Sharing with guests ends at once.",
     "duplicate": "Duplicate",
     "copyTitle": "{{title}} (copy)",
     "daysFollow": "the other days follow",

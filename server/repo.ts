@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type ItemContent, type LibraryAttachment, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE } from '../src/domain/types.ts'
+import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type ItemContent, type LibraryAttachment, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE, type TrashedWorkshop, TRASH_DAYS } from '../src/domain/types.ts'
 import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
@@ -200,7 +200,8 @@ export class Repo {
 
   /** All workshops, or only those shared with `guest` (an e-mail). */
   listWorkshops(guest?: string): WorkshopSummary[] {
-    const only = guest !== undefined ? 'WHERE workshop_id IN (SELECT workshop_id FROM members WHERE email = ?)' : ''
+    // Workshops in the trash are left out everywhere but in the trash's own list.
+    const only = `WHERE workshop_id IN (SELECT id FROM workshops WHERE deleted_at IS NULL${guest !== undefined ? ' AND id IN (SELECT workshop_id FROM members WHERE email = ?)' : ''})`
     const args = guest !== undefined ? [guest] : []
     const rows = this.db
       .prepare(
@@ -208,7 +209,7 @@ export class Repo {
            (SELECT MIN(date) FROM days WHERE workshop_id = w.id) AS first_date,
            (SELECT MAX(date) FROM days WHERE workshop_id = w.id) AS last_date,
            (SELECT COUNT(*) FROM items WHERE workshop_id = w.id) AS item_count
-         FROM workshops w ${guest !== undefined ? 'WHERE w.id IN (SELECT workshop_id FROM members WHERE email = ?)' : ''}
+         FROM workshops w WHERE w.deleted_at IS NULL ${guest !== undefined ? 'AND w.id IN (SELECT workshop_id FROM members WHERE email = ?)' : ''}
          ORDER BY COALESCE(first_date, w.created_at) DESC`,
       )
       .all(...args) as Row[]
@@ -220,7 +221,7 @@ export class Repo {
     }
     const days = byWorkshop((this.db.prepare(`SELECT * FROM days ${only}`).all(...args) as Row[]).map(toDay))
     const groups = byWorkshop((this.db.prepare(`SELECT * FROM groups ${only}`).all(...args) as Row[]).map(toGroup))
-    const items = byWorkshop((this.db.prepare(`SELECT * FROM items ${only ? `${only} AND` : 'WHERE'} day_id IS NOT NULL`).all(...args) as Row[]).map(toItem))
+    const items = byWorkshop((this.db.prepare(`SELECT * FROM items ${only} AND day_id IS NOT NULL`).all(...args) as Row[]).map(toItem))
     const minutes = (id: string) => {
       const structure = { groups: groups.get(id) ?? [], items: items.get(id) ?? [] }
       return (days.get(id) ?? []).reduce((sum, d) => {
@@ -258,12 +259,13 @@ export class Repo {
     return this.loadWorkshop(id)!
   }
 
+  /** Whether a workshop is in use: one in the trash counts as gone, for everyone. */
   hasWorkshop(id: string): boolean {
-    return !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(id)
+    return !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ? AND deleted_at IS NULL').get(id)
   }
 
   loadWorkshop(id: string): WorkshopState | null {
-    const w = this.db.prepare('SELECT * FROM workshops WHERE id = ?').get(id) as Row | undefined
+    const w = this.db.prepare('SELECT * FROM workshops WHERE id = ? AND deleted_at IS NULL').get(id) as Row | undefined
     if (!w) return null
     return {
       workshop: toWorkshop(w),
@@ -274,7 +276,60 @@ export class Repo {
     }
   }
 
-  /** Deletes the workshop with its days, items and attachment records; returns the attachment ids (files to remove). */
+  /**
+   * Puts a workshop in use into the trash: from now on it answers as gone, and whom it was shared with ends with it
+   * (a restored workshop is shared with nobody). Its days, items and files stay until the trash lets go of it.
+   */
+  trashWorkshop(id: string, at = now()): boolean {
+    if (!this.hasWorkshop(id)) return false
+    return this.tx(() => {
+      this.db.prepare('DELETE FROM members WHERE workshop_id = ?').run(id)
+      return this.db.prepare('UPDATE workshops SET deleted_at = ? WHERE id = ?').run(at, id).changes > 0
+    })
+  }
+
+  /** The workshops in the trash, the most recently deleted first. */
+  listTrash(): TrashedWorkshop[] {
+    const rows = this.db
+      .prepare(
+        `SELECT w.id, w.title, w.client, w.deleted_at,
+           (SELECT MIN(date) FROM days WHERE workshop_id = w.id) AS first_date,
+           (SELECT MAX(date) FROM days WHERE workshop_id = w.id) AS last_date
+         FROM workshops w WHERE w.deleted_at IS NOT NULL ORDER BY w.deleted_at DESC`,
+      )
+      .all() as Row[]
+    return rows.map((r) => {
+      const deletedAt = r.deleted_at as string
+      return {
+        id: r.id as string,
+        title: r.title as string,
+        client: r.client as string,
+        firstDate: (r.first_date as string | null) ?? null,
+        lastDate: (r.last_date as string | null) ?? null,
+        deletedAt,
+        purgeAt: new Date(Date.parse(deletedAt) + TRASH_DAYS * 86_400_000).toISOString(),
+      }
+    })
+  }
+
+  /** Takes a workshop out of the trash, as it was when it went in (without its guests). */
+  restoreWorkshop(id: string): boolean {
+    return this.db.prepare('UPDATE workshops SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id).changes > 0
+  }
+
+  /** Deletes for good what has been in the trash for TRASH_DAYS days by `at`; returns the attachment ids (files to remove). */
+  purgeTrash(at = new Date()): string[] {
+    const before = new Date(at.getTime() - TRASH_DAYS * 86_400_000).toISOString()
+    const ids = (this.db.prepare('SELECT id FROM workshops WHERE deleted_at IS NOT NULL AND deleted_at <= ?').all(before) as Row[]).map((r) => r.id as string)
+    return ids.flatMap((id) => this.deleteWorkshop(id) ?? [])
+  }
+
+  /** Whether a workshop is in the trash. */
+  inTrash(id: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ? AND deleted_at IS NOT NULL').get(id)
+  }
+
+  /** Deletes the workshop for good (in use or in the trash) with its days, items and attachment records; returns the attachment ids (files to remove). */
   deleteWorkshop(id: string): string[] | null {
     if (!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(id)) return null
     const files = (this.db.prepare('SELECT id FROM attachments WHERE workshop_id = ?').all(id) as Row[]).map((r) => r.id as string)
@@ -319,7 +374,7 @@ export class Repo {
    * of a deleted day are parked too. Records of another workshop are refused.
    */
   applyOps(workshopId: string, ops: Op[]): Op[] | null {
-    if (!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(workshopId)) return null
+    if (!this.hasWorkshop(workshopId)) return null
     return this.tx(() => {
       const stored: Op[] = []
       for (const o of ops) {
@@ -434,7 +489,7 @@ export class Repo {
   }
 
   addAttachment(workshopId: string, file: { id: string; name: string; mime: string; size: number }): Attachment | null {
-    if (!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(workshopId)) return null
+    if (!this.hasWorkshop(workshopId)) return null
     const createdAt = now()
     this.db
       .prepare('INSERT INTO attachments (id, workshop_id, name, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?)')
@@ -488,7 +543,7 @@ export class Repo {
 
   /** Adds a guest or changes their access; edit always includes the notes. */
   setMember(workshopId: string, email: string, role: MemberRole, showNotes: boolean): Member | null {
-    if (!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(workshopId)) return null
+    if (!this.hasWorkshop(workshopId)) return null
     this.db
       .prepare(
         `INSERT INTO members (workshop_id, email, role, show_notes, added_at) VALUES (?, ?, ?, ?, ?)

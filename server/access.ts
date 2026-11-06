@@ -19,8 +19,9 @@ export type Rule = 'public' | 'own-token' | 'signed-in' | 'workshop-view' | 'wor
 /** What a caller has on one workshop. */
 export type WorkshopAccess = 'owner' | Access
 
-/** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). */
+/** The owner sees every workshop; a guest only those shared with them (null: not found, as if it did not exist). A workshop in the trash is not found, by anyone. */
 export function workshopAccess(repo: Repo, user: User, workshopId: string): WorkshopAccess | null {
+  if (!repo.hasWorkshop(workshopId)) return null
   if (user.owner) return 'owner'
   const member = user.email ? repo.getMember(workshopId, user.email) : null
   return member ? { role: member.role, showNotes: member.showNotes } : null

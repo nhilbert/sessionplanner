@@ -16,7 +16,7 @@ import { listThemes, THEME_NAME } from './themes.ts'
 import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
-import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
+import { copyEntryFiles, copyToLibrary, emptyTrash, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
 import { filePaths, themeFolderFile } from './storage.ts'
 import { cleanBasePath } from '../src/domain/addresses.ts'
 import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
@@ -164,13 +164,28 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     repo.touchMember(id, c.get('user').email!)
     return c.json(forGuest(state, access))
   })
-  app.delete('/api/workshops/:id', allow('owner'), async (c) => {
+  // Deleting puts a workshop into the trash: for everyone it is gone at once, open windows close, guests lose it. It
+  // can be brought back for TRASH_DAYS days; then it goes for good, with its files (emptyTrash, at every hour's check).
+  app.delete('/api/workshops/:id', allow('owner'), (c) => {
     const id = c.req.param('id')!
-    const files = repo.deleteWorkshop(id)
-    if (!files) return c.json({ error: 'not_found' }, 404)
-    await Promise.all(files.map((f) => rm(filePath(f), { force: true })))
+    if (!repo.trashWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     positions.delete(id)
     hub.publish(id, { type: 'workshop-deleted' })
+    return c.json({ ok: true })
+  })
+  app.get('/api/trash', allow('owner'), (c) => {
+    emptyTrash(repo, filesDir)
+    return c.json(repo.listTrash())
+  })
+  app.post('/api/trash/:id/restore', allow('owner'), (c) => {
+    if (!repo.restoreWorkshop(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
+    return c.json({ ok: true })
+  })
+  app.delete('/api/trash/:id', allow('owner'), async (c) => {
+    const id = c.req.param('id')!
+    const files = repo.inTrash(id) ? repo.deleteWorkshop(id) : null
+    if (!files) return c.json({ error: 'not_found' }, 404)
+    await Promise.all(files.map((f) => rm(filePath(f), { force: true })))
     return c.json({ ok: true })
   })
 
