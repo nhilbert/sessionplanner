@@ -34,4 +34,35 @@ describe('files of library entries', () => {
     const saved = withFilesOf({ kind: 'group' as const, title: 'neu', data: { items: [content('A2'), content('B2', ['stale'])] } }, group)
     expect(entryItems(saved).map((c) => [c.title, c.attachmentIds])).toEqual([['A2', ['l1']], ['B2', ['l2', 'l3']]])
   })
+
+  const saving = (...items: ItemContent[]) => entryItems(withFilesOf({ kind: 'group' as const, title: 'G', data: { items } }, group)).map((c) => [c.title, c.attachmentIds])
+
+  it('follows the files when the items change places', () => {
+    expect(saving(content('B', ['l2', 'l3']), content('A', ['l1']))).toEqual([['B', ['l2', 'l3']], ['A', ['l1']]])
+  })
+
+  it('leaves the next item its own files when one is taken out, and lets the files of that one go', () => {
+    expect(saving(content('B', ['l2', 'l3']))).toEqual([['B', ['l2', 'l3']]])
+  })
+
+  it('does not hand a file to the wrong item when a stale window saves an item removed meanwhile', () => {
+    const stored: LibraryEntry = { ...base, kind: 'group', title: 'G', data: { items: [content('A', ['l1']), content('C', ['l3'])] } }
+    const saved = withFilesOf({ kind: 'group' as const, title: 'G', data: { items: [content('A', ['l1']), content('B', ['l2']), content('C', ['l3'])] } }, stored)
+    expect(entryItems(saved).map((c) => [c.title, c.attachmentIds])).toEqual([['A', ['l1']], ['B', []], ['C', ['l3']]])
+  })
+
+  it('keeps a file added meanwhile on its item, found by another file, by its title or by its place', () => {
+    expect(saving(content('A', ['l1']), content('B', ['l2']))).toEqual([['A', ['l1']], ['B', ['l2', 'l3']]])
+    expect(saving(content('B'), content('A'))).toEqual([['B', ['l2', 'l3']], ['A', ['l1']]])
+    expect(saving(content('neu'), content('B', ['l2', 'l3']))).toEqual([['neu', ['l1']], ['B', ['l2', 'l3']]])
+  })
+
+  it('takes no file from elsewhere, and names a file only once', () => {
+    expect(saving(content('A', ['fremd', 'l1']), content('B', ['l1', 'l2', 'l3']))).toEqual([['A', ['l1']], ['B', ['l2', 'l3']]])
+  })
+
+  it('keeps the files of a single item, whatever its title became', () => {
+    const one: LibraryEntry = { ...base, kind: 'item', title: 'E', data: content('E', ['l1']) }
+    expect(entryItems(withFilesOf({ kind: 'item' as const, title: 'neu', data: content('neu') }, one))[0].attachmentIds).toEqual(['l1'])
+  })
 })
