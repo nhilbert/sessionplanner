@@ -75,6 +75,12 @@ let lastErrorReload = 0
 let opening = 0
 /** A change failed with no workshop open to say so: the next one to open does. */
 let failedAway = false
+/** What the stream brought before the first snapshot was there: it follows the snapshot, or would be lost. */
+let early: ServerEvent[] = []
+/** The revision of the snapshot in use: what the stream brings up to it is in there already. */
+let snapshotAt = 0
+/** The highest revision the stream has brought: a snapshot older than that must not replace what is shown. */
+let heard = 0
 /** The open session whose changes share one undo entry (beginGroup). */
 let group: string | null = null
 
@@ -89,7 +95,13 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     try {
       const fresh = await api.loadWorkshop(id)
       if (get().id !== id) return
+      // Read before a change the stream has brought: it would take that back. Read again, as it was asked for because something may be missing.
+      if (sync && fresh.revision !== undefined && fresh.revision < heard) return reload()
       show(fromSnapshot(sync, fresh))
+      snapshotAt = fresh.revision ?? 0
+      const waiting = early
+      early = []
+      for (const event of waiting) receive(event)
       set({ status: 'ready' })
     } catch (err) {
       if (get().id !== id) return
@@ -110,6 +122,26 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       reloadQueued = false
       if (get().id === id) await load(id)
     })
+  }
+
+  /** An event of the live stream, for the synced state. What the snapshot holds already only settles this window's own change. */
+  function receive(event: ServerEvent) {
+    if (!sync) return
+    const known = event.revision !== undefined && event.revision <= snapshotAt
+    heard = Math.max(heard, event.revision ?? 0)
+    if (event.type === 'ops') show(known ? settle(sync, event.clientId) : applyRemote(sync, event.clientId, event.ops))
+    else if (event.type === 'attachment') {
+      if (!known) show(patchConfirmed(sync, (s) => withAttachment(s, event.attachment)))
+    } else if (event.type === 'attachment-deleted') {
+      if (!known) show(patchConfirmed(sync, (s) => ({ ...s, attachments: s.attachments.filter((a) => a.id !== event.id) })))
+    } else if (event.type === 'workshop-deleted' || event.type === 'revoked') {
+      source?.close()
+      show(null)
+      set({ status: 'missing' })
+    } else if (event.type === 'changed') {
+      // A guest without the notes gets no details, only the news that something changed.
+      reload()
+    }
   }
 
   function send(ops: Op[]) {
@@ -176,18 +208,9 @@ export const usePlanner = create<PlannerStore>((set, get) => {
         if (get().id === id) set({ presenting: { position: { key: event.key, n: event.n, tag: event.tag }, hello: false } })
         return
       }
-      if (!sync || get().id !== id) return
-      if (event.type === 'ops') show(applyRemote(sync, event.clientId, event.ops))
-      else if (event.type === 'attachment') show(patchConfirmed(sync, (s) => withAttachment(s, event.attachment)))
-      else if (event.type === 'attachment-deleted') show(patchConfirmed(sync, (s) => ({ ...s, attachments: s.attachments.filter((a) => a.id !== event.id) })))
-      else if (event.type === 'workshop-deleted' || event.type === 'revoked') {
-        source?.close()
-        show(null)
-        set({ status: 'missing' })
-      } else if (event.type === 'changed') {
-        // A guest without the notes gets no details, only the news that something changed.
-        reload()
-      }
+      if (get().id !== id) return
+      if (sync) receive(event)
+      else early.push(event)
     }
   }
 
@@ -207,6 +230,9 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       sync = null
       group = null
       reloadQueued = false
+      early = []
+      snapshotAt = 0
+      heard = 0
       set({ id, data: null, status: 'loading', live: false, presenting: null, past: [], future: [], syncError: failedAway })
       failedAway = false
       // Changes from a moment ago may still be on their way: the workshop is read after them, so it shows them.

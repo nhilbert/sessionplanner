@@ -45,7 +45,7 @@ export type Op =
   | { op: 'delete'; entity: 'day' | 'group' | 'item'; id: string }
 
 /** Pushed to open windows (GET /api/workshops/:id/events). */
-export type ServerEvent =
+export type ServerEvent = (
   | { type: 'ops'; clientId: string; ops: Op[] }
   | { type: 'attachment'; attachment: import('./types.ts').Attachment }
   | { type: 'attachment-deleted'; id: string }
@@ -58,6 +58,10 @@ export type ServerEvent =
   | { type: 'revoked' }
   /** The slide a presentation of this workshop shows now, for every window that presents or leads it (docs/slides.md). */
   | ({ type: 'present' } & PresentPosition)
+) & {
+  /** The revision of the workshop once this happened, on the live stream: what puts it in order with a snapshot. */
+  revision?: number
+}
 
 /** Where a presentation stands: the deck key of the slide, its number as fallback, and the tag of the window that moved it. */
 export interface PresentPosition {

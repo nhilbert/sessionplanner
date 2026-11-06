@@ -21,7 +21,7 @@ const H = { 'content-type': 'application/json', 'x-sp': '1' }
 function setup(opts: { owners?: string[]; publicUrl?: URL; staticDir?: string; db?: DatabaseSync; linkToken?: string; proxySecret?: string; quotas?: Partial<typeof QUOTAS>; pingSeconds?: number } = {}) {
   const db = opts.db ?? openDb(':memory:')
   const repo = new Repo(db)
-  const hub = new Hub()
+  const hub = new Hub((id) => repo.revisionOf(id))
   const filesDir = mkdtempSync(path.join(tmpdir(), 'sp-files-'))
   const app = createApp({
     repo,
@@ -612,6 +612,61 @@ describe('the storage of a set of data', () => {
       failed.mockRestore()
     }
     expect((await file(app, `/api/workshops/${id}/attachments`, '12345678', 'b.txt')).status).toBe(201)
+  })
+})
+
+describe('the revision of a workshop', () => {
+  const change = (app: ReturnType<typeof setup>['app'], id: string, title: string) => app.request(`${BASE}/api/workshops/${id}/ops`, { method: 'POST', headers: { 'x-sp': '1', 'content-type': 'application/json' }, body: JSON.stringify({ clientId: 'c', ops: [{ op: 'set', entity: 'workshop', id, fields: { title } }] }) })
+  const revision = async (app: ReturnType<typeof setup>['app'], id: string) => ((await (await app.request(`${BASE}/api/workshops/${id}`)).json()) as WorkshopState).revision
+
+  it('rises with every change, and a snapshot says where it stands', async () => {
+    const { app } = setup()
+    const id = (await create(app)).workshop.id
+    const start = (await revision(app, id))!
+    await change(app, id, 'eins')
+    await change(app, id, 'zwei')
+    expect(await revision(app, id)).toBe(start + 2)
+  })
+
+  it('stays where it is when nothing was stored', async () => {
+    const { app, repo } = setup()
+    const id = (await create(app)).workshop.id
+    const start = await revision(app, id)
+    repo.applyOps(id, [{ op: 'delete', entity: 'item', id: 'gibt-es-nicht' }])
+    expect(await revision(app, id)).toBe(start)
+  })
+
+  it('rises when a file comes, changes or goes', async () => {
+    const { app } = setup()
+    const id = (await create(app)).workshop.id
+    const start = (await revision(app, id))!
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    expect(await revision(app, id)).toBe(start + 1)
+    await app.request(`${BASE}/api/attachments/${att.id}`, { method: 'PATCH', headers: { 'x-sp': '1', 'content-type': 'application/json' }, body: JSON.stringify({ name: 'b.txt' }) })
+    expect(await revision(app, id)).toBe(start + 2)
+    await app.request(`${BASE}/api/attachments/${att.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    expect(await revision(app, id)).toBe(start + 3)
+  })
+
+  it('comes with every event of the live stream, as the number of the state the event leads to', async () => {
+    const { app } = setup()
+    const id = (await create(app)).workshop.id
+    const start = (await revision(app, id))!
+    const stream = await app.request(`${BASE}/api/workshops/${id}/events`)
+    await change(app, id, 'eins')
+    const reader = stream.body!.pipeThrough(new TextDecoderStream()).getReader()
+    let text = ''
+    while (!text.includes('"type":"ops"')) text += (await reader.read()).value ?? ''
+    await reader.cancel()
+    expect(text).toContain(`"revision":${start + 1}`)
+  })
+
+  it('is kept in the database, so a restart does not start it afresh', async () => {
+    const { app, db } = setup()
+    const id = (await create(app)).workshop.id
+    await change(app, id, 'eins')
+    const before = await revision(app, id)
+    expect(new Repo(db).loadWorkshop(id)!.revision).toBe(before)
   })
 })
 

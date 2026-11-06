@@ -279,7 +279,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     c.header('Cache-Control', 'no-store')
     c.header('X-Accel-Buffering', 'no')
     return streamSSE(c, async (stream) => {
-      const unsubscribe = hub.subscribe(id, (event) => {
+      const unsubscribe = hub.subscribe(id, (event, revision) => {
         if (access !== 'owner' && event.type === 'members-changed') {
           // A guest whose access ended loses the stream at once; changed access applies from here on.
           const now = workshopAccess(repo, user, id)
@@ -294,7 +294,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
           return
         }
         const shown = eventFor(access, event)
-        if (shown) void stream.writeSSE({ data: JSON.stringify(shown) })
+        // Paging through a presentation changes nothing in the workshop, so it has no place in its order.
+        if (shown) void stream.writeSSE({ data: JSON.stringify(shown.type === 'present' ? shown : { ...shown, revision }) })
       })
       let released = false
       const release = () => {

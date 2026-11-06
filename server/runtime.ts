@@ -74,7 +74,7 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
         failed(err as Error)
       }
     }
-    const hub = new Hub()
+    const hub = new Hub((id) => repo.revisionOf(id))
     const budget = new StorageBudget(repo, storageLimit)
     const work = { running: 0 }
 

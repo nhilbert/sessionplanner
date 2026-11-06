@@ -181,6 +181,8 @@ export interface Attachment {
 
 /** Everything the planner needs for one workshop. */
 export interface WorkshopState {
+  /** Where the workshop stands: rises with every change (src/store/usePlanner.ts). */
+  revision?: number
   workshop: Workshop
   days: Day[]
   groups: Group[]

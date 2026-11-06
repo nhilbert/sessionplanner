@@ -273,9 +273,19 @@ export class Repo {
     return this.inTrash(id) ? this.workshopState(id) : null
   }
 
+  /** Where a workshop stands; undefined once it is gone. */
+  revisionOf(id: string): number | undefined {
+    return (this.db.prepare('SELECT revision FROM workshops WHERE id = ?').get(id) as { revision: number } | undefined)?.revision
+  }
+
+  private nextRevision(id: string): void {
+    this.db.prepare('UPDATE workshops SET revision = revision + 1 WHERE id = ?').run(id)
+  }
+
   private workshopState(id: string): WorkshopState {
     const w = this.db.prepare('SELECT * FROM workshops WHERE id = ?').get(id) as Row
     return {
+      revision: w.revision as number,
       workshop: toWorkshop(w),
       days: (this.db.prepare('SELECT * FROM days WHERE workshop_id = ? ORDER BY position').all(id) as Row[]).map(toDay),
       groups: (this.db.prepare('SELECT * FROM groups WHERE workshop_id = ? ORDER BY position').all(id) as Row[]).map(toGroup),
@@ -453,6 +463,7 @@ export class Repo {
         }
       }
       this.db.prepare('UPDATE workshops SET updated_at = ? WHERE id = ?').run(now(), workshopId)
+      if (stored.length) this.nextRevision(workshopId)
       this.rememberAssets(workshopId, picturesIn(stored))
       return stored
     })
@@ -507,10 +518,10 @@ export class Repo {
     this.db
       .prepare('INSERT INTO attachments (id, workshop_id, name, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(file.id, workshopId, file.name, file.mime, file.size, createdAt)
+    this.nextRevision(workshopId)
     return { ...file, workshopId, createdAt }
   }
 
-  /** What the files of a workshop take up together, in bytes. */
   /** The bytes of everything a set of data keeps on disk, each logo counting as `logoBytes`. */
   storedBytes(logoBytes: number): number {
     const sum = (sql: string) => Number((this.db.prepare(sql).get() as Row).n)
@@ -523,6 +534,7 @@ export class Repo {
     )
   }
 
+  /** What the files of a workshop take up together, in bytes. */
   attachmentBytes(workshopId: string): number {
     return Number((this.db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM attachments WHERE workshop_id = ?').get(workshopId) as Row).n)
   }
@@ -537,6 +549,7 @@ export class Repo {
     const att = this.getAttachment(id)
     if (!att) return null
     this.db.prepare('UPDATE attachments SET name = ?, mime = ?, size = ? WHERE id = ?').run(fields.name, fields.mime ?? att.mime, fields.size ?? att.size, id)
+    this.nextRevision(att.workshopId)
     return this.getAttachment(id)
   }
 
@@ -553,6 +566,7 @@ export class Repo {
         ops.push({ op: 'set', entity: 'item', id: r.id as string, fields: { attachmentIds } })
       }
       this.db.prepare('DELETE FROM attachments WHERE id = ?').run(id)
+      this.nextRevision(att.workshopId)
       return { workshopId: att.workshopId, ops }
     })
   }
