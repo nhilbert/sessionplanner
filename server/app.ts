@@ -172,6 +172,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!repo.trashWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     positions.delete(id)
     hub.publish(id, { type: 'workshop-deleted' })
+    // The guests' open streams end here, or a restore would find them still listening.
+    hub.publish(id, { type: 'members-changed' })
     return c.json({ ok: true })
   })
   app.get('/api/trash', allow('owner'), (c) => {
@@ -252,6 +254,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
           // A guest whose access ended loses the stream at once; changed access applies from here on.
           const now = workshopAccess(repo, user, id)
           if (!now) {
+            // Stops listening now, not after the write: a guest who reads slowly would get what follows behind the goodbye.
+            release()
             void stream.writeSSE({ data: JSON.stringify({ type: 'revoked' }) }).then(() => stream.abort())
             return
           }

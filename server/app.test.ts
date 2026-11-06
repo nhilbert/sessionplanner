@@ -860,6 +860,26 @@ describe('guests', () => {
     expect((await app.request(`${pub}/api/workshops/${id}`, { headers: OWNER })).status).toBe(200)
   })
 
+  it('lose an open live-update stream with the trash, and hear nothing after a restore', async () => {
+    const { app, id } = await prepared()
+    await share(app, id, 'anna@example.com', 'edit', true)
+    const res = await app.request(`${pub}/api/workshops/${id}/events`, { headers: ANNA })
+    expect((await app.request(`${pub}/api/workshops/${id}`, { method: 'DELETE', headers: OWNER })).status).toBe(200)
+    expect((await app.request(`${pub}/api/trash/${id}/restore`, { method: 'POST', headers: OWNER })).status).toBe(200)
+    await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'a', fields: { title: 'after the restore' } }] }) })
+    // A guest who reads only now, as a script may, finds the stream over and the change not in it.
+    const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader()
+    let text = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      text += value ?? ''
+      if (done || text.includes('after the restore')) break
+    }
+    await reader.cancel()
+    expect(text).toContain('"type":"revoked"')
+    expect(text).not.toContain('after the restore')
+  })
+
   it('cannot manage access, settings or the library', async () => {
     const { app, id } = await prepared()
     await share(app, id, 'ben@example.com', 'edit', true)
