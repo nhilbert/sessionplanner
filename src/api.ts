@@ -27,6 +27,7 @@ const fileForm = (file: File): FormData => {
 export function reportFailure(err: unknown): void {
   // An expired login has its own banner (components/AppShell.tsx).
   if (err instanceof ApiError && err.status === 401) return
+  if (err instanceof ApiError && err.message === 'storage_full') return window.alert(i18n.t('common.storageFull'))
   const reason = err instanceof Error ? err.message : String(err)
   window.alert(i18n.t('common.failed', { error: reason }))
 }

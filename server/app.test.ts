@@ -482,6 +482,139 @@ describe('attachments', () => {
   })
 })
 
+describe('the storage of a set of data', () => {
+  const file = (app: ReturnType<typeof setup>['app'], route: string, text: string, name = 'a.txt', method = 'POST', fields: Record<string, string> = {}) => {
+    const form = new FormData()
+    form.append('file', new File([text], name))
+    for (const [k, v] of Object.entries(fields)) form.append(k, v)
+    return app.request(`${BASE}${route}`, { method, headers: { 'x-sp': '1' }, body: form })
+  }
+  const json = (app: ReturnType<typeof setup>['app'], route: string, body: unknown, method = 'POST') => app.request(`${BASE}${route}`, { method, headers: { 'x-sp': '1', 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const content = { kind: 'block', title: 'E', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], slides: [], categoryId: null, color: null }
+  const picture = (shade: number) => encodePng({ width: 4, height: 4, rgba: new Uint8Array(64).map((_, i) => (i % 4 === 3 ? 255 : (shade * 11 + i) % 256)) })
+
+  it('lets three parallel uploads past a workshop limit no further than it goes', async () => {
+    const { app, repo } = setup({ quotas: { workshopFiles: 8 } })
+    const id = (await create(app)).workshop.id
+    const answers = await Promise.all(['a', 'b', 'c'].map((n) => file(app, `/api/workshops/${id}/attachments`, '123456', `${n}.txt`)))
+    expect(answers.map((r) => r.status).sort()).toEqual([201, 413, 413])
+    expect(repo.attachmentBytes(id)).toBe(6)
+  })
+
+  it('refuses an upload that does not fit, says why, and stores nothing', async () => {
+    const { app, repo, filesDir } = setup({ quotas: { storage: 10 } })
+    const id = (await create(app)).workshop.id
+    expect((await file(app, `/api/workshops/${id}/attachments`, '12345678')).status).toBe(201)
+    const refused = await file(app, `/api/workshops/${id}/attachments`, '123')
+    expect(refused.status).toBe(413)
+    expect(await refused.json()).toEqual({ error: 'storage_full' })
+    expect(repo.attachmentBytes(id)).toBe(8)
+    expect(readdirSync(filesDir).filter((f) => !['assets', 'dark-assets'].includes(f))).toHaveLength(1)
+  })
+
+  it('counts parallel uploads across workshops, whatever the limit of each', async () => {
+    const { app, repo } = setup({ quotas: { storage: 8 } })
+    const one = (await create(app)).workshop.id
+    const two = (await create(app)).workshop.id
+    const answers = await Promise.all([one, two, one].map((w, n) => file(app, `/api/workshops/${w}/attachments`, '123456', `${n}.txt`)))
+    expect(answers.map((r) => r.status).sort()).toEqual([201, 413, 413])
+    expect(repo.attachmentBytes(one) + repo.attachmentBytes(two)).toBe(6)
+  })
+
+  it('counts only what a new version adds, and frees what it saves', async () => {
+    const { app } = setup({ quotas: { storage: 10 } })
+    const id = (await create(app)).workshop.id
+    const att = await (await file(app, `/api/workshops/${id}/attachments`, '12345678')).json()
+    expect((await file(app, `/api/attachments/${att.id}/file`, '1234567890', 'a.txt', 'PUT')).status).toBe(200)
+    expect((await file(app, `/api/attachments/${att.id}/file`, '12345678901', 'a.txt', 'PUT')).status).toBe(413)
+    expect((await file(app, `/api/attachments/${att.id}/file`, '12', 'a.txt', 'PUT')).status).toBe(200)
+    expect((await file(app, `/api/workshops/${id}/attachments`, '12345678', 'b.txt')).status).toBe(201)
+  })
+
+  it('counts pictures, and a picture the server has takes no more room', async () => {
+    const bytes = picture(1)
+    const { app, repo } = setup({ quotas: { storage: bytes.length + 5 } })
+    const id = (await create(app)).workshop.id
+    const send = (b: Buffer) => {
+      const form = new FormData()
+      form.append('file', new File([new Uint8Array(b)], 'p.png', { type: 'image/png' }))
+      return app.request(`${BASE}/api/workshops/${id}/assets`, { method: 'POST', headers: { 'x-sp': '1' }, body: form })
+    }
+    expect((await send(bytes)).status).toBe(201)
+    expect((await send(bytes)).status).toBe(201)
+    expect((await send(picture(2))).status).toBe(413)
+    expect(repo.listAssets().map((a) => a.size).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(bytes.length + 5)
+  })
+
+  it('counts the files of the library and of themes', async () => {
+    const { app } = setup({ quotas: { storage: 10 } })
+    const entry = await (await json(app, '/api/library', { kind: 'item', title: 'E', data: content })).json()
+    expect((await file(app, `/api/library/${entry.id}/attachments`, '12345678')).status).toBe(201)
+    expect((await file(app, `/api/library/${entry.id}/attachments`, '123', 'b.txt')).status).toBe(413)
+    const theme = await (await json(app, '/api/themes', { name: 'Firma' })).json()
+    expect((await file(app, `/api/themes/${theme.id}/files`, '123', 'a.png', 'POST', { path: 'a.png' })).status).toBe(413)
+    expect((await file(app, `/api/themes/${theme.id}/files`, '12', 'a.png', 'POST', { path: 'a.png' })).status).toBe(201)
+    expect((await file(app, `/api/themes/${theme.id}/files`, '1', 'a.png', 'POST', { path: 'a.png' })).status).toBe(201)
+  })
+
+  it('counts a copy of a library entry\'s files in a workshop, and copies nothing that does not fit', async () => {
+    const { app, repo } = setup({ quotas: { storage: 10 } })
+    const id = (await create(app)).workshop.id
+    const entry = await (await json(app, '/api/library', { kind: 'item', title: 'E', data: content })).json()
+    expect((await file(app, `/api/library/${entry.id}/attachments`, '123456')).status).toBe(201)
+    const refused = await json(app, `/api/library/${entry.id}/copies/${id}`, {})
+    expect(refused.status).toBe(413)
+    expect(await refused.json()).toEqual({ error: 'storage_full' })
+    expect(repo.attachmentBytes(id)).toBe(0)
+  })
+
+  it('counts a copy of a workshop\'s files in the library', async () => {
+    const { app, repo } = setup({ quotas: { storage: 10 } })
+    const id = (await create(app)).workshop.id
+    const att = await (await file(app, `/api/workshops/${id}/attachments`, '123456')).json()
+    const refused = await json(app, '/api/library', { kind: 'item', title: 'K', data: { ...content, attachmentIds: [att.id] } })
+    expect(refused.status).toBe(413)
+    expect(await refused.json()).toEqual({ error: 'storage_full' })
+    expect(repo.listLibrary()).toEqual([])
+  })
+
+  it('refuses a duplicate whose files do not fit, and leaves no half workshop behind', async () => {
+    const { app, repo } = setup({ quotas: { storage: 10 } })
+    const id = (await create(app)).workshop.id
+    await file(app, `/api/workshops/${id}/attachments`, '123456')
+    const refused = await json(app, `/api/workshops/${id}/duplicate`, { title: 'Kopie' })
+    expect(refused.status).toBe(413)
+    expect(await refused.json()).toEqual({ error: 'storage_full' })
+    expect(repo.listWorkshops()).toHaveLength(1)
+  })
+
+  it('frees room when a workshop leaves the trash for good, not before', async () => {
+    const { app } = setup({ quotas: { storage: 10 } })
+    const id = (await create(app)).workshop.id
+    const other = (await create(app)).workshop.id
+    await file(app, `/api/workshops/${id}/attachments`, '12345678')
+    await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    expect((await file(app, `/api/workshops/${other}/attachments`, '12345678')).status).toBe(413)
+    await app.request(`${BASE}/api/trash/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    expect((await file(app, `/api/workshops/${other}/attachments`, '12345678')).status).toBe(201)
+  })
+
+  it('gives room back when a write fails', async () => {
+    const { app, filesDir } = setup({ quotas: { storage: 10 } })
+    const id = (await create(app)).workshop.id
+    const att = await (await file(app, `/api/workshops/${id}/attachments`, '12')).json()
+    rmSync(path.join(filesDir, att.id))
+    mkdirSync(path.join(filesDir, att.id))
+    const failed = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      expect((await file(app, `/api/attachments/${att.id}/file`, '12345678', 'a.txt', 'PUT')).status).toBe(500)
+    } finally {
+      failed.mockRestore()
+    }
+    expect((await file(app, `/api/workshops/${id}/attachments`, '12345678', 'b.txt')).status).toBe(201)
+  })
+})
+
 describe('a new version of a file, sent twice at once', () => {
   const parts = (letter: string) => letter.repeat(1024 * 1024)
   const put = (app: ReturnType<typeof setup>['app'], route: string, text: string, name: string) => {

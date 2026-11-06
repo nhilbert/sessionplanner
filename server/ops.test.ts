@@ -7,6 +7,7 @@ import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { MAX_BATCH_ITEMS, Ops } from './ops.ts'
 import { BadRequest } from './validate.ts'
+import { StorageBudget } from './budget.ts'
 import type { ServerEvent } from '../src/domain/ops.ts'
 
 function setup() {
@@ -351,6 +352,33 @@ describe('packing list and library', () => {
     const id = teamDay(ops)
     ops.itemUpdate(id, 'Rollen', { notes: 'Rollenkarten' })
     expect(ops.librarySave(id, { item: 'Rollen' })).toMatchObject({ kind: 'item', title: 'Rollen', item: { notes: 'Rollenkarten', category: 'discussion' } })
+  })
+})
+
+describe('the storage budget, for agents too', () => {
+  const content = { kind: 'block' as const, title: 'E', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], slides: [], categoryId: null, color: null }
+  const stage = () => {
+    const repo = new Repo(openDb(':memory:'))
+    const filesDir = mkdtempSync(path.join(tmpdir(), 'sp-budget-'))
+    const ops = new Ops(repo, { hub: new Hub(), filesDir, today: () => '2026-11-10', budget: new StorageBudget(repo, () => 10) })
+    const { id } = ops.workshopCreate({ title: 'W', date: '2026-12-01', start: '09:00' })
+    writeFileSync(path.join(filesDir, 'f'), '123456')
+    repo.addAttachment(id!, { id: 'f', name: 'f.txt', mime: 'text/plain', size: 6 })
+    return { repo, ops, id: id! }
+  }
+
+  it('refuses to duplicate a workshop whose files do not fit, and leaves no half workshop', async () => {
+    const { repo, ops, id } = stage()
+    await expect(ops.workshopDuplicate(id, { title: 'Kopie' })).rejects.toThrow(/storage_full/)
+    expect(repo.listWorkshops()).toHaveLength(1)
+  })
+
+  it('refuses to copy a library entry\'s files into a workshop when they do not fit', () => {
+    const { repo, ops, id } = stage()
+    const entry = repo.saveLibraryEntry(null, { kind: 'item', title: 'E', data: content })!
+    repo.addLibraryAttachment(entry.id, 0, { id: 'l', name: 'l.txt', mime: 'text/plain', size: 3 })
+    expect(() => ops.libraryInsert(id, 'E', 1)).toThrow(/storage_full/)
+    expect(repo.attachmentBytes(id)).toBe(6)
   })
 })
 

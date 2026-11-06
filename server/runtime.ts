@@ -8,6 +8,7 @@ import type { Env, GuardOptions } from './guard.ts'
 import { mcpRoutes } from './mcp.ts'
 import { OAuthServer } from './oauth.ts'
 import { dataPaths } from './storage.ts'
+import { StorageBudget } from './budget.ts'
 import { emptyTrash } from './files.ts'
 
 const BACKUP_CHECK_MS = 60 * 60 * 1000
@@ -26,6 +27,8 @@ export interface RuntimeOptions extends GuardOptions, Pick<AppOptions, 'staticDi
   mcpProduct?: string
   /** Makes the day's backup after the start instead of before it, for a runtime opened while others are in use; `backup` then stays null. */
   backupInBackground?: boolean
+  /** What this set of data may hold on disk, in bytes (server/budget.ts), asked at every write; none without it. */
+  storageLimit?: () => number
 }
 
 export interface Runtime {
@@ -46,7 +49,7 @@ export interface Runtime {
  * called several times in a process, with a `dataDir` each; what exists once per process (the environment, the port)
  * stays with the caller, as in server/index.ts.
  */
-export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySecret, staticDir, guestsFile, linkToken, basePath, mcpToken, mcpOAuth, mcpProduct, backupInBackground }: RuntimeOptions): Runtime {
+export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySecret, staticDir, guestsFile, linkToken, basePath, mcpToken, mcpOAuth, mcpProduct, backupInBackground, storageLimit }: RuntimeOptions): Runtime {
   // Hosted without an owner list the API would trust the proxy alone; refuse instead of failing open.
   if (publicUrl && !owners.length) throw new RefusedStart('SP_PUBLIC_URL is set but SP_OWNERS is empty: name the e-mail address(es) the login lets in.')
   // OAuth announces addresses at the root of the host, which is not where this app would be.
@@ -70,15 +73,17 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
       }
     }
     const hub = new Hub()
+    const budget = new StorageBudget(repo, storageLimit)
 
     // MCP endpoint for AI agents at /mcp: with a static token and/or OAuth for Claude's connectors (docs/mcp.md).
     // Hosted, the owners (checked by the login proxy) approve connections; locally a browser on this machine.
     const oauth = mcpOAuth && new OAuthServer(db, { baseUrl: mcpOAuth.baseUrl, allowedUsers: owners, userHeader: ownerHeader, proxySecret, extraRedirects: mcpOAuth.extraRedirects })
-    const mcp = mcpToken || oauth ? mcpRoutes(repo, { token: mcpToken, oauth }, { hub, filesDir, themesDir, product: mcpProduct }) : undefined
+    const mcp = mcpToken || oauth ? mcpRoutes(repo, { token: mcpToken, oauth }, { hub, filesDir, themesDir, product: mcpProduct, budget }) : undefined
 
     const app = createApp({
       repo,
       hub,
+      budget,
       filesDir,
       themesDir,
       staticDir,

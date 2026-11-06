@@ -17,7 +17,8 @@
     "upload": "Upload file",
     "uploading": "Uploading…",
     "signIn": "Sign in again",
-    "failed": "That did not work ({{error}}). Please try again."
+    "failed": "That did not work ({{error}}). Please try again.",
+    "storageFull": "The storage is used up. Deleting files or emptying the trash makes room."
   },
   "workshops": {
     "title": "Workshops",
@@ -181,6 +182,7 @@
     "failed": "“{{name}}” could not be uploaded.",
     "quota": "“{{name}}” does not fit: the files of a workshop may take up 500 MB in all.",
     "budget": "“{{name}}” was not uploaded: guests can upload up to 250 MB a day.",
+    "storageFull": "“{{name}}” does not fit: the storage is used up. Deleting files or emptying the trash makes room.",
     "deleteConfirm": "Delete “{{name}}”? It is unlinked from all items.",
     "wrongType": "“{{name}}” cannot be attached: PDF, pictures, Word, Excel, PowerPoint and Markdown are allowed.",
     "deleteLibraryConfirm": "Delete “{{name}}” from the library? Copies in workshops stay.",

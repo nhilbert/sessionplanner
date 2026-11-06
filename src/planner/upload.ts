@@ -12,6 +12,7 @@ export function fileProblem(file: File, t: TFunction): string | null {
 /** Why an upload failed, in words: the workshop's files are full, a guest's day is used up, or something else. */
 export function uploadProblem(err: unknown, name: string, t: TFunction): string {
   if (err instanceof ApiError && err.message === 'quota') return t('files.quota', { name })
+  if (err instanceof ApiError && err.message === 'storage_full') return t('files.storageFull', { name })
   if (err instanceof ApiError && err.message === 'upload_budget') return t('files.budget', { name })
   if (err instanceof ApiError && err.message === 'too_large') return t('files.tooLarge', { name })
   if (err instanceof ApiError && err.message === 'file_type') return t('files.wrongType', { name })

@@ -511,6 +511,18 @@ export class Repo {
   }
 
   /** What the files of a workshop take up together, in bytes. */
+  /** The bytes of everything a set of data keeps on disk, each logo counting as `logoBytes`. */
+  storedBytes(logoBytes: number): number {
+    const sum = (sql: string) => Number((this.db.prepare(sql).get() as Row).n)
+    return (
+      sum('SELECT COALESCE(SUM(size), 0) AS n FROM attachments') +
+      sum('SELECT COALESCE(SUM(size), 0) AS n FROM library_attachments') +
+      sum('SELECT COALESCE(SUM(size), 0) AS n FROM assets') +
+      sum("SELECT COALESCE(SUM(json_extract(f.value, '$.size')), 0) AS n FROM themes, json_each(themes.files) f") +
+      logoBytes * sum('SELECT COUNT(logo) + COUNT(logo_light) AS n FROM themes')
+    )
+  }
+
   attachmentBytes(workshopId: string): number {
     return Number((this.db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM attachments WHERE workshop_id = ?').get(workshopId) as Row).n)
   }

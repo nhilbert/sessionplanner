@@ -17,7 +17,8 @@
     "upload": "Datei hochladen",
     "uploading": "Lädt hoch …",
     "signIn": "Neu anmelden",
-    "failed": "Das hat nicht geklappt ({{error}}). Bitte erneut versuchen."
+    "failed": "Das hat nicht geklappt ({{error}}). Bitte erneut versuchen.",
+    "storageFull": "Der Speicherplatz ist aufgebraucht. Dateien zu löschen oder den Papierkorb zu leeren schafft Platz."
   },
   "workshops": {
     "title": "Workshops",
@@ -181,6 +182,7 @@
     "failed": "„{{name}}“ konnte nicht hochgeladen werden.",
     "quota": "„{{name}}“ passt nicht mehr: Die Dateien eines Workshops dürfen zusammen 500 MB groß sein.",
     "budget": "„{{name}}“ wurde nicht hochgeladen: Gäste können bis zu 250 MB am Tag hochladen.",
+    "storageFull": "„{{name}}“ passt nicht mehr: Der Speicherplatz ist aufgebraucht. Dateien zu löschen oder den Papierkorb zu leeren schafft Platz.",
     "deleteConfirm": "„{{name}}“ löschen? Die Datei wird von allen Punkten gelöst.",
     "wrongType": "„{{name}}“ geht nicht als Anhang: erlaubt sind PDF, Bilder, Word, Excel, PowerPoint und Markdown.",
     "deleteLibraryConfirm": "„{{name}}“ aus der Bibliothek löschen? Kopien in Workshops bleiben erhalten.",

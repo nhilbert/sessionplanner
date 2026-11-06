@@ -1,7 +1,8 @@
 import { copyFile, mkdir } from 'node:fs/promises'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
-import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
+import { StorageBudget, StorageFull } from './budget.ts'
+import { copyEntryFiles, copyToLibrary, removeFiles } from './files.ts'
 import { BadRequest, isCalendarDate, MAX_OPS, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { filePaths } from './storage.ts'
@@ -27,6 +28,8 @@ export interface OpsOptions {
   hub?: Hub
   /** Where attachment files live (data/files), so a duplicate, an inserted library entry or one saved from a workshop gets its files too. */
   filesDir?: string
+  /** The budget this set of data shares with the app (server/runtime.ts). */
+  budget?: StorageBudget
   /** Where the slide themes live (data/themes), so a workshop's theme can be checked and listed. */
   themesDir?: string
   /** Injectable clock for tests. */
@@ -155,6 +158,7 @@ export class Ops {
   private repo: Repo
   private hub?: Hub
   private filesDir?: string
+  private budget: StorageBudget
   private themesDir?: string
   private today: () => string
 
@@ -162,6 +166,7 @@ export class Ops {
     this.repo = repo
     this.hub = options.hub
     this.filesDir = options.filesDir
+    this.budget = options.budget ?? new StorageBudget(repo)
     this.themesDir = options.themesDir
     this.today = options.today ?? todayLocal
   }
@@ -503,13 +508,19 @@ export class Ops {
   async workshopDuplicate(ref: string, input: { title: string; firstDate?: string }) {
     checkDate(input.firstDate, 'firstDate')
     const s = this.state(ref)
-    const result = this.repo.duplicateWorkshop(s.workshop.id, input)!
-    if (this.filesDir && Object.keys(result.files).length) {
-      await mkdir(this.filesDir, { recursive: true })
-      const { file } = filePaths(this.filesDir)
-      await Promise.all(Object.entries(result.files).map(([from, to]) => copyFile(file(from), file(to)).catch(() => undefined)))
+    const room = this.budget.hold(this.repo.attachmentBytes(s.workshop.id))
+    if (typeof room === 'string') throw new StorageFull()
+    try {
+      const result = this.repo.duplicateWorkshop(s.workshop.id, input)!
+      if (this.filesDir && Object.keys(result.files).length) {
+        await mkdir(this.filesDir, { recursive: true })
+        const { file } = filePaths(this.filesDir)
+        await Promise.all(Object.entries(result.files).map(([from, to]) => copyFile(file(from), file(to)).catch(() => undefined)))
+      }
+      return this.workshopView(result.state)
+    } finally {
+      room.release()
     }
-    return this.workshopView(result.state)
   }
 
   // ---------- days ----------
@@ -974,15 +985,16 @@ export class Ops {
 
   /** A workshop's copies of an entry's files, which the open windows learn about: library attachment id → the copy's id. */
   private copyFiles(entry: LibraryEntry, workshopId: string): Record<string, string> {
-    const copies = copyEntryFiles(this.repo, this.filesDir, entry, workshopId, MAX_WORKSHOP_FILES)
-    if (!copies) throw new BadRequest('the files of this entry do not fit the workshop: its files may take up 500 MB together')
+    const copies = copyEntryFiles(this.repo, this.filesDir, entry, workshopId, this.budget)
+    if (copies === 'quota') throw new BadRequest('the files of this entry do not fit the workshop: its files may take up 500 MB together')
+    if (copies === 'storage_full') throw new StorageFull()
     for (const attachment of Object.values(copies)) this.hub?.publish(workshopId, { type: 'attachment', attachment })
     return Object.fromEntries(Object.entries(copies).map(([from, a]) => [from, a.id]))
   }
 
   /** A workshop's item as a new entry's content: its file list names the workshop's attachments, and the entry gets copies. */
   private saveCopy(entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) {
-    const { entry: stored, files } = copyToLibrary(this.repo, this.filesDir, validateLibraryEntry(entry))
+    const { entry: stored, files } = copyToLibrary(this.repo, this.filesDir, validateLibraryEntry(entry), this.budget)
     return this.libraryView(this.repo.saveLibraryEntry(null, stored, files)!, true)
   }
 
