@@ -641,6 +641,11 @@ export class Repo {
     return r ? toAsset(r) : null
   }
 
+  /** Every picture the server keeps, oldest first (the media export). */
+  listAssets(): Asset[] {
+    return (this.db.prepare('SELECT * FROM assets ORDER BY created_at, hash').all() as Row[]).map(toAsset)
+  }
+
   /** Whether a slide of this workshop shows the asset (or its original or cut-out), or a theme's pool holds it: what a guest of the workshop may load. */
   assetInWorkshop(workshopId: string, hash: string): boolean {
     const pair = this.assetPair(hash)
