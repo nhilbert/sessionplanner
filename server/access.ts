@@ -1,5 +1,5 @@
 import type { Context, Hono, MiddlewareHandler, Next } from 'hono'
-import type { Op, ServerEvent } from '../src/domain/ops.ts'
+import { type Op, picturesIn, type ServerEvent } from '../src/domain/ops.ts'
 import type { Access, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import type { Env, User } from './guard.ts'
 import type { Repo } from './repo.ts'
@@ -98,6 +98,14 @@ export function visibleWorkshops(repo: Repo, user: User): WorkshopSummary[] {
 /** Guests plan along; archiving and the branding (theme: slides and the logo on the printouts) stay with the owner. */
 export function mayApply(access: WorkshopAccess, ops: Op[]): boolean {
   return access === 'owner' || !ops.some((o) => o.op === 'set' && o.entity === 'workshop' && ('archived' in o.fields || 'theme' in o.fields))
+}
+
+/**
+ * A picture is shown to a workshop's guests because its slides name it, so naming one must not be how a guest gets it:
+ * a guest may place only what the workshop holds or has held, what they uploaded to it, and what a theme offers all.
+ */
+export function mayPlace(repo: Repo, access: WorkshopAccess, workshopId: string, ops: Op[]): boolean {
+  return access === 'owner' || picturesIn(ops).every((hash) => repo.assetKnownTo(workshopId, hash))
 }
 
 const seesNotes = (access: Access) => access.role === 'edit' || access.showNotes

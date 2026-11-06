@@ -9,6 +9,8 @@ import { Hub } from './hub.ts'
 import { createApp, PRESENT_HOURS, type QUOTAS } from './app.ts'
 import { MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { decodePng, encodePng } from './cutout.ts'
+import { createHash } from 'node:crypto'
+import { DEFAULT_TOKENS } from '../src/domain/theme.ts'
 import type { Op, ServerEvent } from '../src/domain/ops.ts'
 import { type Attachment, type Item, type ItemContent, type LibraryEntry, TRASH_DAYS, type TrashedWorkshop, type WorkshopState } from '../src/domain/types.ts'
 import { emptyTrash } from './files.ts'
@@ -902,7 +904,7 @@ describe('guests', () => {
   const BEN = as('ben@example.com')
 
   async function prepared() {
-    const { app, hub } = hosted()
+    const { app, hub, repo, db } = hosted()
     const ws = (await (await app.request(`${pub}/api/workshops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ title: 'Geteilt' }) })).json()) as WorkshopState
     const other = (await (await app.request(`${pub}/api/workshops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ title: 'Privat' }) })).json()) as WorkshopState
     const id = ws.workshop.id
@@ -918,7 +920,7 @@ describe('guests', () => {
         ],
       }),
     })
-    return { app, hub, id, otherId: other.workshop.id }
+    return { app, hub, repo, db, id, otherId: other.workshop.id }
   }
   const share = (app: ReturnType<typeof setup>['app'], id: string, email: string, role: string, showNotes: boolean, headers = OWNER) =>
     app.request(`${pub}/api/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'PUT', headers, body: JSON.stringify({ role, showNotes }) })
@@ -1019,6 +1021,118 @@ describe('guests', () => {
     await reader.cancel()
     expect(text).toContain('"type":"revoked"')
     expect(text).not.toContain('after the restore')
+  })
+
+  describe('and the pictures of a workshop', () => {
+    const multipart = (email: string) => ({ 'x-auth-request-email': email, 'x-sp': '1' })
+    const OWNER_FORM = multipart('me@example.com')
+    const ANNA_FORM = multipart('anna@example.com')
+    const picture = (shade: number) => encodePng({ width: 4, height: 4, rgba: new Uint8Array(64).map((_, i) => (i % 4 === 3 ? 255 : (shade * 7 + i) % 256)) })
+    const slide = (hash: string, id = 's1') => ({ id, html: `<section class="slide picture"><img src="asset:${hash}"></section>` })
+    type App = ReturnType<typeof setup>['app']
+    const upload = async (app: App, workshop: string, bytes: Buffer, headers: Record<string, string>) => {
+      const form = new FormData()
+      form.append('file', new File([new Uint8Array(bytes)], 'p.png', { type: 'image/png' }))
+      const res = await app.request(`${pub}/api/workshops/${workshop}/assets`, { method: 'POST', headers, body: form })
+      expect(res.status).toBe(201)
+      return (await res.json()) as { hash: string; cutout: string | null }
+    }
+    const send = (app: App, workshop: string, ops: unknown[], headers: Record<string, string>) => app.request(`${pub}/api/workshops/${workshop}/ops`, { method: 'POST', headers, body: JSON.stringify({ clientId: 'c', ops }) })
+    const onItem = (id: string, slides: unknown[]) => ({ op: 'set', entity: 'item', id, fields: { slides } })
+    const read = (app: App, workshop: string, hash: string, headers: Record<string, string>) => app.request(`${pub}/api/workshops/${workshop}/assets/${hash}`, { headers })
+    /** A workshop shared with Anna, and a picture of another one she has no access to. */
+    const stage = async () => {
+      const { app, repo, db, id, otherId } = await prepared()
+      await share(app, id, 'anna@example.com', 'edit', true)
+      const { hash } = await upload(app, otherId, picture(1), OWNER_FORM)
+      return { app, repo, db, id, otherId, foreign: hash }
+    }
+
+    it('cannot bring in a picture of another workshop through a slide', async () => {
+      const { app, id, foreign } = await stage()
+      expect((await send(app, id, [onItem('a', [slide(foreign)])], ANNA)).status).toBe(403)
+      expect((await read(app, id, foreign, ANNA)).status).toBe(404)
+    })
+
+    it('cannot bring it in through the pictures of the generated slides', async () => {
+      const { app, id, foreign } = await stage()
+      expect((await send(app, id, [{ op: 'set', entity: 'workshop', id, fields: { pictures: { cover: foreign } } }], ANNA)).status).toBe(403)
+      expect((await read(app, id, foreign, ANNA)).status).toBe(404)
+    })
+
+    it('cannot bring it in as text, in capitals, or in an item of its own', async () => {
+      const { app, id, foreign } = await stage()
+      const text = (html: string) => [{ id: 's1', html: `<section class="slide statement"><div class="text"><p class="big">${html}</p></div></section>` }]
+      expect((await send(app, id, [onItem('a', text(`asset:${foreign}`))], ANNA)).status).toBe(403)
+      expect((await send(app, id, [onItem('a', text(`ASSET:${foreign.toUpperCase()}`))], ANNA)).status).toBe(403)
+      expect((await send(app, id, [{ op: 'create', entity: 'item', record: item('neu', id, null, { slides: [slide(foreign)] }) }], ANNA)).status).toBe(403)
+      expect((await read(app, id, foreign, ANNA)).status).toBe(404)
+    })
+
+    it('cannot name a picture that does not exist yet, to read it once somebody uploads it', async () => {
+      const { app, id } = await stage()
+      const later = picture(9)
+      const hash = createHash('sha256').update(later).digest('hex')
+      expect((await send(app, id, [onItem('a', [slide(hash)])], ANNA)).status).toBe(403)
+    })
+
+    it('leaves nothing of a refused change behind', async () => {
+      const { app, id, foreign } = await stage()
+      expect((await send(app, id, [{ op: 'set', entity: 'item', id: 'a', fields: { title: 'geändert' } }, onItem('a', [slide(foreign)])], ANNA)).status).toBe(403)
+      const state = (await (await app.request(`${pub}/api/workshops/${id}`, { headers: ANNA })).json()) as WorkshopState
+      expect(state.items.find((i) => i.id === 'a')?.title).not.toBe('geändert')
+    })
+
+    it('can place a picture they uploaded to this workshop, and read it', async () => {
+      const { app, id } = await stage()
+      const { hash } = await upload(app, id, picture(2), ANNA_FORM)
+      expect((await send(app, id, [onItem('a', [slide(hash)])], ANNA)).status).toBe(200)
+      expect((await read(app, id, hash, ANNA)).status).toBe(200)
+    })
+
+    it('can move a picture of this workshop to another step', async () => {
+      const { app, id } = await stage()
+      const { hash } = await upload(app, id, picture(3), OWNER_FORM)
+      await send(app, id, [onItem('a', [slide(hash)])], OWNER)
+      expect((await send(app, id, [{ op: 'create', entity: 'item', record: item('b', id, null, { slides: [slide(hash, 's2')] }) }], ANNA)).status).toBe(200)
+    })
+
+    it('can undo taking a picture out: a workshop remembers what it has held', async () => {
+      const { app, id } = await stage()
+      const { hash } = await upload(app, id, picture(4), OWNER_FORM)
+      await send(app, id, [onItem('a', [slide(hash)])], OWNER)
+      expect((await send(app, id, [onItem('a', [])], ANNA)).status).toBe(200)
+      expect((await send(app, id, [onItem('a', [slide(hash)])], ANNA)).status).toBe(200)
+    })
+
+    it('can undo it for a picture placed before this check existed, as long as it is shown', async () => {
+      const { app, db, id } = await stage()
+      const { hash } = await upload(app, id, picture(5), OWNER_FORM)
+      await send(app, id, [onItem('a', [slide(hash)])], OWNER)
+      db.prepare('DELETE FROM workshop_assets WHERE workshop_id = ?').run(id)
+      expect((await send(app, id, [onItem('a', [slide(hash), slide(hash, 's2')])], ANNA)).status).toBe(200)
+    })
+
+    it('can switch between a picture of this workshop and its cut-out', async () => {
+      const { app, repo, id } = await stage()
+      const { hash } = await upload(app, id, picture(6), OWNER_FORM)
+      await send(app, id, [onItem('a', [slide(hash)])], OWNER)
+      const cut = createHash('sha256').update('cut-out').digest('hex')
+      repo.addAsset({ hash: cut, mime: 'image/png', size: 7, cutoutOf: hash })
+      expect((await send(app, id, [onItem('a', [slide(cut)])], ANNA)).status).toBe(200)
+    })
+
+    it('can use what a theme offers everybody', async () => {
+      const { app, repo, id, foreign } = await stage()
+      repo.createTheme({ id: 'firma', name: 'Firma', tokens: DEFAULT_TOKENS })
+      repo.addPoolAsset('firma', { hash: foreign, kind: 'picture', tags: [] })
+      expect((await send(app, id, [onItem('a', [slide(foreign)])], ANNA)).status).toBe(200)
+    })
+
+    it('leaves the owner free to place any picture the server keeps', async () => {
+      const { app, id, foreign } = await stage()
+      expect((await send(app, id, [onItem('a', [slide(foreign)])], OWNER)).status).toBe(200)
+    })
   })
 
   it('cannot manage access, settings or the library', async () => {

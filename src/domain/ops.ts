@@ -94,6 +94,21 @@ export function applyOps(state: WorkshopState, ops: Op[]): WorkshopState {
 }
 
 /** Operations that undo `ops` when applied after them. */
+/**
+ * The pictures a change names: anywhere in what it writes, as the check of what a workshop shows reads the stored text,
+ * in capitals too; and those chosen for generated slides.
+ */
+export function picturesIn(ops: Op[]): string[] {
+  const hashes = new Set<string>()
+  for (const o of ops) {
+    if (o.op === 'delete') continue
+    const written = o.op === 'set' ? o.fields : o.record
+    for (const m of JSON.stringify(written).matchAll(/asset:([0-9a-f]{64})/gi)) hashes.add(m[1].toLowerCase())
+    for (const hash of Object.values((written as Partial<Workshop>).pictures ?? {})) hashes.add(hash)
+  }
+  return [...hashes]
+}
+
 export function inverseOps(state: WorkshopState, ops: Op[]): Op[] {
   const inverse: Op[] = []
   let current = state

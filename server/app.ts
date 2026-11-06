@@ -9,7 +9,7 @@ import { newId, type PresentPosition } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, sameToken } from './guard.ts'
-import { eventFor, forGuest, mayApply, mayDownload, mayEdit, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
+import { eventFor, forGuest, mayApply, mayDownload, mayEdit, mayPlace, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
 import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
@@ -226,7 +226,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   app.post('/api/workshops/:id/ops', allow('workshop-edit'), async (c) => {
     const id = c.req.param('id')!
     const { clientId, ops } = validateOps(await jsonBody(c))
-    if (!mayApply(c.get('access'), ops)) return c.json({ error: 'forbidden' }, 403)
+    if (!mayApply(c.get('access'), ops) || !mayPlace(repo, c.get('access'), id, ops)) return c.json({ error: 'forbidden' }, 403)
     const stored = repo.applyOps(id, ops)
     if (!stored) return c.json({ error: 'not_found' }, 404)
     if (stored.length) hub.publish(id, { type: 'ops', clientId, ops: stored })
@@ -601,9 +601,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const pair = HASH.test(hash) ? repo.assetPair(hash) : null
     return pair ? c.json({ hash, ...pair }) : c.json({ error: 'not_found' }, 404)
   }
-  const storeAsset = async (c: Context<Env>, access: WorkshopAccess) => {
+  const storeAsset = async (c: Context<Env>, access: WorkshopAccess, workshopId?: string) => {
     const saved = await saveUpload(c, access, (await c.req.parseBody()).file)
-    return saved instanceof Response ? saved : c.json(saved, 201)
+    if (saved instanceof Response) return saved
+    if (workshopId) repo.rememberAssets(workshopId, [saved.hash, ...(saved.cutout ? [saved.cutout] : [])])
+    return c.json(saved, 201)
   }
   const sendAsset = async (c: Context<Env>, hash: string, ground?: string) => {
     const asset = HASH.test(hash) ? repo.getAsset(hash) : null
@@ -627,7 +629,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     // Content-addressed: the same address always holds the same bytes, so a browser may keep it for good.
     return c.body(new Uint8Array(data), 200, { 'Content-Type': asset.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=31536000, immutable' })
   }
-  app.post('/api/workshops/:id/assets', allow('workshop-edit'), async (c) => storeAsset(c, c.get('access')))
+  app.post('/api/workshops/:id/assets', allow('workshop-edit'), async (c) => storeAsset(c, c.get('access'), c.req.param('id')!))
   app.get('/api/workshops/:id/assets/:hash/info', allow('workshop-view'), (c) => {
     const id = c.req.param('id')!
     const hash = c.req.param('hash')!

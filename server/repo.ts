@@ -1,7 +1,7 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
 import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type ItemContent, type LibraryAttachment, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE, type TrashedWorkshop, TRASH_DAYS } from '../src/domain/types.ts'
 import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
-import { newId, type Op } from '../src/domain/ops.ts'
+import { newId, type Op, picturesIn } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
@@ -453,6 +453,7 @@ export class Repo {
         }
       }
       this.db.prepare('UPDATE workshops SET updated_at = ? WHERE id = ?').run(now(), workshopId)
+      this.rememberAssets(workshopId, picturesIn(stored))
       return stored
     })
   }
@@ -718,6 +719,18 @@ export class Repo {
     const pair = this.assetPair(hash)
     const hashes = pair ? [pair.original, ...(pair.cutout ? [pair.cutout] : [])] : [hash]
     return hashes.some((h) => !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${h}%`) || !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ? AND pictures LIKE ? LIMIT 1').get(workshopId, `%${h}%`) || this.assetInPool(h))
+  }
+
+  /** Notes the pictures as held by the workshop. */
+  rememberAssets(workshopId: string, hashes: string[]): void {
+    for (const hash of hashes) this.db.prepare('INSERT OR IGNORE INTO workshop_assets (workshop_id, hash) VALUES (?, ?)').run(workshopId, hash)
+  }
+
+  /** Whether a guest of the workshop may place the picture: it shows it now, has held it or its original or cut-out, or a theme's pool offers it. */
+  assetKnownTo(workshopId: string, hash: string): boolean {
+    const pair = this.assetPair(hash)
+    const hashes = pair ? [pair.original, ...(pair.cutout ? [pair.cutout] : [])] : [hash]
+    return this.assetInWorkshop(workshopId, hash) || hashes.some((h) => !!this.db.prepare('SELECT 1 FROM workshop_assets WHERE workshop_id = ? AND hash = ?').get(workshopId, h))
   }
 
   /** Whether a theme's pool holds the asset. */
