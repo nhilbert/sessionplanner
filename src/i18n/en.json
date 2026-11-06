@@ -240,6 +240,7 @@
       "duration": "Duration",
       "breaks": "Breaks",
       "markers": "Markers",
+      "groupItems": "Steps inside groups",
       "workshopGoal": "Workshop goal",
       "workshopNotes": "Workshop notes",
       "pageBreakDays": "Each day on a new page",

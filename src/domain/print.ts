@@ -26,6 +26,8 @@ export interface PrintOptions {
   duration: boolean
   breaks: boolean
   markers: boolean
+  /** The steps inside a group; off: the group as a heading with its time range only. */
+  groupItems: boolean
   // Head and page
   workshopGoal: boolean
   workshopNotes: boolean
@@ -53,6 +55,7 @@ const ALL: PrintOptions = {
   duration: true,
   breaks: true,
   markers: true,
+  groupItems: true,
   workshopGoal: true,
   workshopNotes: true,
   pageBreakDays: true,
@@ -75,7 +78,7 @@ export const PRINT_DEFAULTS: Record<PrintVariant, PrintOptions> = {
 export const PRINT_CHOICES: Record<PrintVariant, (keyof PrintOptions)[]> = {
   overview: ['landscape', 'logo', 'duration', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays'],
   plan: ['logo', 'checkboxes', 'dayOverview', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays', 'appendPacking'],
-  agenda: ['logo', 'description', 'goal', 'lead', 'duration', 'breaks', 'markers', 'workshopGoal', 'pageBreakDays'],
+  agenda: ['logo', 'description', 'goal', 'lead', 'duration', 'breaks', 'markers', 'groupItems', 'workshopGoal', 'pageBreakDays'],
   packing: ['logo'],
 }
 
@@ -133,7 +136,11 @@ export function dayRows(state: WorkshopState, day: Day, variant: PrintVariant, o
     if (!members.length) continue
     const timed = e.items.map((i) => schedule.slots[i.id])
     rows.push({ kind: 'group', id: e.id, title: e.group.title, start: timed.length ? timed[0].start : null, end: timed.length ? Math.max(...timed.map((s) => s.end)) : null })
-    for (const m of members) rows.push(rowOf(m, true))
+    // Held back, the steps still count (numbering, times); they are just not listed.
+    for (const m of members) {
+      const row = rowOf(m, true)
+      if (o.groupItems) rows.push(row)
+    }
   }
   return { schedule, rows }
 }
@@ -238,8 +245,11 @@ function tableLines(rows: PrintRow[], state: WorkshopState, o: PrintOptions, l: 
   for (const r of rows) {
     if (r.kind === 'group') {
       const cells = cols.map(() => '')
-      cells[0] = r.start !== null && r.end !== null ? timeRange(r.start, r.end) : ''
-      cells[o.duration ? 2 : 1] = `**${cell(r.title.toUpperCase())}**`
+      const timed = r.start !== null && r.end !== null
+      cells[0] = timed ? timeRange(r.start!, r.end!) : ''
+      // Without its steps, a group is a row like a step: its title as written, its length.
+      if (!o.groupItems && o.duration && timed) cells[1] = formatDuration(r.end! - r.start!)
+      cells[o.duration ? 2 : 1] = o.groupItems ? `**${cell(r.title.toUpperCase())}**` : `**${cell(r.title)}**`
       out.push(line(cells))
     } else out.push(line(cols.map((c) => cell(c.of(r)))))
   }
