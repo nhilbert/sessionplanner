@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next'
 import { api } from '@/api'
 import type { Category, ItemContent, LibraryEntry } from '@/domain/types'
 import { categoryName } from './useSettings'
-import { inOrder } from './inOrder'
+import { inOrder } from '@/domain/inOrder'
 
 /** What a library search looks through: titles, descriptions, goal, method, lead, the category, a group's items and the file names. */
 export function libraryText(e: LibraryEntry, categories: Category[], t: TFunction): string {

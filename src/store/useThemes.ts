@@ -5,7 +5,7 @@ import { api } from '@/api'
 import type { PoolAsset, ThemeInfo } from '@/domain/theme'
 import type { SlideTemplate } from '@/domain/types'
 import { slideLayout } from '@/domain/slides'
-import { inOrder } from './inOrder'
+import { inOrder } from '@/domain/inOrder'
 
 /** The slide themes the server has and the owner's template slides (docs/slides.md, sections 4 and 7). */
 interface ThemesStore {

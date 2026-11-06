@@ -21,6 +21,7 @@ import { filePaths, themeFolderFile } from './storage.ts'
 import { cleanBasePath } from '../src/domain/addresses.ts'
 import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { withFilesOf } from '../src/domain/copy.ts'
+import { inOrder } from '../src/domain/inOrder.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
 import { dataZip, exportDate, mediaZip, workshopZip, workshopZipName } from './exports.ts'
 
@@ -309,10 +310,17 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   /** Writes the file under its id; a file replaced is whole until the new one is. */
   const storeAttachment = async (id: string, file: File) => {
     await mkdir(filesDir, { recursive: true })
-    const temp = filePath(`${id}.new`)
-    await writeFile(temp, Buffer.from(await file.arrayBuffer()))
-    await rename(temp, filePath(id))
+    const temp = filePath(`${id}.${newId()}.new`)
+    try {
+      await writeFile(temp, Buffer.from(await file.arrayBuffer()))
+      await rename(temp, filePath(id))
+    } catch (err) {
+      await rm(temp, { force: true })
+      throw err
+    }
   }
+  /** Replacing or deleting a file, one change after the other: its bytes and its record then always belong together. */
+  const fileTurn = <T>(id: string, run: () => Promise<T>): Promise<T> => inOrder(`file:${id}`, run).result
   const sendAttachment = async (c: Context<Env>, att: { id: string; name: string }) => {
     const data = await readFile(filePath(att.id)).catch(() => null)
     if (!data) return c.json({ error: 'not_found' }, 404)
@@ -359,26 +367,33 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   // A new version under the same id: the links to the items stay. It wipes the old file, so like deleting it is the owner's.
   app.put('/api/attachments/:id/file', allow('owner'), async (c) => {
-    const att = attachmentInUse(c.req.param('id')!)
-    if (!att) return c.json({ error: 'not_found' }, 404)
+    const id = c.req.param('id')!
+    if (!attachmentInUse(id)) return c.json({ error: 'not_found' }, 404)
     const upload = await attachmentUpload(c)
     if (upload instanceof Response) return upload
-    if (repo.attachmentBytes(att.workshopId) - att.size + upload.file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
-    await storeAttachment(att.id, upload.file)
-    const attachment = repo.updateAttachment(att.id, facts(upload.file))
-    if (!attachment) return c.json({ error: 'not_found' }, 404)
-    hub.publish(att.workshopId, { type: 'attachment', attachment })
-    return c.json(attachment)
+    return fileTurn(id, async () => {
+      const att = attachmentInUse(id)
+      if (!att) return c.json({ error: 'not_found' }, 404)
+      if (repo.attachmentBytes(att.workshopId) - att.size + upload.file.size > quota.workshopFiles) return c.json({ error: 'quota' }, 413)
+      await storeAttachment(att.id, upload.file)
+      const attachment = repo.updateAttachment(att.id, facts(upload.file))
+      if (!attachment) return c.json({ error: 'not_found' }, 404)
+      hub.publish(att.workshopId, { type: 'attachment', attachment })
+      return c.json(attachment)
+    })
   })
 
   app.delete('/api/attachments/:id', allow('owner'), async (c) => {
-    if (!attachmentInUse(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
-    const result = repo.deleteAttachment(c.req.param('id')!)
-    if (!result) return c.json({ error: 'not_found' }, 404)
-    await rm(filePath(c.req.param('id')!), { force: true })
-    hub.publish(result.workshopId, { type: 'attachment-deleted', id: c.req.param('id')! })
-    if (result.ops.length) hub.publish(result.workshopId, { type: 'ops', clientId: 'server', ops: result.ops })
-    return c.json({ ok: true })
+    const id = c.req.param('id')!
+    return fileTurn(id, async () => {
+      if (!attachmentInUse(id)) return c.json({ error: 'not_found' }, 404)
+      const result = repo.deleteAttachment(id)
+      if (!result) return c.json({ error: 'not_found' }, 404)
+      await rm(filePath(id), { force: true })
+      hub.publish(result.workshopId, { type: 'attachment-deleted', id })
+      if (result.ops.length) hub.publish(result.workshopId, { type: 'ops', clientId: 'server', ops: result.ops })
+      return c.json({ ok: true })
+    })
   })
 
   // ---- settings and logo -------------------------------------------------------------------------
@@ -498,15 +513,21 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!att) return c.json({ error: 'not_found' }, 404)
     const upload = await attachmentUpload(c)
     if (upload instanceof Response) return upload
-    await storeAttachment(att.id, upload.file)
-    const entry = repo.updateLibraryAttachment(att.id, facts(upload.file))
-    return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
+    return fileTurn(att.id, async () => {
+      if (!repo.getLibraryAttachment(att.id)) return c.json({ error: 'not_found' }, 404)
+      await storeAttachment(att.id, upload.file)
+      const entry = repo.updateLibraryAttachment(att.id, facts(upload.file))
+      return entry ? c.json(entry) : c.json({ error: 'not_found' }, 404)
+    })
   })
   app.delete('/api/library/attachments/:id', async (c) => {
-    const entry = repo.deleteLibraryAttachment(c.req.param('id')!)
-    if (!entry) return c.json({ error: 'not_found' }, 404)
-    await rm(filePath(c.req.param('id')!), { force: true })
-    return c.json(entry)
+    const id = c.req.param('id')!
+    return fileTurn(id, async () => {
+      const entry = repo.deleteLibraryAttachment(id)
+      if (!entry) return c.json({ error: 'not_found' }, 404)
+      await rm(filePath(id), { force: true })
+      return c.json(entry)
+    })
   })
   /** Copies an entry's files into a workshop, before the entry is placed there: library attachment id → the workshop's copy. */
   app.post('/api/library/:id/copies/:workshopId', (c) => {

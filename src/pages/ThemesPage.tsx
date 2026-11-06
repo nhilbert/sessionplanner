@@ -13,7 +13,7 @@ import { useSettings } from '@/store/useSettings'
 import { Button, Chip, cx, Field, IconButton, Input, PageHeader, SectionLabel, Segmented, Select, useIsPhone } from '@/components/ui'
 import { applyThemeCss, PREVIEW_THEME, reloadTheme, SlideView } from '@/slides/SlideView'
 import { tr } from '@/slides/editor/fields'
-import { inOrder } from '@/store/inOrder'
+import { inOrder } from '@/domain/inOrder'
 import { SlidesTabs } from '@/slides/SlidesTabs'
 
 const MAX_LOGO = 2 * 1024 * 1024

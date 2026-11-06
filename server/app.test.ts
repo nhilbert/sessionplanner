@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
@@ -477,6 +477,69 @@ describe('attachments', () => {
     repo.restoreWorkshop(gone.id)
     expect(repo.loadWorkshop(gone.id)!.items[0].slides[0].html).toContain('<h1>a')
     expect(repo.loadWorkshop(kept.id)!.items[0].slides[0].html).toContain('<h1>b')
+  })
+})
+
+describe('a new version of a file, sent twice at once', () => {
+  const parts = (letter: string) => letter.repeat(1024 * 1024)
+  const put = (app: ReturnType<typeof setup>['app'], route: string, text: string, name: string) => {
+    const form = new FormData()
+    form.append('file', new File([text], name))
+    return app.request(`${BASE}${route}`, { method: 'PUT', headers: { 'x-sp': '1' }, body: form })
+  }
+  const whole = (text: string) => /^(a+|b+)$/.test(text)
+
+  it('leaves one whole version of an attachment, with the facts of that version', async () => {
+    const { app, repo, filesDir } = setup()
+    const id = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    const route = `/api/attachments/${att.id}/file`
+    const answers = await Promise.all([put(app, route, parts('a'), 'a.txt'), put(app, route, parts('b') + 'b', 'b.txt')])
+    expect(answers.map((r) => r.status)).toEqual([200, 200])
+    const stored = readFileSync(path.join(filesDir, att.id), 'utf8')
+    expect(whole(stored)).toBe(true)
+    expect(repo.getAttachment(att.id)).toMatchObject(stored.startsWith('a') ? { name: 'a.txt', size: stored.length } : { name: 'b.txt', size: stored.length })
+    expect(readdirSync(filesDir).filter((f) => f.endsWith('.new'))).toEqual([])
+  })
+
+  it('leaves one whole version of a library file, with the facts of that version', async () => {
+    const { app, repo, filesDir } = setup()
+    const content = { kind: 'block', title: 'E', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], slides: [], categoryId: null, color: null }
+    const entry = await (await app.request(`${BASE}/api/library`, { method: 'POST', headers: { 'x-sp': '1', 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'item', title: 'E', data: content }) })).json()
+    const withFile = await attach(app, `/api/library/${entry.id}/attachments`, 'a.txt', 'x')
+    const fileId = withFile.attachments[0].id
+    const route = `/api/library/attachments/${fileId}/file`
+    const answers = await Promise.all([put(app, route, parts('a'), 'a.txt'), put(app, route, parts('b') + 'b', 'b.txt')])
+    expect(answers.map((r) => r.status)).toEqual([200, 200])
+    const stored = readFileSync(path.join(filesDir, fileId), 'utf8')
+    expect(whole(stored)).toBe(true)
+    expect(repo.getLibraryAttachment(fileId)).toMatchObject({ size: stored.length })
+  })
+
+  it('does not bring a file back that was deleted while its new version was on its way', async () => {
+    const { app, filesDir } = setup()
+    const id = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    const [replaced, deleted] = await Promise.all([put(app, `/api/attachments/${att.id}/file`, parts('a'), 'a.txt'), app.request(`${BASE}/api/attachments/${att.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })])
+    expect(deleted.status).toBe(200)
+    expect([200, 404]).toContain(replaced.status)
+    expect(existsSync(path.join(filesDir, att.id))).toBe(false)
+  })
+
+  it('leaves nothing behind when the write fails', async () => {
+    const { app, filesDir } = setup()
+    const id = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    // A folder in the file's place: the new version cannot be moved there.
+    rmSync(path.join(filesDir, att.id))
+    mkdirSync(path.join(filesDir, att.id))
+    const failed = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      expect((await put(app, `/api/attachments/${att.id}/file`, 'neu', 'a.txt')).status).toBe(500)
+    } finally {
+      failed.mockRestore()
+    }
+    expect(readdirSync(filesDir).filter((f) => f.endsWith('.new'))).toEqual([])
   })
 })
 
