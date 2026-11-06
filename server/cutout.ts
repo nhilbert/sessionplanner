@@ -52,14 +52,16 @@ export function decodePng(data: Buffer): Decoded | null {
   if (!width || !height || depth !== 8 || interlace !== 0 || width * height > MAX_PIXELS) return null
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[type]
   if (!channels || (type === 3 && !palette)) return null
+  const stride = width * channels
+  // Exactly the rows the header promises: a few bytes can unpack to gigabytes, so the limit has to hold while unpacking.
+  const size = height * (stride + 1)
   let raw: Buffer
   try {
-    raw = inflateSync(Buffer.concat(idat))
+    raw = inflateSync(Buffer.concat(idat), { maxOutputLength: size })
   } catch {
     return null
   }
-  const stride = width * channels
-  if (raw.length < height * (stride + 1)) return null
+  if (raw.length !== size) return null
   const px = new Uint8Array(height * stride)
   let prev = new Uint8Array(stride)
   let p = 0

@@ -1,3 +1,4 @@
+import { crc32, deflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { cutout, cutoutPng, darkCutout, darkCutoutPng, decodePng, encodePng } from './cutout.ts'
 
@@ -12,6 +13,35 @@ function picture(w: number, h: number, bg: [number, number, number], square: { x
   }
   return { width: w, height: h, rgba }
 }
+
+/** A PNG that says it is w × h pixels of RGBA and holds `rows` as its pixel data, whatever their size. */
+function pngHolding(w: number, h: number, rows: Buffer) {
+  const chunk = (kind: string, body: Buffer) => {
+    const named = Buffer.concat([Buffer.from(kind, 'latin1'), body])
+    const size = Buffer.alloc(4)
+    size.writeUInt32BE(body.length)
+    const check = Buffer.alloc(4)
+    check.writeUInt32BE(crc32(named))
+    return Buffer.concat([size, named, check])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(w, 0)
+  header.writeUInt32BE(h, 4)
+  header.set([8, 6, 0, 0, 0], 8)
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(rows)), chunk('IEND', Buffer.alloc(0))])
+}
+
+describe('reading a PNG', () => {
+  it('refuses data that unpacks to more than its size allows, before it takes the memory', () => {
+    expect(decodePng(pngHolding(1, 1, Buffer.alloc(1024 * 1024)))).toBeNull()
+    expect(decodePng(pngHolding(1, 1, Buffer.alloc(6)))).toBeNull()
+  })
+
+  it('refuses data that unpacks to less, and reads what is exactly right', () => {
+    expect(decodePng(pngHolding(1, 1, Buffer.alloc(4)))).toBeNull()
+    expect(decodePng(pngHolding(1, 1, Buffer.from([0, 10, 20, 30, 255])))).toEqual({ width: 1, height: 1, rgba: new Uint8Array([10, 20, 30, 255]) })
+  })
+})
 
 describe('cut-outs', () => {
   it('turns a cut-out over for a dark ground: lightness inverted, hue kept, the paper haze cleared', () => {
