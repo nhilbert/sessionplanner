@@ -30,8 +30,8 @@ export interface Extensions {
   workshopTool?: (workshopId: string) => ReactNode
   /** One place at the end of the owner's settings for something of its own. */
   settingsSection?: () => ReactNode
-  /** Decides whether the settings show the export of all data and media; it gets the section and answers what to show. */
-  fullExport?: (section: ReactNode) => ReactNode
+  /** Decides whether the parts for the real owner alone show (the export of all data and media, a theme's own CSS); it gets the part and answers what to show. */
+  ownerOnly?: (section: ReactNode) => ReactNode
 }
 
 /** The owner's pages (library, slides area): a guest who types their address lands on the workshops shared with them. */

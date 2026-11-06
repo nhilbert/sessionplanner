@@ -14,6 +14,7 @@ import { Button, Chip, cx, Field, IconButton, Input, PageHeader, SectionLabel, S
 import { applyThemeCss, PREVIEW_THEME, reloadTheme, SlideView } from '@/slides/SlideView'
 import { tr } from '@/slides/editor/fields'
 import { inOrder } from '@/domain/inOrder'
+import { ownerOnlyPart } from '@/features'
 import { SlidesTabs } from '@/slides/SlidesTabs'
 
 const MAX_LOGO = 2 * 1024 * 1024
@@ -379,19 +380,21 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
           <SectionLabel>{t('themes.own')}</SectionLabel>
           <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.ownHint')}</p>
           <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
-            <Field label={t('themes.ownRules')}>
-              <textarea
-                value={css}
-                onChange={(e) => {
-                  setCss(e.target.value)
-                  save({ css: e.target.value })
-                }}
-                spellCheck={false}
-                rows={14}
-                className="field h-80 w-full resize-y px-2 py-1.5 font-mono text-[12px] leading-snug"
-                placeholder=":scope .slide h2 { letter-spacing: 0; }"
-              />
-            </Field>
+            {ownerOnlyPart(
+              <Field label={t('themes.ownRules')}>
+                <textarea
+                  value={css}
+                  onChange={(e) => {
+                    setCss(e.target.value)
+                    save({ css: e.target.value })
+                  }}
+                  spellCheck={false}
+                  rows={14}
+                  className="field h-80 w-full resize-y px-2 py-1.5 font-mono text-[12px] leading-snug"
+                  placeholder=":scope .slide h2 { letter-spacing: 0; }"
+                />
+              </Field>,
+            )}
             <ThemeFiles
               files={files}
               onFile={async (f) => setFiles((await api.uploadThemeFile(theme.id, f, `${FONT_FILE.test(f.name) ? 'fonts' : 'assets'}/${f.name.replace(/[^A-Za-z0-9._-]+/g, '-')}`)).files)}

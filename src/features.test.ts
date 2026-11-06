@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { fullExportOf, productName, setFullExport, setProduct } from './features'
+import { ownerOnlyPart, productName, setOwnerOnly, setProduct } from './features'
 
 describe('the name the app shows', () => {
   afterEach(() => setProduct())
@@ -13,23 +13,23 @@ describe('the name the app shows', () => {
   })
 })
 
-describe('the export of all data and media in the settings', () => {
-  afterEach(() => setFullExport(undefined))
+describe('a part of the app for the real owner alone', () => {
+  afterEach(() => setOwnerOnly(undefined))
 
   it('shows as it is unless a build wraps it', () => {
-    expect(fullExportOf('section')).toBe('section')
+    expect(ownerOnlyPart('section')).toBe('section')
   })
 
   it('shows as a build wants it, and a build can hold it back', () => {
-    setFullExport((section) => ['wrapped', section])
-    expect(fullExportOf('section')).toEqual(['wrapped', 'section'])
-    setFullExport(() => null)
-    expect(fullExportOf('section')).toBeNull()
+    setOwnerOnly((section) => ['wrapped', section])
+    expect(ownerOnlyPart('section')).toEqual(['wrapped', 'section'])
+    setOwnerOnly(() => null)
+    expect(ownerOnlyPart('section')).toBeNull()
   })
 
   it('shows as it is again when the build takes its wrapper away', () => {
-    setFullExport(() => null)
-    setFullExport(undefined)
-    expect(fullExportOf('section')).toBe('section')
+    setOwnerOnly(() => null)
+    setOwnerOnly(undefined)
+    expect(ownerOnlyPart('section')).toBe('section')
   })
 })

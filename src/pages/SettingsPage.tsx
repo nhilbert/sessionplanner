@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Plus, Trash2, Upload } from 'lucide-react'
 import { api } from '@/api'
-import { fullExportOf, settingsSectionOf } from '@/features'
+import { ownerOnlyPart, settingsSectionOf } from '@/features'
 import { newId } from '@/domain/ops'
 import { categoryName, useSettings } from '@/store/useSettings'
 import { changeLocale } from '@/i18n'
@@ -135,7 +135,7 @@ export default function SettingsPage() {
           />
         </section>
 
-        {fullExportOf(
+        {ownerOnlyPart(
           <section className="card mb-6 p-5">
             <SectionLabel>{t('settings.export')}</SectionLabel>
             <p className="mb-3 text-[13px] text-ink-3">{t('settings.exportHint')}</p>
