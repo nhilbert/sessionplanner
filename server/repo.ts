@@ -265,8 +265,16 @@ export class Repo {
   }
 
   loadWorkshop(id: string): WorkshopState | null {
-    const w = this.db.prepare('SELECT * FROM workshops WHERE id = ? AND deleted_at IS NULL').get(id) as Row | undefined
-    if (!w) return null
+    return this.hasWorkshop(id) ? this.workshopState(id) : null
+  }
+
+  /** A workshop in the trash, for the exports of all data: nothing else may read it. */
+  loadTrashedWorkshop(id: string): WorkshopState | null {
+    return this.inTrash(id) ? this.workshopState(id) : null
+  }
+
+  private workshopState(id: string): WorkshopState {
+    const w = this.db.prepare('SELECT * FROM workshops WHERE id = ?').get(id) as Row
     return {
       workshop: toWorkshop(w),
       days: (this.db.prepare('SELECT * FROM days WHERE workshop_id = ? ORDER BY position').all(id) as Row[]).map(toDay),
@@ -317,11 +325,15 @@ export class Repo {
     return this.db.prepare('UPDATE workshops SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id).changes > 0
   }
 
-  /** Deletes for good what has been in the trash for TRASH_DAYS days by `at`; returns the attachment ids (files to remove). */
-  purgeTrash(at = new Date()): string[] {
+  /** The workshops that have been in the trash for TRASH_DAYS days by `at`. */
+  expiredTrash(at = new Date()): string[] {
     const before = new Date(at.getTime() - TRASH_DAYS * 86_400_000).toISOString()
-    const ids = (this.db.prepare('SELECT id FROM workshops WHERE deleted_at IS NOT NULL AND deleted_at <= ?').all(before) as Row[]).map((r) => r.id as string)
-    return ids.flatMap((id) => this.deleteWorkshop(id) ?? [])
+    return (this.db.prepare('SELECT id FROM workshops WHERE deleted_at IS NOT NULL AND deleted_at <= ?').all(before) as Row[]).map((r) => r.id as string)
+  }
+
+  /** The ids of a workshop's attachments, in use or in the trash. Its files go first and its records after: only the records say what is left to remove. */
+  attachmentIdsOf(workshopId: string): string[] {
+    return (this.db.prepare('SELECT id FROM attachments WHERE workshop_id = ?').all(workshopId) as Row[]).map((r) => r.id as string)
   }
 
   /** Whether a workshop is in the trash. */
@@ -332,7 +344,7 @@ export class Repo {
   /** Deletes the workshop for good (in use or in the trash) with its days, items and attachment records; returns the attachment ids (files to remove). */
   deleteWorkshop(id: string): string[] | null {
     if (!this.db.prepare('SELECT 1 FROM workshops WHERE id = ?').get(id)) return null
-    const files = (this.db.prepare('SELECT id FROM attachments WHERE workshop_id = ?').all(id) as Row[]).map((r) => r.id as string)
+    const files = this.attachmentIdsOf(id)
     this.db.prepare('DELETE FROM workshops WHERE id = ?').run(id)
     return files
   }
@@ -756,7 +768,8 @@ export class Repo {
       return any
     }
     return this.tx(() => {
-      for (const r of this.db.prepare('SELECT id, slides FROM items').all() as Row[]) {
+      // Not a workshop in the trash: it comes back as it went in.
+      for (const r of this.db.prepare('SELECT id, slides FROM items WHERE workshop_id NOT IN (SELECT id FROM workshops WHERE deleted_at IS NOT NULL)').all() as Row[]) {
         const list = JSON.parse((r.slides as string | null) ?? '[]')
         if (slides(list)) this.db.prepare('UPDATE items SET slides = ? WHERE id = ?').run(JSON.stringify(list), r.id as string)
       }

@@ -32,11 +32,23 @@ export function removeFiles(filesDir: Dir, ids: string[]): void {
   if (filesDir) for (const id of ids) rmSync(filePaths(filesDir).file(id), { force: true })
 }
 
-/** Deletes for good the workshops that have been in the trash for TRASH_DAYS days, with their files; answers the ids of the files removed. */
+/**
+ * Deletes for good the workshops that have been in the trash for TRASH_DAYS days, with their files; answers the ids of
+ * the files removed. Files first: a workshop whose files cannot go stays in the trash with its records, so the next
+ * check knows what is left, and does not hold up the others.
+ */
 export function emptyTrash(repo: Repo, filesDir: Dir, at = new Date()): string[] {
-  const files = repo.purgeTrash(at)
-  removeFiles(filesDir, files)
-  return files
+  return repo.expiredTrash(at).flatMap((id) => {
+    try {
+      const files = repo.attachmentIdsOf(id)
+      removeFiles(filesDir, files)
+      repo.deleteWorkshop(id)
+      return files
+    } catch (err) {
+      console.error(`Workshop ${id} could not leave the trash, trying again at the next check:`, (err as Error).message)
+      return []
+    }
+  })
 }
 
 /**
@@ -68,7 +80,7 @@ export function copyToLibrary<E extends Pick<LibraryEntry, 'kind' | 'title' | 'd
       if (!copies.has(source)) {
         const a = repo.getAttachment(source)
         const id = newId()
-        if (!a || !copied(filesDir, a.id, id)) return []
+        if (!a || !repo.hasWorkshop(a.workshopId) || !copied(filesDir, a.id, id)) return []
         copies.set(source, { id, name: a.name, mime: a.mime, size: a.size })
       }
       return [copies.get(source)!.id]

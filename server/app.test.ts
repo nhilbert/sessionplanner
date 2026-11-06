@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
@@ -399,6 +399,84 @@ describe('attachments', () => {
     expect(existsSync(path.join(filesDir, att.id))).toBe(false)
     expect(repo.listTrash().map((w) => w.id)).toEqual([young])
     expect(repo.inTrash(old)).toBe(false)
+  })
+
+  it('keeps a workshop in the trash until its files are gone, and tries again at the next check', async () => {
+    const { app, repo, filesDir } = setup()
+    const stuck = (await create(app)).workshop.id
+    const free = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${stuck}/attachments`, 'a.txt', 'x')
+    const other = await attach(app, `/api/workshops/${free}/attachments`, 'b.txt', 'y')
+    const start = Date.parse('2026-10-01T10:00:00Z')
+    const later = new Date(start + TRASH_DAYS * 86_400_000)
+    repo.trashWorkshop(stuck, new Date(start).toISOString())
+    repo.trashWorkshop(free, new Date(start).toISOString())
+    // A folder in the file's place cannot be removed as a file, as a disk that refuses would.
+    rmSync(path.join(filesDir, att.id))
+    mkdirSync(path.join(filesDir, att.id))
+    const failed = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      expect(emptyTrash(repo, filesDir, later)).toEqual([other.id])
+      expect(failed).toHaveBeenCalled()
+    } finally {
+      failed.mockRestore()
+    }
+    expect(repo.inTrash(stuck), 'its records stay, so the next check knows what is left').toBe(true)
+    expect(repo.inTrash(free), 'one that cannot go does not hold up the others').toBe(false)
+    rmdirSync(path.join(filesDir, att.id))
+    expect(emptyTrash(repo, filesDir, later)).toEqual([att.id])
+    expect(repo.inTrash(stuck)).toBe(false)
+  })
+
+  it('keeps a workshop in the trash when deleting it for good cannot remove its files', async () => {
+    const { app, repo, filesDir } = setup()
+    const id = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    rmSync(path.join(filesDir, att.id))
+    mkdirSync(path.join(filesDir, att.id))
+    const failed = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      expect((await app.request(`${BASE}/api/trash/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(500)
+    } finally {
+      failed.mockRestore()
+    }
+    expect(repo.inTrash(id)).toBe(true)
+    rmdirSync(path.join(filesDir, att.id))
+    expect((await app.request(`${BASE}/api/trash/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect(repo.inTrash(id)).toBe(false)
+  })
+
+  it('leaves a workshop in the trash as it went in: its files cannot be replaced, deleted or copied', async () => {
+    const { app, repo, filesDir } = setup()
+    const id = (await create(app)).workshop.id
+    const att = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x')
+    await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    const form = new FormData()
+    form.append('file', new File(['neu'], 'a.txt'))
+    expect((await app.request(`${BASE}/api/attachments/${att.id}/file`, { method: 'PUT', headers: { 'x-sp': '1' }, body: form })).status).toBe(404)
+    expect((await app.request(`${BASE}/api/attachments/${att.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(404)
+    const entry = await (await app.request(`${BASE}/api/library`, { method: 'POST', headers: { 'x-sp': '1', 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'item', title: 'Kopie', data: { kind: 'block', title: 'Kopie', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [att.id], slides: [], categoryId: null, color: null } }) })).json()
+    expect(entry.attachments).toEqual([])
+    expect(readFileSync(path.join(filesDir, att.id), 'utf8')).toBe('x')
+    expect(repo.getAttachment(att.id)).toMatchObject({ name: 'a.txt', size: 1 })
+    expect((await app.request(`${BASE}/api/trash/${id}/restore`, { method: 'POST', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/attachments/${att.id}`)).status).toBe(200)
+  })
+
+  it('leaves the slides of a workshop in the trash alone when pictures are rewritten', async () => {
+    const { app, repo } = setup()
+    const kept = (await create(app)).workshop
+    const gone = (await create(app)).workshop
+    const html = '<section class="slide"><h1>a</h1></section>'
+    const add = (w: typeof kept, id: string) => app.request(`${BASE}/api/workshops/${w.id}/ops`, { method: 'POST', headers: { 'x-sp': '1', 'content-type': 'application/json' }, body: JSON.stringify({ clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item(id, w.id, null, { slides: [{ id: 's', html }] }) }] }) })
+    await add(kept, 'in-use')
+    await add(gone, 'trashed')
+    repo.trashWorkshop(gone.id)
+    expect(repo.rewriteSlides((h) => h.replace('<h1>a', '<h1>b'))).toBe(1)
+    repo.restoreWorkshop(gone.id)
+    expect(repo.loadWorkshop(gone.id)!.items[0].slides[0].html).toContain('<h1>a')
+    expect(repo.loadWorkshop(kept.id)!.items[0].slides[0].html).toContain('<h1>b')
   })
 })
 

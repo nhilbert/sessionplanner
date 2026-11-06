@@ -81,6 +81,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   const allow = rulesFor(repo)
   /** The workshop an attachment belongs to, for the rule of a route that names only the file. */
   const attachmentWorkshop = (c: Context<Env>) => repo.getAttachment(c.req.param('id')!)?.workshopId ?? null
+  /** An attachment for the owner's routes, whose rule looks at no workshop: one in the trash stays as it went in. */
+  const attachmentInUse = (id: string) => {
+    const att = repo.getAttachment(id)
+    return att && repo.hasWorkshop(att.workshopId) ? att : null
+  }
 
   // Guests' uploads per day and their open live-update streams, kept in memory: a restart starts afresh.
   const uploaded = new Map<string, { day: string; bytes: number }>()
@@ -186,9 +191,10 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
   app.delete('/api/trash/:id', allow('owner'), async (c) => {
     const id = c.req.param('id')!
-    const files = repo.inTrash(id) ? repo.deleteWorkshop(id) : null
-    if (!files) return c.json({ error: 'not_found' }, 404)
-    await Promise.all(files.map((f) => rm(filePath(f), { force: true })))
+    if (!repo.inTrash(id)) return c.json({ error: 'not_found' }, 404)
+    // Files first: when one cannot go, the records still say what is left, and this can be tried again.
+    await Promise.all(repo.attachmentIdsOf(id).map((f) => rm(filePath(f), { force: true })))
+    repo.deleteWorkshop(id)
     return c.json({ ok: true })
   })
 
@@ -353,7 +359,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
 
   // A new version under the same id: the links to the items stay. It wipes the old file, so like deleting it is the owner's.
   app.put('/api/attachments/:id/file', allow('owner'), async (c) => {
-    const att = repo.getAttachment(c.req.param('id')!)
+    const att = attachmentInUse(c.req.param('id')!)
     if (!att) return c.json({ error: 'not_found' }, 404)
     const upload = await attachmentUpload(c)
     if (upload instanceof Response) return upload
@@ -366,6 +372,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   app.delete('/api/attachments/:id', allow('owner'), async (c) => {
+    if (!attachmentInUse(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
     const result = repo.deleteAttachment(c.req.param('id')!)
     if (!result) return c.json({ error: 'not_found' }, 404)
     await rm(filePath(c.req.param('id')!), { force: true })
