@@ -29,7 +29,5 @@ export const pageUrl = (path: string): string => `${current}${path}`
 /** The address of something in the API; `path` starts with a slash. */
 export const apiUrl = (path: string, base = current): string => `${base}${API}${path}`
 
-export const isApiUrl = (url: string): boolean => url.startsWith(`${current}${API}/`)
-
 /** The address of a theme's folder, or of a file in it (`theme.css`, a logo, a font). */
 export const themeUrl = (id: string, file = '', base = current): string => apiUrl(`/themes/${encodeURIComponent(id)}/${file}`, base)

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { apiUrl, cleanBasePath, isApiUrl, localName, pageUrl, setBasePath, themeUrl } from './addresses'
+import { apiUrl, cleanBasePath, localName, pageUrl, setBasePath, themeUrl } from './addresses'
 import { themeFileUrls, themeLogoUrl } from './theme'
 
 describe('addresses of the API', () => {
@@ -7,12 +7,6 @@ describe('addresses of the API', () => {
     expect(apiUrl('/me')).toBe('/api/me')
     expect(themeUrl('brand')).toBe('/api/themes/brand/')
     expect(themeUrl('my theme', 'theme.css')).toBe('/api/themes/my%20theme/theme.css')
-  })
-
-  it('tell an address in the API from others', () => {
-    expect(isApiUrl('/api/themes/brand/logo?v=1')).toBe(true)
-    expect(isApiUrl('/apiary/x')).toBe(false)
-    expect(isApiUrl('/assets/x.js')).toBe(false)
   })
 })
 
@@ -24,8 +18,6 @@ describe('a base path', () => {
     expect(pageUrl('/w/1/present')).toBe('/base/one/w/1/present')
     expect(apiUrl('/me')).toBe('/base/one/api/me')
     expect(themeUrl('brand', 'theme.css')).toBe('/base/one/api/themes/brand/theme.css')
-    expect(isApiUrl('/base/one/api/themes/brand/logo')).toBe(true)
-    expect(isApiUrl('/api/themes/brand/logo')).toBe(false)
   })
 
   it('can be handed in, as a server holding several apps does, whatever the page has set', () => {

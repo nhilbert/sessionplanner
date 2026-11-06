@@ -1,10 +1,11 @@
 import { type AssetScope, assetUrl } from '@/api'
-import { isApiUrl, themeUrl } from '@/domain/addresses'
+import { themeUrl } from '@/domain/addresses'
 import i18n from '@/i18n'
 import type { DeckSlideRef } from '@/domain/deck'
 import { cjkCodePoints, codePoints } from '@/domain/deck'
 import { esc } from '@/domain/slides'
 import { hostHtml, themeGround } from './SlideView'
+import { inlineThemeFiles, isThemeMedia } from './themeFiles'
 import slidesCss from './slides.css?raw'
 import defaultThemeCss from './themes/default.css?raw'
 import notoCss from '@fontsource/noto-sans-jp/400.css?raw'
@@ -31,9 +32,9 @@ const HOSTED: { family: string; css: string; files: FontFiles }[] = [
   { family: 'Lato', css: [lato300, lato400, lato400i, lato700, lato900].join('\n'), files: import.meta.glob('/node_modules/@fontsource/lato/files/lato-*-{300,400,700,900}-{normal,italic}.woff2', { query: '?url', import: 'default' }) as FontFiles },
 ]
 
-const toDataUrl = async (url: string): Promise<string | null> => {
-  const res = await fetch(url).catch(() => null)
-  if (!res?.ok) return null
+const toDataUrl = async (url: string, accepts?: (type: string) => boolean): Promise<string | null> => {
+  const res = await fetch(url, accepts ? { redirect: 'error' } : undefined).catch(() => null)
+  if (!res?.ok || (accepts && !accepts(res.headers.get('content-type') ?? ''))) return null
   const blob = await res.blob()
   return new Promise((resolve) => {
     const reader = new FileReader()
@@ -55,14 +56,7 @@ async function themeCss(theme: string): Promise<{ id: string; css: string }> {
   const res = await fetch(`${base}theme.css`).catch(() => null)
   if (res?.status === 404) return { id: 'default', css: defaultThemeCss }
   if (!res?.ok) throw new Error(i18n.t('slides.themeUnavailable'))
-  let css = await res.text()
-  // Relative addresses are files beside a folder theme; addresses in the API are the logos of a data theme.
-  const refs = [...new Set([...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^(data:|https?:)/.test(u) && (!u.startsWith('/') || isApiUrl(u))))]
-  for (const ref of refs) {
-    const data = await toDataUrl(ref.startsWith('/') ? ref : base + ref.replace(/^\.\//, ''))
-    if (data) css = css.split(`url(${ref})`).join(`url(${data})`).split(`url('${ref}')`).join(`url('${data}')`).split(`url("${ref}")`).join(`url("${data}")`)
-  }
-  return { id: theme, css }
+  return { id: theme, css: await inlineThemeFiles(await res.text(), base, (url) => toDataUrl(url, isThemeMedia)) }
 }
 
 /** Whether a stylesheet names a font family in a font stack, quoted ('Inter Variable') or not (Lato). */
