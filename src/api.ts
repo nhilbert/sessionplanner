@@ -184,6 +184,7 @@ export const api = {
   downloadUrl: (attachmentId: string) => apiUrl(`/attachments/${attachmentId}`),
   /** ZIP archives (server/exports.ts), the owner's: one workshop with its files and pictures; all data; all media. */
   workshopExportUrl: (id: string) => apiUrl(`/workshops/${id}/export`),
+  storage: () => call<{ used: number; limit: number | null }>('/storage'),
   dataExportUrl: () => apiUrl('/export/data'),
   mediaExportUrl: () => apiUrl('/export/media'),
   libraryFileUrl: (attachmentId: string) => apiUrl(`/library/attachments/${attachmentId}`),

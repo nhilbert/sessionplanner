@@ -588,6 +588,19 @@ describe('the storage of a set of data', () => {
     expect(repo.listWorkshops()).toHaveLength(1)
   })
 
+  it('says what is used and what may be, for the settings', async () => {
+    const { app } = setup({ quotas: { storage: 1000 } })
+    const id = (await create(app)).workshop.id
+    expect(await (await app.request(`${BASE}/api/storage`)).json()).toEqual({ used: 0, limit: 1000 })
+    await file(app, `/api/workshops/${id}/attachments`, '12345678')
+    expect(await (await app.request(`${BASE}/api/storage`)).json()).toEqual({ used: 8, limit: 1000 })
+  })
+
+  it('says there is no limit when there is none', async () => {
+    const { app } = setup()
+    expect(await (await app.request(`${BASE}/api/storage`)).json()).toEqual({ used: 0, limit: null })
+  })
+
   it('frees room when a workshop leaves the trash for good, not before', async () => {
     const { app } = setup({ quotas: { storage: 10 } })
     const id = (await create(app)).workshop.id

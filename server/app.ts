@@ -243,6 +243,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const stream = state && workshopZip(repo, filesDir, state.workshop.id)
     return stream ? sendZip(c, stream, workshopZipName(state)) : c.json({ error: 'not_found' }, 404)
   })
+  app.get('/api/storage', allow('owner'), (c) => c.json({ used: budget.used(), limit: budget.allowed() }))
   app.get('/api/export/data', allow('owner'), (c) => sendZip(c, dataZip(repo), `session-planner-data-${exportDate()}.zip`))
   app.get('/api/export/media', allow('owner'), (c) => sendZip(c, mediaZip(repo, filesDir, themesDir), `session-planner-media-${exportDate()}.zip`))
 

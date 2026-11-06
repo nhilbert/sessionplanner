@@ -201,7 +201,8 @@ export function newItem(t: TFunction, workshopId: string, dayId: string | null, 
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(1).replace(/\.0$/, '')} GB`
 }
 
 /** A length typed in any common form ("90", "1:30", "1h30", "1,5 h"); shows "1 h 30 min" while not editing. */

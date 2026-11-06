@@ -9,6 +9,7 @@ import { changeLocale } from '@/i18n'
 import { Button, DownloadButton, IconButton, PageHeader, SectionLabel, Segmented } from '@/components/ui'
 import Swatches from '@/components/Swatches'
 import AgentConnections from '@/components/AgentConnections'
+import StorageSection from '@/components/StorageSection'
 import { TextField, TimeField } from '@/planner/fields'
 import { ThemeSelect } from '@/slides/ThemeSelect'
 import { ManageThemes } from '@/slides/DeckPanel'
@@ -134,6 +135,8 @@ export default function SettingsPage() {
             }}
           />
         </section>
+
+        <StorageSection />
 
         {ownerOnlyPart(
           <section className="card mb-6 p-5">

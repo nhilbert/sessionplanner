@@ -174,6 +174,7 @@ const ROUTES: Route[] = [
   { route: 'DELETE /api/attachments/:id', access: 'owner' },
 
   // Settings
+  { route: 'GET /api/storage', access: 'owner' },
   { route: 'GET /api/export/data', access: 'owner' },
   { route: 'GET /api/export/media', access: 'owner' },
   { route: 'PUT /api/settings', access: 'owner', body: () => ({ categories: [], theme: '', dayStart: 540, dayEnd: null }) },

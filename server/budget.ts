@@ -41,6 +41,12 @@ export class StorageBudget {
     this.workshopFiles = workshopFiles
   }
 
+  /** What may be stored; null without a limit. */
+  allowed(): number | null {
+    const limit = this.limit()
+    return limit === Infinity ? null : limit
+  }
+
   /** What is stored now. */
   used(): number {
     return this.repo.storedBytes(LOGO_BYTES)
