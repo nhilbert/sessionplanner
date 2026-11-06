@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 let workshopSharing = true
 let workshopTool: ((workshopId: string) => ReactNode) | undefined
 let settingsSection: (() => ReactNode) | undefined
+let fullExport: ((section: ReactNode) => ReactNode) | undefined
 let product = 'Session Planner'
 
 export const setProduct = (name = 'Session Planner'): void => {
@@ -33,3 +34,10 @@ export const setSettingsSection = (section: (() => ReactNode) | undefined): void
 
 /** What a build shows at the end of the owner's settings, or nothing. */
 export const settingsSectionOf = (): ReactNode => settingsSection?.() ?? null
+
+export const setFullExport = (wrap: ((section: ReactNode) => ReactNode) | undefined): void => {
+  fullExport = wrap
+}
+
+/** The export of all data and media in the settings, as a build wants it shown: one whose owners are not all equal can hold it back. */
+export const fullExportOf = (section: ReactNode): ReactNode => (fullExport ? fullExport(section) : section)

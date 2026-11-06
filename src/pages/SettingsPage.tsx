@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Plus, Trash2, Upload } from 'lucide-react'
 import { api } from '@/api'
-import { settingsSectionOf } from '@/features'
+import { fullExportOf, settingsSectionOf } from '@/features'
 import { newId } from '@/domain/ops'
 import { categoryName, useSettings } from '@/store/useSettings'
 import { changeLocale } from '@/i18n'
@@ -135,21 +135,23 @@ export default function SettingsPage() {
           />
         </section>
 
-        <section className="card mb-6 p-5">
-          <SectionLabel>{t('settings.export')}</SectionLabel>
-          <p className="mb-3 text-[13px] text-ink-3">{t('settings.exportHint')}</p>
-          <div className="flex flex-wrap gap-2">
-            <DownloadButton size="sm" href={api.dataExportUrl()}>
-              <Download size={13} />
-              {t('settings.exportData')}
-            </DownloadButton>
-            <DownloadButton size="sm" href={api.mediaExportUrl()}>
-              <Download size={13} />
-              {t('settings.exportMedia')}
-            </DownloadButton>
-          </div>
-          <p className="mt-2 text-[13px] text-ink-3">{t('settings.exportMediaHint')}</p>
-        </section>
+        {fullExportOf(
+          <section className="card mb-6 p-5">
+            <SectionLabel>{t('settings.export')}</SectionLabel>
+            <p className="mb-3 text-[13px] text-ink-3">{t('settings.exportHint')}</p>
+            <div className="flex flex-wrap gap-2">
+              <DownloadButton size="sm" href={api.dataExportUrl()}>
+                <Download size={13} />
+                {t('settings.exportData')}
+              </DownloadButton>
+              <DownloadButton size="sm" href={api.mediaExportUrl()}>
+                <Download size={13} />
+                {t('settings.exportMedia')}
+              </DownloadButton>
+            </div>
+            <p className="mt-2 text-[13px] text-ink-3">{t('settings.exportMediaHint')}</p>
+          </section>
+        )}
 
         <AgentConnections />
         {settingsSectionOf()}
