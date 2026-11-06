@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Copy, ExternalLink, Plus, Trash2, UserMinus, UserPlus, X } from 'lucide-react'
+import { Copy, Download, ExternalLink, Plus, Trash2, UserMinus, UserPlus, X } from 'lucide-react'
 import { type Attachment, type Member, type MemberRole, type PackingState, TRASH_DAYS, type WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
 import { packingList } from '@/domain/packing'
 import { api, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
-import { Button, Checkbox, cx, Field, IconButton, Input, Modal, Segmented } from '@/components/ui'
+import { Button, Checkbox, cx, DownloadButton, Field, IconButton, Input, Modal, Segmented } from '@/components/ui'
 import { sortedDays } from '@/domain/order'
 import { QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
@@ -55,6 +55,10 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
       {owner && (
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <DuplicateButton data={data} />
+        <DownloadButton size="sm" href={api.workshopExportUrl(w.id)} title={t('workshop.exportHint')}>
+          <Download size={13} />
+          {t('workshop.export')}
+        </DownloadButton>
         <Button size="sm" onClick={() => set({ archived: !w.archived })}>
           {w.archived ? t('workshop.unarchive') : t('workshop.archive')}
         </Button>

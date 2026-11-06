@@ -165,6 +165,7 @@ const ROUTES: Route[] = [
   { route: 'GET /api/trash', access: 'owner' },
   { route: 'POST /api/trash/:id/restore', access: 'owner' },
   { route: 'DELETE /api/trash/:id', access: 'owner' },
+  { route: 'GET /api/workshops/:id/export', access: 'owner' },
   { route: 'GET /api/workshops/:id/members', access: 'owner' },
   { route: 'PUT /api/workshops/:id/members/:email', access: 'owner', body: () => ({ role: 'view', showNotes: true }) },
   { route: 'DELETE /api/workshops/:id/members/:email', access: 'owner' },
@@ -173,6 +174,8 @@ const ROUTES: Route[] = [
   { route: 'DELETE /api/attachments/:id', access: 'owner' },
 
   // Settings
+  { route: 'GET /api/export/data', access: 'owner' },
+  { route: 'GET /api/export/media', access: 'owner' },
   { route: 'PUT /api/settings', access: 'owner', body: () => ({ categories: [], theme: '', dayStart: 540, dayEnd: null }) },
   { route: 'POST /api/settings/logo', access: 'owner', body: pictureForm },
   { route: 'DELETE /api/settings/logo', access: 'owner' },

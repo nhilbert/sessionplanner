@@ -160,7 +160,9 @@
     "duplicateHint": "Kopiert Tage, Gruppen, Punkte, Material und Dateien. Die Packliste beginnt unabgehakt.",
     "days": "Tage",
     "branding": "Branding (Theme)",
-    "brandingHint": "Bestimmt die Folien und das Logo auf den Ausdrucken dieses Workshops. Hat das Theme kein Logo für Papier, steht dort das Ausdruck-Logo aus den Einstellungen. Themes werden unter Folien → Themes bearbeitet."
+    "brandingHint": "Bestimmt die Folien und das Logo auf den Ausdrucken dieses Workshops. Hat das Theme kein Logo für Papier, steht dort das Ausdruck-Logo aus den Einstellungen. Themes werden unter Folien → Themes bearbeitet.",
+    "export": "Als ZIP exportieren",
+    "exportHint": "Lädt den Workshop mit allen Tagen, Punkten, Notizen, Dateien und Folienbildern als ZIP herunter."
   },
   "packing": {
     "empty": "Noch kein Material. Ergänze Material an den Agendapunkten.",
@@ -295,7 +297,12 @@
     "themeHint": "Das Branding neuer Workshops: Folien und Logo der Ausdrucke. Jeder Workshop kann in seinen Details oder im Tab „Folien“ ein anderes wählen. Theme-Ordner unter data/themes (theme.css, Schriften, Logos) erscheinen ebenfalls in der Auswahl.",
     "sweepHint": "Bilder, die keine Folie mehr zeigt (in Workshops, Bibliothek, Foliensammlung oder Vorlagen), werden gelöscht.",
     "slides": "Folien",
-    "slidesHint": "Themes und Vorlagen findest du unter „Folien“ in der Navigation."
+    "slidesHint": "Themes und Vorlagen findest du unter „Folien“ in der Navigation.",
+    "export": "Export",
+    "exportHint": "Alles als ZIP herunterladen: die Daten (Workshops, Bibliothek, Foliensammlung, Themes, Vorlagen, Einstellungen) als JSON, die Medien getrennt davon.",
+    "exportData": "Daten exportieren",
+    "exportMedia": "Medien exportieren",
+    "exportMediaHint": "Die Medien sind Dateien, Folienbilder, Theme-Dateien und Logos. Ihr Verzeichnis media.json ordnet jede Datei den IDs in den Daten zu."
   },
   "categories": {
     "input": "Input",

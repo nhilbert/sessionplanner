@@ -160,7 +160,9 @@
     "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked.",
     "days": "Days",
     "branding": "Branding (theme)",
-    "brandingHint": "Sets the slides and the logo on the printouts of this workshop. If the theme has no logo for paper, the printout logo from the settings is used. Themes are edited under Slides → Themes."
+    "brandingHint": "Sets the slides and the logo on the printouts of this workshop. If the theme has no logo for paper, the printout logo from the settings is used. Themes are edited under Slides → Themes.",
+    "export": "Export as ZIP",
+    "exportHint": "Downloads the workshop with all days, items, notes, files and slide pictures as a ZIP."
   },
   "packing": {
     "empty": "No material yet. Add material to the agenda items.",
@@ -295,7 +297,12 @@
     "themeHint": "The branding of new workshops: slides and the logo on printouts. Each workshop can choose another in its details or its Slides tab. Theme folders under data/themes (theme.css, fonts, logos) appear in the choice too.",
     "sweepHint": "Pictures no slide shows any more (in workshops, the library, the pool or templates) are deleted.",
     "slides": "Slides",
-    "slidesHint": "Themes and templates are under “Slides” in the navigation."
+    "slidesHint": "Themes and templates are under “Slides” in the navigation.",
+    "export": "Export",
+    "exportHint": "Download everything as ZIP: the data (workshops, library, slide pool, themes, templates, settings) as JSON, the media separately.",
+    "exportData": "Export data",
+    "exportMedia": "Export media",
+    "exportMediaHint": "The media are files, slide pictures, theme files and logos. Their index media.json ties each file to the ids in the data."
   },
   "categories": {
     "input": "Input",
