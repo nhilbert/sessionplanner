@@ -84,6 +84,8 @@ Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 por
 
 ## 8. Access model
 
+This section describes the core on its own. The owner's instance of this kind was retired on 2026-11-05: the app now runs as the core of the second instance (section 10), which manages workspaces, members and guests in front of the core and has its own login. The model below still holds for anyone running the core alone.
+
 **Owner (you).** Signs in with Microsoft 365 through the existing login in front of every app (oauth2-proxy, e-mail allow-list). From stage 1, the app additionally requires the e-mail header set by the login (configurable owner list), so a routing mistake fails closed.
 
 **Guests (co-facilitators, clients).** Guests sign in like the owner: the owner invites them as guests in Entra, puts their e-mail on the login's allow-list and shares single workshops with them in the sidebar (Zugriff). A guest sees only the workshops shared with their e-mail.
@@ -104,7 +106,7 @@ How it is enforced:
 - The reverse proxy strips `X-Auth-Request-Email` from incoming requests; the login sets it. With `SP_PROXY_SECRET` the header counts only on requests that carry the proxy's secret (section 11).
 - Guests share the owner's origin, so nothing a guest writes may run as code: notes are rendered as text (or sanitised Markdown), a strict Content-Security-Policy, attachments as downloads only (section 5). What a guest may upload and hold open is limited (section 10, 2026-11-01, slides).
 
-On the owner's hosted instance there is no public access, so no share links: every person reaches the app through the Microsoft login, guests included. Draft 4 planned links without an account (a token per link, with a label, password and expiry); they were dropped for this reason, and guest access went in by signed-in e-mail on 2026-10-29. So a guest needs an invitation at the login, and there is no password or expiry per guest. Only machines come past the login, each with its own credentials: agents over `/mcp` and OAuth, and the CRM's link list (section 11).
+On the owner's retired instance there was no public access, so no share links: every person reached the app through the Microsoft login, guests included. The second instance can share an agenda by link (section 10). Draft 4 planned links without an account (a token per link, with a label, password and expiry); they were dropped for this reason, and guest access went in by signed-in e-mail on 2026-10-29. So a guest needs an invitation at the login, and there is no password or expiry per guest. Only machines come past the login, each with its own credentials: agents over `/mcp` and OAuth, and the CRM's link list (section 11).
 
 ## 9. Stages and backlog
 
@@ -130,6 +132,18 @@ On the owner's hosted instance there is no public access, so no share links: eve
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
 
 ## 10. Decisions
+
+**2026-11-06, after a review of the whole code**
+
+- Library files follow their ids through a save, not the place of their items: taking an item out of a group no longer hands its files to the next one. Files of an item taken out go; a file added meanwhile stays with its item.
+- A guest places only pictures the workshop holds or has held, what they uploaded to it and what a theme offers everybody (`mayPlace`, table `workshop_assets`). Reading still goes by what the slides show, which is safe only because of this check. A workshop remembers what it has held, or undo would fail.
+- A build can give a set of data a storage budget (`server/budget.ts`): all files, pictures and theme files count, the trash too, through uploads, copies and duplicates, for agents as well. A write holds its room before it writes, so parallel uploads cannot pass a limit together. The settings show what is used. Without a budget there is no limit.
+- A workshop has a `revision` that rises with every change and is kept in the database. Snapshots and live events name it, so a window keeps what comes in before its first snapshot, applies nothing twice and passes over a late snapshot. There is no check for gaps, as guests receive only some events; a reconnect reads the workshop anyway.
+- Between two tabs or two people the last save wins, as before, by choice. The revision would be what a conflict check builds on.
+- Changes on their way when a workshop is left still go out, and it reads after them when opened again. Settings and agenda choices are saved one after the other, so an older state cannot arrive last. Replacing or deleting a file takes one turn per file.
+- The trash removes files before their records, so a file that cannot go is tried again. A workshop in the trash stays as it went in. The exports of all data and media hold it too, apart and marked.
+- An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
+- A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
 
 **2026-11-06, a trash for workshops**
 
@@ -273,6 +287,8 @@ The same app, not a reduced one; what differs follows the device, consistently:
 - **Guard** as in Zendo: changes only with the app's header, from its own host and origin; hosted, the owner's e-mail header must be present and listed (`SP_OWNERS`), and with `SP_PROXY_SECRET` it counts only on requests that carry the login proxy's secret, so reaching the container port past the proxy is not enough to forge it.
 - **MCP** (`/mcp`, outside `/api`, only with `SP_MCP_OAUTH=1` or `SP_MCP_TOKEN`): MCP over Streamable HTTP for AI agents, authenticated with `Authorization: Bearer` (an OAuth access token or the static token). `server/oauth.ts` serves the OAuth discovery and `/oauth/*` endpoints (clients and token hashes in `oauth_clients` / `oauth_tokens`, migration 0004); `GET/DELETE /api/mcp/connections` and `POST /api/mcp/arm` (owner only) back Settings → AI agents; hosted, a new connection can be approved only within 10 minutes after **Connect an agent** there, once, so a consent link someone else sends cannot connect their agent. The tools (`server/mcp.ts`) wrap `server/ops.ts`, which turns an agent's request into a batch of operations, validates it like the browser's, applies it through `Repo.applyOps` and publishes it on the hub. The same tools run over stdio (`npm run mcp`). See [mcp.md](mcp.md).
 - **Link list** (`GET /api/link/workshops`, only with `SP_LINK_TOKEN`): the CRM links its deliveries to workshops. It authenticates with `Authorization: Bearer` and its own token, outside the login's guard, and gets id, title, client, first and last date and the archived flag of all workshops – no agendas, notes, people or files, and nothing it could change. Hosted, it is meant to be reachable only inside the server (the reverse proxy serves it on an internal port and refuses it on the public address); the token is a second line, not the only one. The CRM keeps the workshop id and title on the delivery and links to `/w/:id`, which opens behind the login as usual.
+- **Order of changes**: `revision` on a workshop, named by snapshots and live events (section 10, 2026-11-06); `src/store/usePlanner.ts` puts them in order.
+- **Storage**: `GET /api/storage` (owner) answers what is used and the limit, null without one; `server/budget.ts` holds the room of writes under way.
 - **One container**, data in `/data` (`sessions.db`, `files/`, daily copies in `backups/`).
 - **Server setup** in a private setup repository, never here (reverse-proxy block, compose file, redirect URI of the login, deploy entry).
 - **Privacy**: this repository is public. Workshop data, files and `.env` stay in the gitignored `data/` folder; a pre-commit guard as in Zendo.
