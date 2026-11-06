@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { TFunction } from 'i18next'
 import { api } from '@/api'
+import { inOrder } from '@/domain/inOrder'
 import { type Category, DEFAULT_SETTINGS, type Item, type Me, type PaletteKey, type Settings } from '@/domain/types'
 
 /** Settings shared by all workshops (server: GET/PUT /api/settings). Saved right away, one change at a time. */
@@ -38,7 +39,11 @@ export const useSettings = create<SettingsStore>((set, get) => ({
     const settings = { ...get().settings, ...patch }
     set({ settings })
     const { logo: _logo, ...body } = settings
-    void api.saveSettings(body).catch(() => void get().load())
+    // A whole state each time: sent side by side, an older one could reach the server last and undo a newer one.
+    const { result, isLatest } = inOrder('settings', () => api.saveSettings(body))
+    void result.catch(() => {
+      if (isLatest()) void get().load()
+    })
   },
   setLogo: async (file) => set({ settings: await api.uploadLogo(file) }),
   removeLogo: async () => set({ settings: await api.deleteLogo() }),
