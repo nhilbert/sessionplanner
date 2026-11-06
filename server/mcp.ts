@@ -4,7 +4,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { z } from 'zod'
 import type { Repo } from './repo.ts'
 import { BadRequest } from './validate.ts'
-import { Ops, type OpsOptions } from './ops.ts'
+import { MAX_BATCH_ITEMS, Ops, type OpsOptions } from './ops.ts'
 import type { OAuthServer } from './oauth.ts'
 import { bearerToken, sameToken } from './guard.ts'
 import { PALETTE } from '../src/domain/types.ts'
@@ -168,7 +168,7 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
     {
       workshop: workshopRef,
       day: dayRef,
-      items: z.array(z.object({ title: z.string().min(1), ...itemFields })).min(1),
+      items: z.array(z.object({ title: z.string().min(1), ...itemFields })).min(1).max(MAX_BATCH_ITEMS),
       group: groupRef.optional().describe('Put them into this group of the day'),
       ...placement,
     },

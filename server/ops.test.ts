@@ -5,7 +5,8 @@ import path from 'node:path'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
-import { Ops } from './ops.ts'
+import { MAX_BATCH_ITEMS, Ops } from './ops.ts'
+import { BadRequest } from './validate.ts'
 import type { ServerEvent } from '../src/domain/ops.ts'
 
 function setup() {
@@ -97,6 +98,25 @@ describe('workshops and days', () => {
 })
 
 describe('items', () => {
+  it('takes a batch up to its limit, and refuses a larger one before any work and with nothing written', () => {
+    const { ops, repo } = setup()
+    const { id } = ops.workshopCreate({ title: 'Viele', date: '2026-12-01', start: '09:00' })
+    const batch = (n: number) => Array.from({ length: n }, (_, i) => ({ title: `Punkt ${i + 1}`, duration: 1 }))
+    expect(() => ops.itemCreateMany(id!, 1, batch(MAX_BATCH_ITEMS + 1))).toThrow(BadRequest)
+    expect(repo.loadWorkshop(id!)!.items).toHaveLength(0)
+    expect(ops.itemCreateMany(id!, 1, batch(MAX_BATCH_ITEMS))).toHaveLength(MAX_BATCH_ITEMS)
+    expect(repo.loadWorkshop(id!)!.items).toHaveLength(MAX_BATCH_ITEMS)
+  })
+
+  it('stops a batch as soon as renumbering the day makes it too large to store, with nothing written', () => {
+    const { ops, repo } = setup()
+    const { id } = ops.workshopCreate({ title: 'Voll', date: '2026-12-01', start: '09:00' })
+    const batch = (n: number) => Array.from({ length: n }, (_, i) => ({ title: `Punkt ${i + 1}`, duration: 1 }))
+    for (let i = 0; i < 3; i++) ops.itemCreateMany(id!, 1, batch(MAX_BATCH_ITEMS))
+    expect(() => ops.itemCreateMany(id!, 1, batch(MAX_BATCH_ITEMS), { at: 0 })).toThrow(/too many changes/)
+    expect(repo.loadWorkshop(id!)!.items).toHaveLength(3 * MAX_BATCH_ITEMS)
+  })
+
   it('drafts an agenda in order with computed times and reports what does not fit', () => {
     const { ops, hub } = setup()
     const seen: ServerEvent[] = []

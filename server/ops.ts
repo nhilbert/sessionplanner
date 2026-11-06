@@ -2,7 +2,7 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { copyEntryFiles, copyToLibrary, MAX_WORKSHOP_FILES, removeFiles } from './files.ts'
-import { BadRequest, isCalendarDate, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
+import { BadRequest, isCalendarDate, MAX_OPS, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { filePaths } from './storage.ts'
 import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
@@ -147,6 +147,9 @@ function minutes(value: string | null | undefined, field: string): number | null
 }
 
 const addDays = (date: string, n: number): string => new Date(Date.parse(date) + n * 86_400_000).toISOString().slice(0, 10)
+
+/** Items in one batch: more than any agenda needs, and small enough that placing them does not hold up the other workspaces in this process. */
+export const MAX_BATCH_ITEMS = 200
 
 export class Ops {
   private repo: Repo
@@ -555,6 +558,7 @@ export class Ops {
 
   /** Several items in order, placed one after the other at the given place (default: the end of the day). */
   itemCreateMany(ref: string, dayRef: DayRef, inputs: ItemInput[], where: Placement & { group?: string | null } = {}) {
+    if (inputs.length > MAX_BATCH_ITEMS) throw new BadRequest(`at most ${MAX_BATCH_ITEMS} items at a time`)
     const s = this.state(ref)
     const day = this.day(s, dayRef)
     const group = where.group ? this.group(s, where.group) : null
@@ -569,6 +573,8 @@ export class Ops {
       const { position, ops: moved } = this.place(working, dayId, group?.id ?? null, id, placement)
       const record = { ...this.newItem(s.workshop.id, dayId, group?.id ?? null, position, input), id }
       ops.push(...moved, { op: 'create', entity: 'item', record })
+      // Placing can renumber the whole day each time: stopped here, not after all of it, when the batch could not be stored anyway.
+      if (ops.length > MAX_OPS) throw new BadRequest('too many changes at once: place these items in smaller batches')
       created.push(record)
       const positions = new Map(moved.flatMap((o) => (o.op === 'set' && (o.entity === 'item' || o.entity === 'group') && o.fields.position !== undefined ? [[o.id, o.fields.position] as const] : [])))
       working = {

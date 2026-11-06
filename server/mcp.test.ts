@@ -10,6 +10,7 @@ import { Hub } from './hub.ts'
 import { createApp } from './app.ts'
 import { DEFAULT_TOKENS } from '../src/domain/theme.ts'
 import { mcpRoutes } from './mcp.ts'
+import { MAX_BATCH_ITEMS } from './ops.ts'
 
 const TOKEN = 'test-token'
 
@@ -67,6 +68,17 @@ describe('MCP endpoint', () => {
       ['Lagebild', '09:50', '11:00'],
     ])
     expect(repo.listWorkshops()[0]).toMatchObject({ title: 'Strategietag', itemCount: 2 })
+    await client.close()
+  })
+
+  it('refuses a batch over the limit before it does any work', async () => {
+    const { client, ready } = connect(app)
+    await ready
+    const items = Array.from({ length: MAX_BATCH_ITEMS + 1 }, (_, i) => ({ title: `Punkt ${i}` }))
+    const before = repo.listWorkshops()[0].itemCount
+    const r = await client.callTool({ name: 'item_create_many', arguments: { workshop: 'Strategietag', day: 1, items } })
+    expect(r.isError).toBe(true)
+    expect(repo.listWorkshops()[0].itemCount).toBe(before)
     await client.close()
   })
 

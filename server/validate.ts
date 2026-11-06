@@ -101,7 +101,9 @@ const op = z.union([
   z.strictObject({ op: z.literal('delete'), entity: z.enum(['day', 'group', 'item']), id }),
 ])
 
-const opsBody = z.strictObject({ clientId: z.string().max(64), ops: z.array(op).min(1).max(1000) })
+/** Changes in one batch. */
+export const MAX_OPS = 1000
+const opsBody = z.strictObject({ clientId: z.string().max(64), ops: z.array(op).min(1).max(MAX_OPS) })
 
 export function validateOps(body: unknown): { clientId: string; ops: Op[] } {
   const parsed = opsBody.safeParse(body)

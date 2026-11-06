@@ -195,7 +195,7 @@ Conventions:
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
 | `item_create` | write | `workshop`, `day`, `title`, `kind` (block \| break \| marker \| note), `duration`, `fixedStart`, `description`, `goal`, `method`, `lead`, `notes`, `materials[]` (`label`, `qty`, `link`), `category`, `color`, `slides[]` (each `html` \| `pool`), `group`, `at`, `after` | One item, by default at the end of the day. Returns it with its times and the day's warnings. |
-| `item_create_many` | write | `workshop`, `day`, `items[]` (same fields), `group`, `at`, `after` | Several items in order, e.g. a whole agenda drafted from a brief. |
+| `item_create_many` | write | `workshop`, `day`, `items[]` (same fields), `group`, `at`, `after` | Several items in order, e.g. a whole agenda drafted from a brief; up to 200 at a time. |
 | `item_update` | destructive | `workshop`, `item`, any field above, `appendNotes` | Changes an item. Changing the kind to marker or note drops the duration; `slides[]` replaces the slides (the `slide_*` tools change single ones). |
 | `item_move` | write | `workshop`, `item`, `day` (null = parking lot), `group` (null leaves the group), `at`, `after` | Moves within the day, to another day, into or out of a group, or to the parking lot. Moved to another day without a group, the item leaves its group. |
 | `item_delete` | destructive | `workshop`, `item` | Deletes for good. Agents are told to prefer the parking lot. |
