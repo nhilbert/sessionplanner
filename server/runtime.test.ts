@@ -55,6 +55,28 @@ describe('createRuntime', () => {
     expect((await call(b, `/api/workshops/${made.workshop.id}`)).status).toBe(404)
   })
 
+  it('counts the requests at work, each until its answer is there', async () => {
+    const r = start()
+    const text = new TextEncoder()
+    let finish = () => {}
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(text.encode('{"title":'))
+        finish = () => {
+          controller.enqueue(text.encode('"W"}'))
+          controller.close()
+        }
+      },
+    })
+    expect(r.running()).toBe(0)
+    const answer = call(r, '/api/workshops', { method: 'POST', body, duplex: 'half' } as RequestInit)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(r.running()).toBe(1)
+    finish()
+    expect((await answer).status).toBe(201)
+    expect(r.running()).toBe(0)
+  })
+
   it('passes live updates only within a runtime', () => {
     const a = start()
     const b = start()

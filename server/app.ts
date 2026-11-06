@@ -69,6 +69,8 @@ export interface AppOptions extends GuardOptions {
   basePath?: string
   /** Other limits than QUOTAS (tests). */
   quotas?: Partial<typeof QUOTAS>
+  /** Counts the requests at work, for whoever closes this set of data (server/runtime.ts). */
+  work?: { running: number }
   /** The budget this set of data shares with its agents (server/runtime.ts); made from the quotas without one. */
   budget?: StorageBudget
 }
@@ -79,9 +81,19 @@ const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-
 /** A request's JSON body; a missing or malformed one is the client's mistake (400), not the server's. */
 const jsonBody = (c: Context): Promise<unknown> => c.req.json().catch(() => { throw new BadRequest('invalid JSON body') })
 
-export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, basePath: givenBasePath, quotas, budget: givenBudget }: AppOptions): Hono<Env> {
+export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl, owners, ownerHeader, proxySecret, pingSeconds = 25, guestsFile, mcp, oauth, linkToken, basePath: givenBasePath, quotas, budget: givenBudget, work }: AppOptions): Hono<Env> {
   const basePath = cleanBasePath(givenBasePath)
   const app = new Hono<Env>()
+  if (work) {
+    app.use('*', async (_c, next) => {
+      work.running++
+      try {
+        await next()
+      } finally {
+        work.running--
+      }
+    })
+  }
   const quota = { ...QUOTAS, ...quotas }
   const budget = givenBudget ?? new StorageBudget(repo, () => quota.storage, quota.workshopFiles)
   const { file: filePath, asset: assetPath, darkAsset: darkAssetPath, logo: logoPath, assetsDir, darkAssetsDir, themeLogosDir, themeLogo: themeLogoPath, themeFilesDir, themeFile } = filePaths(filesDir)

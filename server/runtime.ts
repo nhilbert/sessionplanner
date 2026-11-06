@@ -40,6 +40,8 @@ export interface Runtime {
   backup: string | null
   mcp?: Hono
   oauth?: OAuthServer
+  /** The requests at work now, each until its answer starts: a stream counts no further, as nothing ends it from here. */
+  running(): number
   /** Stops the backup timer, waits for a backup under way and closes the database. Not while requests or live-update streams are open. */
   close(): Promise<void>
 }
@@ -74,6 +76,7 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
     }
     const hub = new Hub()
     const budget = new StorageBudget(repo, storageLimit)
+    const work = { running: 0 }
 
     // MCP endpoint for AI agents at /mcp: with a static token and/or OAuth for Claude's connectors (docs/mcp.md).
     // Hosted, the owners (checked by the login proxy) approve connections; locally a browser on this machine.
@@ -84,6 +87,7 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
       repo,
       hub,
       budget,
+      work,
       filesDir,
       themesDir,
       staticDir,
@@ -128,6 +132,7 @@ export function createRuntime({ dataDir, publicUrl, owners, ownerHeader, proxySe
       backup,
       mcp,
       oauth,
+      running: () => work.running,
       async close() {
         if (closed) return
         closed = true
