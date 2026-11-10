@@ -1226,7 +1226,7 @@ function translate(s: RawSlide, aspect: number, warn: (what: string) => void): D
     const tableHead = short && !head.lead ? { ...head, lead: text } : head
     out.push(...s.tables.flatMap((t) => tableSlides(tableHead, t, warn)))
     if (panels.length && !short) out.push(...textSlides(s, head, panels, warn))
-    if (pics.length) warn('further pictures')
+    out.push(...pictureRows(head, pics))
     return out
   }
 
@@ -1268,9 +1268,9 @@ function translate(s: RawSlide, aspect: number, warn: (what: string) => void): D
     const h = text && !head.lead ? { ...head, lead: text } : head
     return pictureRows(h, inReadingOrder(pics))
   }
-  // One picture stands beside the text; the others would be slides of their own that say nothing, so they are named as left out.
-  warn('further pictures')
-  return splitSlides(head, flat(panels), largest[0], isOrdered(panels), warn)
+  out.push(...splitSlides(head, flat(panels), largest[0], isOrdered(panels), warn))
+  out.push(...pictureRows(head, inReadingOrder(largest.slice(1))))
+  return out
 }
 
 /** Shapes left over that hold no text: what was drawn does not come across, only the words on it. */

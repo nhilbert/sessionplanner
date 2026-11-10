@@ -275,15 +275,15 @@ describe('deckFromPptx, the mapping', () => {
     expect(html[0]).toMatch(/^<section class="slide cards">.*<ul class="cards cols-3"><li><img class="icon" src="assets\/[^"]+" alt=""><h3>A<\/h3><p>Eine Zeile<\/p><\/li>/)
   })
 
-  it('shows several pictures side by side; beside text one picture stands, and the others are named as left out', async () => {
+  it('shows several pictures side by side, and what a split leaves over on the next slide', async () => {
     const two = picture('rA', 0.05, 0.3, 0.4, 0.5) + picture('rB', 0.55, 0.3, 0.4, 0.5)
     const images = { rA: 'a.png', rB: 'b.png' }
     const { html, found, warnings, from } = await read([{ shapes: title('Vorher und nachher') + two, images }, { shapes: title('Bilder') + body('Ein Punkt mit einigen Wörtern, die zusammen schon mehr sind als ein kurzer Satz', 'Und noch ein Punkt mit weiteren Wörtern') + two, images }], { 'a.png': png(1), 'b.png': png(2) })
     expect(html[0]).toMatch(/^<section class="slide cards">.*<ul class="cards cols-2 picture contain"><li><img src="assets\/[^"]+" alt=""><\/li>/)
     expect(layoutOf(html[1])).toBe('split')
-    expect(html).toHaveLength(2)
-    expect(from).toEqual([1, 2])
-    expect(warnings).toEqual([{ slide: 2, what: 'further pictures' }])
+    expect(layoutOf(html[2])).toBe('figure')
+    expect(from).toEqual([1, 2, 2])
+    expect(warnings).toEqual([])
     expect([...found.all.keys()].filter((p) => p.startsWith('assets/'))).toHaveLength(2)
   })
 
