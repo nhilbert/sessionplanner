@@ -621,7 +621,9 @@ function dropDecoration(slides: RawSlide[], aspect: number): void {
   for (const s of slides) {
     s.pics = s.pics.filter((p) => {
       const small = p.box.w * p.box.h < 0.1
-      return longSide(p.box, aspect) >= 0.045 && !often(pictures.get(p.media.name) ?? 0, REPEATED_PICTURE) && !(small && (placed.get(`${p.media.name}@${spot(p.box)}`) ?? 0) >= 3)
+      // A tiny picture is a bullet or an ornament, unless it sits on a text box: the icon of a heading.
+      const sized = longSide(p.box, aspect) >= 0.045 || (longSide(p.box, aspect) >= 0.015 && s.blocks.some((b) => b.free && gapBetween(p.box, b.box) === 0))
+      return sized && !often(pictures.get(p.media.name) ?? 0, REPEATED_PICTURE) && !(small && (placed.get(`${p.media.name}@${spot(p.box)}`) ?? 0) >= 3)
     })
     s.blocks = s.blocks.filter((b) => {
       if (!b.free) return true
@@ -813,15 +815,17 @@ function figureSlide(h: Head, p: Pic, caption: string): Draft {
 }
 
 /** Text beside a picture; what the column does not hold follows as a list. */
-function splitSlides(h: Head, points: Point[], p: Pic, ordered: boolean, warn: (what: string) => void): Draft[] {
-  const room = roomUnder(h)
+function splitSlides(h: Head, points: Point[], p: Pic, ordered: boolean, warn: (what: string) => void, part?: { name: string }): Draft[] {
+  // A part of a slide on a slide of its own has its name over its text, and its picture whole: it was a small picture, made to be seen in full.
+  const name = part?.name ? `<h3>${textHtml(part.name)}</h3>` : ''
+  const room = roomUnder(h) - (name ? 31 + 18 : 0)
   const runs = packed(parted(points, (run) => columnHeight(run) <= room), (run) => columnHeight(run) <= room)
   const first = runs[0]
   const whole = first.length === 1 && !first[0].kids.length
   const text = whole ? `<p>${first[0].html}</p>` : listBlock(first, ordered)
   // A photograph may be cropped to the column; a drawing or a screenshot stands whole.
-  const classes = ['split', ...(p.media.type === 'image/jpeg' ? [] : ['contain']), ...(p.box.x + p.box.w / 2 < 0.45 ? ['figure-left'] : [])].join(' ')
-  const out = [slide('split', `${header(h)}<div class="${classes}"><div class="text">${text}</div><figure><img src="assets/${p.media.name}" alt="${p.alt}"></figure></div>${footer(h)}`)]
+  const classes = ['split', ...(p.media.type === 'image/jpeg' && !part ? [] : ['contain']), ...(p.box.x + p.box.w / 2 < 0.45 ? ['figure-left'] : [])].join(' ')
+  const out = [slide('split', `${header(h)}<div class="${classes}"><div class="text">${name}${text}</div><figure><img src="assets/${p.media.name}" alt="${p.alt}"></figure></div>${footer(h)}`)]
   const rest = runs.slice(1).flat()
   return rest.length ? [...out, ...listSlides(h, rest, ordered, warn)] : out
 }
@@ -1306,13 +1310,20 @@ function pictureCards(s: RawSlide, head: Head, found: { groups: Panel[]; others:
   // No grid: a few pictures with their texts still make a row; icons over a word each are a list with decoration.
   if (!standing && (groups.length > 5 || (icons && !said))) return null
   const grid = standing ?? { cols: groups.length, rows: 1 }
-  const fits = (run: Panel[]) => cardsFit(run, grid.cols, roomUnder(h), icons ? 68 : 208)
-  const rows = fits(groups) ? [groups] : grid.rows === 2 ? [groups.slice(0, grid.cols), groups.slice(grid.cols)] : []
+  const picture = icons ? 68 : 208
+  const room = roomUnder(h)
   const apart = !icons && groups.length <= 5 && said
   let slides: Draft[]
-  if (rows.length && rows.every(fits)) slides = rows.map((run) => cardsSlide(h, run, grid.cols, icons))
-  else if (apart) slides = groups.flatMap((p) => splitSlides(h, panelPoints(p), p.pic!, false, warn))
-  else return null
+  if (cardsFit(groups, grid.cols, room, picture)) slides = [cardsSlide(h, groups, grid.cols, icons)]
+  // Two rows that one slide does not hold: side by side in one row where that fits, else a slide for each row.
+  else if (grid.rows === 2 && groups.length <= 5 && cardsFit(groups, groups.length, room, picture)) slides = [cardsSlide(h, groups, groups.length, icons)]
+  else if (grid.rows === 2 && cardsFit(groups.slice(0, grid.cols), grid.cols, room, picture) && cardsFit(groups.slice(grid.cols), grid.cols, room, picture)) slides = [groups.slice(0, grid.cols), groups.slice(grid.cols)].map((run) => cardsSlide(h, run, grid.cols, icons))
+  else if (apart) {
+    // Each part on a slide of its own, after one that shows them together by name: what the slide in the file showed at a glance.
+    const names = groups.map((p) => ({ ...p, paras: [] }))
+    const overview = groups.length >= 3 && groups.every((p) => p.head) && cardsFit(names, groups.length, room, picture) ? [cardsSlide(h, names, groups.length, false)] : []
+    slides = [...overview, ...groups.flatMap((p) => splitSlides(h, p.head ? pointsOf(p.paras) : panelPoints(p), p.pic!, false, warn, { name: p.head }))]
+  } else return null
   return short || !others.length ? slides : [...slides, ...textSlides(s, head, others, warn)]
 }
 

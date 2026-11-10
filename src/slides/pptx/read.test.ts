@@ -330,16 +330,40 @@ describe('deckFromPptx, the mapping', () => {
     expect(html[1]).toMatch(/<ul class="cards cols-3"><li><img class="icon" [^>]+><h3>Nutzerin<\/h3><ul class="list"><li>Nutzerin übernimmt, was es schon gibt, und passt es an<\/li><li>Ein Beispiel aus dem Alltag dazu<\/li><\/ul><\/li>/)
   })
 
-  it('gives a picture a slide of its own beside its text where cards are too small, and leaves icons over single words a list', async () => {
-    const figure = (x: number, y: number, rid: string, name: string) => picture(rid, x, y, 0.15, 0.3) + textBox(x, y + 0.31, 0.15, 0.05, { t: name, b: true }) + textBox(x + 0.16, y, 0.28, 0.3, ...Array.from({ length: 6 }, (_, i) => `${name}, Merkmal ${i + 1}, in einigen Worten beschrieben`))
+  it('gives a picture a slide of its own where cards are too small, whole and under its name, and leaves icons over single words a list', async () => {
+    const figure = (x: number, y: number, rid: string, name: string) => picture(rid, x, y, 0.15, 0.3) + textBox(x, y + 0.31, 0.15, 0.05, { t: name, b: true }) + textBox(x + 0.16, y, 0.28, 0.3, ...Array.from({ length: 5 }, (_, i) => `${name}, Merkmal ${i + 1}, in einigen Worten und noch etwas genauer beschrieben`))
     const word = (x: number, y: number, rid: string, t: string) => picture(rid, x, y, 0.05, 0.08) + textBox(x - 0.02, y + 0.09, 0.12, 0.05, t)
     const images = { rA: 'a.png', rB: 'b.png', rC: 'c.png' }
     const { html } = await read([{ shapes: title('Zwei Muster') + figure(0.03, 0.2, 'rA', 'Anklagen') + figure(0.52, 0.5, 'rB', 'Ablenken'), images }, { shapes: title('Ablauf') + word(0.1, 0.5, 'rA', 'Grundlagen') + word(0.4, 0.3, 'rB', 'Beispiele') + word(0.7, 0.6, 'rC', 'Praxis'), images }], { 'a.png': png(1), 'b.png': png(2), 'c.png': png(3) })
     expect(html.map(layoutOf)).toEqual(['split', 'split', 'list'])
-    expect(html[0]).toContain('Anklagen')
+    expect(html[0]).toMatch(/<div class="split contain figure-left"><div class="text"><h3>Anklagen<\/h3><ul class="list"><li>Anklagen, Merkmal 1/)
     expect(html[0]).not.toContain('Ablenken')
-    expect(html[1]).toContain('Ablenken, Merkmal 6')
+    expect(html[1]).toContain('Ablenken, Merkmal 5')
     expect(html[2]).not.toContain('<img')
+  })
+
+  it('sets two rows of pictures with their texts in one row where a slide does not hold two, and shows parts together by name before each has its slide', async () => {
+    const book = (x: number, y: number, rid: string, name: string) => picture(rid, x, y, 0.1, 0.25) + textBox(x + 0.11, y, 0.3, 0.2, `${name}, Vorname`, { t: `Ein Buch über ${name}`, b: true }, 'Beispielverlag, 2020')
+    const figure = (x: number, rid: string, name: string) => picture(rid, x, 0.25, 0.15, 0.3) + textBox(x, 0.56, 0.15, 0.05, { t: name, b: true }) + textBox(x + 0.16, 0.25, 0.15, 0.3, ...Array.from({ length: 5 }, (_, i) => `${name}, Merkmal ${i + 1}, in einigen Worten und genauer beschrieben`))
+    const images = { rA: 'a.png', rB: 'b.png', rC: 'c.png', rD: 'd.png' }
+    const { html } = await read(
+      [
+        { shapes: title('Zum Weiterlesen') + book(0.05, 0.2, 'rA', 'Alpha') + book(0.5, 0.2, 'rB', 'Beta') + book(0.05, 0.55, 'rC', 'Gamma') + book(0.5, 0.55, 'rD', 'Delta'), images },
+        { shapes: title('Drei Muster') + figure(0.02, 'rA', 'Anklagen') + figure(0.35, 'rB', 'Ablenken') + figure(0.68, 'rC', 'Beschwichtigen'), images },
+      ],
+      { 'a.png': png(1), 'b.png': png(2), 'c.png': png(3), 'd.png': png(4) },
+    )
+    expect(html.map(layoutOf)).toEqual(['cards', 'cards', 'split', 'split', 'split'])
+    expect(html[0]).toContain('<ul class="cards cols-4 picture contain">')
+    expect(html[0].match(/<li><img/g)).toHaveLength(4)
+    expect(html[1]).toMatch(/<ul class="cards cols-3 picture contain"><li><img [^>]+><h3>Anklagen<\/h3><\/li><li><img [^>]+><h3>Ablenken<\/h3><\/li>/)
+    expect(html[3]).toContain('<h3>Ablenken</h3><ul class="list"><li>Ablenken, Merkmal 1')
+  })
+
+  it('keeps a tiny picture that sits on a heading as its icon', async () => {
+    const part = (x: number, rid: string, head: string) => labelled(x, 0.25, 0.25, 0.06, head) + picture(rid, x + 0.005, 0.26, 0.025, 0.04) + ['Erstens', 'Zweitens', 'Drittens'].slice(0, x > 0.3 ? 2 : 3).map((t, i) => textBox(x + 0.02, 0.33 + i * 0.07, 0.22, 0.05, `${t} zu ${head}`)).join('')
+    const { html } = await read([{ shapes: title('Daten') + part(0.05, 'rA', 'Beschreiben') + part(0.37, 'rB', 'Einordnen') + part(0.69, 'rC', 'Erkunden'), images: { rA: 'a.png', rB: 'b.png', rC: 'c.png' } }], { 'a.png': png(1), 'b.png': png(2), 'c.png': png(3) })
+    expect(html[0]).toMatch(/<ul class="cards cols-3"><li><img class="icon" [^>]+><h3>Beschreiben<\/h3><ul class="list"><li>Erstens zu Beschreiben<\/li>/)
   })
 
   it('reads a slide that says it is an exercise as one', async () => {
