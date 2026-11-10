@@ -16,6 +16,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "import:report": "vitest run --disable-console-intercept scripts/slides/import-report.test.ts",
     "hooks:install": "git config core.hooksPath .githooks",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },

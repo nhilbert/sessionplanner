@@ -495,7 +495,7 @@
     "uploadDeck": "Deck hochladen",
     "lostPicture": "{{format}}-Bilder",
     "notesInEntries": "Sprechernotizen kommen nur mit diesen Einträgen mit: Ohne das Häkchen gehen sie verloren.",
-    "lost": {"SmartArt": "SmartArt", "chart": "Diagramme", "drawn shapes": "gezeichnete Formen", "embedded object": "eingebettete Objekte", "video": "Videos", "audio": "Audio", "ink drawing": "Freihandzeichnungen", "linked picture": "verknüpfte Bilder", "picture not found": "fehlende Bilder", "picture over 10 MB": "Bilder über 10 MB", "picture in an unknown format": "Bilder in unbekanntem Format", "more text than a slide holds": "zu viel Text für eine Folie", "more slides than a pool deck takes": "mehr Folien, als ein Deck fasst"},
+    "lost": {"SmartArt": "SmartArt", "chart": "Diagramme", "drawn shapes": "gezeichnete Formen", "embedded object": "eingebettete Objekte", "video": "Videos", "audio": "Audio", "ink drawing": "Freihandzeichnungen", "linked picture": "verknüpfte Bilder", "picture not found": "fehlende Bilder", "picture over 10 MB": "Bilder über 10 MB", "picture in an unknown format": "Bilder in unbekanntem Format", "more text than a slide holds": "zu viel Text für eine Folie", "more slides than a pool deck takes": "mehr Folien, als ein Deck fasst", "further pictures": "weitere Bilder einer Folie"},
     "uploadFile": "PowerPoint oder ZIP hochladen",
     "uploadFolder": "Ordner hochladen",
     "aiSkill": "Anleitung für KI",

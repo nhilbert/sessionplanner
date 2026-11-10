@@ -19,6 +19,8 @@ export interface PptxImport {
   found: FoundDeck
   /** The slides of the deck made from the file, which may differ from the file's: hidden ones are left out, long ones split. */
   slides: number
+  /** For each slide of the deck, the number of the slide in the file it was made from. */
+  from: number[]
   /** What came across with something missing, by the slide's number in the file, for telling the person. */
   warnings: { slide: number; what: string }[]
 }
@@ -279,6 +281,8 @@ interface Table {
   /** The first row is a heading row, the first column a heading column. */
   headRow: boolean
   headCol: boolean
+  /** Set from right to left in the file: its first column stands on the right. */
+  rtl: boolean
 }
 
 interface RawSlide {
@@ -410,7 +414,7 @@ function readTable(graphic: XmlNode, box: Box, ctx: SlideContext): void {
       ({ html: yes(tc.attrs.hMerge) || yes(tc.attrs.vMerge) ? '' : paragraphs(child(tc, 'a:txBody')).map((p) => p.html).join('<br>') }),
     ),
   ).filter((r) => r.some((c) => c.html))
-  if (rows.length) ctx.slide.tables.push({ box, rows, headRow: yes(props?.attrs.firstRow), headCol: yes(props?.attrs.firstCol) })
+  if (rows.length) ctx.slide.tables.push({ box, rows, headRow: yes(props?.attrs.firstRow), headCol: yes(props?.attrs.firstCol), rtl: yes(props?.attrs.rtl) })
 }
 
 /** The text of a SmartArt in the order of its data model, children under their parents. */
@@ -472,7 +476,7 @@ function chartTable(graphic: XmlNode, box: Box, ctx: SlideContext): void {
   if (!length || length > MAX_CHART_ROWS) return
   const head = [{ html: '' }, ...series.map((ser) => ({ html: values(child(ser, 'c:tx')).join(' ') }))]
   const body = Array.from({ length }, (_, i) => [{ html: categories[i] ?? '' }, ...columns.map((c) => ({ html: c[i] ?? '' }))])
-  ctx.slide.tables.push({ box, rows: [head, ...body], headRow: true, headCol: true })
+  ctx.slide.tables.push({ box, rows: [head, ...body], headRow: true, headCol: true, rtl: false })
 }
 
 function readFrame(el: XmlNode, t: Transform, ctx: SlideContext): void {
@@ -624,6 +628,45 @@ function dropDecoration(slides: RawSlide[], aspect: number): void {
       if (low && /^\d{1,3}$/.test(text)) return false
       return !often(labels.get(label(b)) ?? 0, low ? REPEATED_FOOTER : 0.5)
     })
+  }
+}
+
+/** What a slide shows, for telling whether the next one shows it again: its paragraphs, table cells and pictures, and what of it could not be read. */
+const shownOn = (s: RawSlide): Set<string> =>
+  new Set([...s.blocks.flatMap((b) => b.paras.map((p) => `t:${p.text}`)), ...s.tables.flatMap((t) => t.rows.flatMap((r) => r.map((c) => `c:${c.html}`))), ...s.pics.map((p) => `p:${p.media.name}`), ...s.warnings.map((w) => `w:${w}`)])
+
+/**
+ * A slide that the next one repeats with more on it is a step of a build, made by copying the slide instead of animating
+ * it; a slide the next one repeats exactly is a copy. Only the last of such a run is kept, with the notes of all. A slide
+ * with a single thing on it stays: a divider is not the first step of the slide it announces.
+ */
+function dropBuilds(slides: RawSlide[]): RawSlide[] {
+  const kept: RawSlide[] = []
+  slides.forEach((s, i) => {
+    const next = slides[i + 1]
+    const here = shownOn(s)
+    const there = next ? shownOn(next) : new Set<string>()
+    const repeated = !!next && here.size > 0 && [...here].every((k) => there.has(k)) && (here.size >= 2 || there.size === here.size)
+    if (!repeated) return void kept.push(s)
+    if (s.notes && !next.notes.includes(s.notes)) next.notes = [s.notes, next.notes].filter(Boolean).join('\n')
+  })
+  return kept
+}
+
+/**
+ * A hyphen typed to break a word in a narrow box ("Selbst-wirksamkeit") is taken out where the deck itself writes the
+ * word in one piece somewhere else. Nothing else tells such a hyphen from one that belongs to the word.
+ */
+function mendHyphens(slides: RawSlide[]): void {
+  const known = new Set<string>()
+  const paras = slides.flatMap((s) => s.blocks.flatMap((b) => b.paras))
+  for (const p of paras) for (const w of p.text.match(/\p{L}{6,}/gu) ?? []) known.add(w.toLowerCase())
+  const mend = (text: string): string => text.replace(/(\p{L}{2,})-(\p{Ll}{2,})/gu, (all, a: string, b: string) => (known.has((a + b).toLowerCase()) ? a + b : all))
+  for (const p of paras) {
+    if (!/\p{L}-\p{Ll}/u.test(p.text)) continue
+    p.text = mend(p.text)
+    p.html = mend(p.html)
+    p.lines = p.lines.map((l) => ({ text: mend(l.text), html: mend(l.html) }))
   }
 }
 
@@ -880,7 +923,10 @@ function tableSlides(h: Head, t: Table, warn: (what: string) => void): Draft[] {
   if (runs.some((run) => run.length === 1 && rowHeight(run[0]) > room)) warn('more text than a slide holds')
   const cells = (r: Cell[], tag: string) => {
     const padded = [...r, ...Array.from({ length: cols - r.length }, () => ({ html: '' }))]
-    return `<tr>${padded.map((c, i) => `<${tag}>${tag === 'td' && i === 0 && t.headCol && c.html ? `<strong>${c.html}</strong>` : c.html}</${tag}>`).join('')}</tr>`
+    // The slide reads from the left, so a table set from right to left is turned round: its columns stand where they stood.
+    const placed = t.rtl ? padded.reverse() : padded
+    const heading = t.rtl ? cols - 1 : 0
+    return `<tr>${placed.map((c, i) => `<${tag}>${tag === 'td' && i === heading && t.headCol && c.html ? `<strong>${c.html}</strong>` : c.html}</${tag}>`).join('')}</tr>`
   }
   const thead = headRow ? `<thead>${cells(headRow, 'th')}</thead>` : ''
   return (runs.length ? runs : [[]]).map((run) =>
@@ -953,8 +999,12 @@ function inferredTitle(blocks: Block[]): Block | undefined {
   const sized = [...blocks].sort((a, b) => sizeOf(b) - sizeOf(a))
   const [first, second] = sized
   if (first && sizeOf(first) > 0 && fits(first) && (!second || sizeOf(first) >= sizeOf(second) * 1.2)) return first
+  const bold = (b: Block) => blocks.length > 1 && b.box.y < 0.25 && b.paras.length === 1 && b.paras[0].bold && fits(b)
   const top = inReadingOrder(blocks)[0]
-  return top && blocks.length > 1 && top.box.y < 0.25 && top.paras.length === 1 && top.paras[0].bold && fits(top) ? top : undefined
+  if (top && bold(top)) return top
+  // The one bold line near the top, wherever it stands: a title set to the right of the text is still the title.
+  const lines = blocks.filter(bold)
+  return lines.length === 1 ? lines[0] : undefined
 }
 
 /** The heading of a slide, and the blocks that are left for its content. */
@@ -963,10 +1013,19 @@ function headOf(s: RawSlide): { head: Head; rest: Block[]; cover: boolean } {
   const seen = new Set<string>()
   const unique = s.blocks.filter((b) => /[\p{L}\p{N}]/u.test(textOf(b)) && !seen.has(textOf(b)) && !!seen.add(textOf(b)))
   const placed = unique.find((b) => b.ph === 'title' || b.ph === 'ctrTitle')
-  const titleBlock = placed ?? inferredTitle(unique.filter((b) => b.free || b.ph === 'subTitle'))
+  // Without a title of any kind, a subtitle is the title: a cover made from the subtitle alone.
+  const titleBlock = placed ?? inferredTitle(unique.filter((b) => b.free || b.ph === 'subTitle')) ?? unique.find((b) => b.ph === 'subTitle' && words(textOf(b)) <= 16)
   let rest = unique.filter((b) => b !== titleBlock)
   const head: Head = { eyebrow: '', title: '', lead: '', source: '' }
   if (titleBlock) Object.assign(head, titleParts(titleBlock))
+  else if (rest.length === 1 && !s.tables.length) {
+    // One text box with everything in it: a short first line set apart from the text under it is the slide's title.
+    const [first, second] = rest[0].paras
+    if (second && words(first.text) <= 8 && headsOver(first, second)) {
+      head.title = first.text.replace(/(?<![.…])\.$/, '')
+      rest = [{ ...rest[0], paras: rest[0].paras.slice(1) }]
+    }
+  }
   const subtitle = rest.find((b) => b.ph === 'subTitle')
   if (subtitle) {
     head.lead = [head.lead, textOf(subtitle)].filter(Boolean).join(' ')
@@ -1167,7 +1226,7 @@ function translate(s: RawSlide, aspect: number, warn: (what: string) => void): D
     const tableHead = short && !head.lead ? { ...head, lead: text } : head
     out.push(...s.tables.flatMap((t) => tableSlides(tableHead, t, warn)))
     if (panels.length && !short) out.push(...textSlides(s, head, panels, warn))
-    out.push(...pictureRows(head, pics))
+    if (pics.length) warn('further pictures')
     return out
   }
 
@@ -1209,9 +1268,9 @@ function translate(s: RawSlide, aspect: number, warn: (what: string) => void): D
     const h = text && !head.lead ? { ...head, lead: text } : head
     return pictureRows(h, inReadingOrder(pics))
   }
-  out.push(...splitSlides(head, flat(panels), largest[0], isOrdered(panels), warn))
-  out.push(...pictureRows(head, inReadingOrder(largest.slice(1))))
-  return out
+  // One picture stands beside the text; the others would be slides of their own that say nothing, so they are named as left out.
+  warn('further pictures')
+  return splitSlides(head, flat(panels), largest[0], isOrdered(panels), warn)
 }
 
 /** Shapes left over that hold no text: what was drawn does not come across, only the words on it. */
@@ -1260,20 +1319,23 @@ function build(fileName: string, pkg: Package): PptxImport {
   const ids = kids(child(pres, 'p:sldIdLst'), 'p:sldId')
   if (ids.length > MAX_SLIDE_PARTS) throw new BadXml('It holds too many slides.')
   const deck = { width, height, media: new Map<string, Media | string>(), layouts: new Map<string, Map<string, Box>>() }
-  const raw: RawSlide[] = []
+  const read: RawSlide[] = []
   ids.forEach((id, i) => {
     const rel = pkg.rels(main).get(id.attrs['r:id'] ?? '')
     if (!rel || rel.external) throw new BadXml(`Slide ${i + 1} is missing.`)
     const slide = readSlide(pkg, rel.target, i + 1, deck)
-    if (slide) raw.push(slide)
+    if (slide) read.push(slide)
   })
-  dropDecoration(raw, aspect)
+  dropDecoration(read, aspect)
+  mendHyphens(read)
+  const raw = dropBuilds(read)
 
   const title = fileName.replace(/\.[^.]*$/, '').trim().slice(0, MAX_NAME) || 'PowerPoint'
   const warnings: PptxImport['warnings'] = []
   const fragments: File[] = []
   const all = new Map<string, File>()
   const noted: Parameters<typeof entriesOf>[1] = []
+  const from: number[] = []
   for (const s of raw) {
     warnDrawing(s, aspect)
     const drafts = translate(s, aspect, (what) => s.warnings.push(what))
@@ -1285,6 +1347,7 @@ function build(fileName: string, pkg: Package): PptxImport {
       const name = `${String(fragments.length + 1).padStart(3, '0')}-${draft.layout}.html`
       const file = fileOf(name, draft.html, 'text/html')
       fragments.push(file)
+      from.push(s.n)
       all.set(name, file)
       files.push(name)
       for (const m of draft.html.matchAll(/src="assets\/([^"]+)"/g)) {
@@ -1299,7 +1362,7 @@ function build(fileName: string, pkg: Package): PptxImport {
 
   const meta: DeckMeta = { title, source: fileName.slice(0, MAX_NAME), entries: entriesOf(title, noted) }
   all.set('deck.json', fileOf('deck.json', JSON.stringify(meta), 'application/json'))
-  return { found: { folder: '', meta, fragments, all }, slides: fragments.length, warnings }
+  return { found: { folder: '', meta, fragments, all }, slides: fragments.length, from, warnings }
 }
 
 /** The deck in a .pptx, in the form findDecks gives, so importDeck takes it. Throws an Error that says why for what is no readable deck. */

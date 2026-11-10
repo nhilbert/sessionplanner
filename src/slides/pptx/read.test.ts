@@ -229,6 +229,11 @@ describe('deckFromPptx, the mapping', () => {
     expect(html[0]).toBe('<section class="slide table"><header><h2>Zwei Wege</h2></header><table><thead><tr><th></th><th>Konsens</th><th>Konsent</th></tr></thead><tbody><tr><td><strong>Frage</strong></td><td>Sind alle dafür?</td><td>Hat jemand einen Einwand?</td></tr><tr><td><strong>Tempo</strong></td><td>Langsam</td><td></td></tr></tbody></table></section>')
   })
 
+  it('turns a table set from right to left round, so its columns stand where they stood', async () => {
+    const { html } = await read([{ shapes: title('Übersicht') + table('rtl="1" firstRow="1" firstCol="1"', row(cell('Gruppe'), cell('Bedarf'), cell('Stärken')), row(cell('Kundschaft'), cell('Tempo'), cell('Nähe'))) }])
+    expect(html[0]).toContain('<thead><tr><th>Stärken</th><th>Bedarf</th><th>Gruppe</th></tr></thead><tbody><tr><td>Nähe</td><td>Tempo</td><td><strong>Kundschaft</strong></td></tr></tbody>')
+  })
+
   it('continues a long table on the next slide under the same heading row, and sets a wide one compact', async () => {
     const rows = Array.from({ length: 24 }, (_, i) => row(cell(`Zeile ${i}`), cell('Wert')))
     const wide = row(cell('a'), cell('b'), cell('c'), cell('d'), cell('e'))
@@ -270,14 +275,32 @@ describe('deckFromPptx, the mapping', () => {
     expect(html[0]).toMatch(/^<section class="slide cards">.*<ul class="cards cols-3"><li><img class="icon" src="assets\/[^"]+" alt=""><h3>A<\/h3><p>Eine Zeile<\/p><\/li>/)
   })
 
-  it('shows several pictures side by side, and what a split leaves over on the next slide', async () => {
+  it('shows several pictures side by side; beside text one picture stands, and the others are named as left out', async () => {
     const two = picture('rA', 0.05, 0.3, 0.4, 0.5) + picture('rB', 0.55, 0.3, 0.4, 0.5)
     const images = { rA: 'a.png', rB: 'b.png' }
-    const { html, found } = await read([{ shapes: title('Vorher und nachher') + two, images }, { shapes: title('Bilder') + body('Ein Punkt mit einigen Wörtern, die zusammen schon mehr sind als ein kurzer Satz', 'Und noch ein Punkt mit weiteren Wörtern') + two, images }], { 'a.png': png(1), 'b.png': png(2) })
+    const { html, found, warnings, from } = await read([{ shapes: title('Vorher und nachher') + two, images }, { shapes: title('Bilder') + body('Ein Punkt mit einigen Wörtern, die zusammen schon mehr sind als ein kurzer Satz', 'Und noch ein Punkt mit weiteren Wörtern') + two, images }], { 'a.png': png(1), 'b.png': png(2) })
     expect(html[0]).toMatch(/^<section class="slide cards">.*<ul class="cards cols-2 picture contain"><li><img src="assets\/[^"]+" alt=""><\/li>/)
     expect(layoutOf(html[1])).toBe('split')
-    expect(layoutOf(html[2])).toBe('figure')
+    expect(html).toHaveLength(2)
+    expect(from).toEqual([1, 2])
+    expect(warnings).toEqual([{ slide: 2, what: 'further pictures' }])
     expect([...found.all.keys()].filter((p) => p.startsWith('assets/'))).toHaveLength(2)
+  })
+
+  it('takes a short first line set apart in the only text box as the title, and a subtitle where there is no title', async () => {
+    const box = textBox(0.1, 0.1, 0.8, 0.8, { t: '2. Offene Fragen', b: true, sz: 24, num: true }, { t: 'Fragen, auf die niemand mit Ja oder Nein antworten kann', sz: 18 }, { t: 'Was denken Sie darüber?', sz: 18 })
+    const plain = textBox(0.1, 0.1, 0.8, 0.8, 'Erste Zeile ohne Auszeichnung', 'Zweite Zeile', 'Dritte Zeile')
+    const { html } = await read([{ shapes: box }, { shapes: plain }, { shapes: subtitle('Teamtag im Herbst') + textBox(0.2, 0.8, 0.5, 0.08, { t: 'Moderation: Kim Beispiel', sz: 24 }) }])
+    expect(html[0]).toBe('<section class="slide list"><header><h2>2. Offene Fragen</h2></header><ul class="list"><li>Fragen, auf die niemand mit Ja oder Nein antworten kann</li><li>Was denken Sie darüber?</li></ul></section>')
+    expect(html[1]).not.toContain('<h2>')
+    expect(html[2]).toContain('Teamtag im Herbst')
+    expect(html[2]).toContain('Moderation: Kim Beispiel')
+  })
+
+  it('takes the one bold line near the top as the title, though it stands to the right of the text', async () => {
+    const shapes = textBox(0.65, 0.06, 0.3, 0.1, { t: 'Regeln im Gespräch', b: true, sz: 24 }) + textBox(0.15, 0.09, 0.5, 0.8, { t: 'Ich bleibe beim Thema.', sz: 24 }, { t: 'Ich frage nach, statt zu deuten.', sz: 24 })
+    const { html } = await read([{ shapes }])
+    expect(html[0]).toBe('<section class="slide list"><header><h2>Regeln im Gespräch</h2></header><ul class="list"><li>Ich bleibe beim Thema.</li><li>Ich frage nach, statt zu deuten.</li></ul></section>')
   })
 
   it('reads a slide that says it is an exercise as one', async () => {
@@ -328,6 +351,28 @@ describe('deckFromPptx, reading the file', () => {
     expect(html.join('')).not.toContain('Zwei')
     expect(html.join('')).not.toContain('Versteckt')
     expect(warnings).toEqual([{ slide: 3, what: 'chart' }])
+  })
+
+  it('keeps the last step of a build and one of two copies, with the notes of all, and leaves a divider before its slide', async () => {
+    const step = (...points: string[]) => title('Drei Schritte') + body(...points)
+    const { html, from, found } = await read([
+      { shapes: step('Sammeln'), notes: 'Erst nur sammeln lassen' },
+      { shapes: step('Sammeln', 'Ordnen') },
+      { shapes: step('Sammeln', 'Ordnen', 'Entscheiden'), notes: 'Am Ende abstimmen' },
+      { shapes: step('Sammeln', 'Ordnen', 'Entscheiden') },
+      { shapes: title('Feedback') },
+      { shapes: title('Feedback') + body('Beobachtung', 'Wirkung', 'Wunsch') },
+      { shapes: title('Feedback') + body('Etwas anderes', 'Und noch etwas') },
+    ])
+    expect(html.map(layoutOf)).toEqual(['list', 'section', 'list', 'list'])
+    expect(from).toEqual([4, 5, 6, 7])
+    expect(html[0]).toContain('<li>Sammeln</li><li>Ordnen</li><li>Entscheiden</li>')
+    expect(found.meta.entries).toEqual([{ title: 'Drei Schritte', notes: 'Erst nur sammeln lassen\nAm Ende abstimmen', slides: ['001-list.html'] }])
+  })
+
+  it('takes a hyphen out of a word the deck writes in one piece elsewhere, and leaves every other hyphen', async () => {
+    const { html } = await read([{ shapes: title('Selbstwirksamkeit') + body('Selbst-wirksamkeit und Wert-schätzung', 'Der Kick-off im Team', 'Selbst-Wirksamkeit') }])
+    expect(html[0]).toContain('<li>Selbstwirksamkeit und Wert-schätzung</li><li>Der Kick-off im Team</li><li>Selbst-Wirksamkeit</li>')
   })
 
   it('drops footers, dates and slide numbers, and whatever the layout shows', async () => {
