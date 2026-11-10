@@ -263,6 +263,8 @@ interface Block {
   ph?: string
   /** Text that is no placeholder (a text box or a shape): it may turn out to be a footer or a repeated label. */
   free: boolean
+  /** The colour of the shape the text is written on, as the file names it; none for text on the slide's ground. */
+  fill?: string
 }
 
 interface Pic {
@@ -519,7 +521,7 @@ function readShape(el: XmlNode, t: Transform, ctx: SlideContext): void {
   const blip = at(spPr, 'a:blipFill', 'a:blip')
   if (blip) pictureFrom(el, blip, box, ctx)
   if (/arrow|chevron|homePlate/i.test(shape)) slide.arrows++
-  if (paras.length) slide.blocks.push({ box, paras, ph: type, free: !ph })
+  if (paras.length) slide.blocks.push({ box, paras, ph: type, free: !ph, fill: filled ? (child(spPr, 'a:solidFill')?.children[0]?.attrs.val ?? 'filled') : undefined })
   else if (filled) {
     if (box.x <= 0.02 && box.y <= 0.02 && box.w >= 0.96 && box.h >= 0.96) slide.filled = true
     slide.shapes.push(box)
@@ -1069,13 +1071,87 @@ function panelOf(blocks: Block[]): Panel {
   return { box: unionOf(blocks.map((b) => b.box)), head, paras: head ? paras.slice(1) : paras }
 }
 
-/** Text that belongs together: what lies on one filled shape, and a heading with the text right under it. */
+/** The gap between two boxes; none where they touch or overlap. */
+const gapBetween = (a: Box, b: Box): number => Math.hypot(Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w)), Math.max(0, a.y - (b.y + b.h), b.y - (a.y + a.h)))
+
+interface Columns {
+  /** Blocks across the width, over and under the columns. */
+  before: Block[]
+  columns: Block[][]
+  after: Block[]
+  /** Every column starts with a short line set apart from what stands under it. */
+  headed: boolean
+}
+
+/** A short line that looks like a heading: by itself in its box, and how it is set. */
+const headLook = (b: Block): string => (b.paras.length === 1 && shortHead(b.paras[0]) ? `${b.paras[0].bold}|${b.paras[0].size}|${b.fill ?? ''}` : '')
+
+/**
+ * Text boxes that stand in columns with a gutter between them, where the columns are what belongs together: each
+ * under a heading of its own, or its boxes closer under each other than the columns are beside each other. Such a
+ * slide is read column by column; read row by row, the columns would be shuffled into each other. Null for
+ * everything else, a grid of cards among it, whose rows stand apart.
+ */
+function columnsOf(blocks: Block[]): Columns | null {
+  if (blocks.length < 4) return null
+  const span = unionOf(blocks.map((b) => b.box))
+  const narrow = blocks.filter((b) => b.box.w < span.w * 0.6)
+  if (narrow.length < 4) return null
+  const columns: Block[][] = []
+  const gutters: number[] = []
+  let right = -Infinity
+  for (const b of [...narrow].sort((a, c) => a.box.x - c.box.x)) {
+    if (b.box.x > right) {
+      if (columns.length) gutters.push(b.box.x - right)
+      columns.push([])
+    }
+    columns[columns.length - 1].push(b)
+    right = Math.max(right, b.box.x + b.box.w)
+  }
+  if (columns.length < 2 || columns.length > 5 || !columns.some((c) => c.length >= 3)) return null
+  const read = columns.map((c) => inReadingOrder(c))
+  const gutter = Math.min(...gutters)
+  if (gutter < 0.01) return null
+  const setApart = (c: Block[]) => c.length >= 2 && !!headLook(c[0]) && headLook(c[0]) !== headLook(c[1]) && (headsOver(c[0].paras[0], c[1].paras[0]) || (!!c[0].fill && c[0].fill !== c[1].fill))
+  const tops = read.map((c) => c[0].box.y)
+  const headed = read.every(setApart) && Math.max(...tops) - Math.min(...tops) < 0.05
+  const gaps = read.flatMap((c) => c.slice(1).map((b, i) => b.box.y - (c[i].box.y + c[i].box.h)))
+  if (!headed && Math.max(0, ...gaps) * 1.5 >= gutter) return null
+  const top = Math.min(...narrow.map((b) => b.box.y))
+  const wide = inReadingOrder(blocks.filter((b) => !narrow.includes(b)))
+  return { before: wide.filter((b) => b.box.y < top), columns: read, after: wide.filter((b) => b.box.y >= top), headed }
+}
+
+/** A headed column as panels: its heading over what stands under it, and again from every further box set like the heading. */
+function sectionsOf(column: Block[]): Panel[] {
+  const look = headLook(column[0])
+  const out: Block[][] = []
+  for (const b of column) {
+    if (headLook(b) === look || !out.length) out.push([b])
+    else out[out.length - 1].push(b)
+  }
+  return out.map((run) => ({ box: unionOf(run.map((b) => b.box)), head: run[0].paras[0].text, paras: run.slice(1).flatMap((b) => b.paras) }))
+}
+
+/** Text that belongs together: what lies on one filled shape, a heading with the text right under it, a column under its heading. */
 function panelsOf(blocks: Block[], shapes: Box[]): Panel[] {
+  const cols = columnsOf(blocks)
+  if (cols?.headed) {
+    const alone = (b: Block) => panelOf([b])
+    const sections = cols.columns.flatMap(sectionsOf)
+    // Sections that turn out to stand in a grid are cards, read row by row.
+    return [...cols.before.map(alone), ...(gridOf(sections) ? inReadingOrder(sections) : sections), ...cols.after.map(alone)]
+  }
+  const order = cols ? [...cols.before, ...cols.columns.flat(), ...cols.after] : inReadingOrder(blocks)
   const holders = shapes.filter((b) => b.w * b.h >= 0.01 && b.w * b.h <= 0.6).sort((a, b) => a.w * a.h - b.w * b.h)
+  const holds = (h: Box, b: Block) => inside(b.box, h) && b.box.w * b.box.h <= h.w * h.h * 1.05
   const held = new Map<Box, Block[]>()
   const loose: Block[] = []
-  for (const b of inReadingOrder(blocks)) {
-    const holder = b.free ? holders.find((h) => inside(b.box, h) && b.box.w * b.box.h <= h.w * h.h * 1.05) : undefined
+  for (const b of order) {
+    // A shape on a shape: the text goes with the outer one, as long as that is a part of the slide and not its ground.
+    const around = b.free ? holders.filter((h) => holds(h, b)) : []
+    const outer = [...around].reverse().find((h) => blocks.filter((o) => o.free && holds(h, o)).length <= blocks.length / 2)
+    const holder = outer ?? around[0]
     if (holder) held.set(holder, [...(held.get(holder) ?? []), b])
     else loose.push(b)
   }
@@ -1111,7 +1187,9 @@ function panelsOf(blocks: Block[], shapes: Box[]): Panel[] {
     }
   }
   for (const b of loose) if (!used.has(b)) groups.push([b])
-  return inReadingOrder(groups.map(panelOf))
+  if (!cols) return inReadingOrder(groups.map(panelOf))
+  const at = (g: Block[]) => Math.min(...g.map((b) => order.indexOf(b)))
+  return groups.sort((a, b) => at(a) - at(b)).map(panelOf)
 }
 
 /** Panels that stand in a grid: one or two rows of two to five, of about the same width. */
@@ -1134,17 +1212,108 @@ function gridOf(panels: Panel[]): { cols: number; rows: number } | null {
   return { cols, rows: rows.length }
 }
 
-/** Each picture with the panel it stands over, beside or under; null when they do not pair off. */
-function paired(panels: Panel[], pics: Pic[]): Panel[] | null {
-  if (panels.length !== pics.length) return null
-  const out = panels.map((p) => ({ ...p }))
+/** A line of words as a paragraph, for a heading that becomes text again. */
+const paraOf = (text: string): Para => ({ lines: [{ text, html: textHtml(text) }], text, html: textHtml(text), level: 0, numbered: false, plain: false, bold: false, size: 0 })
+
+/** How near a text stands to the picture it belongs to. */
+const BESIDE = 0.05
+
+/**
+ * Each picture with the text that stands right beside, over or under it, as one panel; the text that stands by no
+ * picture, and by no text of one, is left over. Null when a picture has no text of its own: then the pictures are no parts of the content.
+ */
+function withPictures(panels: Panel[], pics: Pic[]): { groups: Panel[]; others: Panel[] } | null {
+  if (pics.length < 2 || pics.length > 10 || panels.length < pics.length) return null
+  const beside = besidePictures(panels, pics)
+  if (panels.length !== pics.length || (beside && !beside.others.length)) return beside
+  // As many texts as pictures, though not side by side: they pair off by nearness alone, however far a caption stands under its picture.
+  const groups = panels.map((p) => ({ ...p }))
   for (const pic of pics) {
     const c = centre(pic.box)
-    const near = out.filter((p) => !p.pic).sort((a, b) => Math.hypot(centre(a.box).x - c.x, centre(a.box).y - c.y) - Math.hypot(centre(b.box).x - c.x, centre(b.box).y - c.y))[0]
-    if (!near) return null
+    const near = groups.filter((p) => !p.pic).sort((a, b) => Math.hypot(centre(a.box).x - c.x, centre(a.box).y - c.y) - Math.hypot(centre(b.box).x - c.x, centre(b.box).y - c.y))[0]
     near.pic = pic
   }
-  return out
+  return { groups: inReadingOrder(groups.map((p) => ({ ...p, box: unionOf([p.box, p.pic!.box]) }))), others: [] }
+}
+
+function besidePictures(panels: Panel[], pics: Pic[]): { groups: Panel[]; others: Panel[] } | null {
+  // First the texts that touch a picture, each to its nearest; then, nearest first, the texts that touch a text of one: a row of label and description stays one.
+  const mine = new Map<Pic, Panel[]>()
+  const far = (p: Panel, pic: Pic) => Math.hypot(centre(pic.box).x - centre(p.box).x, centre(pic.box).y - centre(p.box).y)
+  const direct = new Set<Panel>()
+  let others: Panel[] = []
+  for (const p of panels) {
+    const near = [...pics].sort((a, b) => gapBetween(p.box, a.box) - gapBetween(p.box, b.box) || far(p, a) - far(p, b))[0]
+    if (gapBetween(p.box, near.box) > BESIDE) others.push(p)
+    else {
+      mine.set(near, [...(mine.get(near) ?? []), p])
+      direct.add(p)
+    }
+  }
+  for (;;) {
+    let best: { p: Panel; pic: Pic; gap: number } | null = null
+    for (const p of others) {
+      for (const [pic, texts] of mine) {
+        const gap = Math.min(...texts.map((m) => gapBetween(p.box, m.box)))
+        if (!best || gap < best.gap || (gap === best.gap && far(p, pic) < far(best.p, best.pic))) best = { p, pic, gap }
+      }
+    }
+    if (!best || best.gap > BESIDE) break
+    const joined = best
+    mine.get(joined.pic)!.push(joined.p)
+    others = others.filter((p) => p !== joined.p)
+  }
+  const groups: Panel[] = []
+  for (const pic of pics) {
+    const texts = mine.get(pic)
+    if (!texts) return null
+    const box = unionOf([pic.box, ...texts.map((p) => p.box)])
+    if (texts.length === 1) {
+      groups.push({ ...texts[0], box, pic })
+      continue
+    }
+    // Several texts by one picture: its name heads the rest, which is the one short line among them, or the one that touches the picture.
+    const name = (p: Panel) => !!p.head || (p.paras.length === 1 && shortHead(p.paras[0]))
+    const names = texts.filter(name)
+    const touching = names.filter((p) => direct.has(p))
+    const label = names.length === 1 ? names[0] : touching.length === 1 ? touching[0] : undefined
+    const rest = inReadingOrder(texts.filter((p) => p !== label)).flatMap((p) => [...(p.head ? [paraOf(p.head)] : []), ...p.paras])
+    groups.push({ box, pic, head: label ? label.head || label.paras[0].text : '', paras: [...(label?.head ? label.paras : []), ...rest] })
+  }
+  // Pictures that only mark a few words of a slide full of text are no parts of it.
+  const count = (list: Panel[]) => list.reduce((n, p) => n + words(p.head) + p.paras.reduce((m, q) => m + words(q.text), 0), 0)
+  if (count(others) > count(groups)) return null
+  return { groups: inReadingOrder(groups), others }
+}
+
+/**
+ * Pictures with their texts: as cards in the grid they stand in (two rows on two slides where one does not hold them),
+ * a few of them side by side wherever they stand, and each on a slide of its own beside its text where cards are too small.
+ */
+function pictureCards(s: RawSlide, head: Head, found: { groups: Panel[]; others: Panel[] }, aspect: number, warn: (what: string) => void): Draft[] | null {
+  const { others } = found
+  const aside = others.map((p) => [p.head, ...p.paras.map((q) => q.text)].filter(Boolean).join(' ')).join(' ')
+  const short = others.length > 0 && !head.lead && words(aside) <= 30 && !others.some((p) => p.head)
+  const h = short ? { ...head, lead: aside } : head
+  // Pictures of one kind are about one size: an icon beside a photograph is no part of the same row.
+  const sizes = found.groups.map((p) => longSide(p.pic!.box, aspect))
+  if (Math.max(...sizes) > Math.min(...sizes) * 3) return null
+  const icons = sizes.every((size) => size < SMALL_PICTURE)
+  // More than a word or two by every picture: a name with its text, or a text of some length.
+  const said = found.groups.every((p) => (p.head ? p.paras.length > 0 : p.paras.length > 1 || words(p.paras[0]?.text ?? '') > 6))
+  const groups = found.groups
+  const standing = gridOf(groups)
+  // No grid: a few pictures with their texts still make a row; icons over a word each are a list with decoration.
+  if (!standing && (groups.length > 5 || (icons && !said))) return null
+  const grid = standing ?? { cols: groups.length, rows: 1 }
+  const fits = (run: Panel[]) => cardsFit(run, grid.cols, roomUnder(h), icons ? 68 : 208)
+  const rows = fits(groups) ? [groups] : grid.rows === 2 ? [groups.slice(0, grid.cols), groups.slice(grid.cols)] : []
+  const apart = !icons && groups.length <= 5 && said
+  let slides: Draft[]
+  if (rows.length && rows.every(fits)) slides = rows.map((run) => cardsSlide(h, run, grid.cols, icons))
+  else if (apart) slides = groups.flatMap((p) => splitSlides(h, panelPoints(p), p.pic!, false, warn))
+  else return null
+  return short || !others.length ? slides : [...slides, ...textSlides(s, head, others, warn)]
 }
 
 /** Numbers standing alone beside the text, the way a numbered sequence is built from boxes. */
@@ -1231,12 +1400,9 @@ function translate(s: RawSlide, aspect: number, warn: (what: string) => void): D
   }
 
   if (shown.length >= 2) {
-    const small = paired(panels, shown)
-    const grid = small && gridOf(small)
-    if (small && grid) {
-      const icons = small.every((p) => longSide(p.pic!.box, aspect) < SMALL_PICTURE)
-      if (cardsFit(small, grid.cols, roomUnder(head), icons ? 68 : 208)) return [cardsSlide(head, small, grid.cols, icons)]
-    }
+    const found = withPictures(panels, shown)
+    const cards = found && pictureCards(s, head, found, aspect, warn)
+    if (cards) return cards
   }
 
   if (!pics.length) {

@@ -41,6 +41,7 @@ const subtitle = (text: string) => placeholder('type="subTitle" idx="1"', [text]
 const body = (...paras: (string | P)[]) => placeholder('idx="1"', paras)
 const textBox = (x: number, y: number, w: number, h: number, ...paras: (string | P)[]) => `<p:sp><p:nvSpPr><p:cNvPr id="3" name="t"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(x, y, w, h)}<a:prstGeom prst="rect"/><a:noFill/></p:spPr>${txBody(paras)}</p:sp>`
 const filled = (x: number, y: number, w: number, h: number, prst = 'rect') => `<p:sp><p:nvSpPr><p:cNvPr id="4" name="s"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(x, y, w, h)}<a:prstGeom prst="${prst}"/><a:solidFill><a:srgbClr val="DDEEFF"/></a:solidFill></p:spPr></p:sp>`
+const labelled = (x: number, y: number, w: number, h: number, text: string, colour = 'CCDDEE') => `<p:sp><p:nvSpPr><p:cNvPr id="7" name="l"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(x, y, w, h)}<a:prstGeom prst="rect"/><a:solidFill><a:srgbClr val="${colour}"/></a:solidFill></p:spPr>${txBody([text])}</p:sp>`
 const picture = (rid: string, x: number, y: number, w: number, h: number, descr = '') => `<p:pic><p:nvPicPr><p:cNvPr id="5" name="p" descr="${descr}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${rid}"/></p:blipFill><p:spPr>${xfrm(x, y, w, h)}</p:spPr></p:pic>`
 
 const cell = (t: string, attrs = '') => `<a:tc${attrs}>${t ? `<a:txBody><a:bodyPr/><a:p><a:r><a:t>${xmlText(t)}</a:t></a:r></a:p></a:txBody>` : '<a:txBody><a:bodyPr/><a:p/></a:txBody>'}<a:tcPr/></a:tc>`
@@ -301,6 +302,44 @@ describe('deckFromPptx, the mapping', () => {
     const shapes = textBox(0.65, 0.06, 0.3, 0.1, { t: 'Regeln im Gespräch', b: true, sz: 24 }) + textBox(0.15, 0.09, 0.5, 0.8, { t: 'Ich bleibe beim Thema.', sz: 24 }, { t: 'Ich frage nach, statt zu deuten.', sz: 24 })
     const { html } = await read([{ shapes }])
     expect(html[0]).toBe('<section class="slide list"><header><h2>Regeln im Gespräch</h2></header><ul class="list"><li>Ich bleibe beim Thema.</li><li>Ich frage nach, statt zu deuten.</li></ul></section>')
+  })
+
+  it('reads columns under their headings column by column, not row by row', async () => {
+    const column = (x: number, head: string, ...items: string[]) => labelled(x, 0.25, 0.25, 0.06, head) + items.map((t, i) => textBox(x + 0.02, 0.33 + i * 0.08 + x / 20, 0.22, 0.05, t)).join('')
+    const { html } = await read([{ shapes: title('Kompetenzen') + column(0.05, 'Wissen', 'Modelle', 'Methoden', 'Begriffe') + column(0.37, 'Können', 'Zuhören', 'Fragen') + column(0.69, 'Haltung', 'Neugier', 'Geduld') }])
+    expect(html).toHaveLength(1)
+    expect(html[0]).toContain('<li><h3>Wissen</h3><ul class="list"><li>Modelle</li><li>Methoden</li><li>Begriffe</li></ul></li><li><h3>Können</h3><ul class="list"><li>Zuhören</li><li>Fragen</li></ul></li><li><h3>Haltung</h3>')
+  })
+
+  it('starts a new part at every further heading of a column, and reads close columns without headings one after the other', async () => {
+    const left = labelled(0.05, 0.25, 0.3, 0.06, 'Beschreiben') + textBox(0.07, 0.32, 0.28, 0.05, 'Umfang') + textBox(0.07, 0.38, 0.28, 0.05, 'Struktur') + labelled(0.05, 0.45, 0.3, 0.06, 'Erkunden') + textBox(0.07, 0.52, 0.28, 0.05, 'Ausreißer')
+    const right = labelled(0.55, 0.25, 0.3, 0.06, 'Einordnen') + textBox(0.57, 0.32, 0.28, 0.05, 'Herkunft') + textBox(0.57, 0.38, 0.28, 0.05, 'Zeitpunkt')
+    const plain = (x: number, ...items: string[]) => items.map((t, i) => textBox(x, 0.3 + i * 0.06, 0.25, 0.05, t)).join('')
+    const { html } = await read([{ shapes: title('Daten kennenlernen') + left + right }, { shapes: title('Begriffe') + plain(0.1, 'Eins', 'Zwei', 'Drei') + plain(0.6, 'Vier', 'Fünf', 'Sechs') }])
+    expect(html[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).toContain('Beschreiben Umfang Struktur Erkunden Ausreißer Einordnen Herkunft Zeitpunkt')
+    expect(html[1]).toContain('<li>Eins</li><li>Zwei</li><li>Drei</li><li>Vier</li><li>Fünf</li><li>Sechs</li>')
+  })
+
+  it('keeps each picture with the text beside it: under each other as cards, a row of name and description as one card', async () => {
+    const goal = (y: number, rid: string, head: string) => picture(rid, 0.08, y, 0.14, 0.14) + textBox(0.24, y, 0.5, 0.14, { t: head, b: true }, 'Was damit gemeint ist, in einem Satz')
+    const row = (y: number, rid: string, name: string) => picture(rid, 0.05, y, 0.07, 0.1) + textBox(0.14, y + 0.02, 0.15, 0.06, name) + textBox(0.31, y, 0.3, 0.1, `${name} übernimmt, was es schon gibt, und passt es an`) + textBox(0.63, y, 0.3, 0.1, 'Ein Beispiel aus dem Alltag dazu')
+    const images = { rA: 'a.png', rB: 'b.png', rC: 'c.png' }
+    const { html } = await read([{ shapes: title('Ziele') + goal(0.25, 'rA', 'Zusammenarbeit') + goal(0.42, 'rB', 'Werkzeuge') + goal(0.59, 'rC', 'Zuversicht'), images }, { shapes: title('Drei Typen') + row(0.3, 'rA', 'Nutzerin') + row(0.45, 'rB', 'Gestalter') + row(0.6, 'rC', 'Erfinderin'), images }], { 'a.png': png(1), 'b.png': png(2), 'c.png': png(3) })
+    expect(html).toHaveLength(2)
+    expect(html[0]).toMatch(/<ul class="cards cols-3 picture contain"><li><img src="assets\/[^"]+" alt=""><h3>Zusammenarbeit<\/h3><p>Was damit gemeint ist, in einem Satz<\/p><\/li><li><img [^>]+><h3>Werkzeuge<\/h3>/)
+    expect(html[1]).toMatch(/<ul class="cards cols-3"><li><img class="icon" [^>]+><h3>Nutzerin<\/h3><ul class="list"><li>Nutzerin übernimmt, was es schon gibt, und passt es an<\/li><li>Ein Beispiel aus dem Alltag dazu<\/li><\/ul><\/li>/)
+  })
+
+  it('gives a picture a slide of its own beside its text where cards are too small, and leaves icons over single words a list', async () => {
+    const figure = (x: number, y: number, rid: string, name: string) => picture(rid, x, y, 0.15, 0.3) + textBox(x, y + 0.31, 0.15, 0.05, { t: name, b: true }) + textBox(x + 0.16, y, 0.28, 0.3, ...Array.from({ length: 6 }, (_, i) => `${name}, Merkmal ${i + 1}, in einigen Worten beschrieben`))
+    const word = (x: number, y: number, rid: string, t: string) => picture(rid, x, y, 0.05, 0.08) + textBox(x - 0.02, y + 0.09, 0.12, 0.05, t)
+    const images = { rA: 'a.png', rB: 'b.png', rC: 'c.png' }
+    const { html } = await read([{ shapes: title('Zwei Muster') + figure(0.03, 0.2, 'rA', 'Anklagen') + figure(0.52, 0.5, 'rB', 'Ablenken'), images }, { shapes: title('Ablauf') + word(0.1, 0.5, 'rA', 'Grundlagen') + word(0.4, 0.3, 'rB', 'Beispiele') + word(0.7, 0.6, 'rC', 'Praxis'), images }], { 'a.png': png(1), 'b.png': png(2), 'c.png': png(3) })
+    expect(html.map(layoutOf)).toEqual(['split', 'split', 'list'])
+    expect(html[0]).toContain('Anklagen')
+    expect(html[0]).not.toContain('Ablenken')
+    expect(html[1]).toContain('Ablenken, Merkmal 6')
+    expect(html[2]).not.toContain('<img')
   })
 
   it('reads a slide that says it is an exercise as one', async () => {
