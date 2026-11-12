@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Category, WorkshopState } from '@/domain/types'
 import { sortedDays } from '@/domain/order'
-import { dateRange, dayRows, type PrintVariant, workshopMarkdown } from '@/domain/print'
+import { dateRange, dayRows, legendCategories, type PrintVariant, workshopMarkdown } from '@/domain/print'
 import { formatDate } from '@/i18n'
 import { cx } from '@/components/ui'
-import { DayHeading, Head, LONG_DATE } from './common'
+import { DayHeading, Head, Legend, LONG_DATE } from './common'
 import { OverviewTable } from './Overview'
 import { Cards, Glance } from './Cards'
 import { AgendaList } from './Agenda'
@@ -36,6 +36,7 @@ export default function PrintView({ data, variant, logo, logoSource, themeName, 
   const days = sortedDays(data.days)
   const title = data.workshop.title || t('workshops.untitled')
   const landscape = variant === 'overview' && options.landscape
+  const perDay = days.map((day) => dayRows(data, day, variant, options))
 
   const markdown = () => workshopMarkdown(data, variant, options, printLabels(t, variant, categories), (date, long) => formatDate(date, long ? LONG_DATE : undefined))
   const fileName = `${fileSlug(title)}-${variant}.md`
@@ -55,22 +56,23 @@ export default function PrintView({ data, variant, logo, logoSource, themeName, 
       <Toolbar variant={variant} onVariant={onVariant} options={options} update={update} reset={reset} changed={changed} onPrint={() => window.print()} onCopy={() => void copy()} onDownload={() => downloadText(fileName, markdown())} copied={copied} logoSource={logoSource} themeName={themeName} />
       <main className={cx('sheet mx-auto my-6 px-[12mm] py-[14mm] text-[12.5px] leading-[1.4] print:m-0 print:w-auto print:max-w-none print:p-0', landscape ? 'max-w-[297mm]' : 'max-w-[210mm]')}>
         <Head data={data} variant={variant} options={options} logo={options.logo ? logo : null} />
+        {options.colorBars && options.legend && variant !== 'packing' && <Legend categories={legendCategories(perDay.flatMap((d) => d.rows), categories)} />}
         {variant === 'packing' ? (
           <PackingSheet data={data} />
         ) : (
           days.map((day, i) => {
-            const { schedule, rows } = dayRows(data, day, variant, options)
+            const { schedule, rows } = perDay[i]
             return (
               <section key={day.id} className={cx(i > 0 && (options.pageBreakDays ? 'page-break mt-10 print:mt-0' : 'mt-10'))}>
                 <DayHeading day={day} index={i} count={days.length} schedule={schedule} rows={rows} variant={variant} />
                 {variant === 'overview' && <OverviewTable data={data} rows={rows} options={options} categories={categories} />}
                 {variant === 'plan' && (
                   <>
-                    {options.dayOverview && <Glance rows={rows} options={options} />}
+                    {options.dayOverview && <Glance rows={rows} options={options} categories={categories} />}
                     <Cards data={data} rows={rows} options={options} categories={categories} />
                   </>
                 )}
-                {variant === 'agenda' && <AgendaList rows={rows} options={options} />}
+                {variant === 'agenda' && <AgendaList rows={rows} options={options} categories={categories} />}
               </section>
             )
           })

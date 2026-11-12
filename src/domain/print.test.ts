@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { dayRows, PRINT_DEFAULTS, type PrintLabels, printOptions, workshopMarkdown } from './print.ts'
-import type { Item, WorkshopState } from './types.ts'
+import { dayRows, legendCategories, PRINT_DEFAULTS, type PrintLabels, printOptions, workshopMarkdown } from './print.ts'
+import { DEFAULT_CATEGORIES, type Item, type WorkshopState } from './types.ts'
 
 const item = (id: string, over: Partial<Item> = {}): Item => ({
   id,
@@ -112,6 +112,21 @@ describe('printOptions', () => {
   it('fills from the defaults and ignores junk', () => {
     expect(printOptions('agenda', null)).toEqual(PRINT_DEFAULTS.agenda)
     expect(printOptions('agenda', { lead: true, bogus: 1, goal: 'yes' })).toEqual({ ...PRINT_DEFAULTS.agenda, lead: true })
+  })
+})
+
+describe('legendCategories', () => {
+  const rowsOf = (items: Item[]) => dayRows({ ...state, groups: [], items }, state.days[0], 'plan', PRINT_DEFAULTS.plan).rows
+  const ids = (items: Item[]) => legendCategories(rowsOf(items), DEFAULT_CATEGORIES).map((c) => c.id)
+
+  it('names the categories on the page, in the order of the settings', () => {
+    expect(ids([item('a', { categoryId: 'reflection', position: 1 }), item('b', { categoryId: 'input', position: 2 }), item('c', { categoryId: 'input', position: 3 }), item('d', { position: 4 })])).toEqual(['input', 'reflection'])
+  })
+
+  it('leaves out a category that only shows under an own colour, and one that is gone', () => {
+    expect(ids([item('a', { categoryId: 'input', color: 'plum', position: 1 }), item('b', { categoryId: 'removed', position: 2 })])).toEqual([])
+    // An own colour that is the category's is the category's.
+    expect(ids([item('a', { categoryId: 'input', color: 'slate', position: 1 })])).toEqual(['input'])
   })
 })
 

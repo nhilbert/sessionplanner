@@ -6,7 +6,7 @@ import { formatDuration, formatTime } from '@/domain/time'
 import { type PrintOptions, type PrintRow, timeRange } from '@/domain/print'
 import Markdown from '@/components/Markdown'
 import { cx } from '@/components/ui'
-import { categoryOf, fileNames, type ItemRow, Late, materialLabel, Slack, Tick } from './common'
+import { barStyle, categoryOf, fileNames, type ItemRow, Late, materialLabel, Slack, Tick } from './common'
 
 /**
  * The moderation plan, built to be worked through during the workshop: a compact list of the day first (where
@@ -17,13 +17,13 @@ import { categoryOf, fileNames, type ItemRow, Late, materialLabel, Slack, Tick }
 const TIME_COL = 'w-[21mm] shrink-0'
 
 /** The day at a glance: times, numbered steps, length, lead. */
-export function Glance({ rows, options }: { rows: PrintRow[]; options: PrintOptions }) {
+export function Glance({ rows, options, categories }: { rows: PrintRow[]; options: PrintOptions; categories: Category[] }) {
   const { t } = useTranslation()
   const shown = rows.filter((r) => r.kind === 'group' || r.item.kind !== 'note')
   return (
     <section className="avoid-break mb-5">
       <div className="print-label mb-1">{t('print.dayOverview')}</div>
-      <table className="w-full border-collapse text-[11px] leading-[1.3]">
+      <table className={cx('w-full border-collapse text-[11px] leading-[1.3]', options.colorBars && 'bars')}>
         <tbody>
           {shown.map((r) =>
             r.kind === 'group' ? (
@@ -34,7 +34,7 @@ export function Glance({ rows, options }: { rows: PrintRow[]; options: PrintOpti
               </tr>
             ) : (
               <tr key={r.item.id} className={cx('border-b border-black/10', r.item.kind === 'marker' && 'text-black/60')}>
-                <td className="w-[21mm] py-[2px] pr-2 whitespace-nowrap tnum">{timeRange(r.start, r.end)}</td>
+                <td className={cx('w-[21mm] py-[2px] pr-2 whitespace-nowrap tnum', options.colorBars && 'pl-1.5')} style={barStyle(r.item, categories, options)}>{timeRange(r.start, r.end)}</td>
                 <td className={cx('py-[2px]', r.item.kind === 'break' && 'text-black/65')}>
                   {r.number !== null && <span className="mr-1 text-black/45 tnum">{r.number}</span>}
                   {r.item.title || t(`kinds.${r.item.kind}`)}
@@ -52,7 +52,9 @@ export function Glance({ rows, options }: { rows: PrintRow[]; options: PrintOpti
 
 export function Cards({ data, rows, options, categories }: { data: WorkshopState; rows: PrintRow[]; options: PrintOptions; categories: Category[] }) {
   const { t } = useTranslation()
-  const slackClass = cx('py-0.5', options.checkboxes ? 'pl-[calc(14px+0.75rem)]' : '')
+  // With the bars on, every row keeps the bar's width and a little air after it, coloured or not.
+  const bars = options.colorBars && 'bar pl-2'
+  const slackClass = cx('py-0.5', options.checkboxes ? 'pl-[calc(14px+0.75rem)]' : '', options.colorBars && 'ml-[11px]')
   return (
     <div>
       {rows.map((r) => {
@@ -64,6 +66,7 @@ export function Cards({ data, rows, options, categories }: { data: WorkshopState
             </h3>
           )
         const { item } = r
+        const bar = barStyle(item, categories, options)
         return (
           <Fragment key={item.id}>
             <Slack row={r} className={slackClass} />
@@ -74,14 +77,14 @@ export function Cards({ data, rows, options, categories }: { data: WorkshopState
                 {item.description}
               </aside>
             ) : item.kind === 'marker' ? (
-              <div className="avoid-break flex items-center gap-3 py-1 text-[12px] text-black/70">
+              <div className={cx('avoid-break flex items-center gap-3 py-1 text-[12px] text-black/70', bars)} style={bar}>
                 {options.checkboxes && <span className="w-[14px] shrink-0" />}
                 <span className={cx(TIME_COL, 'font-medium text-black tnum')}>{formatTime(r.start)}</span>
                 <span>{item.title || t('kinds.marker')}</span>
                 <span className="h-px flex-1 bg-black/25" />
               </div>
             ) : item.kind === 'break' ? (
-              <div className="hatched avoid-break my-1 flex items-center gap-3 rounded-sm px-1.5 py-1.5 text-[12px]">
+              <div className={cx('hatched avoid-break my-1 flex items-center gap-3 rounded-sm py-1.5 pr-1.5 text-[12px]', bars || 'pl-1.5')} style={bar}>
                 {options.checkboxes && <Tick />}
                 <span className={cx(TIME_COL, 'font-semibold tnum')}>{timeRange(r.start, r.end)}</span>
                 <span className="flex-1 text-black/80">{item.title || t('kinds.break')}</span>
@@ -107,7 +110,7 @@ function Card({ data, row, options, categories }: { data: WorkshopState; row: It
   const hasFields = (options.goal && item.goal) || (options.method && item.method) || material || files.length > 0
   const dt = 'print-label pt-[2px]'
   return (
-    <article className="avoid-break flex gap-3 border-t border-black/30 py-2.5">
+    <article className={cx('avoid-break flex gap-3 border-t border-black/30 py-2.5', options.colorBars && 'bar pl-2')} style={barStyle(item, categories, options)}>
       {options.checkboxes && <Tick large className="mt-[3px]" />}
       <div className={TIME_COL}>
         <div className="text-[17px] font-semibold leading-none tnum">{formatTime(row.start)}</div>

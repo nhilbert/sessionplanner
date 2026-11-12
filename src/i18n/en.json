@@ -247,6 +247,8 @@
       "workshopNotes": "Workshop notes",
       "pageBreakDays": "Each day on a new page",
       "landscape": "Landscape",
+      "colorBars": "Colour bars",
+      "legend": "Colour legend",
       "checkboxes": "Tick boxes",
       "dayOverview": "Day at a glance first",
       "appendPacking": "Append packing list",

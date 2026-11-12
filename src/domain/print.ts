@@ -1,4 +1,4 @@
-import type { Day, Item, Material, WorkshopState } from './types.ts'
+import type { Category, Day, Item, Material, WorkshopState } from './types.ts'
 import { agendaOrder, entriesIn, itemsIn, sortedDays } from './order.ts'
 import { type DaySchedule, durationOf, formatDuration, formatTime, scheduleDay } from './time.ts'
 import { packingList } from './packing.ts'
@@ -35,6 +35,10 @@ export interface PrintOptions {
   landscape: boolean
   /** The logo of the workshop's branding in the head. */
   logo: boolean
+  /** Each item's colour (its own, else its category's) as a thin bar at the left of its row or card. Paper only. */
+  colorBars: boolean
+  /** Under the head, the categories whose colour the bars show, by name. Only with the bars. */
+  legend: boolean
   // Moderation plan only
   /** A box to tick per step and per piece of material. */
   checkboxes: boolean
@@ -61,6 +65,8 @@ const ALL: PrintOptions = {
   pageBreakDays: true,
   landscape: false,
   logo: true,
+  colorBars: false,
+  legend: false,
   checkboxes: true,
   dayOverview: true,
   appendPacking: false,
@@ -76,9 +82,9 @@ export const PRINT_DEFAULTS: Record<PrintVariant, PrintOptions> = {
 
 /** The switches each view offers, in the order they are shown. */
 export const PRINT_CHOICES: Record<PrintVariant, (keyof PrintOptions)[]> = {
-  overview: ['landscape', 'logo', 'duration', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays'],
-  plan: ['logo', 'checkboxes', 'dayOverview', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays', 'appendPacking'],
-  agenda: ['logo', 'description', 'goal', 'lead', 'duration', 'breaks', 'markers', 'groupItems', 'workshopGoal', 'pageBreakDays'],
+  overview: ['landscape', 'logo', 'colorBars', 'legend', 'duration', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays'],
+  plan: ['logo', 'colorBars', 'legend', 'checkboxes', 'dayOverview', 'description', 'goal', 'method', 'lead', 'category', 'material', 'files', 'notes', 'workshopGoal', 'workshopNotes', 'pageBreakDays', 'appendPacking'],
+  agenda: ['logo', 'colorBars', 'legend', 'description', 'goal', 'lead', 'duration', 'breaks', 'markers', 'groupItems', 'workshopGoal', 'pageBreakDays'],
   packing: ['logo'],
 }
 
@@ -96,6 +102,20 @@ export function printOptions(variant: PrintVariant, stored: unknown): PrintOptio
     }
   }
   return out
+}
+
+/**
+ * The categories a legend names: those whose colour a printed item shows, in the order of the settings. An item
+ * with a colour of its own shows that one, which has no name, so it does not bring its category into the legend.
+ */
+export function legendCategories(rows: PrintRow[], categories: Category[]): Category[] {
+  const shown = new Set<string>()
+  for (const r of rows) {
+    if (r.kind !== 'item' || !r.item.categoryId) continue
+    const c = categories.find((x) => x.id === r.item.categoryId)
+    if (c && (r.item.color === null || r.item.color === c.color)) shown.add(c.id)
+  }
+  return categories.filter((c) => shown.has(c.id))
 }
 
 export type PrintRow =

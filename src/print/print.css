@@ -5,6 +5,31 @@
   color: #111;
   min-height: 100dvh;
 }
+/* The palette of index.css in its light values: the sheet is white even where the app is dark. */
+.print-root {
+  --c-sage: #5f8a74;
+  --c-clay: #b5684a;
+  --c-slate: #5b7a99;
+  --c-plum: #8a5c86;
+  --c-ochre: #b08a2e;
+  --c-moss: #6e8a3a;
+  --c-dusk: #6a6a9a;
+  --c-sand: #9a8265;
+  --c-neutral: #9a978f;
+}
+/* An item's colour as a bar at its left (set --bar on the row or card). Borders, not backgrounds: they print
+   without "background graphics". Rows without a colour keep the width, so the text stays aligned. */
+.bar,
+.bars > thead > tr > th:first-child,
+.bars > tbody > tr > td:first-child {
+  border-left: 3px solid var(--bar, transparent);
+}
+.swatch {
+  display: inline-block;
+  height: 9px;
+  border-left: 9px solid var(--bar);
+  border-radius: 2px;
+}
 .print-root a {
   color: inherit;
   text-decoration: underline;

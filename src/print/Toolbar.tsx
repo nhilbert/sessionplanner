@@ -65,12 +65,16 @@ export function Toolbar({
         </div>
         {choices.length > 0 && (
           <div className="flex w-full flex-wrap items-center gap-x-3.5 gap-y-1 text-[12.5px] text-black/80">
-            {choices.map((k) => (
-              <label key={k} className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
-                <input type="checkbox" className="h-3.5 w-3.5 accent-[#4f6f5f]" checked={options[k]} onChange={(e) => update({ [k]: e.target.checked })} />
-                {t(`print.options.${k}`)}
-              </label>
-            ))}
+            {choices.map((k) => {
+              // A legend explains the bars: without them there is nothing to explain.
+              const off = k === 'legend' && !options.colorBars
+              return (
+                <label key={k} className={cx('inline-flex items-center gap-1.5 whitespace-nowrap', off ? 'text-black/40' : 'cursor-pointer')}>
+                  <input type="checkbox" className="h-3.5 w-3.5 accent-[#4f6f5f]" checked={options[k] && !off} disabled={off} onChange={(e) => update({ [k]: e.target.checked })} />
+                  {t(`print.options.${k}`)}
+                </label>
+              )
+            })}
             {changed && (
               <button type="button" className="text-[12px] text-black/55 underline underline-offset-2 hover:text-black" onClick={reset}>
                 {t('print.reset')}

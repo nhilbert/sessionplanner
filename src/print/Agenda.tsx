@@ -1,18 +1,20 @@
 import { useTranslation } from 'react-i18next'
 import { formatDuration } from '@/domain/time'
 import { type PrintOptions, type PrintRow, timeRange } from '@/domain/print'
+import type { Category } from '@/domain/types'
 import { cx } from '@/components/ui'
+import { barStyle } from './common'
 
 /**
  * The agenda for participants and clients: clock times, titles and short descriptions, groups as sections, breaks
  * and markers quiet. Nothing internal: no method, no notes, no slack, no warnings (docs/concept.md, section 6).
  */
-export function AgendaList({ rows, options }: { rows: PrintRow[]; options: PrintOptions }) {
+export function AgendaList({ rows, options, categories }: { rows: PrintRow[]; options: PrintOptions; categories: Category[] }) {
   const { t } = useTranslation()
   const n = options.duration ? 3 : 2
   const time = 'w-[27mm] py-2 align-top whitespace-nowrap tnum'
   return (
-    <table className="w-full border-collapse text-[13px] leading-[1.4]">
+    <table className={cx('w-full border-collapse text-[13px] leading-[1.4]', options.colorBars && 'bars')}>
       <colgroup>
         <col style={{ width: '27mm' }} />
         <col />
@@ -41,10 +43,11 @@ export function AgendaList({ rows, options }: { rows: PrintRow[]; options: Print
               </tr>
             )
           const { item } = r
+          const bar = barStyle(item, categories, options)
           if (item.kind === 'marker')
             return (
               <tr key={item.id} className="text-black/65">
-                <td className={cx(time, 'py-1')}>{timeRange(r.start, r.end)}</td>
+                <td className={cx(time, 'py-1', options.colorBars && 'pl-1.5')} style={bar}>{timeRange(r.start, r.end)}</td>
                 <td className="py-1" colSpan={n - 1}>
                   {item.title || t('kinds.marker')}
                 </td>
@@ -53,14 +56,14 @@ export function AgendaList({ rows, options }: { rows: PrintRow[]; options: Print
           if (item.kind === 'break')
             return (
               <tr key={item.id} className="hatched">
-                <td className={cx(time, 'py-1.5 pl-1.5')}>{timeRange(r.start, r.end)}</td>
+                <td className={cx(time, 'py-1.5 pl-1.5')} style={bar}>{timeRange(r.start, r.end)}</td>
                 <td className="py-1.5 text-black/75">{item.title || t('kinds.break')}</td>
                 {options.duration && <td className="py-1.5 pr-1.5 text-right text-black/55 tnum">{formatDuration(r.minutes)}</td>}
               </tr>
             )
           return (
             <tr key={item.id} className="border-b border-black/10">
-              <td className={cx(time, 'pl-1.5 font-medium')}>{timeRange(r.start, r.end)}</td>
+              <td className={cx(time, 'pl-1.5 font-medium')} style={bar}>{timeRange(r.start, r.end)}</td>
               <td className="py-2">
                 <div className="font-semibold">{item.title || t('kinds.block')}</div>
                 {options.description && item.description && <div className="mt-0.5 whitespace-pre-wrap text-black/70">{item.description}</div>}

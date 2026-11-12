@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import type { Day, WorkshopState } from '@/domain/types'
+import type { Category, Day, Item, WorkshopState } from '@/domain/types'
 import { type DaySchedule, formatDuration, formatTime } from '@/domain/time'
 import { dateRange, type PrintOptions, type PrintRow, type PrintVariant } from '@/domain/print'
 import { formatDate } from '@/i18n'
 import Markdown from '@/components/Markdown'
 import { cx } from '@/components/ui'
+import { categoryName, colorVar, itemColor } from '@/store/useSettings'
 
 // The texts of material, files and categories come from the same functions as the Markdown twin.
 export { fileNames, materialLabel } from '@/domain/print'
@@ -34,6 +35,28 @@ export function Head({ data, variant, options, logo }: { data: WorkshopState; va
       </div>
       {logo && <img src={logo} alt="" className="max-h-12 max-w-[46mm] shrink-0 object-contain object-right" />}
     </header>
+  )
+}
+
+/** `--bar` for the row or card of an item, where the bars are switched on and the item has a colour. */
+export const barStyle = (item: Item, categories: Category[], options: PrintOptions): React.CSSProperties | undefined => {
+  const color = options.colorBars ? colorVar(itemColor(item, categories)) : undefined
+  return color ? ({ '--bar': color } as React.CSSProperties) : undefined
+}
+
+/** What the bars' colours mean: one swatch and name per category. */
+export function Legend({ categories }: { categories: Category[] }) {
+  const { t } = useTranslation()
+  if (!categories.length) return null
+  return (
+    <ul className="-mt-2 mb-5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-black/70">
+      {categories.map((c) => (
+        <li key={c.id} className="flex items-center gap-1.5">
+          <span aria-hidden className="swatch" style={{ '--bar': colorVar(c.color) } as React.CSSProperties} />
+          {categoryName(c, t)}
+        </li>
+      ))}
+    </ul>
   )
 }
 

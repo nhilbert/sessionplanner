@@ -230,6 +230,7 @@ On the owner's retired instance there was no public access, so no share links: e
 - The client agenda stays lean by default (times, titles, descriptions, goal of the workshop); goal per step, lead and durations are switches. Days follow each other so that most workshops fit one page.
 - The Markdown twin is built from the same rows and switches as the printed page (`src/domain/print.ts`), so the file always matches the paper. Tables for the overview and the agenda, a section per step for the moderation plan, a task list for the packing list. No new fields in the data model: the notes hold the Ablauf and the cues.
 - Switches are remembered per device and per view (localStorage), not per workshop.
+- Overview, moderation plan and client agenda can mark each item with its colour (its own, else its category's) as a thin bar at the left, and name the categories in a legend under the head. Both are off by default and on paper only: the Markdown twin has no colour. The legend lists the categories whose colour is on the page; an item's own colour has no name and stays out of it. The bars are borders in the light palette, so they print without background graphics and from a dark app.
 
 **2026-10-29, MCP**
 

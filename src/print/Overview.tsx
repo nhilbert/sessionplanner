@@ -6,7 +6,7 @@ import { formatDuration } from '@/domain/time'
 import { type PrintOptions, type PrintRow, timeRange } from '@/domain/print'
 import Markdown from '@/components/Markdown'
 import { cx } from '@/components/ui'
-import { categoryOf, fileNames, type ItemRow, Late, materialLabel, Slack } from './common'
+import { barStyle, categoryOf, fileNames, type ItemRow, Late, materialLabel, Slack } from './common'
 
 /**
  * The planning overview: one table per day with the columns the user switched on (Zeit · Dauer · Inhalt · Ziel ·
@@ -78,7 +78,7 @@ export function OverviewTable({ data, rows, options, categories }: { data: Works
   const span = (from: number) => n - from
 
   return (
-    <table className={cx('w-full border-collapse leading-[1.35]', n > 6 && !options.landscape ? 'text-[11px]' : 'text-[11.5px]')}>
+    <table className={cx('w-full border-collapse leading-[1.35]', options.colorBars && 'bars', n > 6 && !options.landscape ? 'text-[11px]' : 'text-[11.5px]')}>
       <colgroup>
         {cols.map((c) => (
           <col key={c.key} style={c.width ? { width: c.width } : undefined} />
@@ -105,6 +105,7 @@ export function OverviewTable({ data, rows, options, categories }: { data: Works
               </tr>
             )
           const { item } = r
+          const bar = barStyle(item, categories, options)
           const slack = (r.gap > 0 || r.overlap > 0) && (
             <tr>
               <td colSpan={n} className="px-1.5 py-0.5">
@@ -129,7 +130,7 @@ export function OverviewTable({ data, rows, options, categories }: { data: Works
               <Fragment key={item.id}>
                 {slack}
                 <tr className="text-black/70">
-                  <td className={cx(td, 'tnum')}>{timeRange(r.start, r.end)}</td>
+                  <td className={cx(td, 'tnum')} style={bar}>{timeRange(r.start, r.end)}</td>
                   <td className={td} colSpan={span(1)}>
                     {item.title}
                   </td>
@@ -141,7 +142,7 @@ export function OverviewTable({ data, rows, options, categories }: { data: Works
               <Fragment key={item.id}>
                 {slack}
                 <tr className="hatched">
-                  <td className={cx(td, 'tnum')}>{timeRange(r.start, r.end)}</td>
+                  <td className={cx(td, 'tnum')} style={bar}>{timeRange(r.start, r.end)}</td>
                   {options.duration && <td className={cx(td, 'tnum')}>{formatDuration(r.minutes)}</td>}
                   <td className={cx(td, 'text-black/75')} colSpan={span(options.duration ? 2 : 1)}>
                     {item.title || t('kinds.break')}
@@ -153,8 +154,8 @@ export function OverviewTable({ data, rows, options, categories }: { data: Works
             <Fragment key={item.id}>
               {slack}
               <tr>
-                {cols.map((c) => (
-                  <td key={c.key} className={td}>
+                {cols.map((c, i) => (
+                  <td key={c.key} className={td} style={i === 0 ? bar : undefined}>
                     {c.cell(r)}
                   </td>
                 ))}
