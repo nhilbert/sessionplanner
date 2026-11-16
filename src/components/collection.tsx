@@ -126,6 +126,10 @@ export function useSelection(shown: string[]): Selection {
     setPicked(new Set())
   }
   const toggleAll = () => setPicked(all === true ? new Set() : new Set(shown))
+  // Rows that leave the view leave the selection too, so they do not come back ticked when a search is cleared.
+  useEffect(() => {
+    setPicked((now) => (ids.length === now.size ? now : new Set(ids)))
+  }, [ids])
   const live = useRef({ ids, shown, clear, toggleAll })
   live.current = { ids, shown, clear, toggleAll }
   useEffect(() => {
