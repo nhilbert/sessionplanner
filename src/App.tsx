@@ -34,10 +34,16 @@ export interface Extensions {
   ownerOnly?: (section: ReactNode) => ReactNode
 }
 
-/** The owner's pages (library, slides area): a guest who types their address lands on the workshops shared with them. */
+/** The owner's pages (slides area, pictures): a guest who types their address lands on the workshops shared with them. */
 function OwnerOnly({ children }: { children: ReactNode }) {
   const owner = useSettings((s) => s.me.owner)
   return owner ? children : <Navigate to="/" replace />
+}
+
+/** The library: the owner's, read by the guests of any workshop (`me.library`). */
+function LibraryReaders({ children }: { children: ReactNode }) {
+  const me = useSettings((s) => s.me)
+  return me.owner || me.library ? children : <Navigate to="/" replace />
 }
 
 const routes = ({ routes: extra = [], menu }: Extensions): RouteObject[] => [
@@ -48,7 +54,7 @@ const routes = ({ routes: extra = [], menu }: Extensions): RouteObject[] => [
       ...extra,
       { index: true, element: <WorkshopsPage /> },
       { path: 'w/:id', element: <PlannerPage /> },
-      { path: 'library', element: <OwnerOnly><LibraryPage /></OwnerOnly> },
+      { path: 'library', element: <LibraryReaders><LibraryPage /></LibraryReaders> },
       // The slides area: what slides are made from – the pool, the templates, the themes (docs/slides.md, section 7).
       { path: 'slides', element: <Navigate to="/slides/pool" replace /> },
       { path: 'slides/pool', element: <OwnerOnly><DecksPage /></OwnerOnly> },

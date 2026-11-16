@@ -35,11 +35,13 @@ const minutesOf = (e: LibraryEntry) => entryItems(e).reduce((s, i) => s + durati
  * The shared library, as a list to sort or as cards with what each entry holds. A search and the tags narrow it;
  * ticked entries are tagged, coloured or deleted together. A tap opens an entry; its slides open to look at, with
  * editing a click away. Deleted entries wait in the trash at the end. Inserting happens in a workshop (library tab).
+ * Guests of a workshop read it as it is, without ticks, editing or the trash (server/access.ts, libraryAccess).
  */
 export default function LibraryPage() {
   const { t } = useTranslation()
   const { entries, loaded, load, loadTrash, save, change, trash, restore, purge } = useLibrary()
   const categories = useSettings((s) => s.settings.categories)
+  const owner = useSettings((s) => s.me.owner)
   const [query, setQuery] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [layout, setLayout] = useLocalState('sp.library.view', 'list')
@@ -55,7 +57,7 @@ export default function LibraryPage() {
   useEffect(() => {
     const read = () => {
       void load()
-      void loadTrash()
+      if (owner) void loadTrash()
     }
     read()
     // Back in this tab: an agent (or another window) may have changed entries meanwhile, and an edit here is laid
@@ -69,7 +71,7 @@ export default function LibraryPage() {
       window.removeEventListener('focus', again)
       document.removeEventListener('visibilitychange', again)
     }
-  }, [load, loadTrash])
+  }, [load, loadTrash, owner])
   /** A failed save or delete (the entry may be gone): say so, and show the library as it is now. */
   const failed = (err: unknown) => {
     reportFailure(err)
@@ -103,10 +105,10 @@ export default function LibraryPage() {
     entry: e,
     theme,
     open: open === e.id,
-    selection,
+    selection: owner ? selection : null,
     onToggle: () => setOpen(open === e.id ? null : e.id),
-    onOpenSlide: (key: string, mode: 'view' | 'edit') => setEditing({ entryId: e.id, key, mode }),
-    details: <EntryDetails entry={e} theme={theme} known={known} onSave={saveEntry(e.id)} onDelete={() => void toTrash([e.id])} onOpenSlide={(key, mode) => setEditing({ entryId: e.id, key, mode })} list={slideList(e.id, failed)} />,
+    onOpenSlide: (key: string, mode: 'view' | 'edit') => setEditing({ entryId: e.id, key, mode: owner ? mode : 'view' }),
+    details: !owner ? <EntryView entry={e} theme={theme} onOpenSlide={(key) => setEditing({ entryId: e.id, key, mode: 'view' })} /> : <EntryDetails entry={e} theme={theme} known={known} onSave={saveEntry(e.id)} onDelete={() => void toTrash([e.id])} onOpenSlide={(key, mode) => setEditing({ entryId: e.id, key, mode })} list={slideList(e.id, failed)} />,
   })
 
   return (
@@ -118,7 +120,7 @@ export default function LibraryPage() {
             <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} shortcut />
             <TagFilter rows={found.map((e) => e.tags)} active={tags} onChange={setTags} />
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <SelectAll selection={selection} count={shown.length} />
+              {owner ? <SelectAll selection={selection} count={shown.length} /> : <span className="text-[13px] text-ink-3">{t('library.readOnly')}</span>}
               <span className="ml-auto" />
               <SortControl options={options} sort={sort} onChange={setSort} />
               <Segmented
@@ -133,7 +135,7 @@ export default function LibraryPage() {
             </div>
           </div>
         )}
-        {loaded && !entries.length && <Empty title={t('library.empty')} body={t('library.emptyHint')} />}
+        {loaded && !entries.length && <Empty title={t('library.empty')} body={t(owner ? 'library.emptyHint' : 'library.emptyGuest')} />}
         {entries.length > 0 && !shown.length && (
           <div className="py-10 text-center text-[14px] text-ink-2">
             <p>{searching ? t('library.noMatch', { q: query.trim() }) : t('library.noTagMatch')}</p>
@@ -158,7 +160,7 @@ export default function LibraryPage() {
               <table className="w-full table-fixed border-collapse text-left text-[14px]">
                 <thead className="hidden border-b border-line md:table-header-group">
                   <tr>
-                    <th className="w-10" />
+                    {owner && <th className="w-10" />}
                     <th scope="col" aria-sort={ariaSort('title', sort)} className="px-2 py-2 font-normal">
                       <SortHead id="title" label={t('list.title')} sort={sort} onToggle={toggle} />
                     </th>
@@ -182,14 +184,14 @@ export default function LibraryPage() {
             </div>
           ))}
         <TrashSection
-          rows={searching || tags.length ? [] : trash}
+          rows={!owner || searching || tags.length ? [] : trash}
           hint={t('library.trashHint', { days: TRASH_DAYS })}
           meta={(r) => <span>{r.kind === 'group' ? t('library.kindGroup') : t('library.kindItem')}</span>}
           onRestore={(r) => void restore([r.id]).then(loadTrash, failed)}
           onPurge={(rows) => void purge(rows.map((r) => r.id)).catch(failed)}
           purgeConfirm={(rows) => (rows.length === 1 ? t('library.purgeConfirm', { title: rows[0].title }) : t('library.purgeAllConfirm', { count: rows.length }))}
         />
-        <BulkBar count={selection.ids.length} onClear={selection.clear}>
+        <BulkBar count={owner ? selection.ids.length : 0} onClear={selection.clear}>
           <Button size="sm" onClick={() => setBulkEdit(true)}>
             <Pencil size={13} />
             {t('library.bulkEdit')}
@@ -213,7 +215,7 @@ export default function LibraryPage() {
           />
         )}
         <NoticeBar notice={notice} onClose={close} raised={selection.ids.length > 0} />
-        {editing && <LibrarySlideEditor key={editing.entryId} theme={theme} entryId={editing.entryId} start={editing.key} mode={editing.mode} onClose={() => setEditing(null)} onFailed={failed} />}
+        {editing && <LibrarySlideEditor key={editing.entryId} theme={theme} entryId={editing.entryId} start={editing.key} mode={editing.mode} owner={owner} onClose={() => setEditing(null)} onFailed={failed} />}
       </div>
     </div>
   )
@@ -345,14 +347,15 @@ function slideList(entryId: string, failed: (err: unknown) => void) {
 }
 
 /** The slide editor on one library entry. */
-function LibrarySlideEditor({ entryId, start, mode, theme, onClose, onFailed }: { entryId: string; start: string; mode: 'view' | 'edit'; theme: string; onClose: () => void; onFailed: (err: unknown) => void }) {
+/** The owner edits an entry's slides; a guest pages through them. */
+function LibrarySlideEditor({ entryId, start, mode, theme, owner, onClose, onFailed }: { entryId: string; start: string; mode: 'view' | 'edit'; theme: string; owner: boolean; onClose: () => void; onFailed: (err: unknown) => void }) {
   const { t } = useTranslation()
   const entry = useLibrary((s) => s.entries.find((e) => e.id === entryId))
   if (!entry || entry.kind !== 'item') return null
   const list = slideList(entryId, onFailed)
-  const source = listSource({ context: t('editor.ctx.library'), label: entry.title, get: list.get, set: list.set, editable: true })
+  const source = listSource({ context: t('editor.ctx.library'), label: entry.title, get: list.get, set: list.set, editable: owner })
   const known = [...new Set(entry.data.slides.flatMap((s) => slideAssets(s.html)))]
-  return <SlideEditor source={source} start={start} mode={mode} onClose={onClose} theme={theme} scope="library" owner canEdit known={known} />
+  return <SlideEditor source={source} start={start} mode={owner ? mode : 'view'} onClose={onClose} theme={theme} scope="library" owner={owner} canEdit={owner} known={known} />
 }
 
 /** The files of one item of an entry; a workshop gets copies of them when the entry is inserted, and keeps those whatever happens here. */
@@ -512,7 +515,8 @@ interface RowProps {
   entry: LibraryEntry
   theme: string
   open: boolean
-  selection: Selection
+  /** The ticks: the owner's only. */
+  selection: Selection | null
   onToggle: () => void
   onOpenSlide: (key: string, mode: 'view' | 'edit') => void
   /** The entry's fields, shown while it is open. */
@@ -527,14 +531,16 @@ function ListRow({ entry, open, selection, onToggle, details }: RowProps) {
   const minutes = minutesOf(entry)
   const color = entry.kind === 'item' ? itemColor(entry.data, categories) : null
   const slides = items.reduce((n, i) => n + i.slides.length, 0)
-  const picked = selection.has(entry.id)
+  const picked = !!selection?.has(entry.id)
   return (
     <>
       <tr className={cx('border-b border-line last:border-b-0', picked ? 'bg-accent-soft/50' : 'hover:bg-surface-2/60', open && 'border-b-0')}>
-        <td className="w-10 py-1 pl-2 align-top">
-          <SelectBox state={picked} onToggle={(range) => selection.toggle(entry.id, range)} label={t('list.select', { title: entry.title })} />
-        </td>
-        <td className="px-2 py-1 align-top">
+        {selection && (
+          <td className="w-10 py-1 pl-2 align-top">
+            <SelectBox state={picked} onToggle={(range) => selection.toggle(entry.id, range)} label={t('list.select', { title: entry.title })} />
+          </td>
+        )}
+        <td className={cx('px-2 py-1 align-top', !selection && 'pl-4')}>
           <button type="button" onClick={onToggle} aria-expanded={open} className="block w-full py-1 text-left">
             <span className="flex items-center gap-2">
               {entry.kind === 'group' ? <FolderOpen size={14} className="shrink-0 text-ink-3" /> : <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color ? `var(--c-${color})` : 'var(--line-2)' }} />}
@@ -563,7 +569,7 @@ function ListRow({ entry, open, selection, onToggle, details }: RowProps) {
       </tr>
       {open && (
         <tr className="border-b border-line last:border-b-0">
-          <td colSpan={5} className="p-0">
+          <td colSpan={selection ? 5 : 4} className="p-0">
             {details}
           </td>
         </tr>
@@ -578,21 +584,90 @@ function CardRow({ entry, theme, open, selection, onToggle, onOpenSlide, details
   return (
     <div>
       <div className="flex items-start">
-        <SelectBox state={selection.has(entry.id)} onToggle={(range) => selection.toggle(entry.id, range)} label={t('list.select', { title: entry.title })} className="ml-1.5 mt-2" />
-        <button type="button" onClick={onToggle} aria-expanded={open} className="block min-w-0 flex-1 py-3 pl-1 pr-4 text-left transition-colors hover:bg-surface-2/60">
+        {selection && <SelectBox state={selection.has(entry.id)} onToggle={(range) => selection.toggle(entry.id, range)} label={t('list.select', { title: entry.title })} className="ml-1.5 mt-2" />}
+        <button type="button" onClick={onToggle} aria-expanded={open} className={cx('block min-w-0 flex-1 py-3 pr-4 text-left transition-colors hover:bg-surface-2/60', selection ? 'pl-1' : 'pl-4')}>
           <EntryCard entry={entry} theme={theme} slides={false} />
           <TagList tags={entry.tags} className="mt-2" />
         </button>
       </div>
       {/* The first slides: each opens the slide editor, as thumbnails do everywhere (the card itself opens the details). */}
       {!open && entry.kind === 'item' && entry.data.slides.length > 0 && (
-        <div className="-mt-1 grid grid-cols-3 gap-1.5 px-4 pb-3 pl-[52px]">
+        <div className={cx('-mt-1 grid grid-cols-3 gap-1.5 px-4 pb-3', selection ? 'pl-[52px]' : 'pl-[30px]')}>
           {entry.data.slides.slice(0, 3).map((s, n) => (
             <SlideView key={s.id} html={s.html} theme={theme} scope="library" onClick={() => onOpenSlide(s.id, 'view')} label={t('slides.slide', { n: n + 1 })} />
           ))}
         </div>
       )}
       {open && details}
+    </div>
+  )
+}
+
+/** An open entry as a guest reads it: its items with what they hold, the files to download, the slides to look at. */
+function EntryView({ entry, theme, onOpenSlide }: { entry: LibraryEntry; theme: string; onOpenSlide: (key: string) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-4 border-t border-line px-4 py-4 text-[14px]">
+      {entryItems(entry).map((i, n) => {
+        const facts = (
+          [
+            ['item.description', i.description],
+            ['item.goal', i.goal],
+            ['item.method', i.method],
+            ['item.lead', i.lead],
+            ['item.notes', i.notes],
+          ] as const
+        ).filter(([, v]) => v.trim())
+        const files = i.attachmentIds.flatMap((id) => entry.attachments.filter((a) => a.id === id))
+        return (
+          <div key={n} className="space-y-2">
+            {entry.kind === 'group' && (
+              <div className="flex justify-between gap-3 font-medium">
+                <span className="truncate">{i.title || t(`kinds.${i.kind}`)}</span>
+                <span className="shrink-0 font-normal text-ink-3 tnum">{durationOf(i) ? formatDuration(durationOf(i)) : ''}</span>
+              </div>
+            )}
+            {facts.length > 0 && (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px] leading-snug">
+                {facts.map(([key, v]) => (
+                  <div key={key} className="contents">
+                    <dt className="text-ink-3">{t(key)}</dt>
+                    <dd className="whitespace-pre-line text-ink-2">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {i.materials.length > 0 && (
+              <p className="inline-flex items-center gap-1 text-[13px] text-ink-2">
+                <Package size={12} className="shrink-0 text-ink-3" />
+                {i.materials.map((m) => (m.qty > 1 ? `${m.label} ×${m.qty}` : m.label)).join(', ')}
+              </p>
+            )}
+            {files.length > 0 && (
+              <ul className="space-y-1 text-[13px]">
+                {files.map((a) => (
+                  <li key={a.id}>
+                    <a href={api.libraryFileUrl(a.id)} download={a.name} className="inline-flex items-center gap-1 text-ink-2 hover:text-ink hover:underline">
+                      <Paperclip size={12} className="shrink-0 text-ink-3" />
+                      {a.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {entry.kind === 'item' && i.slides.length > 0 && (
+              <div className="grid grid-cols-3 gap-1.5 md:grid-cols-4">
+                {i.slides.map((s, k) => (
+                  <SlideView key={s.id} html={s.html} theme={theme} scope="library" onClick={() => onOpenSlide(s.id)} label={t('slides.slide', { n: k + 1 })} />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      <p className="text-[12px] text-ink-3">
+        {t('list.createdOn', { date: shortDate(entry.createdAt) })} · {t('list.updatedOn', { date: shortDate(entry.updatedAt) })} · {t('library.insertHint')}
+      </p>
     </div>
   )
 }

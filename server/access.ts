@@ -1,6 +1,6 @@
 import type { Context, Hono, MiddlewareHandler, Next } from 'hono'
 import { type Op, picturesIn, type ServerEvent } from '../src/domain/ops.ts'
-import type { Access, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
+import type { Access, ItemContent, LibraryEntry, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import type { Env, User } from './guard.ts'
 import type { Repo } from './repo.ts'
 
@@ -12,9 +12,10 @@ import type { Repo } from './repo.ts'
  * - `public`, `own-token`: the login does not count; the route is open or checks a token of its own.
  * - `signed-in`: anybody the login lets in, shared workshop or not.
  * - `workshop-view`, `workshop-edit`: the owner and the guests of that workshop, or those of them who may edit.
+ * - `library-view`: the owner, and the guests of any workshop, to read the library (libraryForGuest).
  * - `owner`: the owner only.
  */
-export type Rule = 'public' | 'own-token' | 'signed-in' | 'workshop-view' | 'workshop-edit' | 'owner'
+export type Rule = 'public' | 'own-token' | 'signed-in' | 'workshop-view' | 'workshop-edit' | 'library-view' | 'owner'
 
 /** What a caller has on one workshop. */
 export type WorkshopAccess = 'owner' | Access
@@ -33,10 +34,11 @@ export const mayEdit = (access: WorkshopAccess | null): boolean => access === 'o
  * The one check: null lets the caller through, a status refuses. A workshop the caller has no access to answers 404,
  * so that nobody learns it exists. Whatever is not named here is refused.
  */
-export function decide(rule: Rule, user: User | undefined, workshop: WorkshopAccess | null): 401 | 403 | 404 | null {
+export function decide(rule: Rule, user: User | undefined, workshop: WorkshopAccess | null, library: LibraryAccess | null = null): 401 | 403 | 404 | null {
   if (rule === 'public' || rule === 'own-token') return null
   if (!user) return 401
   if (rule === 'signed-in') return null
+  if (rule === 'library-view') return library ? null : 403
   if (rule === 'owner') return user.owner ? null : 403
   if (rule === 'workshop-view') return workshop ? null : 404
   if (rule === 'workshop-edit') return !workshop ? 404 : mayEdit(workshop) ? null : 403
@@ -59,9 +61,11 @@ export function rulesFor(repo: Repo) {
       const user = c.get('user') as User | undefined
       const id = user && (rule === 'workshop-view' || rule === 'workshop-edit') ? workshopOf(c) : null
       const workshop = user && id ? workshopAccess(repo, user, id) : null
-      const refused = decide(rule, user, workshop)
+      const library = user && rule === 'library-view' ? libraryAccess(repo, user) : null
+      const refused = decide(rule, user, workshop, library)
       if (refused) return c.json({ error: REFUSALS[refused] }, refused)
       if (workshop) c.set('access', workshop)
+      if (library) c.set('library', library)
       await next()
     }
     return Object.assign(check, { [RULE]: rule })
@@ -102,13 +106,51 @@ export function mayApply(access: WorkshopAccess, ops: Op[]): boolean {
 
 /**
  * A picture is shown to a workshop's guests because its slides name it, so naming one must not be how a guest gets it:
- * a guest may place only what the workshop holds or has held, what they uploaded to it, and what a theme offers all.
+ * a guest may place only what the workshop holds or has held, what they uploaded to it, what a theme offers all, and
+ * what the library shows.
  */
 export function mayPlace(repo: Repo, access: WorkshopAccess, workshopId: string, ops: Op[]): boolean {
-  return access === 'owner' || picturesIn(ops).every((hash) => repo.assetKnownTo(workshopId, hash))
+  if (access === 'owner') return true
+  const pictures = picturesIn(ops)
+  // What the library shows, an editing guest may read there (libraryAccess), and so place: an entry inserted with its slides.
+  const library = pictures.some((hash) => !repo.assetKnownTo(workshopId, hash)) ? libraryPictures(repo.listLibrary()) : new Set<string>()
+  return pictures.every((hash) => repo.assetKnownTo(workshopId, hash) || repo.pairOf(hash).some((h) => library.has(h)))
 }
 
 const seesNotes = (access: Access) => access.role === 'edit' || access.showNotes
+
+/**
+ * What a caller has of the library: the owner all of it; a guest of any workshop reads it, with the facilitation notes
+ * when they see notes in one of their workshops (as an editor, or with the notes shown); null: nothing. Changing it
+ * stays the owner's. A guest who may edit a workshop inserts entries into it (POST /api/library/:id/copies/:workshopId).
+ */
+export type LibraryAccess = 'owner' | { notes: boolean }
+
+export function libraryAccess(repo: Repo, user: User): LibraryAccess | null {
+  if (user.owner) return 'owner'
+  const access = user.email ? repo.memberships(user.email) : []
+  return access.length ? { notes: access.some(seesNotes) } : null
+}
+
+/**
+ * The library as a guest reads it: without the notes, the same is left out as in a workshop (forGuest): facilitation
+ * notes, note items (an entry that is one goes altogether) and the files only note items name. The trash stays the owner's.
+ */
+export function libraryForGuest(entries: LibraryEntry[], access: LibraryAccess): LibraryEntry[] {
+  if (access === 'owner' || access.notes) return entries
+  const strip = (i: ItemContent): ItemContent => ({ ...i, notes: '' })
+  return entries.flatMap((e): LibraryEntry[] => {
+    const kept = (e.kind === 'group' ? e.data.items : [e.data]).filter((i) => i.kind !== 'note')
+    if (!kept.length) return []
+    const named = new Set(kept.flatMap((i) => i.attachmentIds))
+    const attachments = e.attachments.filter((a) => named.has(a.id))
+    return [e.kind === 'group' ? { ...e, data: { ...e.data, items: kept.map(strip) }, attachments } : { ...e, data: strip(e.data), attachments }]
+  })
+}
+
+/** The pictures the slides of these entries show. */
+export const libraryPictures = (entries: LibraryEntry[]): Set<string> =>
+  new Set(entries.flatMap((e) => (e.kind === 'group' ? e.data.items : [e.data]).flatMap((i) => i.slides.flatMap((s) => [...s.html.matchAll(/asset:([0-9a-f]{64})/g)].map((m) => m[1])))))
 
 /** What a guest without the notes may not see: facilitation notes, note items and the files only note items link to. */
 export function forGuest(state: WorkshopState, access: Access): WorkshopState {

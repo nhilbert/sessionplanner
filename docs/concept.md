@@ -93,7 +93,7 @@ This section describes the core on its own. The owner's instance of this kind wa
 | Property | Choices |
 |---|---|
 | E-mail | as the login reports it, in lower case; one entry per person and workshop |
-| Role | **View** · **Edit** (agenda, notes, material, slides, uploading and renaming files; not sharing, replacing or deleting files, the library, themes or templates) |
+| Role | **View** · **Edit** (agenda, notes, material, slides, uploading and renaming files, inserting from the library; not sharing, replacing or deleting files, changing the library, themes or templates) |
 | Internal notes | hidden · shown, for a view guest; a guest who may edit always sees them |
 | Last opened | set when the guest opens the workshop |
 
@@ -102,6 +102,7 @@ How it is enforced:
 - One API, `/api/…`, behind the login. The app looks the guest up on every request (table `members`): owner routes refuse guests, and a workshop not shared with them answers as if it did not exist.
 - Every route says who may use it, in the route inventory (`server/routes.test.ts`). The test calls each route as every kind of caller and compares the answers with that rule; a route that is not listed fails it.
 - A view guest without the notes gets the workshop without facilitation notes and note items. Live updates only tell such a guest that something changed, and the window loads its filtered copy again.
+- Every guest reads the library, read-only, under Library in the navigation (`library-view` in `server/access.ts`): with the notes when they see notes in one of their workshops, else without facilitation notes, note items and the files only note items name, as in a workshop. A guest who may edit inserts entries into that workshop from its Library tab. Saving to the library, changing it and its trash stay the owner's (section 10, 2026-11-16).
 - Removing a guest takes effect at once, also on an open page: their live-update stream ends. Changed access applies from that moment.
 - The reverse proxy strips `X-Auth-Request-Email` from incoming requests; the login sets it. With `SP_PROXY_SECRET` the header counts only on requests that carry the proxy's secret (section 11).
 - Guests share the owner's origin, so nothing a guest writes may run as code: notes are rendered as text (or sanitised Markdown), a strict Content-Security-Policy, attachments as downloads only (section 5). What a guest may upload and hold open is limited (section 10, 2026-11-01, slides).
@@ -136,7 +137,7 @@ On the owner's retired instance there was no public access, so no share links: e
 **2026-11-06, after a review of the whole code**
 
 - Library files follow their ids through a save, not the place of their items: taking an item out of a group no longer hands its files to the next one. Files of an item taken out go; a file added meanwhile stays with its item.
-- A guest places only pictures the workshop holds or has held, what they uploaded to it and what a theme offers everybody (`mayPlace`, table `workshop_assets`). Reading still goes by what the slides show, which is safe only because of this check. A workshop remembers what it has held, or undo would fail.
+- A guest places only pictures the workshop holds or has held, what they uploaded to it, what a theme offers everybody and (since 2026-11-16) what the library's slides show (`mayPlace`, table `workshop_assets`). Reading still goes by what the slides show, which is safe only because of this check. A workshop remembers what it has held, or undo would fail.
 - A build can give a set of data a storage budget (`server/budget.ts`): all files, pictures and theme files count, the trash too, through uploads, copies and duplicates, for agents as well. A write holds its room before it writes, so parallel uploads cannot pass a limit together. The settings show what is used. Without a budget there is no limit.
 - A workshop has a `revision` that rises with every change and is kept in the database. Snapshots and live events name it, so a window keeps what comes in before its first snapshot, applies nothing twice and passes over a late snapshot. There is no check for gaps, as guests receive only some events; a reconnect reads the workshop anyway.
 - Between two tabs or two people the last save wins, as before, by choice. The revision would be what a conflict check builds on.
@@ -145,9 +146,17 @@ On the owner's retired instance there was no public access, so no share links: e
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
 
+**2026-11-16, guests read the library** (until then it was the owner's alone, section 8)
+
+- The guests of any workshop read the library, read-only: the list with its search, tags and sort, each entry opened with its fields, files and slides. No ticks, no editing, no trash. The navigation shows Library to them once a workshop is shared with them (`/api/me` says so with `library`).
+- What a guest reads follows the notes rule of a workshop: who sees notes in one of their workshops (edit, or view with the notes shown) reads the library with them; the others without facilitation notes, note items (an entry that is one is left out) and the files only note items name. Its pictures and files are served to guests only as far as that view shows them.
+- A guest who may edit a workshop inserts entries into it from its Library tab, as the owner does: the entry's files are copied in (`POST /api/library/:id/copies/:workshopId`, edit access to that workshop), and its slide pictures may be placed (`mayPlace`).
+- Saving a step or a group to the library stays the owner's: it would write into somebody else's collection, and every guest's save would land among the owner's material. Agents stay the owner's too (section 7).
+- Counter-argument considered: the library holds the owner's own methods, now open to every co-facilitator and client with a shared workshop. Accepted, as asked; the notes rule keeps the facilitation notes from guests who do not see them in a workshop either. A guest of a workshop in the trash only reads nothing.
+
 **2026-11-16, lists to sort and select in, tags and a trash for the library**
 
-- The library and the list of workshops share one way of working (`src/components/collection.tsx`): a sort that is remembered per device, a selection of several rows (Shift-click for a range, "select all" means the rows shown) with a bar of actions, and the trash at the end. Each list keeps its own rows and actions. Template slides stay as they are for now: their order is the picker's, set by hand.
+- The library and the list of workshops share one way of working (`src/components/collection.tsx`): a sort that is remembered per device, a selection of several rows (Shift-click for a range, "select all" means the rows shown, and a row a search or tag filter hides leaves the selection) with a bar of actions, and the trash at the end. Each list keeps its own rows and actions. Template slides stay as they are for now: their order is the picker's, set by hand.
 - The library opens as a list, sorted by title, length, or the day an entry was made or last changed; the cards remain as a second view. Text-heavy entries scan better as lines; the cards show more of one entry.
 - Library entries carry tags: free words, stored trimmed and once whatever their capitals (`src/domain/tags.ts`). They filter the library as chips of one size in the order of their names, each with the number of entries it would leave; several chosen tags narrow the list (an entry carries all of them). A cloud that sizes tags by how often they occur was considered and dropped: it reads worse and says little in a library of this size. Workshops and template slides have no tags.
 - Selected entries are tagged, given a category or colour, or deleted together (`POST /api/library/batch`); selected workshops are archived or deleted. Titles and texts are not changed in bulk.

@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono'
 import { timingSafeEqual } from 'node:crypto'
-import type { WorkshopAccess } from './access.ts'
+import type { LibraryAccess, WorkshopAccess } from './access.ts'
 
 export interface GuardOptions {
   /** Public address when hosted behind the login proxy (SP_PUBLIC_URL); its host and origin pass next to loopback. */
@@ -54,7 +54,7 @@ export interface User {
   owner: boolean
 }
 
-export type Env = { Variables: { user: User; access: WorkshopAccess } }
+export type Env = { Variables: { user: User; access: WorkshopAccess; library: LibraryAccess } }
 
 /**
  * Hosted, the login proxy sets the signed-in e-mail (Caddy strips it from incoming requests, and only Caddy can

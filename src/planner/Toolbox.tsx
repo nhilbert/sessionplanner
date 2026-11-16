@@ -30,7 +30,7 @@ const TABS = [
 
 interface Props {
   data: WorkshopState
-  /** Guests see neither the library nor the access tab, and none of the owner's actions. */
+  /** Guests (who may edit: view guests get the agenda only) see no access tab and none of the owner's actions; they insert from the library. */
   owner: boolean
   onDayDate: (dayId: string, date: string) => void
   change: (ops: Op[]) => void
@@ -62,7 +62,7 @@ export default function Toolbox(p: Props) {
   const width = clampWidth(Number(widthRaw) || DEFAULT_WIDTH)
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, files: p.data.attachments.length }
-  const tabs = TABS.filter((x) => (p.owner || (x.id !== 'library' && x.id !== 'access')) && (x.id !== 'access' || hasWorkshopSharing()))
+  const tabs = TABS.filter((x) => x.id !== 'access' || (p.owner && hasWorkshopSharing()))
   const tab: Tab = tabs.some((x) => x.id === p.tab) ? p.tab : 'parking'
 
   if (!p.open && !p.mobile)
@@ -108,7 +108,7 @@ export default function Toolbox(p: Props) {
       <AddBar onAdd={p.onAddParked} />
     </div>
   ) : tab === 'library' ? (
-    <LibraryTab onInsert={p.onLibraryInsert} />
+    <LibraryTab onInsert={p.onLibraryInsert} owner={p.owner} />
   ) : tab === 'packing' ? (
     <PackingPanel data={p.data} change={p.change} />
   ) : tab === 'files' ? (
@@ -193,7 +193,7 @@ function ResizeEdge({ width, onWidth, label }: { width: number; onWidth: (w: num
   )
 }
 
-function LibraryTab({ onInsert }: { onInsert: (entry: LibraryEntry) => void }) {
+function LibraryTab({ onInsert, owner }: { onInsert: (entry: LibraryEntry) => void; owner: boolean }) {
   const { t } = useTranslation()
   const { entries, loaded, load } = useLibrary()
   const categories = useSettings((s) => s.settings.categories)
@@ -205,7 +205,7 @@ function LibraryTab({ onInsert }: { onInsert: (entry: LibraryEntry) => void }) {
   return (
     <div>
       <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} className="mb-3" />
-      {loaded && !entries.length && <p className="text-[13px] leading-snug text-ink-2">{t('library.emptyHint')}</p>}
+      {loaded && !entries.length && <p className="text-[13px] leading-snug text-ink-2">{t(owner ? 'library.emptyHint' : 'library.emptyGuest')}</p>}
       <ul className="space-y-1">
         {shown.map((e) => (
           <LibraryRow key={e.id} entry={e} onInsert={() => onInsert(e)} />
@@ -215,7 +215,7 @@ function LibraryTab({ onInsert }: { onInsert: (entry: LibraryEntry) => void }) {
         <p className="mt-3 text-[12px] text-ink-3">
           {t('library.dragHint')}{' '}
           <Link to="/library" className="hover:text-ink hover:underline">
-            {t('library.manage')}
+            {t(owner ? 'library.manage' : 'library.browse')}
           </Link>
         </p>
       )}

@@ -55,9 +55,10 @@ const CALLER_NAMES = Object.keys(CALLERS) as Caller[]
  * - `approver`: the page where an owner approves an agent's connection.
  * - `signed-in`: anybody the login lets in, shared workshop or not.
  * - `workshop-view`, `workshop-edit`: the owner and the guests of that workshop, or those of them who may edit.
+ * - `library-view`: the owner and the guests of any workshop, to read the library.
  * - `owner`: the owner only.
  */
-type Access = 'public' | 'link' | 'agent' | 'approver' | 'signed-in' | 'workshop-view' | 'workshop-edit' | 'owner'
+type Access = 'public' | 'link' | 'agent' | 'approver' | 'signed-in' | 'workshop-view' | 'workshop-edit' | 'library-view' | 'owner'
 type Answer = 'through' | number
 
 const each = (answer: Answer) => Object.fromEntries(CALLER_NAMES.map((who) => [who, answer])) as Record<Caller, Answer>
@@ -72,6 +73,7 @@ const RULES: Record<Access, Record<Caller, Answer>> = {
   // An outsider learns nothing: the workshop answers as if it did not exist.
   'workshop-view': { ...NO_LOGIN, outsider: 404, viewer: 'through', editor: 'through', owner: 'through' },
   'workshop-edit': { ...NO_LOGIN, outsider: 404, viewer: 403, editor: 'through', owner: 'through' },
+  'library-view': { ...NO_LOGIN, outsider: 403, viewer: 'through', editor: 'through', owner: 'through' },
   owner: { ...NO_LOGIN, outsider: 403, viewer: 403, editor: 403, owner: 'through' },
 }
 
@@ -184,7 +186,7 @@ const ROUTES: Route[] = [
   { route: 'DELETE /api/settings/logo', access: 'owner' },
 
   // Library
-  { route: 'GET /api/library', access: 'owner' },
+  { route: 'GET /api/library', access: 'library-view' },
   { route: 'POST /api/library', access: 'owner', body: () => entry },
   { route: 'PUT /api/library/:id', access: 'owner', body: () => entry },
   { route: 'DELETE /api/library/:id', access: 'owner' },
@@ -193,14 +195,14 @@ const ROUTES: Route[] = [
   { route: 'POST /api/library/trash/:id/restore', access: 'owner' },
   { route: 'DELETE /api/library/trash/:id', access: 'owner' },
   { route: 'POST /api/library/:id/attachments', access: 'owner', body: fileForm },
-  { route: 'POST /api/library/:id/copies/:workshopId', access: 'owner' },
-  { route: 'GET /api/library/attachments/:id', access: 'owner' },
+  { route: 'POST /api/library/:id/copies/:workshopId', access: 'workshop-edit' },
+  { route: 'GET /api/library/attachments/:id', access: 'library-view' },
   { route: 'PATCH /api/library/attachments/:id', access: 'owner', body: () => ({ name: 'renamed.md' }) },
   { route: 'PUT /api/library/attachments/:id/file', access: 'owner', body: fileForm },
   { route: 'DELETE /api/library/attachments/:id', access: 'owner' },
   { route: 'POST /api/library/assets', access: 'owner', body: pictureForm },
-  { route: 'GET /api/library/assets/:hash', access: 'owner' },
-  { route: 'GET /api/library/assets/:hash/info', access: 'owner' },
+  { route: 'GET /api/library/assets/:hash', access: 'library-view' },
+  { route: 'GET /api/library/assets/:hash/info', access: 'library-view' },
 
   // Slide pool, pictures on slides as a whole
   { route: 'GET /api/decks', access: 'owner' },
@@ -242,8 +244,6 @@ const LAYERS = [
   'ALL /*', // security headers, the built client's files
   'ALL /api/*', // the login's guard, body limits, unknown addresses
   'ALL /oauth/*', // body limit
-  'ALL /api/library', // the owner's rule for everything under these
-  'ALL /api/library/*',
   'ALL /api/decks',
   'ALL /api/decks/*',
   'ALL /api/slide-templates',
@@ -310,7 +310,8 @@ async function fixture(): Promise<{ app: App; records: Records }> {
   const attachment = await made<Attachment>(`/api/workshops/${workshop.id}/attachments`, fileForm())
   await made('/api/settings/logo', pictureForm())
 
-  const library = await made<LibraryEntry>('/api/library', entry)
+  // The picture is on the entry's slides too: guests read the library's pictures, no others.
+  const library = await made<LibraryEntry>('/api/library', { ...entry, data: { ...content, slides: shown.slides } })
   const withFile = await made<LibraryEntry & { data: { attachmentIds: string[] } }>(`/api/library/${library.id}/attachments`, fileForm())
 
   const trashedEntry = (await made<LibraryEntry>('/api/library', entry)).id

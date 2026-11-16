@@ -278,6 +278,8 @@ export interface Member {
 export interface Me {
   email: string | null
   owner: boolean
+  /** Reads the library: the owner, and a guest of any workshop (read-only; editing guests insert from it). */
+  library?: boolean
 }
 
 /** A guest's access to the open workshop (absent for the owner). */

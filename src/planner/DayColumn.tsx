@@ -44,7 +44,7 @@ export interface BoardCtx {
   onRenameGroup: (id: string, title: string) => void
   onUngroup: (id: string) => void
   onDeleteGroup: (id: string) => void
-  /** Absent for guests (the library is the owner's). */
+  /** Absent for guests (saving to the library is the owner's). */
   onSaveGroup?: (id: string) => void
   /** Opens the slide editor on a step (the slide count on its card). */
   onOpenSlides?: (id: string) => void

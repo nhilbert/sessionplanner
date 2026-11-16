@@ -578,6 +578,11 @@ export class Repo {
     return (this.db.prepare('SELECT * FROM members WHERE workshop_id = ? ORDER BY added_at').all(workshopId) as Row[]).map(toMember)
   }
 
+  /** A guest's access in every workshop shared with them that is not in the trash. */
+  memberships(email: string): Member[] {
+    return (this.db.prepare('SELECT * FROM members WHERE email = ? AND workshop_id IN (SELECT id FROM workshops WHERE deleted_at IS NULL)').all(email) as Row[]).map(toMember)
+  }
+
   getMember(workshopId: string, email: string): Member | null {
     const r = this.db.prepare('SELECT * FROM members WHERE workshop_id = ? AND email = ?').get(workshopId, email) as Row | undefined
     return r ? toMember(r) : null
@@ -800,6 +805,12 @@ export class Repo {
     if (!asset) return null
     const original = asset.cutoutOf && this.getAsset(asset.cutoutOf) ? asset.cutoutOf : asset.hash
     return { original, cutout: original === asset.hash ? (this.getCutout(hash)?.hash ?? null) : asset.hash }
+  }
+
+  /** The asset with its original or cut-out, the hashes a slide may name it by. */
+  pairOf(hash: string): string[] {
+    const pair = this.assetPair(hash)
+    return pair ? [pair.original, ...(pair.cutout ? [pair.cutout] : [])] : [hash]
   }
 
   getAsset(hash: string): Asset | null {

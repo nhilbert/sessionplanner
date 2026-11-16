@@ -9,7 +9,7 @@ import { newId, type PresentPosition } from '../src/domain/ops.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, sameToken } from './guard.ts'
-import { eventFor, forGuest, mayApply, mayDownload, mayEdit, mayPlace, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
+import { eventFor, forGuest, libraryAccess, libraryForGuest, libraryPictures, mayApply, mayDownload, mayEdit, mayPlace, requireRules, rulesFor, visibleWorkshops, workshopAccess, type WorkshopAccess } from './access.ts'
 import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
@@ -178,7 +178,8 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ error: 'error' }, 500)
   })
 
-  app.get('/api/me', allow('signed-in'), (c) => c.json(c.get('user')))
+  // Who is there, and whether they read the library (a guest of any workshop does).
+  app.get('/api/me', allow('signed-in'), (c) => c.json({ ...c.get('user'), library: !!libraryAccess(repo, c.get('user')) }))
   app.get('/api/workshops', allow('signed-in'), (c) => c.json(visibleWorkshops(repo, c.get('user'))))
   app.post('/api/workshops', allow('owner'), async (c) => c.json(repo.createWorkshop(validateNewWorkshop(await c.req.json().catch(() => ({})))), 201))
   app.get('/api/workshops/:id', allow('workshop-view'), (c) => {
@@ -494,16 +495,16 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ ok: true })
   })
 
-  // ---- library (owner only) ---------------------------------------------------------------------------
-  app.use('/api/library', allow('owner'))
-  app.use('/api/library/*', allow('owner'))
-  app.get('/api/library', (c) => c.json(repo.listLibrary()))
+  // ---- library: the owner's; guests of a workshop read it and insert from it (access.ts, libraryAccess) ---------
+  /** The library as the caller may read it. */
+  const libraryFor = (c: Context<Env>) => libraryForGuest(repo.listLibrary(), c.get('library'))
+  app.get('/api/library', allow('library-view'), (c) => c.json(libraryFor(c)))
   // Saved from a workshop: the file lists name its attachments, and the entry gets copies of its own.
-  app.post('/api/library', async (c) => {
+  app.post('/api/library', allow('owner'), async (c) => {
     const { entry, files } = copyToLibrary(repo, filesDir, validateLibraryEntry(await jsonBody(c)), budget)
     return c.json(repo.saveLibraryEntry(null, entry, files), 201)
   })
-  app.put('/api/library/:id', async (c) => {
+  app.put('/api/library/:id', allow('owner'), async (c) => {
     const id = c.req.param('id')!
     const body = validateLibraryEntry(await jsonBody(c))
     const stored = repo.getLibraryEntry(id)
@@ -514,24 +515,24 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
   // Deleting puts an entry into the trash, as with workshops: it is gone from the library at once and can be brought
   // back for TRASH_DAYS days; then it goes for good, with its files (emptyTrash).
-  app.delete('/api/library/:id', (c) => {
+  app.delete('/api/library/:id', allow('owner'), (c) => {
     if (!repo.trashLibraryEntry(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
     return c.json({ ok: true })
   })
   // The list's selection: tags, category, colour or the trash for several entries at once. Answers with the library as it now is.
-  app.post('/api/library/batch', async (c) => {
+  app.post('/api/library/batch', allow('owner'), async (c) => {
     repo.changeLibraryEntries(validateLibraryBatch(await jsonBody(c)))
     return c.json(repo.listLibrary())
   })
-  app.get('/api/library/trash', (c) => {
+  app.get('/api/library/trash', allow('owner'), (c) => {
     emptyTrash(repo, filesDir)
     return c.json(repo.listLibraryTrash())
   })
-  app.post('/api/library/trash/:id/restore', (c) => {
+  app.post('/api/library/trash/:id/restore', allow('owner'), (c) => {
     if (!repo.restoreLibraryEntry(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
     return c.json({ ok: true })
   })
-  app.delete('/api/library/trash/:id', (c) => {
+  app.delete('/api/library/trash/:id', allow('owner'), (c) => {
     const id = c.req.param('id')!
     if (!repo.libraryInTrash(id)) return c.json({ error: 'not_found' }, 404)
     // Files first: when one cannot go, the records still say what is left, and this can be tried again.
@@ -541,7 +542,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // Files of an entry; an answer is the entry as it now is. In a group entry `item` says which of its items holds the file.
-  app.post('/api/library/:id/attachments', async (c) => {
+  app.post('/api/library/:id/attachments', allow('owner'), async (c) => {
     const entryId = c.req.param('id')!
     if (!repo.getLibraryEntry(entryId)) return c.json({ error: 'not_found' }, 404)
     const upload = await attachmentUpload(c)
@@ -558,17 +559,19 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       return c.json(entry, 201)
     })
   })
-  app.get('/api/library/attachments/:id', async (c) => {
+  app.get('/api/library/attachments/:id', allow('library-view'), async (c) => {
     const att = repo.getLibraryAttachment(c.req.param('id')!)
-    return att ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
+    // A guest gets the files of the entries as they read them (without the notes: not the files only note items name).
+    const shown = att && (c.get('library') === 'owner' || libraryFor(c).some((e) => e.attachments.some((a) => a.id === att.id)))
+    return att && shown ? sendAttachment(c, att) : c.json({ error: 'not_found' }, 404)
   })
-  app.patch('/api/library/attachments/:id', async (c) => {
+  app.patch('/api/library/attachments/:id', allow('owner'), async (c) => {
     const att = repo.getLibraryAttachment(c.req.param('id')!)
     if (!att) return c.json({ error: 'not_found' }, 404)
     return c.json(repo.updateLibraryAttachment(att.id, { name: validateFileName(await jsonBody(c), att.name) }))
   })
   // The entry's next version; the copies in workshops stay as they are.
-  app.put('/api/library/attachments/:id/file', async (c) => {
+  app.put('/api/library/attachments/:id/file', allow('owner'), async (c) => {
     const att = repo.getLibraryAttachment(c.req.param('id')!)
     if (!att) return c.json({ error: 'not_found' }, 404)
     const upload = await attachmentUpload(c)
@@ -583,7 +586,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       })
     })
   })
-  app.delete('/api/library/attachments/:id', async (c) => {
+  app.delete('/api/library/attachments/:id', allow('owner'), async (c) => {
     const id = c.req.param('id')!
     return fileTurn(id, async () => {
       const entry = repo.deleteLibraryAttachment(id)
@@ -592,8 +595,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       return c.json(entry)
     })
   })
-  /** Copies an entry's files into a workshop, before the entry is placed there: library attachment id → the workshop's copy. */
-  app.post('/api/library/:id/copies/:workshopId', (c) => {
+  /**
+   * Copies an entry's files into a workshop, before the entry is placed there: library attachment id → the workshop's
+   * copy. For the owner and the guests who may edit that workshop (they read the library with its notes).
+   */
+  app.post('/api/library/:id/copies/:workshopId', allow('workshop-edit', (c) => c.req.param('workshopId') ?? null), (c) => {
     const entry = repo.getLibraryEntry(c.req.param('id')!)
     const workshopId = c.req.param('workshopId')!
     if (!entry || !repo.loadWorkshop(workshopId)) return c.json({ error: 'not_found' }, 404)
@@ -719,9 +725,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
     return sendAsset(c, hash, c.req.query('ground'))
   })
-  app.post('/api/library/assets', (c) => storeAsset(c, 'owner'))
-  app.get('/api/library/assets/:hash/info', (c) => assetInfo(c, c.req.param('hash')!))
-  app.get('/api/library/assets/:hash', (c) => sendAsset(c, c.req.param('hash')!, c.req.query('ground')))
+  app.post('/api/library/assets', allow('owner'), (c) => storeAsset(c, 'owner'))
+  // A guest sees the pictures the library's slides show (as they read it), nothing else.
+  const inLibrary = (c: Context<Env>, hash: string) => c.get('library') === 'owner' || (HASH.test(hash) && repo.pairOf(hash).some((h) => libraryPictures(libraryFor(c)).has(h)))
+  app.get('/api/library/assets/:hash/info', allow('library-view'), (c) => (inLibrary(c, c.req.param('hash')!) ? assetInfo(c, c.req.param('hash')!) : c.json({ error: 'not_found' }, 404)))
+  app.get('/api/library/assets/:hash', allow('library-view'), (c) => (inLibrary(c, c.req.param('hash')!) ? sendAsset(c, c.req.param('hash')!, c.req.query('ground')) : c.json({ error: 'not_found' }, 404)))
   /**
    * Cut-outs for the pictures already on slides (owner): every PNG a stored slide shows gets its cut-out made with
    * the current routine (from the original, when the slide shows an older cut-out), and the slides that show an

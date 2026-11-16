@@ -32,7 +32,7 @@ export function reportFailure(err: unknown): void {
   window.alert(i18n.t('common.failed', { error: reason }))
 }
 
-/** Where a slide's pictures come from: a workshop's own route (its guests may load them) or the owner's library. */
+/** Where a slide's pictures come from: a workshop's own route (its guests may load them) or the library (the owner's; its guests read what it shows them). */
 export type AssetScope = { workshopId: string } | 'library'
 /** The ground a picture is shown on: under a dark theme the server answers with a cut-out's dark variant (docs/slides.md, section 5). */
 export type AssetGround = 'light' | 'dark'

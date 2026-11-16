@@ -33,8 +33,9 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
   const [folded, setFolded] = useLocalState('sp.nav', 'open')
   const { load, loadMe, me } = useSettings()
   const collapsed = folded === 'folded'
-  // Guests see their shared workshops and the language setting; the library and the slides area are the owner's.
-  const nav = me.owner ? NAV : NAV.filter((n) => !n.owner)
+  // Guests see their shared workshops, the library to read (when a workshop is shared with them) and the language
+  // setting; the slides area is the owner's.
+  const nav = me.owner ? NAV : NAV.filter((n) => !n.owner || (n.to === '/library' && me.library))
 
   const [loginExpired, setLoginExpired] = useState(false)
   useEffect(() => {

@@ -12,7 +12,7 @@ import { decodePng, encodePng } from './cutout.ts'
 import { createHash } from 'node:crypto'
 import { DEFAULT_TOKENS } from '../src/domain/theme.ts'
 import type { Op, ServerEvent } from '../src/domain/ops.ts'
-import { type Attachment, type Item, type ItemContent, type LibraryEntry, TRASH_DAYS, type TrashedLibraryEntry, type TrashedWorkshop, type WorkshopState } from '../src/domain/types.ts'
+import { type Attachment, type Item, type ItemContent, type LibraryEntry, type Me, TRASH_DAYS, type TrashedLibraryEntry, type TrashedWorkshop, type WorkshopState } from '../src/domain/types.ts'
 import { emptyTrash } from './files.ts'
 
 const BASE = 'http://127.0.0.1'
@@ -1081,7 +1081,7 @@ describe('library attachments', () => {
     expect((await app.request(`${BASE}/api/library/batch`, { method: 'POST', headers: H, body: JSON.stringify({ ids: [] }) })).status).toBe(400)
   })
 
-  it('stays the owner\'s: a guest neither reads nor changes library files', async () => {
+  it('stays the owner\'s for somebody with no shared workshop: neither reads nor changes library files', async () => {
     const pub = 'https://sessions.example.com'
     const { app } = setup({ owners: ['me@example.com'], publicUrl: new URL(pub) })
     const OWNER = { 'x-auth-request-email': 'me@example.com', origin: pub, 'x-sp': '1' }
@@ -1094,7 +1094,7 @@ describe('library attachments', () => {
     expect((await app.request(`${pub}/api/library/attachments/${file}`, { headers: GUEST })).status).toBe(403)
     expect((await app.request(`${pub}/api/library/attachments/${file}`, { method: 'DELETE', headers: GUEST })).status).toBe(403)
     expect((await app.request(`${pub}/api/library/attachments/${file}/file`, { method: 'PUT', headers: GUEST, body: form })).status).toBe(403)
-    expect((await app.request(`${pub}/api/library/${e.id}/copies/x`, { method: 'POST', headers: GUEST })).status).toBe(403)
+    expect((await app.request(`${pub}/api/library/${e.id}/copies/x`, { method: 'POST', headers: GUEST })).status).toBe(404)
   })
 })
 
@@ -1277,6 +1277,94 @@ describe('guests', () => {
     expect(text).not.toContain('after the restore')
   })
 
+  describe('and the library', () => {
+    const FORM = (email: string) => ({ 'x-auth-request-email': email, 'x-sp': '1' })
+    const CARL = as('carl@example.com')
+    const block = (title: string, over: Record<string, unknown> = {}) => ({ kind: 'block', title, description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], slides: [], categoryId: null, color: null, ...over })
+    const png = (shade: number) => encodePng({ width: 4, height: 4, rgba: new Uint8Array(64).map((_, i) => (i % 4 === 3 ? 255 : (shade * 11 + i) % 256)) })
+    const pictureSlide = (hash: string) => ({ id: 's1', html: `<section class="slide picture"><img src="asset:${hash}"></section>` })
+    type App = ReturnType<typeof setup>['app']
+    const post = async <T,>(app: App, address: string, body: unknown): Promise<T> => {
+      const res = await app.request(`${pub}${address}`, { method: 'POST', headers: OWNER, body: JSON.stringify(body) })
+      expect(res.status, address).toBeLessThan(300)
+      return (await res.json()) as T
+    }
+    const upload = async <T,>(app: App, address: string, file: File, fields: Record<string, string> = {}): Promise<T> => {
+      const form = new FormData()
+      form.append('file', file)
+      for (const [k, v] of Object.entries(fields)) form.append(k, v)
+      const res = await app.request(`${pub}${address}`, { method: 'POST', headers: FORM('me@example.com'), body: form })
+      expect(res.status, address).toBeLessThan(300)
+      return (await res.json()) as T
+    }
+    const get = (app: App, address: string, headers: Record<string, string>) => app.request(`${pub}${address}`, { headers })
+
+    /** Anna views the shared workshop without the notes, Ben edits it; Carl has nothing shared. */
+    const stage = async () => {
+      const ctx = await prepared()
+      const { app, id, otherId } = ctx
+      await share(app, id, 'anna@example.com', 'view', false)
+      await share(app, id, 'ben@example.com', 'edit', true)
+      const { hash: shown } = await upload<{ hash: string }>(app, '/api/library/assets', new File([new Uint8Array(png(1))], 'p.png', { type: 'image/png' }))
+      const { hash: foreign } = await upload<{ hash: string }>(app, `/api/workshops/${otherId}/assets`, new File([new Uint8Array(png(2))], 'q.png', { type: 'image/png' }))
+      const single = await post<LibraryEntry>(app, '/api/library', { kind: 'item', title: 'Fishbowl', data: block('Fishbowl', { notes: 'secret', slides: [pictureSlide(shown)] }) })
+      await upload(app, `/api/library/${single.id}/attachments`, new File(['x'], 'shared.md'))
+      const group = await post<LibraryEntry>(app, '/api/library', { kind: 'group', title: 'Opening', data: { items: [block('Check-in', { notes: 'secret' }), block('Cue', { kind: 'note', duration: 0 })] } })
+      const withNote = await upload<LibraryEntry>(app, `/api/library/${group.id}/attachments`, new File(['x'], 'note-only.md'), { item: '1' })
+      await post(app, '/api/library', { kind: 'item', title: 'Reminder', data: block('Reminder', { kind: 'note', duration: 0 }) })
+      return { ...ctx, shown, foreign, single, group, noteOnly: withNote.attachments[0].id }
+    }
+
+    it('is read by the guests of a workshop, without what their notes leave out; nobody else reads it', async () => {
+      const { app, single, group, noteOnly } = await stage()
+      const anna = (await (await get(app, '/api/library', ANNA)).json()) as LibraryEntry[]
+      expect(anna.map((e) => e.title)).toEqual(['Fishbowl', 'Opening'])
+      expect(anna.flatMap((e) => (e.kind === 'group' ? e.data.items : [e.data])).map((i) => [i.title, i.notes])).toEqual([['Fishbowl', ''], ['Check-in', '']])
+      expect(anna.find((e) => e.id === group.id)!.attachments).toEqual([])
+      expect((await get(app, `/api/library/attachments/${noteOnly}`, ANNA)).status).toBe(404)
+      expect((await get(app, `/api/library/attachments/${anna.find((e) => e.id === single.id)!.attachments[0].id}`, ANNA)).status).toBe(200)
+
+      const ben = (await (await get(app, '/api/library', BEN)).json()) as LibraryEntry[]
+      expect(ben.map((e) => e.title)).toEqual(['Fishbowl', 'Opening', 'Reminder'])
+      expect((await get(app, `/api/library/attachments/${noteOnly}`, BEN)).status).toBe(200)
+
+      expect((await get(app, '/api/library', CARL)).status).toBe(403)
+      expect(((await (await get(app, '/api/me', ANNA)).json()) as Me).library).toBe(true)
+      expect(((await (await get(app, '/api/me', CARL)).json()) as Me).library).toBe(false)
+    })
+
+    it('stays the owner\'s to change, and its trash too', async () => {
+      const { app, single } = await stage()
+      for (const who of [ANNA, BEN]) {
+        expect((await app.request(`${pub}/api/library`, { method: 'POST', headers: who, body: JSON.stringify({ kind: 'item', title: 'X', data: block('X') }) })).status).toBe(403)
+        expect((await app.request(`${pub}/api/library/${single.id}`, { method: 'DELETE', headers: who })).status).toBe(403)
+        expect((await get(app, '/api/library/trash', who)).status).toBe(403)
+      }
+    })
+
+    it('shows guests its pictures and no others; an editing guest inserts an entry with them into the workshop', async () => {
+      const { app, id, otherId, shown, foreign, single } = await stage()
+      expect((await get(app, `/api/library/assets/${shown}`, ANNA)).status).toBe(200)
+      expect((await get(app, `/api/library/assets/${foreign}`, ANNA)).status).toBe(404)
+      expect((await get(app, `/api/library/assets/${shown}`, CARL)).status).toBe(403)
+
+      const ops = (hash: string) => JSON.stringify({ clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item('lib', id, null, { slides: [pictureSlide(hash)] }) }] })
+      expect((await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: BEN, body: ops(foreign) })).status).toBe(403)
+      expect((await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: BEN, body: ops(shown) })).status).toBe(200)
+      expect((await get(app, `/api/workshops/${id}/assets/${shown}`, ANNA)).status).toBe(200)
+
+      expect((await app.request(`${pub}/api/library/${single.id}/copies/${id}`, { method: 'POST', headers: BEN })).status).toBe(201)
+      expect((await app.request(`${pub}/api/library/${single.id}/copies/${id}`, { method: 'POST', headers: ANNA })).status).toBe(403)
+      expect((await app.request(`${pub}/api/library/${single.id}/copies/${otherId}`, { method: 'POST', headers: BEN })).status).toBe(404)
+    })
+
+    it('is gone for a guest whose shared workshops are all in the trash', async () => {
+      const { app, id } = await stage()
+      expect((await app.request(`${pub}/api/workshops/${id}`, { method: 'DELETE', headers: OWNER })).status).toBe(200)
+      expect((await get(app, '/api/library', ANNA)).status).toBe(403)
+    })
+  })
+
   describe('and the pictures of a workshop', () => {
     const multipart = (email: string) => ({ 'x-auth-request-email': email, 'x-sp': '1' })
     const OWNER_FORM = multipart('me@example.com')
@@ -1389,13 +1477,13 @@ describe('guests', () => {
     })
   })
 
-  it('cannot manage access, settings or the library', async () => {
+  it('cannot manage access, settings or the library (they read the library: see "and the library")', async () => {
     const { app, id } = await prepared()
     await share(app, id, 'ben@example.com', 'edit', true)
     expect((await share(app, id, 'eve@example.com', 'edit', true, BEN)).status).toBe(403)
     expect((await app.request(`${pub}/api/workshops/${id}/members`, { headers: BEN })).status).toBe(403)
     expect((await app.request(`${pub}/api/settings`, { method: 'PUT', headers: BEN, body: JSON.stringify({ categories: [], dayStart: 0, dayEnd: null }) })).status).toBe(403)
-    expect((await app.request(`${pub}/api/library`, { headers: BEN })).status).toBe(403)
+    expect((await app.request(`${pub}/api/library`, { method: 'POST', headers: BEN, body: '{}' })).status).toBe(403)
     expect((await app.request(`${pub}/api/workshops`, { method: 'POST', headers: BEN, body: '{}' })).status).toBe(403)
     expect((await app.request(`${pub}/api/settings`, { headers: BEN })).status).toBe(200)
   })
