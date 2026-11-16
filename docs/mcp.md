@@ -219,13 +219,13 @@ Conventions:
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
-| `library_list` | read | – | Reusable items and groups shared by all workshops, compact (slides as a count). |
+| `library_list` | read | – | Reusable items and groups shared by all workshops, compact (slides as a count), each with its tags. |
 | `library_get` | read | `entry` | One entry in full: its item, or the items of a group, with notes, material, category, colour and the slides (number, id, layout, title). |
 | `library_save` | write | `workshop`, `item` or `group`, `title` | Saves a copy to the library. |
-| `library_create` | write | `title`, the item fields (`kind`, `duration`, `description`, `goal`, `method`, `lead`, `notes`, `materials[]`, `category`, `color`, `slides[]`), or `items[]` (each `title` + the same fields) | A new entry from scratch: a single item, or with `items` a group (`title` is its heading) with those items in order. |
-| `library_update` | destructive | `entry`, `title`, the item fields, `appendNotes`; for a group entry `item` (the item inside, by title or number), `at`, `addItems[]`, `addAt`, `removeItems[]` | Changes an entry. An item entry: `title` and the fields change its item. A group entry: `title` alone renames the heading; with `item` the title and fields change that item and `at` moves it; `addItems` adds items (at `addAt`, default the end), `removeItems` takes items out. Items are named as the entry was before the call; `at` and `addAt` count in the list after `removeItems`. An item cannot be changed and removed in one call. Copies placed in workshops stay as they are. |
+| `library_create` | write | `title`, the item fields (`kind`, `duration`, `description`, `goal`, `method`, `lead`, `notes`, `materials[]`, `category`, `color`, `slides[]`), `tags[]`, or `items[]` (each `title` + the same fields) | A new entry from scratch: a single item, or with `items` a group (`title` is its heading) with those items in order. |
+| `library_update` | destructive | `entry`, `title`, the item fields, `appendNotes`; `tags[]` (replaces them), `addTags[]`, `removeTags[]`; for a group entry `item` (the item inside, by title or number), `at`, `addItems[]`, `addAt`, `removeItems[]` | Changes an entry. An item entry: `title` and the fields change its item. A group entry: `title` alone renames the heading; with `item` the title and fields change that item and `at` moves it; `addItems` adds items (at `addAt`, default the end), `removeItems` takes items out. Items are named as the entry was before the call; `at` and `addAt` count in the list after `removeItems`. An item cannot be changed and removed in one call. Copies placed in workshops stay as they are. |
 | `library_insert` | write | `workshop`, `entry`, `day`, `at`, `after` | Inserts a copy (an item, or a group with its items). |
-| `library_delete` | destructive | `entry` | Deletes the entry for good; placed copies stay. |
+| `library_delete` | destructive | `entry` | Puts the entry into the trash, where the owner can restore it in the app for 30 days; placed copies stay. |
 
 ### Slides
 

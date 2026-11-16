@@ -24,6 +24,7 @@ const INSTRUCTIONS = `Session Planner holds workshop agendas: a workshop has day
 - Drafting from a brief: workshop_create, then item_create_many per day in order, with goal, method and lead where known. Use kind "break" for pauses, "marker" for points in time (arrival, end) and "note" for cues. Keep stretches without a break under 90 minutes.
 - Facilitation notes (notes) are the facilitator's own; appendNotes adds to them instead of replacing.
 - The packing list is computed from the material of all placed items (largest quantity per label, not the sum); packing_update ticks lines, overrides quantities and adds workshop-wide material.
+- Library entries carry tags (library_list shows them; set them with library_create and library_update), and a deleted entry waits 30 days in the trash.
 - The library holds reusable items and groups shared by all workshops, as copies both ways: library_insert copies an entry with its files into an agenda, and changing or deleting an entry leaves the placed copies alone. Read library_get before library_update.
 - Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show, or the theme's pool (theme_pool: pictures for figures, icons for cards).
 - Prefer small, reversible changes and say what you changed. Workshops cannot be deleted through these tools; archive instead.`
@@ -37,6 +38,7 @@ const workshopRef = z.string().describe('Workshop id or title')
 const itemRef = z.string().describe('Item id or title')
 const groupRef = z.string().describe('Group id or title')
 const entryRef = z.string().describe('Library entry id or title')
+const entryTags = z.array(z.string().min(1).max(50)).max(30)
 const dayRef = z.union([z.string(), z.number().int().positive(), z.null()]).describe('Day id, date (YYYY-MM-DD) or number (1 = first day); null = parking lot')
 
 const material = z.object({ label: z.string().min(1), qty: z.number().int().min(0).optional().describe('Default 1'), link: z.string().optional().describe('http(s) or mailto link') })
@@ -220,7 +222,7 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
   )
 
   // ---------- library ----------
-  tool('library_list', 'Reusable items and groups shared by all workshops.', {}, () => ops.libraryList(), 'read')
+  tool('library_list', 'Reusable items and groups shared by all workshops, each with its tags.', {}, () => ops.libraryList(), 'read')
   tool(
     'library_save',
     'Save an item, or a group with its items, of a workshop to the library (a copy with copies of its files; later edits do not affect the workshop).',
@@ -243,7 +245,7 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
   tool(
     'library_create',
     'Add a library entry from scratch: a single item with the given fields, or with items a group entry (title is its heading) with those items in order. Entries are shared by all workshops; library_insert places copies.',
-    { title: z.string().min(1).describe('Title of the item, or heading of the group'), ...contentFields, items: z.array(libraryItem).min(1).max(100).optional().describe('Makes it a group entry with these items; the fields then go per item') },
+    { title: z.string().min(1).describe('Title of the item, or heading of the group'), ...contentFields, tags: entryTags.optional().describe('Tags of the entry, to filter the library by'), items: z.array(libraryItem).min(1).max(100).optional().describe('Makes it a group entry with these items; the fields then go per item') },
     (a) => ops.libraryCreate(a as never),
   )
   tool(
@@ -258,11 +260,14 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
       addItems: z.array(libraryItem).max(100).optional().describe('Group entries: items to add, in order'),
       addAt: z.number().int().min(0).optional().describe('0-based position for addItems, counted after removeItems; default the end'),
       removeItems: z.array(memberRef).max(100).optional().describe('Group entries: items to take out, by title or number as the entry was before the call; not the item being changed'),
+      tags: entryTags.optional().describe('Replaces the tags of the entry; an empty list clears them'),
+      addTags: entryTags.optional().describe('Tags to add to the ones the entry has'),
+      removeTags: entryTags.optional().describe('Tags to take away'),
     },
     (a) => ops.libraryUpdate(a.entry as string, a as never),
     'destructive',
   )
-  tool('library_delete', 'Delete a library entry for good; copies placed in workshops stay.', { entry: entryRef }, (a) => ops.libraryDelete(a.entry as string), 'destructive')
+  tool('library_delete', 'Delete a library entry: it goes into the trash, where the owner can restore it in the app for 30 days, then it is deleted for good. Copies placed in workshops stay.', { entry: entryRef }, (a) => ops.libraryDelete(a.entry as string), 'destructive')
 
   // ---------- slides (docs/slides.md) ----------
   // Slides live on a step of a workshop (workshop + item) or on a library entry (entry; for a group entry also item).

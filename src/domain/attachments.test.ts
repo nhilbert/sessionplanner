@@ -21,7 +21,7 @@ describe('what may be attached', () => {
 
 describe('files of library entries', () => {
   const content = (title: string, attachmentIds: string[] = []): ItemContent => ({ kind: 'block', title, description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds, slides: [], categoryId: null, color: null })
-  const base = { id: 'e', attachments: [], createdAt: '', updatedAt: '' }
+  const base = { id: 'e', tags: [], attachments: [], createdAt: '', updatedAt: '' }
   const group: LibraryEntry = { ...base, kind: 'group', title: 'G', data: { items: [content('A', ['l1']), content('B', ['l2', 'l3'])] } }
 
   it('links the new items to the workshop copies, and to nothing that was not copied', () => {

@@ -137,7 +137,7 @@ describe('MCP endpoint', () => {
     const bad = await client.callTool({ name: 'library_update', arguments: { entry: 'Einstieg', duration: 5 } })
     expect(bad.isError).toBe(true)
     expect(json(bad).error).toMatch(/give the item inside it/)
-    expect(json(await client.callTool({ name: 'library_delete', arguments: { entry: 'Einstieg' } }))).toEqual({ deleted: 'Einstieg', kind: 'group' })
+    expect(json(await client.callTool({ name: 'library_delete', arguments: { entry: 'Einstieg' } }))).toMatchObject({ deleted: 'Einstieg', kind: 'group' })
     expect(repo.listLibrary()).toEqual([])
     await client.close()
   })

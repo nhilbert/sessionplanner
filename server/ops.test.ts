@@ -8,6 +8,8 @@ import { Hub } from './hub.ts'
 import { MAX_BATCH_ITEMS, Ops } from './ops.ts'
 import { BadRequest } from './validate.ts'
 import { StorageBudget } from './budget.ts'
+import { emptyTrash } from './files.ts'
+import { TRASH_DAYS } from '../src/domain/types.ts'
 import type { ServerEvent } from '../src/domain/ops.ts'
 
 function setup() {
@@ -267,8 +269,12 @@ describe('packing list and library', () => {
     writeFileSync(path.join(filesDir, held), 'a new version')
     expect(readFileSync(path.join(filesDir, state.attachments[0].id), 'utf8')).toBe('original')
 
-    // deleting the entry takes its files, not the copies
+    // a deleted entry waits in the trash with its files; when the trash lets go of it they go, not the copies
     ops.libraryDelete(entry.id)
+    expect(repo.listLibrary()).toEqual([])
+    expect(existsSync(path.join(filesDir, held))).toBe(true)
+    emptyTrash(repo, filesDir, new Date(Date.now() + (TRASH_DAYS + 1) * 86_400_000))
+    expect(repo.listLibraryTrash()).toEqual([])
     expect(existsSync(path.join(filesDir, held))).toBe(false)
     expect(existsSync(path.join(filesDir, state.attachments[0].id))).toBe(true)
   })
@@ -329,7 +335,7 @@ describe('packing list and library', () => {
     const ws = ops.workshopCreate({ title: 'Teamtag' })
     ops.libraryInsert(ws.id!, 'Ankommen', 1)
     ops.libraryUpdate('Ankommen', { duration: 10 })
-    expect(ops.libraryDelete('Ankommen')).toEqual({ deleted: 'Ankommen', kind: 'item' })
+    expect(ops.libraryDelete('Ankommen')).toMatchObject({ deleted: 'Ankommen', kind: 'item' })
     expect(flat(ops.workshopGet(ws.id!).days![0])).toMatchObject([{ title: 'Ankommen', end: '09:25' }])
     expect(ops.libraryList().map((e) => e.title)).toEqual(['Einstieg'])
     expect(() => ops.libraryGet('Ankommen')).toThrow(/no library entry/)

@@ -206,10 +206,11 @@ export interface WorkshopSummary {
   days: number
   /** Length of the agenda: per day from its start to its computed end (breaks included, parked items not), summed. */
   minutes: number
+  createdAt: string
   updatedAt: string
 }
 
-/** How long a deleted workshop waits in the trash before it is deleted for good. */
+/** How long a deleted workshop or library entry waits in the trash before it is deleted for good. */
 export const TRASH_DAYS = 30
 
 /** A workshop in the trash, as its list shows it. */
@@ -232,8 +233,33 @@ export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duratio
 export type LibraryAttachment = Omit<Attachment, 'workshopId'> & { entryId: string }
 
 export type LibraryEntry =
-  | { id: string; kind: 'item'; title: string; data: ItemContent; attachments: LibraryAttachment[]; createdAt: string; updatedAt: string }
-  | { id: string; kind: 'group'; title: string; data: { items: ItemContent[] }; attachments: LibraryAttachment[]; createdAt: string; updatedAt: string }
+  | { id: string; kind: 'item'; title: string; data: ItemContent; tags: string[]; attachments: LibraryAttachment[]; createdAt: string; updatedAt: string }
+  | { id: string; kind: 'group'; title: string; data: { items: ItemContent[] }; tags: string[]; attachments: LibraryAttachment[]; createdAt: string; updatedAt: string }
+
+/** What a save of a library entry sends: without tags an entry keeps the ones it has. */
+export type LibraryEntryInput = Pick<LibraryEntry, 'kind' | 'title' | 'data'> & { tags?: string[] }
+
+/** A change to several library entries at once (the list's selection). Category and colour go to every item of an entry. */
+export interface LibraryBatch {
+  ids: string[]
+  addTags?: string[]
+  removeTags?: string[]
+  categoryId?: string | null
+  color?: PaletteKey | null
+  /** Puts the entries into the trash. */
+  trash?: boolean
+}
+
+/** A library entry in the trash, as its list shows it. */
+export interface TrashedLibraryEntry {
+  id: string
+  kind: LibraryEntry['kind']
+  title: string
+  tags: string[]
+  deletedAt: string
+  /** When it goes for good: TRASH_DAYS after it was deleted. */
+  purgeAt: string
+}
 
 export type MemberRole = 'view' | 'edit'
 

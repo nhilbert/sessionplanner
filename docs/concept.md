@@ -145,6 +145,15 @@ On the owner's retired instance there was no public access, so no share links: e
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
 
+**2026-11-16, lists to sort and select in, tags and a trash for the library**
+
+- The library and the list of workshops share one way of working (`src/components/collection.tsx`): a sort that is remembered per device, a selection of several rows (Shift-click for a range, "select all" means the rows shown) with a bar of actions, and the trash at the end. Each list keeps its own rows and actions. Template slides stay as they are for now: their order is the picker's, set by hand.
+- The library opens as a list, sorted by title, length, or the day an entry was made or last changed; the cards remain as a second view. Text-heavy entries scan better as lines; the cards show more of one entry.
+- Library entries carry tags: free words, stored trimmed and once whatever their capitals (`src/domain/tags.ts`). They filter the library as chips of one size in the order of their names, each with the number of entries it would leave; several chosen tags narrow the list (an entry carries all of them). A cloud that sizes tags by how often they occur was considered and dropped: it reads worse and says little in a library of this size. Workshops and template slides have no tags.
+- Selected entries are tagged, given a category or colour, or deleted together (`POST /api/library/batch`); selected workshops are archived or deleted. Titles and texts are not changed in bulk.
+- Deleting a library entry puts it into the trash for 30 days, like a workshop, with its files; then it goes for good. It is not asked first: a note offers the way back, and only deleting for good asks. Deleting workshops still asks, because their sharing ends and a restore does not bring it back.
+- In the trash an entry is gone for everything else: lists, saves, its files and agents. The exports of all data and media hold it, apart and marked. Agents delete into the trash too (`library_delete`) and set tags (`library_create`, `library_update`).
+
 **2026-11-06, a trash for workshops**
 
 - Deleting a workshop puts it into the trash for 30 days (`TRASH_DAYS`); then it is deleted for good, with its files. Until then the owner restores it from the trash, at the end of the list of workshops, or deletes it for good there.

@@ -100,7 +100,8 @@ export function workshopZip(repo: Repo, filesDir: string, id: string, options?: 
  * All data without the media: `manifest.json`, `settings.json`, one file per workshop in `workshops/`, `library.json`,
  * `decks.json` (with their slides), `themes.json` (data themes with their pools), `slide-templates.json` and
  * `assets.json` (the pictures' records; the pictures themselves are in the media export). Workshops in the trash can
- * still come back, so an archive of everything holds them too, in `trash/` and named in the manifest with their dates.
+ * still come back, so an archive of everything holds them too, in `trash/` and named in the manifest with their dates;
+ * library entries in the trash are in `trash/library.json`.
  */
 export function dataZip(repo: Repo, options?: { zip64Over?: number }): ReadableStream<Uint8Array> {
   const exportedAt = new Date().toISOString()
@@ -131,6 +132,12 @@ export function dataZip(repo: Repo, options?: { zip64Over?: number }): ReadableS
     }
     yield json('settings.json', repo.getSettings())
     yield json('library.json', library)
+    // Library entries in the trash can still come back too: apart, with their dates.
+    const libraryTrash = repo.listLibraryTrash().flatMap((t) => {
+      const entry = repo.loadTrashedLibraryEntry(t.id)
+      return entry ? [{ ...entry, deletedAt: t.deletedAt, purgeAt: t.purgeAt }] : []
+    })
+    if (libraryTrash.length) yield json('trash/library.json', libraryTrash)
     yield json('decks.json', decks)
     yield json('themes.json', themes)
     yield json('slide-templates.json', templates)
@@ -164,7 +171,7 @@ interface MediaEntry {
 }
 
 /**
- * All media: `attachments/<workshop>/`, `trash-attachments/<workshop>/`, `library/<entry>/`, `pictures/<hash>.<ext>`, `theme-files/<theme>/`,
+ * All media: `attachments/<workshop>/`, `trash-attachments/<workshop>/`, `library/<entry>/`, `trash-library/<entry>/`, `pictures/<hash>.<ext>`, `theme-files/<theme>/`,
  * `theme-logos/`, `logo.<ext>` (the printouts' logo), `themes/<folder>/` (folder themes) and `media.json`, which names
  * each file's kind and the ids it belongs to, and the files that were missing on disk.
  */
@@ -214,6 +221,12 @@ export function mediaZip(repo: Repo, filesDir: string, themesDir: string | undef
       if (!e.attachments.length) continue
       const dir = folderOf('library', e.title, e.id)
       for (const a of e.attachments) yield* add(file(a.id), `${dir}/${safePart(a.name, a.id)}`, { kind: 'library-attachment', id: a.id, entryId: e.id, name: a.name, mime: a.mime })
+    }
+    for (const t of repo.listLibraryTrash()) {
+      const e = repo.loadTrashedLibraryEntry(t.id)
+      if (!e?.attachments.length) continue
+      const dir = folderOf('trash-library', e.title, e.id)
+      for (const a of e.attachments) yield* add(file(a.id), `${dir}/${safePart(a.name, a.id)}`, { kind: 'library-attachment', id: a.id, entryId: e.id, inTrash: true, name: a.name, mime: a.mime })
     }
     for (const p of assets) yield* add(asset(p.hash), `pictures/${p.hash}.${extension(p.mime)}`, { kind: 'picture', id: p.hash, mime: p.mime })
     for (const t of themes) {

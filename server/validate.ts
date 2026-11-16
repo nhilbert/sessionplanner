@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
-import { PALETTE, type ItemContent, type Settings } from '../src/domain/types.ts'
+import { PALETTE, type ItemContent, type LibraryBatch, type Settings } from '../src/domain/types.ts'
+import { normalizeTags } from '../src/domain/tags.ts'
 import { extensionOf } from '../src/domain/attachments.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
 import { DERIVED_COLOR_KEYS, FAMILY_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_FILE_PATH, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
@@ -137,12 +138,30 @@ export function validateSettings(body: unknown): Omit<Settings, 'logo'> {
   return parsed.data
 }
 
+/** Tags as typed or sent; stored trimmed and once (domain/tags.ts). */
+const entryTags = z.array(text(200)).max(200).transform((list) => normalizeTags(list))
 const libraryBody = z.union([
-  z.strictObject({ kind: z.literal('item'), title: text(300), data: itemContent }),
-  z.strictObject({ kind: z.literal('group'), title: text(300), data: z.strictObject({ items: z.array(itemContent).min(1).max(100) }) }),
+  z.strictObject({ kind: z.literal('item'), title: text(300), data: itemContent, tags: entryTags.optional() }),
+  z.strictObject({ kind: z.literal('group'), title: text(300), data: z.strictObject({ items: z.array(itemContent).min(1).max(100) }), tags: entryTags.optional() }),
 ])
 
-export function validateLibraryEntry(body: unknown): { kind: 'item'; title: string; data: ItemContent } | { kind: 'group'; title: string; data: { items: ItemContent[] } } {
+const libraryBatch = z.strictObject({
+  ids: z.array(id).min(1).max(1000),
+  addTags: entryTags.optional(),
+  removeTags: entryTags.optional(),
+  categoryId: id.nullable().optional(),
+  color: color.nullable().optional(),
+  trash: z.boolean().optional(),
+})
+
+/** A change to several library entries at once. */
+export function validateLibraryBatch(body: unknown): LibraryBatch {
+  const parsed = libraryBatch.safeParse(body)
+  if (!parsed.success) throw new BadRequest(`invalid library change: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  return parsed.data
+}
+
+export function validateLibraryEntry(body: unknown): { kind: 'item'; title: string; data: ItemContent; tags?: string[] } | { kind: 'group'; title: string; data: { items: ItemContent[] }; tags?: string[] } {
   const parsed = libraryBody.safeParse(body)
   if (!parsed.success) throw new BadRequest(`invalid library entry: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
   return parsed.data
@@ -268,7 +287,7 @@ export const isThemeId = (value: string): boolean => THEME_ID.test(value)
 const ASSET_HASH = /^[0-9a-f]{64}$/
 const poolKind = z.enum(POOL_KINDS as [PoolKind, ...PoolKind[]])
 const tags = z.array(text(40)).max(20)
-const poolEntry = z.strictObject({ hash: z.string().regex(ASSET_HASH, 'an asset hash'), kind: poolKind, tags: tags.optional() })
+const poolEntry = z.strictObject({ hash: z.string().regex(ASSET_HASH, 'an asset hash'), kind: poolKind, tags: entryTags.optional() })
 const poolPatch = z.strictObject({ tags: tags.optional(), position: z.number().finite().optional(), kind: poolKind.optional() })
 
 /** Tags typed as one line – words or phrases separated by commas – as the list they are stored as: trimmed, lower-case, no doubles. */

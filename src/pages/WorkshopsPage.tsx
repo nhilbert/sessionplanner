@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { CalendarDays, Clock, MapPin, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, CalendarDays, Clock, MapPin, Plus, Trash2 } from 'lucide-react'
 import { api, reportFailure } from '@/api'
 import { TRASH_DAYS, type TrashedWorkshop, type WorkshopSummary } from '@/domain/types'
 import { formatDuration } from '@/domain/time'
 import { formatDate } from '@/i18n'
-import { Button, Chip, Empty, Field, Input, Modal, PageHeader, SearchField } from '@/components/ui'
+import { Button, Chip, cx, Empty, Field, Input, Modal, PageHeader, SearchField } from '@/components/ui'
+import { BulkBar, NoticeBar, SelectAll, SelectBox, SortControl, type SortOption, TrashSection, useNotice, useSelection, useSort } from '@/components/collection'
+import { newId } from '@/domain/ops'
 import { useSettings } from '@/store/useSettings'
 
 export default function WorkshopsPage() {
@@ -25,38 +27,63 @@ export default function WorkshopsPage() {
   }, [])
   // The trash is the owner's: deleted workshops wait there TRASH_DAYS days before they go for good.
   const [trash, setTrash] = useState<TrashedWorkshop[]>([])
-  const [showTrash, setShowTrash] = useState(false)
+  const { notice, show, close } = useNotice()
+  /** The lists as the server has them now, after a change here (or one that failed half-way). */
+  const reload = async () => {
+    setList(await api.listWorkshops())
+    if (me.owner) setTrash(await api.listTrash())
+  }
   useEffect(() => {
     if (me.owner) api.listTrash().then(setTrash, () => undefined)
   }, [me.owner])
-  const restore = async (w: TrashedWorkshop) => {
+  /** One call per workshop, then the lists again, whatever happened. */
+  const each = async (ids: string[], run: (id: string) => Promise<unknown>) => {
     try {
-      await api.restoreWorkshop(w.id)
-      setTrash((list) => list.filter((x) => x.id !== w.id))
-      setList(await api.listWorkshops())
+      for (const id of ids) await run(id)
     } catch (err) {
       reportFailure(err)
+    } finally {
+      await reload().catch(() => undefined)
     }
   }
-  const purge = async (w: TrashedWorkshop) => {
-    if (!window.confirm(t('workshops.purgeConfirm', { title: w.title || t('workshops.untitled') }))) return
-    try {
-      await api.purgeWorkshop(w.id)
-      setTrash((list) => list.filter((x) => x.id !== w.id))
-    } catch (err) {
-      reportFailure(err)
-    }
-  }
+  const restore = (ids: string[]) => each(ids, api.restoreWorkshop)
+  const purge = (ids: string[]) => each(ids, api.purgeWorkshop)
 
   // A search looks through archived workshops too (they carry their chip); every word typed has to match somewhere.
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const matches = (w: WorkshopSummary) => words.every((q) => [w.title, w.client, w.location].some((f) => f.toLowerCase().includes(q)))
-  const visible = (list ?? []).filter((w) => (words.length ? matches(w) : showArchived || !w.archived))
+  const options: SortOption<WorkshopSummary>[] = [
+    { key: 'date', label: t('list.date'), value: (w) => w.firstDate, first: 'desc' },
+    { key: 'title', label: t('list.title'), value: (w) => w.title },
+    { key: 'client', label: t('workshops.client'), value: (w) => w.client || null },
+    { key: 'created', label: t('list.created'), value: (w) => w.createdAt, first: 'desc' },
+    { key: 'updated', label: t('list.updated'), value: (w) => w.updatedAt, first: 'desc' },
+  ]
+  const { sort, setSort, sorted } = useSort('sp.workshops.sort', options, { key: 'date', dir: 'desc' })
+  const visible = sorted((list ?? []).filter((w) => (words.length ? matches(w) : showArchived || !w.archived)))
+  const selection = useSelection(visible.map((w) => w.id))
+  const picked = visible.filter((w) => selection.has(w.id))
+  // Archiving is a field of the workshop, changed like any other; open windows of it follow.
+  const archive = async (archived: boolean) => {
+    const ids = picked.filter((w) => w.archived !== archived).map((w) => w.id)
+    const set = (to: boolean) => each(ids, (id) => api.sendOps(id, newId(), [{ op: 'set', entity: 'workshop', id, fields: { archived: to } }]))
+    selection.clear()
+    await set(archived)
+    show({ text: t(archived ? 'workshops.archivedCount' : 'workshops.unarchivedCount', { count: ids.length }), undo: () => void set(!archived) })
+  }
+  // Deleting ends the sharing, and a restore does not bring it back: so this asks first, trash or not.
+  const toTrash = async () => {
+    const ids = selection.ids
+    if (!window.confirm(t('workshops.deleteManyConfirm', { count: ids.length, days: TRASH_DAYS }))) return
+    selection.clear()
+    await each(ids, api.deleteWorkshop)
+    show({ text: t('workshops.trashedCount', { count: ids.length }), undo: () => void restore(ids) })
+  }
   const hasArchived = (list ?? []).some((w) => w.archived)
 
   return (
     <div className="h-full overflow-y-auto">
-    <div className="mx-auto max-w-3xl px-4 py-8 md:px-10 md:py-10">
+    <div className={cx('mx-auto max-w-3xl px-4 py-8 md:px-10 md:py-10', selection.ids.length > 0 && 'pb-28')}>
       <PageHeader
         title={t('workshops.title')}
         subtitle={me.owner ? undefined : t('guest.shared')}
@@ -69,7 +96,16 @@ export default function WorkshopsPage() {
           )
         }
       />
-      {(list?.length ?? 0) > 0 && <SearchField value={query} onChange={setQuery} placeholder={t('workshops.search')} shortcut className="mb-4" />}
+      {(list?.length ?? 0) > 0 && (
+        <div className="mb-4 space-y-3">
+          <SearchField value={query} onChange={setQuery} placeholder={t('workshops.search')} shortcut />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {me.owner && <SelectAll selection={selection} count={visible.length} />}
+            <span className="ml-auto" />
+            <SortControl options={options} sort={sort} onChange={setSort} />
+          </div>
+        </div>
+      )}
       {failed && <p className="text-rose">{t('common.error')}</p>}
       {words.length > 0 && !visible.length && <p className="py-10 text-center text-[14px] text-ink-2">{t('workshops.noMatch', { q: query.trim() })}</p>}
       {list && !list.length && !failed && (
@@ -86,8 +122,9 @@ export default function WorkshopsPage() {
       )}
       <ul className="space-y-2">
         {visible.map((w) => (
-          <li key={w.id}>
-            <Link to={`/w/${w.id}`} className="card flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-2">
+          <li key={w.id} className={cx('card flex items-start overflow-hidden', selection.has(w.id) && 'ring-1 ring-accent')}>
+            {me.owner && <SelectBox state={selection.has(w.id)} onToggle={(range) => selection.toggle(w.id, range)} label={t('list.select', { title: w.title || t('workshops.untitled') })} className="ml-1.5 mt-2" />}
+            <Link to={`/w/${w.id}`} className={cx('flex min-w-0 flex-1 items-start gap-3 py-3 pr-4 transition-colors hover:bg-surface-2', me.owner ? 'pl-1' : 'pl-4')}>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{w.title || t('workshops.untitled')}</div>
                 {w.client && <div className="truncate text-[14px] text-ink-2">{w.client}</div>}
@@ -120,49 +157,43 @@ export default function WorkshopsPage() {
           </Button>
         </div>
       )}
-      {me.owner && trash.length > 0 && !words.length && (
-        <div className="mt-6">
-          <div className="text-center">
-            <Button variant="ghost" size="sm" onClick={() => setShowTrash(!showTrash)}>
-              <Trash2 size={14} />
-              {showTrash ? t('workshops.hideTrash') : t('workshops.trash', { count: trash.length })}
-            </Button>
-          </div>
-          {showTrash && (
-            <section aria-label={t('workshops.trash', { count: trash.length })} className="mt-3">
-              <p className="mb-2 text-[13px] text-ink-3">{t('workshops.trashHint', { days: TRASH_DAYS })}</p>
-              <ul className="space-y-2">
-                {trash.map((w) => (
-                  <li key={w.id} className="card flex flex-wrap items-start gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-ink-2">{w.title || t('workshops.untitled')}</div>
-                      {w.client && <div className="truncate text-[14px] text-ink-3">{w.client}</div>}
-                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-ink-3">
-                        <span className="inline-flex items-center gap-1">
-                          <CalendarDays size={13} className="shrink-0" />
-                          {w.firstDate ? dateRange(w.firstDate, w.lastDate) : t('workshops.noDate')}
-                        </span>
-                        <span>{t('workshops.deletedOn', { date: formatDate(localDay(w.deletedAt)) })}</span>
-                        <span>{t('workshops.purgeOn', { date: formatDate(localDay(w.purgeAt)) })}</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => void restore(w)}>
-                        <RotateCcw size={13} />
-                        {t('workshops.restore')}
-                      </Button>
-                      <Button size="sm" variant="danger" onClick={() => void purge(w)}>
-                        <Trash2 size={13} />
-                        {t('workshops.purge')}
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
+      {me.owner && (
+        <TrashSection
+          rows={words.length ? [] : trash}
+          hint={t('workshops.trashHint', { days: TRASH_DAYS })}
+          meta={(w) => (
+            <>
+              {w.client && <span>{w.client}</span>}
+              <span className="inline-flex items-center gap-1">
+                <CalendarDays size={13} className="shrink-0" />
+                {w.firstDate ? dateRange(w.firstDate, w.lastDate) : t('workshops.noDate')}
+              </span>
+            </>
           )}
-        </div>
+          onRestore={(w) => void restore([w.id])}
+          onPurge={(rows) => void purge(rows.map((w) => w.id))}
+          purgeConfirm={(rows) => (rows.length === 1 ? t('workshops.purgeConfirm', { title: rows[0].title || t('workshops.untitled') }) : t('workshops.purgeAllConfirm', { count: rows.length }))}
+        />
       )}
+      <BulkBar count={selection.ids.length} onClear={selection.clear}>
+        {picked.some((w) => !w.archived) && (
+          <Button size="sm" onClick={() => void archive(true)}>
+            <Archive size={13} />
+            {t('workshop.archive')}
+          </Button>
+        )}
+        {picked.some((w) => w.archived) && (
+          <Button size="sm" onClick={() => void archive(false)}>
+            <ArchiveRestore size={13} />
+            {t('workshop.unarchive')}
+          </Button>
+        )}
+        <Button size="sm" variant="danger" onClick={() => void toTrash()}>
+          <Trash2 size={13} />
+          {t('common.delete')}
+        </Button>
+      </BulkBar>
+      <NoticeBar notice={notice} onClose={close} raised={selection.ids.length > 0} />
       <NewWorkshop open={creating} onClose={() => setCreating(false)} onCreated={(id) => navigate(`/w/${id}`)} />
     </div>
     </div>
@@ -174,9 +205,6 @@ function lengthOf(w: WorkshopSummary, t: TFunction): string {
   if (!w.minutes) return t('workshops.notPlanned')
   return w.days > 1 ? `${t('workshops.days', { count: w.days })} · ${formatDuration(w.minutes)}` : formatDuration(w.minutes)
 }
-
-/** The calendar day of a moment, on this device. */
-const localDay = (iso: string) => new Date(iso).toLocaleDateString('sv')
 
 function dateRange(first: string, last: string | null): string {
   return !last || last === first ? formatDate(first) : `${formatDate(first)} – ${formatDate(last)}`

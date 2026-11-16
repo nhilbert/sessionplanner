@@ -1,14 +1,14 @@
 import { create } from 'zustand'
 import type { TFunction } from 'i18next'
 import { api } from '@/api'
-import type { Category, ItemContent, LibraryEntry } from '@/domain/types'
+import type { Category, ItemContent, LibraryBatch, LibraryEntry, LibraryEntryInput, TrashedLibraryEntry } from '@/domain/types'
 import { categoryName } from './useSettings'
 import { inOrder } from '@/domain/inOrder'
 
 /** What a library search looks through: titles, descriptions, goal, method, lead, the category, a group's items and the file names. */
 export function libraryText(e: LibraryEntry, categories: Category[], t: TFunction): string {
   const item = (i: ItemContent) => [i.title, i.description, i.goal, i.method, i.lead, ...categories.filter((c) => c.id === i.categoryId).map((c) => categoryName(c, t))]
-  return [e.title, ...(e.kind === 'group' ? e.data.items.flatMap(item) : item(e.data)), ...e.attachments.map((a) => a.name)].join(' ').toLowerCase()
+  return [e.title, ...e.tags, ...(e.kind === 'group' ? e.data.items.flatMap(item) : item(e.data)), ...e.attachments.map((a) => a.name)].join(' ').toLowerCase()
 }
 
 /** Every typed word occurs somewhere in the text. */
@@ -19,11 +19,24 @@ interface LibraryStore {
   entries: LibraryEntry[]
   loaded: boolean
   load: () => Promise<void>
-  save: (entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>, id?: string) => Promise<LibraryEntry>
+  /** Without tags an entry keeps the ones it has. */
+  save: (entry: LibraryEntryInput, id?: string) => Promise<LibraryEntry>
+  /** Into the trash. */
   remove: (id: string) => Promise<void>
+  /** Several entries at once: tags, category, colour or the trash. */
+  change: (batch: LibraryBatch) => Promise<void>
+  /** What waits in the trash, the most recently deleted first. */
+  trash: TrashedLibraryEntry[]
+  loadTrash: () => Promise<void>
+  restore: (ids: string[]) => Promise<void>
+  /** Deletes entries in the trash for good. */
+  purge: (ids: string[]) => Promise<void>
   /** A change to an entry's files, in line with its saves; the answer is the entry as it now is. */
   changeFiles: (id: string, run: () => Promise<LibraryEntry>) => Promise<void>
 }
+
+/** The trash is an extra: a list that cannot be read leaves the one shown. */
+const loadTrash = (set: (s: Partial<LibraryStore>) => void) => api.listLibraryTrash().then((trash) => set({ trash }), () => undefined)
 
 const sort = (list: LibraryEntry[]) => [...list].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
 
@@ -59,6 +72,27 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
   remove: async (id) => {
     await api.deleteLibraryEntry(id)
     set({ entries: get().entries.filter((e) => e.id !== id) })
+    void loadTrash(set)
+  },
+  change: async (batch) => {
+    set({ entries: await api.changeLibraryEntries(batch) })
+    if (batch.trash) void loadTrash(set)
+  },
+  trash: [],
+  loadTrash: () => loadTrash(set),
+  restore: async (ids) => {
+    try {
+      for (const id of ids) await api.restoreLibraryEntry(id)
+    } finally {
+      await get().load()
+    }
+  },
+  purge: async (ids) => {
+    try {
+      for (const id of ids) await api.purgeLibraryEntry(id)
+    } finally {
+      await loadTrash(set)
+    }
   },
   changeFiles: async (id, run) => {
     const { result, isLatest } = inOrder(`library:${id}`, run)

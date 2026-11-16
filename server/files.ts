@@ -38,7 +38,7 @@ export function removeFiles(filesDir: Dir, ids: string[]): void {
  * check knows what is left, and does not hold up the others.
  */
 export function emptyTrash(repo: Repo, filesDir: Dir, at = new Date()): string[] {
-  return repo.expiredTrash(at).flatMap((id) => {
+  const workshops = repo.expiredTrash(at).flatMap((id) => {
     try {
       const files = repo.attachmentIdsOf(id)
       removeFiles(filesDir, files)
@@ -49,6 +49,19 @@ export function emptyTrash(repo: Repo, filesDir: Dir, at = new Date()): string[]
       return []
     }
   })
+  // Library entries wait there as long, and go the same way: files first.
+  const entries = repo.expiredLibraryTrash(at).flatMap((id) => {
+    try {
+      const files = repo.libraryAttachmentIdsOf(id)
+      removeFiles(filesDir, files)
+      repo.deleteLibraryEntry(id)
+      return files
+    } catch (err) {
+      console.error(`Library entry ${id} could not leave the trash, trying again at the next check:`, (err as Error).message)
+      return []
+    }
+  })
+  return [...workshops, ...entries]
 }
 
 /**

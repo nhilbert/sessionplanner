@@ -6,8 +6,9 @@ import { copyEntryFiles, copyToLibrary, removeFiles } from './files.ts'
 import { BadRequest, isCalendarDate, MAX_OPS, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { filePaths } from './storage.ts'
-import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
-import { DEFAULT_TIMEZONE, ZERO_KINDS } from '../src/domain/types.ts'
+import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, LibraryEntryInput, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
+import { DEFAULT_TIMEZONE, TRASH_DAYS, ZERO_KINDS } from '../src/domain/types.ts'
+import { changeTags } from '../src/domain/tags.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, placeIn, sortedDays } from '../src/domain/order.ts'
 import { clockIn, formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
@@ -445,7 +446,7 @@ export class Ops {
         color: full ? c.color : undefined,
         slides: full ? (c.slides ?? []).map((x, i) => ({ n: i + 1, id: x.id, layout: slideLayout(x.html), title: slideTitle(x.html) })) : c.slides?.length || undefined,
       })
-    return compact({ id: e.id, kind: e.kind, title: e.title, item: e.kind === 'item' ? content(e.data) : undefined, items: e.kind === 'group' ? e.data.items.map(content) : undefined })
+    return compact({ id: e.id, kind: e.kind, title: e.title, tags: e.tags.length ? e.tags : undefined, item: e.kind === 'item' ? content(e.data) : undefined, items: e.kind === 'group' ? e.data.items.map(content) : undefined })
   }
 
   // ---------- workshops ----------
@@ -974,7 +975,7 @@ export class Ops {
   }
 
   /** Validates like the app's library editor (field limits, link schemes) and stores; answers with the entry in full. */
-  private saveEntry(id: string | null, entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>) {
+  private saveEntry(id: string | null, entry: LibraryEntryInput) {
     const saved = this.repo.saveLibraryEntry(id, validateLibraryEntry(entry))
     if (!saved) throw new BadRequest('no such library entry')
     // Items taken out of a group take their files with them.
@@ -1008,15 +1009,15 @@ export class Ops {
   }
 
   /** A new entry from the agent's fields: a single item, or with `items` a group with those items in order. */
-  libraryCreate(input: LibraryItemInput & { items?: LibraryItemInput[] }) {
+  libraryCreate(input: LibraryItemInput & { items?: LibraryItemInput[]; tags?: string[] }) {
     const title = input.title.trim()
     if (!title) throw new BadRequest('title must not be empty')
     if (input.items) {
       if (this.hasContent(input)) throw new BadRequest('a group entry takes its fields per item: put them into items')
       if (!input.items.length) throw new BadRequest('a group entry needs at least one item')
-      return this.saveEntry(null, { kind: 'group', title, data: { items: input.items.map((i) => this.newContent(i)) } })
+      return this.saveEntry(null, { kind: 'group', title, tags: input.tags, data: { items: input.items.map((i) => this.newContent(i)) } })
     }
-    return this.saveEntry(null, { kind: 'item', title, data: this.newContent({ ...input, title }) })
+    return this.saveEntry(null, { kind: 'item', title, tags: input.tags, data: this.newContent({ ...input, title }) })
   }
 
   /**
@@ -1027,13 +1028,15 @@ export class Ops {
    * `at` and `addAt` count in the list after `removeItems` (`at` without the moved item itself). An item cannot be
    * changed and removed in one call.
    */
-  libraryUpdate(ref: string, input: ItemInput & { item?: string | number; at?: number; addItems?: LibraryItemInput[]; addAt?: number; removeItems?: (string | number)[] }) {
+  libraryUpdate(ref: string, input: ItemInput & { item?: string | number; at?: number; addItems?: LibraryItemInput[]; addAt?: number; removeItems?: (string | number)[]; tags?: string[]; addTags?: string[]; removeTags?: string[] }) {
     const entry = this.entry(ref)
     const title = input.title?.trim()
     if (title !== undefined && !title) throw new BadRequest('title must not be empty')
+    // tags replaces the entry's tags; addTags and removeTags change the ones it has. Without any of them they stay.
+    const tags = input.tags || input.addTags || input.removeTags ? changeTags(input.tags ?? entry.tags, input.addTags, input.removeTags) : undefined
     if (entry.kind === 'item') {
       if (input.item !== undefined || input.at !== undefined || input.addItems || input.removeItems) throw new BadRequest(`"${entry.title}" is a single item, not a group: leave item, at, addItems and removeItems out`)
-      return this.saveEntry(entry.id, { kind: 'item', title: title ?? entry.title, data: { ...entry.data, ...this.contentFields({ ...input, title }, entry.data) } })
+      return this.saveEntry(entry.id, { kind: 'item', title: title ?? entry.title, tags, data: { ...entry.data, ...this.contentFields({ ...input, title }, entry.data) } })
     }
     const index = input.item === undefined ? null : this.member(entry, input.item)
     if (index === null && (this.hasContent(input) || input.at !== undefined)) throw new BadRequest(`"${entry.title}" is a group: give the item inside it whose fields change, by title or number (${this.memberNames(entry)})`)
@@ -1048,15 +1051,14 @@ export class Ops {
     const added = (input.addItems ?? []).map((i) => this.newContent(i))
     items.splice(Math.min(Math.max(0, input.addAt ?? items.length), items.length), 0, ...added)
     if (!items.length) throw new BadRequest('a group entry needs at least one item; to drop the entry use library_delete')
-    return this.saveEntry(entry.id, { kind: 'group', title: index === null && title !== undefined ? title : entry.title, data: { items } })
+    return this.saveEntry(entry.id, { kind: 'group', title: index === null && title !== undefined ? title : entry.title, tags, data: { items } })
   }
 
-  /** Deletes an entry for good; copies placed in workshops stay. */
+  /** Puts an entry into the trash, where the owner can bring it back for TRASH_DAYS days; copies placed in workshops stay. */
   libraryDelete(ref: string) {
     const entry = this.entry(ref)
-    const files = this.repo.deleteLibraryEntry(entry.id)
-    removeFiles(this.filesDir, files ?? [])
-    return { deleted: entry.title, kind: entry.kind }
+    this.repo.trashLibraryEntry(entry.id)
+    return { deleted: entry.title, kind: entry.kind, note: `In the trash for ${TRASH_DAYS} days; the owner can restore it in the app.` }
   }
 
   private content(i: Item | ItemContent): ItemContent {

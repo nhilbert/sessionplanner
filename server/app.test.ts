@@ -12,7 +12,7 @@ import { decodePng, encodePng } from './cutout.ts'
 import { createHash } from 'node:crypto'
 import { DEFAULT_TOKENS } from '../src/domain/theme.ts'
 import type { Op, ServerEvent } from '../src/domain/ops.ts'
-import { type Attachment, type Item, type ItemContent, type LibraryEntry, TRASH_DAYS, type TrashedWorkshop, type WorkshopState } from '../src/domain/types.ts'
+import { type Attachment, type Item, type ItemContent, type LibraryEntry, TRASH_DAYS, type TrashedLibraryEntry, type TrashedWorkshop, type WorkshopState } from '../src/domain/types.ts'
 import { emptyTrash } from './files.ts'
 
 const BASE = 'http://127.0.0.1'
@@ -1020,12 +1020,65 @@ describe('library attachments', () => {
     expect(await (await app.request(`${BASE}/api/library/attachments/${e.attachments[0].id}`)).text()).toBe('original')
   })
 
-  it('removes the files with the entry', async () => {
-    const { app } = setup()
-    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl') })
+  it('puts a deleted entry into the trash: gone from the library, its files kept until it goes for good', async () => {
+    const { app, repo, filesDir } = setup()
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl'), tags: ['Dialog'] })
     const up = await attach(app, `/api/library/${e.id}/attachments`, 'a.pdf', 'x')
+    const file = up.attachments[0].id
+    expect((await app.request(`${BASE}/api/library/${e.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect(await (await app.request(`${BASE}/api/library`)).json()).toEqual([])
+    expect((await app.request(`${BASE}/api/library/attachments/${file}`)).status, 'its files answer as gone').toBe(404)
+    expect((await app.request(`${BASE}/api/library/${e.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ kind: 'item', title: 'X', data: content('X') }) })).status, 'no saving into the trash').toBe(404)
+    expect(existsSync(path.join(filesDir, file))).toBe(true)
+    const trash = (await (await app.request(`${BASE}/api/library/trash`)).json()) as TrashedLibraryEntry[]
+    expect(trash).toMatchObject([{ id: e.id, title: 'Fishbowl', kind: 'item', tags: ['Dialog'] }])
+    expect(Date.parse(trash[0].purgeAt) - Date.parse(trash[0].deletedAt)).toBe(TRASH_DAYS * 86_400_000)
+
+    // restored as it was, with its file and tags
+    expect((await app.request(`${BASE}/api/library/trash/${e.id}/restore`, { method: 'POST', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect((await app.request(`${BASE}/api/library/trash/${e.id}/restore`, { method: 'POST', headers: { 'x-sp': '1' } })).status, 'only from the trash').toBe(404)
+    expect(await (await app.request(`${BASE}/api/library/attachments/${file}`)).text()).toBe('x')
+    expect(repo.getLibraryEntry(e.id)).toMatchObject({ title: 'Fishbowl', tags: ['Dialog'] })
+
+    // for good: only from the trash, with the files
+    expect((await app.request(`${BASE}/api/library/trash/${e.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status, 'an entry in use is not in the trash').toBe(404)
     await app.request(`${BASE}/api/library/${e.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
-    expect((await app.request(`${BASE}/api/library/attachments/${up.attachments[0].id}`)).status).toBe(404)
+    expect((await app.request(`${BASE}/api/library/trash/${e.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })).status).toBe(200)
+    expect(existsSync(path.join(filesDir, file))).toBe(false)
+    expect(repo.listLibraryTrash()).toEqual([])
+  })
+
+  it('lets the trash go of an entry after its days, with the files', async () => {
+    const { app, repo, filesDir } = setup()
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: content('Fishbowl') })
+    const file = (await attach(app, `/api/library/${e.id}/attachments`, 'a.pdf', 'x')).attachments[0].id
+    await app.request(`${BASE}/api/library/${e.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    emptyTrash(repo, filesDir, new Date(Date.now() + (TRASH_DAYS - 1) * 86_400_000))
+    expect(repo.listLibraryTrash()).toHaveLength(1)
+    emptyTrash(repo, filesDir, new Date(Date.now() + (TRASH_DAYS + 1) * 86_400_000))
+    expect(repo.listLibraryTrash()).toEqual([])
+    expect(existsSync(path.join(filesDir, file))).toBe(false)
+  })
+
+  it('keeps an entry\'s tags through a save without them, and changes several entries at once', async () => {
+    const { app } = setup()
+    const batch = async (body: unknown) => (await (await app.request(`${BASE}/api/library/batch`, { method: 'POST', headers: H, body: JSON.stringify(body) })).json()) as LibraryEntry[]
+    const a = await entry(app, { kind: 'item', title: 'A', data: content('A'), tags: [' Einstieg ', 'einstieg', 'Online'] })
+    const b = await entry(app, { kind: 'group', title: 'B', data: { items: [content('B1'), content('B2')] } })
+    expect(a.tags).toEqual(['Einstieg', 'Online'])
+    expect(b.tags).toEqual([])
+    const saved = (await (await app.request(`${BASE}/api/library/${a.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ kind: 'item', title: 'A2', data: content('A2') }) })).json()) as LibraryEntry
+    expect(saved).toMatchObject({ title: 'A2', tags: ['Einstieg', 'Online'] })
+
+    let now = await batch({ ids: [a.id, b.id, 'gone'], addTags: ['Kurz'], removeTags: ['ONLINE'], categoryId: 'cat', color: 'plum' })
+    expect(now.map((e) => [e.title, e.tags])).toEqual([['A2', ['Einstieg', 'Kurz']], ['B', ['Kurz']]])
+    const group = now.find((e) => e.id === b.id)!
+    expect(group.kind === 'group' && group.data.items.map((i) => [i.categoryId, i.color])).toEqual([['cat', 'plum'], ['cat', 'plum']])
+
+    now = await batch({ ids: [a.id, b.id], trash: true })
+    expect(now).toEqual([])
+    expect(((await (await app.request(`${BASE}/api/library/trash`)).json()) as unknown[]).length).toBe(2)
+    expect((await app.request(`${BASE}/api/library/batch`, { method: 'POST', headers: H, body: JSON.stringify({ ids: [] }) })).status).toBe(400)
   })
 
   it('stays the owner\'s: a guest neither reads nor changes library files', async () => {

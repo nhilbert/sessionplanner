@@ -1,4 +1,4 @@
-import type { Asset, Attachment, Deck, DeckSlide, LibraryEntry, Me, Member, MemberRole, Settings, SlideTemplate, TrashedWorkshop, WorkshopState, WorkshopSummary } from './domain/types'
+import type { Asset, Attachment, Deck, DeckSlide, LibraryBatch, LibraryEntry, LibraryEntryInput, Me, Member, MemberRole, Settings, SlideTemplate, TrashedLibraryEntry, TrashedWorkshop, WorkshopState, WorkshopSummary } from './domain/types'
 import type { Op, PresentPosition } from './domain/ops'
 import { apiUrl, themeUrl } from './domain/addresses'
 import { type PoolAsset, type PoolKind, type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
@@ -113,9 +113,15 @@ export const api = {
   armAgent: () => call<{ armedUntil: string; resource: string }>('/mcp/arm', { method: 'POST' }),
   disconnectAgent: (id: string) => call<{ ok: boolean }>(`/mcp/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listLibrary: () => call<LibraryEntry[]>('/library'),
-  saveLibraryEntry: (entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>, id?: string) =>
+  saveLibraryEntry: (entry: LibraryEntryInput, id?: string) =>
     call<LibraryEntry>(id ? `/library/${id}` : '/library', { method: id ? 'PUT' : 'POST', body: JSON.stringify(entry) }),
+  /** Into the trash, where it waits TRASH_DAYS days. */
   deleteLibraryEntry: (id: string) => call<{ ok: true }>(`/library/${id}`, { method: 'DELETE' }),
+  /** Several entries at once: tags, category, colour or the trash. The answer is the library as it now is. */
+  changeLibraryEntries: (batch: LibraryBatch) => call<LibraryEntry[]>('/library/batch', { method: 'POST', body: JSON.stringify(batch) }),
+  listLibraryTrash: () => call<TrashedLibraryEntry[]>('/library/trash'),
+  restoreLibraryEntry: (id: string) => call<{ ok: true }>(`/library/trash/${id}/restore`, { method: 'POST' }),
+  purgeLibraryEntry: (id: string) => call<{ ok: true }>(`/library/trash/${id}`, { method: 'DELETE' }),
   /** The answers are the entry as it now is. `item`: which item of a group entry holds the file. */
   uploadLibraryFile: (entryId: string, item: number, file: File) => {
     const form = fileForm(file)

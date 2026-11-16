@@ -1,8 +1,9 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type ItemContent, type LibraryAttachment, type LibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE, type TrashedWorkshop, TRASH_DAYS } from '../src/domain/types.ts'
+import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAULT_SETTINGS, type Group, type Item, type ItemContent, type LibraryAttachment, type LibraryBatch, type LibraryEntry, type LibraryEntryInput, type TrashedLibraryEntry, type Member, type MemberRole, type Settings, type SlideTemplate, type Workshop, type WorkshopState, type WorkshopSummary, DEFAULT_TIMEZONE, type TrashedWorkshop, TRASH_DAYS } from '../src/domain/types.ts'
 import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op, picturesIn } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
+import { changeTags, normalizeTags } from '../src/domain/tags.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
 import { BadRequest } from './validate.ts'
@@ -157,6 +158,7 @@ const toLibraryEntry = (r: Row, attachments: LibraryAttachment[]): LibraryEntry 
     kind: r.kind as LibraryEntry['kind'],
     title: r.title as string,
     data: entryDefaults(JSON.parse(r.data as string)),
+    tags: JSON.parse((r.tags as string | null) || '[]') as string[],
     attachments,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
@@ -205,7 +207,7 @@ export class Repo {
     const args = guest !== undefined ? [guest] : []
     const rows = this.db
       .prepare(
-        `SELECT w.id, w.title, w.client, w.location, w.archived, w.updated_at,
+        `SELECT w.id, w.title, w.client, w.location, w.archived, w.created_at, w.updated_at,
            (SELECT MIN(date) FROM days WHERE workshop_id = w.id) AS first_date,
            (SELECT MAX(date) FROM days WHERE workshop_id = w.id) AS last_date,
            (SELECT COUNT(*) FROM items WHERE workshop_id = w.id) AS item_count
@@ -240,6 +242,7 @@ export class Repo {
       itemCount: r.item_count as number,
       days: days.get(r.id as string)?.length ?? 0,
       minutes: minutes(r.id as string),
+      createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
     }))
   }
@@ -619,8 +622,9 @@ export class Repo {
     return (this.db.prepare('SELECT * FROM library_attachments WHERE entry_id = ? ORDER BY created_at').all(entryId) as Row[]).map(toLibraryAttachment)
   }
 
+  /** An entry in use: one in the trash answers as gone, to everything but the trash's own list. */
   getLibraryEntry(id: string): LibraryEntry | null {
-    const r = this.db.prepare('SELECT * FROM library WHERE id = ?').get(id) as Row | undefined
+    const r = this.db.prepare('SELECT * FROM library WHERE id = ? AND deleted_at IS NULL').get(id) as Row | undefined
     return r ? toLibraryEntry(r, this.entryAttachments(id)) : null
   }
 
@@ -630,21 +634,88 @@ export class Repo {
       const a = toLibraryAttachment(r)
       files.set(a.entryId, [...(files.get(a.entryId) ?? []), a])
     }
-    return (this.db.prepare('SELECT * FROM library ORDER BY title COLLATE NOCASE').all() as Row[]).map((r) => toLibraryEntry(r, files.get(r.id as string) ?? []))
+    return (this.db.prepare('SELECT * FROM library WHERE deleted_at IS NULL ORDER BY title COLLATE NOCASE').all() as Row[]).map((r) => toLibraryEntry(r, files.get(r.id as string) ?? []))
   }
 
-  /** Stores an entry, with the records of files that came along with a new one (their ids are in its attachmentIds). */
-  saveLibraryEntry(id: string | null, entry: Pick<LibraryEntry, 'kind' | 'title' | 'data'>, files: LibraryFile[] = []): LibraryEntry | null {
+  /**
+   * Stores an entry, with the records of files that came along with a new one (their ids are in its attachmentIds).
+   * Without tags a stored entry keeps the ones it has.
+   */
+  saveLibraryEntry(id: string | null, entry: LibraryEntryInput, files: LibraryFile[] = []): LibraryEntry | null {
     const t = now()
+    const tags = entry.tags && JSON.stringify(normalizeTags(entry.tags))
     const saved = this.tx(() => {
       if (id === null) {
         id = newId()
-        this.db.prepare('INSERT INTO library (id, kind, title, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, entry.kind, entry.title, JSON.stringify(entry.data), t, t)
-      } else if (!this.db.prepare('UPDATE library SET kind = ?, title = ?, data = ?, updated_at = ? WHERE id = ?').run(entry.kind, entry.title, JSON.stringify(entry.data), t, id).changes) return false
+        this.db.prepare('INSERT INTO library (id, kind, title, data, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, entry.kind, entry.title, JSON.stringify(entry.data), tags ?? '[]', t, t)
+      } else if (!this.db.prepare('UPDATE library SET kind = ?, title = ?, data = ?, tags = COALESCE(?, tags), updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(entry.kind, entry.title, JSON.stringify(entry.data), tags ?? null, t, id).changes) return false
       for (const f of files) this.insertLibraryFile(id, f, t)
       return true
     })
     return saved ? this.getLibraryEntry(id!) : null
+  }
+
+  /**
+   * Changes several entries at once: tags added and removed, category and colour set on every item of an entry, or
+   * all of them put into the trash. Entries that are gone are passed over; answers with the ids it changed.
+   */
+  changeLibraryEntries(batch: LibraryBatch, at = now()): string[] {
+    return this.tx(() =>
+      batch.ids.filter((id) => {
+        const entry = this.getLibraryEntry(id)
+        if (!entry) return false
+        if (batch.trash) return this.trashLibraryEntry(id, at)
+        const look = (c: ItemContent): ItemContent => ({ ...c, ...(batch.categoryId !== undefined ? { categoryId: batch.categoryId } : {}), ...(batch.color !== undefined ? { color: batch.color } : {}) })
+        const items = entryItems(entry).map(look)
+        const data = entry.kind === 'group' ? { ...entry.data, items } : items[0]
+        this.db.prepare('UPDATE library SET data = ?, tags = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(data), JSON.stringify(changeTags(entry.tags, batch.addTags, batch.removeTags)), at, id)
+        return true
+      }),
+    )
+  }
+
+  /** Puts an entry in use into the trash: it answers as gone, and keeps its content and files until the trash lets go of it. */
+  trashLibraryEntry(id: string, at = now()): boolean {
+    return this.db.prepare('UPDATE library SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL').run(at, id).changes > 0
+  }
+
+  /** The library entries in the trash, the most recently deleted first. */
+  listLibraryTrash(): TrashedLibraryEntry[] {
+    return (this.db.prepare('SELECT id, kind, title, tags, deleted_at FROM library WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC').all() as Row[]).map((r) => ({
+      id: r.id as string,
+      kind: r.kind as LibraryEntry['kind'],
+      title: r.title as string,
+      tags: JSON.parse((r.tags as string | null) || '[]') as string[],
+      deletedAt: r.deleted_at as string,
+      purgeAt: new Date(Date.parse(r.deleted_at as string) + TRASH_DAYS * 86_400_000).toISOString(),
+    }))
+  }
+
+  /** An entry in the trash in full, for the exports of all data: nothing else may read it. */
+  loadTrashedLibraryEntry(id: string): LibraryEntry | null {
+    const r = this.db.prepare('SELECT * FROM library WHERE id = ? AND deleted_at IS NOT NULL').get(id) as Row | undefined
+    return r ? toLibraryEntry(r, this.entryAttachments(id)) : null
+  }
+
+  /** Takes an entry out of the trash, as it was when it went in. */
+  restoreLibraryEntry(id: string): boolean {
+    return this.db.prepare('UPDATE library SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id).changes > 0
+  }
+
+  /** The library entries that have been in the trash for TRASH_DAYS days by `at`. */
+  expiredLibraryTrash(at = new Date()): string[] {
+    const before = new Date(at.getTime() - TRASH_DAYS * 86_400_000).toISOString()
+    return (this.db.prepare('SELECT id FROM library WHERE deleted_at IS NOT NULL AND deleted_at <= ?').all(before) as Row[]).map((r) => r.id as string)
+  }
+
+  /** Whether a library entry is in the trash. */
+  libraryInTrash(id: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM library WHERE id = ? AND deleted_at IS NOT NULL').get(id)
+  }
+
+  /** The ids of an entry's files, in use or in the trash. Its files go first and its records after, as with a workshop. */
+  libraryAttachmentIdsOf(entryId: string): string[] {
+    return this.entryAttachments(entryId).map((a) => a.id)
   }
 
   private insertLibraryFile(entryId: string, file: LibraryFile, createdAt: string): void {
@@ -668,8 +739,9 @@ export class Repo {
     return this.getLibraryEntry(entryId)
   }
 
+  /** A file of an entry in use: with its entry in the trash it answers as gone. */
   getLibraryAttachment(id: string): LibraryAttachment | null {
-    const r = this.db.prepare('SELECT * FROM library_attachments WHERE id = ?').get(id) as Row | undefined
+    const r = this.db.prepare('SELECT * FROM library_attachments WHERE id = ? AND entry_id IN (SELECT id FROM library WHERE deleted_at IS NULL)').get(id) as Row | undefined
     return r ? toLibraryAttachment(r) : null
   }
 
@@ -703,7 +775,7 @@ export class Repo {
     return gone
   }
 
-  /** Deletes the entry with its file records; returns their ids (files to remove), or null without such an entry. */
+  /** Deletes the entry for good (in use or in the trash) with its file records; returns their ids (files to remove), or null without such an entry. */
   deleteLibraryEntry(id: string): string[] | null {
     const files = this.entryAttachments(id).map((a) => a.id)
     return this.db.prepare('DELETE FROM library WHERE id = ?').run(id).changes > 0 ? files : null

@@ -13,7 +13,7 @@ import { eventFor, forGuest, mayApply, mayDownload, mayEdit, mayPlace, requireRu
 import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
+import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryBatch, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
 import { StorageBudget, StorageFull } from './budget.ts'
@@ -512,10 +512,31 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     removeFiles(filesDir, repo.pruneLibraryAttachments(id))
     return c.json(repo.getLibraryEntry(id))
   })
+  // Deleting puts an entry into the trash, as with workshops: it is gone from the library at once and can be brought
+  // back for TRASH_DAYS days; then it goes for good, with its files (emptyTrash).
   app.delete('/api/library/:id', (c) => {
-    const files = repo.deleteLibraryEntry(c.req.param('id')!)
-    if (!files) return c.json({ error: 'not_found' }, 404)
-    removeFiles(filesDir, files)
+    if (!repo.trashLibraryEntry(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
+    return c.json({ ok: true })
+  })
+  // The list's selection: tags, category, colour or the trash for several entries at once. Answers with the library as it now is.
+  app.post('/api/library/batch', async (c) => {
+    repo.changeLibraryEntries(validateLibraryBatch(await jsonBody(c)))
+    return c.json(repo.listLibrary())
+  })
+  app.get('/api/library/trash', (c) => {
+    emptyTrash(repo, filesDir)
+    return c.json(repo.listLibraryTrash())
+  })
+  app.post('/api/library/trash/:id/restore', (c) => {
+    if (!repo.restoreLibraryEntry(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
+    return c.json({ ok: true })
+  })
+  app.delete('/api/library/trash/:id', (c) => {
+    const id = c.req.param('id')!
+    if (!repo.libraryInTrash(id)) return c.json({ error: 'not_found' }, 404)
+    // Files first: when one cannot go, the records still say what is left, and this can be tried again.
+    removeFiles(filesDir, repo.libraryAttachmentIdsOf(id))
+    repo.deleteLibraryEntry(id)
     return c.json({ ok: true })
   })
 
