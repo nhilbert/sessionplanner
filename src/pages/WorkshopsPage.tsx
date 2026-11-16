@@ -36,15 +36,23 @@ export default function WorkshopsPage() {
   useEffect(() => {
     if (me.owner) api.listTrash().then(setTrash, () => undefined)
   }, [me.owner])
-  /** One call per workshop, then the lists again, whatever happened. */
-  const each = async (ids: string[], run: (id: string) => Promise<unknown>) => {
+  /**
+   * One call per workshop, then the lists again, whatever happened. A failure is reported and stops the rest; the
+   * answer is the ids that were changed, so a note names only those and its undo reaches only those.
+   */
+  const each = async (ids: string[], run: (id: string) => Promise<unknown>): Promise<string[]> => {
+    const done: string[] = []
     try {
-      for (const id of ids) await run(id)
+      for (const id of ids) {
+        await run(id)
+        done.push(id)
+      }
     } catch (err) {
       reportFailure(err)
     } finally {
       await reload().catch(() => undefined)
     }
+    return done
   }
   const restore = (ids: string[]) => each(ids, api.restoreWorkshop)
   const purge = (ids: string[]) => each(ids, api.purgeWorkshop)
@@ -66,18 +74,18 @@ export default function WorkshopsPage() {
   // Archiving is a field of the workshop, changed like any other; open windows of it follow.
   const archive = async (archived: boolean) => {
     const ids = picked.filter((w) => w.archived !== archived).map((w) => w.id)
-    const set = (to: boolean) => each(ids, (id) => api.sendOps(id, newId(), [{ op: 'set', entity: 'workshop', id, fields: { archived: to } }]))
+    const set = (to: boolean, which: string[]) => each(which, (id) => api.sendOps(id, newId(), [{ op: 'set', entity: 'workshop', id, fields: { archived: to } }]))
     selection.clear()
-    await set(archived)
-    show({ text: t(archived ? 'workshops.archivedCount' : 'workshops.unarchivedCount', { count: ids.length }), undo: () => void set(!archived) })
+    const done = await set(archived, ids)
+    if (done.length) show({ text: t(archived ? 'workshops.archivedCount' : 'workshops.unarchivedCount', { count: done.length }), undo: () => void set(!archived, done) })
   }
   // Deleting ends the sharing, and a restore does not bring it back: so this asks first, trash or not.
   const toTrash = async () => {
     const ids = selection.ids
     if (!window.confirm(t('workshops.deleteManyConfirm', { count: ids.length, days: TRASH_DAYS }))) return
     selection.clear()
-    await each(ids, api.deleteWorkshop)
-    show({ text: t('workshops.trashedCount', { count: ids.length }), undo: () => void restore(ids) })
+    const done = await each(ids, api.deleteWorkshop)
+    if (done.length) show({ text: t('workshops.trashedCount', { count: done.length }), undo: () => void restore(done) })
   }
   const hasArchived = (list ?? []).some((w) => w.archived)
 

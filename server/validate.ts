@@ -287,7 +287,7 @@ export const isThemeId = (value: string): boolean => THEME_ID.test(value)
 const ASSET_HASH = /^[0-9a-f]{64}$/
 const poolKind = z.enum(POOL_KINDS as [PoolKind, ...PoolKind[]])
 const tags = z.array(text(40)).max(20)
-const poolEntry = z.strictObject({ hash: z.string().regex(ASSET_HASH, 'an asset hash'), kind: poolKind, tags: entryTags.optional() })
+const poolEntry = z.strictObject({ hash: z.string().regex(ASSET_HASH, 'an asset hash'), kind: poolKind, tags: tags.optional() })
 const poolPatch = z.strictObject({ tags: tags.optional(), position: z.number().finite().optional(), kind: poolKind.optional() })
 
 /** Tags typed as one line – words or phrases separated by commas – as the list they are stored as: trimmed, lower-case, no doubles. */
