@@ -270,6 +270,8 @@ export interface Member {
   role: MemberRole
   /** Facilitation notes visible; always true for edit. */
   showNotes: boolean
+  /** Reads the library, and inserts from it into this workshop with edit; off unless the owner switched it on. */
+  library: boolean
   addedAt: string
   lastSeenAt: string | null
 }
@@ -278,14 +280,18 @@ export interface Member {
 export interface Me {
   email: string | null
   owner: boolean
-  /** Reads the library: the owner, and a guest of any workshop (read-only; editing guests insert from it). */
+  /** Reads the library: the owner, and a guest for whom the owner switched it on in a workshop (read-only). */
   library?: boolean
+  /** Changes the library (saves, edits, deletes, the trash). Absent: as `owner`. A host in front of the app can answer false for somebody it lets in as the owner (a workspace member who only reads the library). */
+  libraryEdit?: boolean
 }
 
 /** A guest's access to the open workshop (absent for the owner). */
 export interface Access {
   role: MemberRole
   showNotes: boolean
+  /** The library switched on for this guest in this workshop: they read it, and insert from it with edit. */
+  library: boolean
 }
 
 /** The time zone of a new workshop (the database's default, server/db/migrations/0001_init.sql): its days and "today" are counted there. */

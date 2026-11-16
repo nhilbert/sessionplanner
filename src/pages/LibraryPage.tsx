@@ -4,7 +4,7 @@ import { Coffee, Flag, FolderOpen, LayoutGrid, List, NotebookPen, Package, Paper
 import { type Category, type ItemContent, type ItemKind, type LibraryEntry, type LibraryEntryInput, type PaletteKey, TRASH_DAYS } from '@/domain/types'
 import { durationOf, formatDuration } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
-import { categoryName, itemColor, useSettings } from '@/store/useSettings'
+import { categoryName, itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { Button, cx, Empty, Field, Modal, PageHeader, SearchField, SectionLabel, Segmented, useLocalState } from '@/components/ui'
 import { ariaSort, BulkBar, NoticeBar, SelectAll, SelectBox, type Selection, shortDate, SortControl, SortHead, type SortOption, TagEditor, TagFilter, TagInput, TagList, TrashSection, useNotice, useSelection, useSort } from '@/components/collection'
 import { hasTag, tagCounts } from '@/domain/tags'
@@ -35,13 +35,15 @@ const minutesOf = (e: LibraryEntry) => entryItems(e).reduce((s, i) => s + durati
  * The shared library, as a list to sort or as cards with what each entry holds. A search and the tags narrow it;
  * ticked entries are tagged, coloured or deleted together. A tap opens an entry; its slides open to look at, with
  * editing a click away. Deleted entries wait in the trash at the end. Inserting happens in a workshop (library tab).
- * Guests of a workshop read it as it is, without ticks, editing or the trash (server/access.ts, libraryAccess).
+ * Who may only read it (a guest with the library switched on, server/access.ts; a reader the host names, `Me.libraryEdit`)
+ * gets it as it is, without ticks, editing or the trash.
  */
 export default function LibraryPage() {
   const { t } = useTranslation()
   const { entries, loaded, load, loadTrash, save, change, trash, restore, purge } = useLibrary()
   const categories = useSettings((s) => s.settings.categories)
-  const owner = useSettings((s) => s.me.owner)
+  // Who changes the library; everybody else who gets here reads it.
+  const owner = useLibraryEdit()
   const [query, setQuery] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [layout, setLayout] = useLocalState('sp.library.view', 'list')

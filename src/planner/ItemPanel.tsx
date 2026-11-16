@@ -6,7 +6,7 @@ import { newId, type ItemFields, type Op } from '@/domain/ops'
 import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
 import { contentOf } from '@/domain/copy'
 import { newSlides } from '@/domain/slides'
-import { categoryName, useSettings } from '@/store/useSettings'
+import { categoryName, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
 import Swatches from '@/components/Swatches'
 import { MAX_DURATION, SNAP } from '@/domain/time'
@@ -33,7 +33,7 @@ export default function ItemPanel({
   computedStart,
   owner,
 }: {
-  /** Guests cannot save to the library. */
+  /** Guests cannot save to the library; nor can an owner the host lets only read it (useLibraryEdit). */
   owner: boolean
   item: Item
   /** The item's start as computed now; a fixed start switched on takes this time. */
@@ -50,6 +50,7 @@ export default function ItemPanel({
   const categories = useSettings((s) => s.settings.categories)
   const settings = useSettings((s) => s.settings)
   const saveToLibrary = useLibrary((s) => s.save)
+  const mayChangeLibrary = useLibraryEdit()
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
 
@@ -175,7 +176,7 @@ export default function ItemPanel({
           <Copy size={13} />
           {t('item.duplicate')}
         </Button>
-        {owner && item.kind !== 'note' && (
+        {owner && mayChangeLibrary && item.kind !== 'note' && (
           <Button size="sm" onClick={() => void save()}>
             <BookmarkPlus size={13} />
             {t('item.saveToLibrary')}

@@ -1194,11 +1194,11 @@ describe('guests', () => {
     await share(app, id, 'anna@example.com', 'view', false)
     await share(app, id, 'ben@example.com', 'edit', false)
     const view = (await (await app.request(`${pub}/api/workshops/${id}`, { headers: ANNA })).json()) as WorkshopState
-    expect(view.access).toEqual({ role: 'view', showNotes: false })
+    expect(view.access).toEqual({ role: 'view', showNotes: false, library: false })
     expect(view.workshop.notes).toBe('')
     expect(view.items.map((i) => [i.id, i.notes])).toEqual([['a', '']])
     const edit = (await (await app.request(`${pub}/api/workshops/${id}`, { headers: BEN })).json()) as WorkshopState
-    expect(edit.access).toEqual({ role: 'edit', showNotes: true })
+    expect(edit.access).toEqual({ role: 'edit', showNotes: true, library: false })
     expect(edit.items.length).toBe(2)
   })
 
@@ -1299,12 +1299,14 @@ describe('guests', () => {
     }
     const get = (app: App, address: string, headers: Record<string, string>) => app.request(`${pub}${address}`, { headers })
 
-    /** Anna views the shared workshop without the notes, Ben edits it; Carl has nothing shared. */
+    const withLibrary = (app: App, id: string, email: string, role: string, showNotes: boolean, library = true) =>
+      app.request(`${pub}/api/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'PUT', headers: OWNER, body: JSON.stringify({ role, showNotes, library }) })
+    /** Anna views the shared workshop without the notes, Ben edits it, both with the library switched on; Carl has nothing shared. */
     const stage = async () => {
       const ctx = await prepared()
       const { app, id, otherId } = ctx
-      await share(app, id, 'anna@example.com', 'view', false)
-      await share(app, id, 'ben@example.com', 'edit', true)
+      await withLibrary(app, id, 'anna@example.com', 'view', false)
+      await withLibrary(app, id, 'ben@example.com', 'edit', true)
       const { hash: shown } = await upload<{ hash: string }>(app, '/api/library/assets', new File([new Uint8Array(png(1))], 'p.png', { type: 'image/png' }))
       const { hash: foreign } = await upload<{ hash: string }>(app, `/api/workshops/${otherId}/assets`, new File([new Uint8Array(png(2))], 'q.png', { type: 'image/png' }))
       const single = await post<LibraryEntry>(app, '/api/library', { kind: 'item', title: 'Fishbowl', data: block('Fishbowl', { notes: 'secret', slides: [pictureSlide(shown)] }) })
@@ -1315,7 +1317,27 @@ describe('guests', () => {
       return { ...ctx, shown, foreign, single, group, noteOnly: withNote.attachments[0].id }
     }
 
-    it('is read by the guests of a workshop, without what their notes leave out; nobody else reads it', async () => {
+    it('stays closed to a guest until the owner switches it on for them, for reading and for inserting', async () => {
+      const { app, id, shown, single } = await stage()
+      const DORA = as('dora@example.com')
+      await share(app, id, 'dora@example.com', 'edit', true)
+      expect((await get(app, '/api/library', DORA)).status).toBe(403)
+      expect(((await (await get(app, '/api/me', DORA)).json()) as Me).library).toBe(false)
+      expect((await get(app, `/api/library/assets/${shown}`, DORA)).status).toBe(403)
+      expect((await app.request(`${pub}/api/library/${single.id}/copies/${id}`, { method: 'POST', headers: DORA })).status).toBe(403)
+      const ops = JSON.stringify({ clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item('lib', id, null, { slides: [pictureSlide(shown)] }) }] })
+      expect((await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: DORA, body: ops })).status).toBe(403)
+
+      // Switched on, it opens; a change of role that does not name it leaves it on; switched off, it closes again.
+      await withLibrary(app, id, 'dora@example.com', 'edit', true)
+      expect((await get(app, '/api/library', DORA)).status).toBe(200)
+      await share(app, id, 'dora@example.com', 'view', true)
+      expect((await get(app, '/api/library', DORA)).status).toBe(200)
+      await withLibrary(app, id, 'dora@example.com', 'view', true, false)
+      expect((await get(app, '/api/library', DORA)).status).toBe(403)
+    })
+
+    it('is read by the guests it is switched on for, without what their notes leave out; nobody else reads it', async () => {
       const { app, single, group, noteOnly } = await stage()
       const anna = (await (await get(app, '/api/library', ANNA)).json()) as LibraryEntry[]
       expect(anna.map((e) => e.title)).toEqual(['Fishbowl', 'Opening'])

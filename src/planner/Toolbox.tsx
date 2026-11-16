@@ -7,7 +7,7 @@ import type { Attachment, ItemKind, LibraryEntry, WorkshopState } from '@/domain
 import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
-import { itemColor, useSettings } from '@/store/useSettings'
+import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { cx, IconButton, SearchField, useLocalState } from '@/components/ui'
 import { AddBar, Entries, List } from './DayColumn'
 import ItemPanel from './ItemPanel'
@@ -30,7 +30,7 @@ const TABS = [
 
 interface Props {
   data: WorkshopState
-  /** Guests (who may edit: view guests get the agenda only) see no access tab and none of the owner's actions; they insert from the library. */
+  /** Guests (who may edit: view guests get the agenda only) see no access tab and none of the owner's actions; the library tab only with the library switched on for them here. */
   owner: boolean
   onDayDate: (dayId: string, date: string) => void
   change: (ops: Op[]) => void
@@ -62,7 +62,7 @@ export default function Toolbox(p: Props) {
   const width = clampWidth(Number(widthRaw) || DEFAULT_WIDTH)
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, files: p.data.attachments.length }
-  const tabs = TABS.filter((x) => x.id !== 'access' || (p.owner && hasWorkshopSharing()))
+  const tabs = TABS.filter((x) => (x.id !== 'access' || (p.owner && hasWorkshopSharing())) && (x.id !== 'library' || p.owner || !!p.data.access?.library))
   const tab: Tab = tabs.some((x) => x.id === p.tab) ? p.tab : 'parking'
 
   if (!p.open && !p.mobile)
@@ -193,8 +193,10 @@ function ResizeEdge({ width, onWidth, label }: { width: number; onWidth: (w: num
   )
 }
 
-function LibraryTab({ onInsert, owner }: { onInsert: (entry: LibraryEntry) => void; owner: boolean }) {
+function LibraryTab({ onInsert, owner: isOwner }: { onInsert: (entry: LibraryEntry) => void; owner: boolean }) {
   const { t } = useTranslation()
+  const mayChange = useLibraryEdit()
+  const owner = isOwner && mayChange
   const { entries, loaded, load } = useLibrary()
   const categories = useSettings((s) => s.settings.categories)
   const [query, setQuery] = useState('')

@@ -9,7 +9,7 @@ import { VARIANT_LABEL } from '@/print/options'
 import { productName, workshopToolFor } from '@/features'
 import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
-import { itemColor, useSettings } from '@/store/useSettings'
+import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
 import { entriesIn, itemsIn, placeIn, positionAtEnd, sortedDays } from '@/domain/order'
 import { MAX_DURATION, scheduleDay, SNAP, type DaySchedule } from '@/domain/time'
@@ -41,6 +41,7 @@ export default function PlannerPage() {
   const phone = useIsPhone()
   const { data, status, live, syncError, past, future, open, close, change, undo, redo, addAttachment, removeAttachment, dismissSyncError } = usePlanner()
   const settings = useSettings((s) => s.settings)
+  const mayChangeLibrary = useLibraryEdit()
   const library = useLibrary()
   const [zoom, setZoom] = useLocalState('sp.zoom', 'm')
   const [desc, setDesc] = useLocalState('sp.desc', '1')
@@ -375,7 +376,7 @@ export default function PlannerPage() {
     onRenameGroup: (gid, title) => change([{ op: 'set', entity: 'group', id: gid, fields: { title } }]),
     onUngroup: ungroup,
     onDeleteGroup: deleteGroup,
-    onSaveGroup: owner ? (gid) => void saveGroup(gid) : undefined,
+    onSaveGroup: owner && mayChangeLibrary ? (gid) => void saveGroup(gid) : undefined,
     onOpenSlides: (itemId) => {
       const first = items[itemId]?.slides[0]
       if (first) useSlideEditing.getState().open({ kind: 'step', itemId, key: first.id })

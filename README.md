@@ -8,7 +8,7 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - **Edit on the card**: click the title, start time or length to change it right there; short descriptions can be hidden.
 - **Groups**: a heading over several steps (a topic or sub-session) with time range and subtotal, collapsible, moved as a whole.
 - **Categories** (Input, Exercise, Discussion …) with quiet colours, editable in the settings, overridable per step.
-- **Library** shared by all workshops: save a step or a group, drag it into any agenda as a copy. As a list to sort or as cards, with tags to filter by; several entries are tagged, coloured or deleted together, and a deleted entry waits 30 days in the trash. Guests of a workshop read it, and those who may edit insert from it.
+- **Library** shared by all workshops: save a step or a group, drag it into any agenda as a copy. As a list to sort or as cards, with tags to filter by; several entries are tagged, coloured or deleted together, and a deleted entry waits 30 days in the trash. A guest reads it, and inserts from it with edit access, only where the owner switched that on for them.
 - Per step: short description, goal, method, lead, notes, material and files.
 - **Packing list** from all material (largest quantity of any single step, not the sum), tick off, mark "at the venue", override quantities, add material right there.
 - **Files** (PDF, pictures, Word, Excel, PowerPoint, Markdown; up to 5 MB each, 500 MB per workshop) on steps, workshops and library entries; a workshop keeps its own copies of what came from the library.

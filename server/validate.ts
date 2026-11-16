@@ -207,7 +207,7 @@ export function validatePresent(body: unknown): z.infer<typeof presentBody> {
   return parsed.data
 }
 
-const memberBody = z.strictObject({ role: z.enum(['view', 'edit']), showNotes: z.boolean() })
+const memberBody = z.strictObject({ role: z.enum(['view', 'edit']), showNotes: z.boolean(), library: z.boolean().optional() })
 
 export function validateMember(body: unknown): z.infer<typeof memberBody> {
   const parsed = memberBody.safeParse(body)

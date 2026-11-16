@@ -175,6 +175,7 @@ const toMember = (r: Row): Member => ({
   email: r.email as string,
   role: r.role as MemberRole,
   showNotes: r.show_notes === 1,
+  library: r.library === 1,
   addedAt: r.added_at as string,
   lastSeenAt: (r.last_seen_at as string | null) ?? null,
 })
@@ -589,14 +590,14 @@ export class Repo {
   }
 
   /** Adds a guest or changes their access; edit always includes the notes. */
-  setMember(workshopId: string, email: string, role: MemberRole, showNotes: boolean): Member | null {
+  setMember(workshopId: string, email: string, role: MemberRole, showNotes: boolean, library = false): Member | null {
     if (!this.hasWorkshop(workshopId)) return null
     this.db
       .prepare(
-        `INSERT INTO members (workshop_id, email, role, show_notes, added_at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(workshop_id, email) DO UPDATE SET role = excluded.role, show_notes = excluded.show_notes`,
+        `INSERT INTO members (workshop_id, email, role, show_notes, library, added_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(workshop_id, email) DO UPDATE SET role = excluded.role, show_notes = excluded.show_notes, library = excluded.library`,
       )
-      .run(workshopId, email, role, role === 'edit' || showNotes ? 1 : 0, now())
+      .run(workshopId, email, role, role === 'edit' || showNotes ? 1 : 0, library ? 1 : 0, now())
     return this.getMember(workshopId, email)
   }
 

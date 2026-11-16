@@ -40,7 +40,7 @@ function OwnerOnly({ children }: { children: ReactNode }) {
   return owner ? children : <Navigate to="/" replace />
 }
 
-/** The library: the owner's, read by the guests of any workshop (`me.library`). */
+/** The library: the owner's, read by the guests it is switched on for (`me.library`). */
 function LibraryReaders({ children }: { children: ReactNode }) {
   const me = useSettings((s) => s.me)
   return me.owner || me.library ? children : <Navigate to="/" replace />

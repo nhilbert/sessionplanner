@@ -416,6 +416,8 @@
     "edit": "Edit",
     "notes": "Facilitation notes visible",
     "notesAlways": "Edit always includes the notes",
+    "library": "Reads the library",
+    "libraryHint": "The person reads the library and, with edit access, inserts from it into this workshop. They cannot change the library.",
     "add": "Share",
     "empty": "Not shared with anyone yet.",
     "lastSeen": "last opened {{when}}",

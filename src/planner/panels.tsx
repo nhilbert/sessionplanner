@@ -308,8 +308,8 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
       current = false
     }
   }, [id])
-  const save = async (address: string, r: MemberRole, n: boolean) => {
-    const m = await api.setMember(id, address, r, n)
+  const save = async (address: string, r: MemberRole, n: boolean, library?: boolean) => {
+    const m = await api.setMember(id, address, r, n, library)
     setMembers((list) => [...(list ?? []).filter((x) => x.email !== m.email), m].sort((a, b) => a.addedAt.localeCompare(b.addedAt)))
   }
   const when = (iso: string) => new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
@@ -412,6 +412,10 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
               <label className="flex items-center gap-1">
                 <input type="checkbox" checked={m.showNotes} disabled={m.role === 'edit'} onChange={(e) => void save(m.email, m.role, e.target.checked).catch(reportFailure)} />
                 {t('access.notes')}
+              </label>
+              <label className="flex items-center gap-1" title={t('access.libraryHint')}>
+                <input type="checkbox" checked={m.library} onChange={(e) => void save(m.email, m.role, m.showNotes, e.target.checked).catch(reportFailure)} />
+                {t('access.library')}
               </label>
               <span className="ml-auto">{m.lastSeenAt ? t('access.lastSeen', { when: when(m.lastSeenAt) }) : t('access.never')}</span>
             </div>

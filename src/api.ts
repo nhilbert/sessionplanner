@@ -82,8 +82,9 @@ export const api = {
   me: () => call<Me>('/me'),
   people: () => call<{ email: string; allowed: boolean | null; workshops: number }[]>('/people'),
   listMembers: (id: string) => call<Member[]>(`/workshops/${id}/members`),
-  setMember: (id: string, email: string, role: MemberRole, showNotes: boolean) =>
-    call<Member>(`/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'PUT', body: JSON.stringify({ role, showNotes }) }),
+  /** Without `library` that switch stays as it is. */
+  setMember: (id: string, email: string, role: MemberRole, showNotes: boolean, library?: boolean) =>
+    call<Member>(`/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'PUT', body: JSON.stringify({ role, showNotes, library }) }),
   removeMember: (id: string, email: string) => call<{ ok: true }>(`/workshops/${id}/members/${encodeURIComponent(email)}`, { method: 'DELETE' }),
   listWorkshops: () => call<WorkshopSummary[]>('/workshops'),
   createWorkshop: (input: { title?: string; client?: string; date?: string }) => call<WorkshopState>('/workshops', { method: 'POST', body: JSON.stringify(input) }),

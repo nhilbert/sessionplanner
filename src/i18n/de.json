@@ -416,6 +416,8 @@
     "edit": "Bearbeiten",
     "notes": "Moderationsnotizen sichtbar",
     "notesAlways": "Bearbeiten schließt die Notizen ein",
+    "library": "Bibliothek lesen",
+    "libraryHint": "Die Person liest die Bibliothek und fügt mit Bearbeiten-Recht daraus in diesen Workshop ein. Ändern kann sie die Bibliothek nicht.",
     "add": "Freigeben",
     "empty": "Noch mit niemandem geteilt.",
     "lastSeen": "zuletzt geöffnet {{when}}",

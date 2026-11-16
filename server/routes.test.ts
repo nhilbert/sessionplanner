@@ -55,7 +55,7 @@ const CALLER_NAMES = Object.keys(CALLERS) as Caller[]
  * - `approver`: the page where an owner approves an agent's connection.
  * - `signed-in`: anybody the login lets in, shared workshop or not.
  * - `workshop-view`, `workshop-edit`: the owner and the guests of that workshop, or those of them who may edit.
- * - `library-view`: the owner and the guests of any workshop, to read the library.
+ * - `library-view`: the owner and the guests with the library switched on in a workshop, to read it.
  * - `owner`: the owner only.
  */
 type Access = 'public' | 'link' | 'agent' | 'approver' | 'signed-in' | 'workshop-view' | 'workshop-edit' | 'library-view' | 'owner'
@@ -305,8 +305,9 @@ async function fixture(): Promise<{ app: App; records: Records }> {
   const { hash } = await made<{ hash: string }>(`/api/workshops/${workshop.id}/assets`, pictureForm())
   const shown = { ...content, id: 'a', workshopId: workshop.id, dayId: days[0].id, position: 1, groupId: null, fixedStart: null, attachmentIds: [], slides: [{ id: 's1', html: `<section class="slide picture"><img src="asset:${hash}"></section>` }] }
   await made(`/api/workshops/${workshop.id}/ops`, { clientId: 'c', ops: [{ op: 'create', entity: 'item', record: shown }] })
-  repo.setMember(workshop.id, VIEWER, 'view', false)
-  repo.setMember(workshop.id, EDITOR, 'edit', true)
+  // Both guests with the library switched on: the rule `library-view` is about who gets in with it (app.test.ts: not without).
+  repo.setMember(workshop.id, VIEWER, 'view', false, true)
+  repo.setMember(workshop.id, EDITOR, 'edit', true, true)
   const attachment = await made<Attachment>(`/api/workshops/${workshop.id}/attachments`, fileForm())
   await made('/api/settings/logo', pictureForm())
 

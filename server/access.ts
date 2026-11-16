@@ -12,7 +12,7 @@ import type { Repo } from './repo.ts'
  * - `public`, `own-token`: the login does not count; the route is open or checks a token of its own.
  * - `signed-in`: anybody the login lets in, shared workshop or not.
  * - `workshop-view`, `workshop-edit`: the owner and the guests of that workshop, or those of them who may edit.
- * - `library-view`: the owner, and the guests of any workshop, to read the library (libraryForGuest).
+ * - `library-view`: the owner, and the guests with the library switched on in a workshop, to read it (libraryForGuest).
  * - `owner`: the owner only.
  */
 export type Rule = 'public' | 'own-token' | 'signed-in' | 'workshop-view' | 'workshop-edit' | 'library-view' | 'owner'
@@ -25,7 +25,7 @@ export function workshopAccess(repo: Repo, user: User, workshopId: string): Work
   if (!repo.hasWorkshop(workshopId)) return null
   if (user.owner) return 'owner'
   const member = user.email ? repo.getMember(workshopId, user.email) : null
-  return member ? { role: member.role, showNotes: member.showNotes } : null
+  return member ? { role: member.role, showNotes: member.showNotes, library: member.library } : null
 }
 
 export const mayEdit = (access: WorkshopAccess | null): boolean => access === 'owner' || access?.role === 'edit'
@@ -107,29 +107,31 @@ export function mayApply(access: WorkshopAccess, ops: Op[]): boolean {
 /**
  * A picture is shown to a workshop's guests because its slides name it, so naming one must not be how a guest gets it:
  * a guest may place only what the workshop holds or has held, what they uploaded to it, what a theme offers all, and
- * what the library shows.
+ * (with the library switched on for them here) what the library shows.
  */
 export function mayPlace(repo: Repo, access: WorkshopAccess, workshopId: string, ops: Op[]): boolean {
   if (access === 'owner') return true
   const pictures = picturesIn(ops)
-  // What the library shows, an editing guest may read there (libraryAccess), and so place: an entry inserted with its slides.
-  const library = pictures.some((hash) => !repo.assetKnownTo(workshopId, hash)) ? libraryPictures(repo.listLibrary()) : new Set<string>()
+  // What the library shows, a guest with the library switched on here reads there (libraryAccess), and so places: an entry inserted with its slides.
+  const library = access.library && pictures.some((hash) => !repo.assetKnownTo(workshopId, hash)) ? libraryPictures(repo.listLibrary()) : new Set<string>()
   return pictures.every((hash) => repo.assetKnownTo(workshopId, hash) || repo.pairOf(hash).some((h) => library.has(h)))
 }
 
 const seesNotes = (access: Access) => access.role === 'edit' || access.showNotes
 
 /**
- * What a caller has of the library: the owner all of it; a guest of any workshop reads it, with the facilitation notes
- * when they see notes in one of their workshops (as an editor, or with the notes shown); null: nothing. Changing it
- * stays the owner's. A guest who may edit a workshop inserts entries into it (POST /api/library/:id/copies/:workshopId).
+ * What a caller has of the library: the owner all of it; a guest reads it once the owner switched the library on for
+ * them in one of their workshops (`library` of the member, off unless set), with the facilitation notes when they see
+ * notes in one of their workshops (as an editor, or with the notes shown); null: nothing. Changing it stays the
+ * owner's. With the switch on in a workshop they may edit, a guest inserts entries into that one
+ * (POST /api/library/:id/copies/:workshopId, mayPlace).
  */
 export type LibraryAccess = 'owner' | { notes: boolean }
 
 export function libraryAccess(repo: Repo, user: User): LibraryAccess | null {
   if (user.owner) return 'owner'
   const access = user.email ? repo.memberships(user.email) : []
-  return access.length ? { notes: access.some(seesNotes) } : null
+  return access.some((a) => a.library) ? { notes: access.some(seesNotes) } : null
 }
 
 /**

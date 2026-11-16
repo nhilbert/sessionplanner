@@ -178,7 +178,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ error: 'error' }, 500)
   })
 
-  // Who is there, and whether they read the library (a guest of any workshop does).
+  // Who is there, and whether they read the library (a guest for whom the owner switched it on in a workshop).
   app.get('/api/me', allow('signed-in'), (c) => c.json({ ...c.get('user'), library: !!libraryAccess(repo, c.get('user')) }))
   app.get('/api/workshops', allow('signed-in'), (c) => c.json(visibleWorkshops(repo, c.get('user'))))
   app.post('/api/workshops', allow('owner'), async (c) => c.json(repo.createWorkshop(validateNewWorkshop(await c.req.json().catch(() => ({})))), 201))
@@ -482,8 +482,10 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   app.get('/api/workshops/:id/members', allow('owner'), (c) => c.json(repo.listMembers(c.req.param('id')!)))
   app.put('/api/workshops/:id/members/:email', allow('owner'), async (c) => {
     const id = c.req.param('id')!
-    const { role, showNotes } = validateMember(await jsonBody(c))
-    const member = repo.setMember(id, validEmail(c.req.param('email')!), role, showNotes)
+    const { role, showNotes, library } = validateMember(await jsonBody(c))
+    const email = validEmail(c.req.param('email')!)
+    // Without the library named, a change of role or notes leaves that switch as it is.
+    const member = repo.setMember(id, email, role, showNotes, library ?? repo.getMember(id, email)?.library ?? false)
     if (!member) return c.json({ error: 'not_found' }, 404)
     hub.publish(id, { type: 'members-changed' })
     return c.json(member)
@@ -495,7 +497,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.json({ ok: true })
   })
 
-  // ---- library: the owner's; guests of a workshop read it and insert from it (access.ts, libraryAccess) ---------
+  // ---- library: the owner's; a guest reads it and inserts from it where the owner switched that on (access.ts, libraryAccess) ----
   /** The library as the caller may read it. */
   const libraryFor = (c: Context<Env>) => libraryForGuest(repo.listLibrary(), c.get('library'))
   app.get('/api/library', allow('library-view'), (c) => c.json(libraryFor(c)))
@@ -597,9 +599,11 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
   /**
    * Copies an entry's files into a workshop, before the entry is placed there: library attachment id → the workshop's
-   * copy. For the owner and the guests who may edit that workshop (they read the library with its notes).
+   * copy. For the owner and the guests who may edit that workshop and have the library switched on there.
    */
   app.post('/api/library/:id/copies/:workshopId', allow('workshop-edit', (c) => c.req.param('workshopId') ?? null), (c) => {
+    const access = c.get('access')
+    if (access !== 'owner' && !access.library) return c.json({ error: 'forbidden' }, 403)
     const entry = repo.getLibraryEntry(c.req.param('id')!)
     const workshopId = c.req.param('workshopId')!
     if (!entry || !repo.loadWorkshop(workshopId)) return c.json({ error: 'not_found' }, 404)

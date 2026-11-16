@@ -57,3 +57,6 @@ export function itemColor(item: Pick<Item, 'color' | 'categoryId'>, categories: 
 }
 
 export const colorVar = (key: PaletteKey | null): string | undefined => (key ? `var(--c-${key})` : undefined)
+
+/** Whether whoever is signed in changes the library: the owner, unless the host says otherwise (`Me.libraryEdit`). */
+export const useLibraryEdit = (): boolean => useSettings((s) => s.me.libraryEdit ?? s.me.owner)
