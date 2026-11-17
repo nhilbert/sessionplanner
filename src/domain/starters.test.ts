@@ -67,3 +67,16 @@ describe('starter slides', () => {
     expect(sampleTextsOf('')).toEqual([])
   })
 })
+
+describe('variants of a sample subject', () => {
+  it('draws the same variant for the same seed and other ones for other seeds', async () => {
+    const { seeded, variant } = await import('./sampleSets.ts')
+    const set = SAMPLE_SETS.de[0]
+    const order = (seed: number) => variant(set, seeded(seed)).points.map((p) => p.title).join('|')
+    expect(order(7)).toBe(order(7))
+    expect(new Set([1, 2, 3, 4, 5, 6, 7, 8].map(order)).size).toBeGreaterThan(3)
+    const v = variant(set, seeded(3))
+    expect([...v.points].sort((a, b) => a.title.localeCompare(b.title))).toEqual([...set.points].sort((a, b) => a.title.localeCompare(b.title)))
+    expect(v.steps).toBe(set.steps)
+  })
+})

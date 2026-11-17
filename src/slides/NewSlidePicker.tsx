@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { Image, LayoutTemplate, Shuffle, Upload } from 'lucide-react'
 import { api } from '@/api'
-import { sampleSets } from '@/domain/sampleSets'
+import { sampleSets, seeded, variant } from '@/domain/sampleSets'
 import { STARTER_GROUPS, startersFor, starterSlide } from '@/domain/starters'
 import { usePool, useThemes } from '@/store/useThemes'
 import { Button, Modal, Segmented } from '@/components/ui'
@@ -24,21 +24,25 @@ export function NewSlidePicker({ open, onClose, onPick, onPool, theme, scope, ow
   const { t, i18n } = useTranslation()
   const { templates, templatesLoaded, loadTemplates } = useThemes()
   const [tab, setTab] = useState<Tab>('starters')
-  // the sample subject the starters are filled with: a new one at random every time the picker opens
+  // the sample subjects the starters are filled with: mixed at random, anew every time the picker opens (the
+  // seed), or one subject for all of them; either way each starter draws its own variant of its subject
   const sets = sampleSets(i18n.language)
-  const [subject, setSubject] = useState(0)
+  const [subject, setSubject] = useState<number | 'mix'>('mix')
+  const [seed, setSeed] = useState(1)
   useEffect(() => {
-    if (open) setSubject(Math.floor(Math.random() * sets.length))
-  }, [open, sets.length])
+    if (open) setSeed(Math.floor(Math.random() * 2 ** 31))
+  }, [open])
   const pool = usePool(theme)
   const starters = useMemo(() => {
     const pictures = pool.filter((a) => a.kind === 'picture').map((a) => a.hash)
-    // other pictures for another subject, the same ones while the picker shows it
-    const turn = pictures.length ? (subject * 3) % pictures.length : 0
-    const turned = [...pictures.slice(turn), ...pictures.slice(0, turn)]
-    const set = sets[subject % sets.length]
-    return startersFor(pictures.length).map((s) => ({ ...s, html: starterSlide(s, set, turned) }))
-  }, [pool, sets, subject])
+    return startersFor(pictures.length).map((s, i) => {
+      // the same draw for the same seed and starter, so the page stands still while it is looked at
+      const random = seeded(seed + i * 7919)
+      const set = variant(sets[subject === 'mix' ? Math.floor(random() * sets.length) : subject % sets.length], random)
+      const turn = pictures.length ? Math.floor(random() * pictures.length) : 0
+      return { ...s, html: starterSlide(s, set, [...pictures.slice(turn), ...pictures.slice(0, turn)]) }
+    })
+  }, [pool, sets, subject, seed])
   const [busy, setBusy] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -87,8 +91,8 @@ export function NewSlidePicker({ open, onClose, onPick, onPool, theme, scope, ow
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-2">
             <span>{t('slides.sampleSubject')}</span>
-            <Segmented size="sm" value={String(subject % sets.length)} onChange={(v) => setSubject(Number(v))} options={sets.map((s, i) => ({ value: String(i), label: s.name }))} />
-            <Button size="sm" variant="ghost" onClick={() => setSubject((n) => (n + 1 + Math.floor(Math.random() * (sets.length - 1))) % sets.length)}>
+            <Segmented size="sm" value={String(subject)} onChange={(v) => setSubject(v === 'mix' ? 'mix' : Number(v))} options={[{ value: 'mix', label: t('slides.sampleMixed') }, ...sets.map((s, i) => ({ value: String(i), label: s.name }))]} />
+            <Button size="sm" variant="ghost" onClick={() => setSeed(Math.floor(Math.random() * 2 ** 31))}>
               <Shuffle size={13} />
               {t('slides.sampleShuffle')}
             </Button>

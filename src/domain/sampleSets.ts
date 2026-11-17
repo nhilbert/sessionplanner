@@ -281,6 +281,164 @@ const de: SampleSet[] = [
     caption: 'Der Gummibaum im zweiten Stock, Stand heute',
     source: 'Beobachtungen von der Fensterbank',
   },
+  {
+    name: 'Picknick',
+    title: 'Das Teampicknick im Stadtpark',
+    kicker: 'Picknick · Vorbereitung',
+    lead: 'Was in den Korb gehört und was besser im Büro bleibt',
+    question: 'Wer bringt den Kartoffelsalat mit, und wer nur Hunger?',
+    questionSub: 'Kurz überlegen, dann in die Liste eintragen',
+    quote: 'Es gibt kein schlechtes Wetter, nur zu wenig Picknickdecken.',
+    cite: 'Alte Regel aus dem Stadtpark',
+    points: [
+      { title: 'Decken ausbreiten', text: 'Großzügig, mit Blick auf den Teich' },
+      { title: 'Ameisen umleiten', text: 'Freundlich, aber bestimmt' },
+      { title: 'Salate verteilen', text: 'Drei Sorten Nudelsalat sind normal' },
+      { title: 'Schatten sichern', text: 'Der Baum gehört denen, die früh kommen' },
+      { title: 'Federball spielen', text: 'Ohne Netz und ohne Punkte' },
+      { title: 'Reste gerecht teilen', text: 'Niemand geht mit leeren Dosen heim' },
+    ],
+    steps: [
+      { title: 'Wetter prüfen', text: 'Dreimal, mit drei Apps' },
+      { title: 'Korb packen', text: 'Schweres nach unten, Kuchen nach oben' },
+      { title: 'Platz finden', text: 'Nicht zu nah am Ententeich' },
+      { title: 'Zugreifen', text: 'Erst ansehen, dann loben, dann essen' },
+      { title: 'Aufräumen', text: 'Der Park soll nichts merken' },
+    ],
+    dates: ['11:00', '12:00', '13:00', '15:00', '17:00'],
+    numbers: [
+      { value: '12 Decken', label: 'für achtzehn Leute, es wird gekuschelt' },
+      { value: '3 Sorten', label: 'Nudelsalat, mindestens' },
+      { value: '26 °C', label: 'im Schatten, sagt die Vorhersage' },
+    ],
+    sides: [
+      { title: 'Bei Sonne', points: ['Alle suchen den Schatten', 'Die Butter gibt als Erste auf', 'Der Nachmittag wird lang'] },
+      { title: 'Bei Regen', points: ['Alle rücken unter die Plane', 'Der Kuchen wird zur Suppe', 'Die Geschichten werden besser'] },
+    ],
+    axes: { y: ['Schmeckt allen', 'Schmeckt wenigen'], x: ['Schnell gemacht', 'Viel Arbeit'] },
+    cells: [
+      { title: 'Belegte Brote', text: 'Der verlässliche Klassiker' },
+      { title: 'Selbst gebackener Kuchen', text: 'Der Aufwand lohnt sich' },
+      { title: 'Rohkost ohne Dip', text: 'Bleibt meistens übrig' },
+      { title: 'Sülze nach Omas Rezept', text: 'Mutig, aber einsam' },
+    ],
+    acronym: [
+      { letter: 'K', term: 'Kühltasche', text: 'Das Herz jedes Picknicks' },
+      { letter: 'O', term: 'Obst', text: 'Geschnitten, sonst isst es niemand' },
+      { letter: 'R', term: 'Regenplan', text: 'Eine Plane schadet nie' },
+      { letter: 'B', term: 'Besteck', text: 'Wird immer vergessen' },
+    ],
+    exercise: {
+      tag: 'Übung',
+      title: 'Den Korb zu dritt packen',
+      lead: 'Drei Leute, ein Korb und mehr Essen, als hineinpasst',
+      steps: ['Alles auf die Decke legen, was mit soll', 'Gemeinsam entscheiden, was hierbleibt', 'Packen und dem Plenum die Reihenfolge erklären'],
+      facts: [
+        ['Dauer', '15 Minuten'],
+        ['Format', 'Dreiergruppen'],
+        ['Material', 'Ein Korb, eine Decke'],
+      ],
+    },
+    table: {
+      head: ['', 'Stadtpark', 'Dachterrasse'],
+      rows: [
+        ['Anreise', 'Zu Fuß durch den Park', 'Mit dem Fahrstuhl'],
+        ['Mitbewohner', 'Enten und Ameisen', 'Tauben und Wind'],
+        ['Bei Regen', 'Unter die große Buche', 'Zurück ins Büro'],
+      ],
+    },
+    boxes: [
+      { title: 'Treffpunkt', text: 'Wo finden uns die Nachzügler?' },
+      { title: 'Buffet', text: 'Wer bringt was, und wie viel davon?' },
+      { title: 'Getränke', text: 'Wer trägt die schwere Kiste?' },
+      { title: 'Spiele', text: 'Was geht ohne Verletzte?' },
+      { title: 'Wetterplan', text: 'Ab wann sagen wir ab?' },
+      { title: 'Abbau', text: 'Wer nimmt den Müll mit?' },
+    ],
+    core: 'Picknick',
+    section: { title: 'Zu Tisch', text: 'Also eigentlich: zu Decke' },
+    caption: 'Die große Wiese kurz vor dem Ansturm',
+    source: 'Erfahrungen aus sieben Sommern',
+  },
+  {
+    name: 'Schatzsuche',
+    title: 'Die Schatzsuche im Bürogebäude',
+    kicker: 'Schatzsuche · Spielregeln',
+    lead: 'Vom ersten Hinweis im Kopierraum bis zur Truhe im Keller',
+    question: 'Wo würdest du in diesem Haus einen Schatz verstecken?',
+    questionSub: 'Nicht verraten, nur aufschreiben',
+    quote: 'Das X markiert nie die Stelle, aber es schadet nicht, dort anzufangen.',
+    cite: 'Handbuch für Schatzsuchende, Kapitel eins',
+    points: [
+      { title: 'Karte entziffern', text: 'Die Kaffeeflecken gehören nicht dazu' },
+      { title: 'Hinweise sammeln', text: 'Auch die, die keinen Sinn ergeben' },
+      { title: 'Schritte zählen', text: 'Laut, sonst zählt jeder anders' },
+      { title: 'Im Team bleiben', text: 'Niemand geht allein in den Keller' },
+      { title: 'Falsche Fährten feiern', text: 'Sie gehören zum Spiel' },
+      { title: 'Beute ehrlich teilen', text: 'Auch die Schokomünzen' },
+    ],
+    steps: [
+      { title: 'Karte finden', text: 'Sie klebt unter dem Drucker' },
+      { title: 'Rätsel lösen', text: 'Zusammen geht es schneller' },
+      { title: 'Spur folgen', text: 'Treppe statt Fahrstuhl' },
+      { title: 'Truhe öffnen', text: 'Der Schlüssel hängt am Schlüsselbrett' },
+      { title: 'Schatz teilen', text: 'Gerecht, also laut verhandelt' },
+    ],
+    dates: ['Start', 'Kopierraum', 'Treppenhaus', 'Kantine', 'Keller'],
+    numbers: [
+      { value: '7 Hinweise', label: 'führen vom Empfang bis zur Truhe' },
+      { value: '45 Minuten', label: 'braucht ein eingespieltes Team' },
+      { value: '100 Münzen', label: 'aus Schokolade liegen in der Truhe' },
+    ],
+    sides: [
+      { title: 'Mit Karte', points: ['Alle laufen in dieselbe Richtung', 'Einer hält sie falsch herum', 'Am Ende stimmt der Weg'] },
+      { title: 'Ohne Karte', points: ['Alle laufen irgendwohin', 'Jede Tür wird ausprobiert', 'Am Ende kennt man das ganze Haus'] },
+    ],
+    axes: { y: ['Gutes Versteck', 'Schlechtes Versteck'], x: ['Leicht zu erreichen', 'Schwer zu erreichen'] },
+    cells: [
+      { title: 'Hinter dem Feuerlöscher', text: 'Sieht niemand, findet jeder' },
+      { title: 'Im Archiv ganz hinten', text: 'Dort war seit Jahren niemand' },
+      { title: 'Auf dem Empfangstresen', text: 'Hält keine fünf Minuten' },
+      { title: 'Auf dem Dach im Blumenkasten', text: 'Viel Mühe für nichts' },
+    ],
+    acronym: [
+      { letter: 'S', term: 'Suchen', text: 'Mit offenen Augen durchs Haus' },
+      { letter: 'P', term: 'Prüfen', text: 'Passt der Hinweis zur Karte?' },
+      { letter: 'U', term: 'Umdenken', text: 'Wenn die Spur kalt wird' },
+      { letter: 'R', term: 'Rufen', text: 'Wer etwas findet, sagt es allen' },
+    ],
+    exercise: {
+      tag: 'Übung',
+      title: 'Einen Hinweis für die anderen schreiben',
+      lead: 'Jede Gruppe versteckt etwas und beschreibt den Weg in einem Rätsel',
+      steps: ['Ein Versteck im Raum aussuchen, ohne dass es jemand sieht', 'Einen Hinweis in zwei Sätzen schreiben', 'Hinweise tauschen und suchen gehen'],
+      facts: [
+        ['Dauer', '20 Minuten'],
+        ['Format', 'Vierergruppen'],
+        ['Material', 'Karten, Stifte, eine Schokomünze'],
+      ],
+    },
+    table: {
+      head: ['', 'Gruppe Kompass', 'Gruppe Fernrohr'],
+      rows: [
+        ['Strategie', 'Erst denken, dann laufen', 'Erst laufen, dann denken'],
+        ['Tempo', 'Gemächlich', 'Im Laufschritt'],
+        ['Fundstücke', 'Die Truhe', 'Drei alte Regenschirme'],
+      ],
+    },
+    boxes: [
+      { title: 'Schatz', text: 'Was liegt in der Truhe?' },
+      { title: 'Verstecke', text: 'Welche Räume dürfen mitspielen?' },
+      { title: 'Hinweise', text: 'Wie schwer dürfen die Rätsel sein?' },
+      { title: 'Gruppen', text: 'Wer sucht mit wem?' },
+      { title: 'Spielregeln', text: 'Was ist verboten, was nur unfein?' },
+      { title: 'Siegerehrung', text: 'Was bekommen die, die nichts finden?' },
+    ],
+    core: 'Schatz',
+    section: { title: 'Die Spur', text: 'Ab hier wird gesucht' },
+    caption: 'Die Karte, gefunden unter dem Drucker',
+    source: 'Handbuch für Schatzsuchende, eigene Ausgabe',
+  },
 ]
 
 const en: SampleSet[] = [
@@ -521,9 +679,195 @@ const en: SampleSet[] = [
     caption: 'The rubber plant on the second floor, as of today',
     source: 'Observations from the window sill',
   },
+  {
+    name: 'Picnic',
+    title: 'The team picnic in the park',
+    kicker: 'Picnic · Preparation',
+    lead: 'What goes into the basket and what had better stay at the office',
+    question: 'Who brings the potato salad, and who brings only an appetite?',
+    questionSub: 'Think for a moment, then put your name on the list',
+    quote: 'There is no bad weather, only too few picnic blankets.',
+    cite: 'An old rule of the park',
+    points: [
+      { title: 'Spread the blankets', text: 'Generously, with a view of the pond' },
+      { title: 'Redirect the ants', text: 'Kindly but firmly' },
+      { title: 'Hand round the salads', text: 'Three kinds of pasta salad are normal' },
+      { title: 'Secure the shade', text: 'The tree belongs to those who come early' },
+      { title: 'Play badminton', text: 'Without a net and without a score' },
+      { title: 'Share the leftovers fairly', text: 'Nobody goes home with empty boxes' },
+    ],
+    steps: [
+      { title: 'Check the weather', text: 'Three times, with three apps' },
+      { title: 'Pack the basket', text: 'Heavy things below, cake on top' },
+      { title: 'Find a spot', text: 'Not too close to the duck pond' },
+      { title: 'Tuck in', text: 'First look, then praise, then eat' },
+      { title: 'Tidy up', text: 'The park should not notice a thing' },
+    ],
+    dates: ['11:00', '12:00', '13:00', '15:00', '17:00'],
+    numbers: [
+      { value: '12 blankets', label: 'for eighteen people, it gets cosy' },
+      { value: '3 kinds', label: 'of pasta salad, at the very least' },
+      { value: '26 °C', label: 'in the shade, says the forecast' },
+    ],
+    sides: [
+      { title: 'In the sun', points: ['Everyone looks for shade', 'The butter gives up first', 'The afternoon gets long'] },
+      { title: 'In the rain', points: ['Everyone huddles under the tarp', 'The cake turns into soup', 'The stories get better'] },
+    ],
+    axes: { y: ['Everyone likes it', 'Few like it'], x: ['Quickly made', 'A lot of work'] },
+    cells: [
+      { title: 'Sandwiches', text: 'The dependable classic' },
+      { title: 'Home-made cake', text: 'Worth every bit of effort' },
+      { title: 'Raw vegetables, no dip', text: 'Usually left over' },
+      { title: 'Aspic after a family recipe', text: 'Brave, but lonely' },
+    ],
+    acronym: [
+      { letter: 'F', term: 'Fridge box', text: 'The heart of every picnic' },
+      { letter: 'O', term: 'Oranges, sliced', text: 'Whole fruit stays uneaten' },
+      { letter: 'R', term: 'Rain plan', text: 'A tarp never hurts' },
+      { letter: 'K', term: 'Knives and forks', text: 'Forgotten every single time' },
+    ],
+    exercise: {
+      tag: 'Exercise',
+      title: 'Packing the basket in threes',
+      lead: 'Three people, one basket and more food than fits into it',
+      steps: ['Lay out on the blanket everything that is to come along', 'Decide together what stays behind', 'Pack it and explain the order to the whole group'],
+      facts: [
+        ['Duration', '15 minutes'],
+        ['Format', 'Groups of three'],
+        ['Material', 'One basket, one blanket'],
+      ],
+    },
+    table: {
+      head: ['', 'The park', 'The roof terrace'],
+      rows: [
+        ['Getting there', 'On foot through the park', 'By lift'],
+        ['Fellow guests', 'Ducks and ants', 'Pigeons and wind'],
+        ['If it rains', 'Under the big beech', 'Back to the office'],
+      ],
+    },
+    boxes: [
+      { title: 'Meeting point', text: 'Where do latecomers find us?' },
+      { title: 'Buffet', text: 'Who brings what, and how much of it?' },
+      { title: 'Drinks', text: 'Who carries the heavy crate?' },
+      { title: 'Games', text: 'What works without injuries?' },
+      { title: 'Weather plan', text: 'At what point do we call it off?' },
+      { title: 'Clearing up', text: 'Who takes the rubbish along?' },
+    ],
+    core: 'Picnic',
+    section: { title: 'Lunch is served', text: 'On a blanket, to be precise' },
+    caption: 'The big meadow shortly before the rush',
+    source: 'Experience from seven summers',
+  },
+  {
+    name: 'Treasure hunt',
+    title: 'The treasure hunt in the office building',
+    kicker: 'Treasure hunt · Rules',
+    lead: 'From the first clue in the copy room to the chest in the basement',
+    question: 'Where in this building would you hide a treasure?',
+    questionSub: 'Do not tell anyone, just write it down',
+    quote: 'X never marks the spot, but it does no harm to start there.',
+    cite: 'The treasure hunter’s handbook, chapter one',
+    points: [
+      { title: 'Decipher the map', text: 'The coffee stains are not part of it' },
+      { title: 'Collect the clues', text: 'Even those that make no sense' },
+      { title: 'Count the steps', text: 'Aloud, or everyone counts differently' },
+      { title: 'Stay together', text: 'Nobody goes to the basement alone' },
+      { title: 'Celebrate false trails', text: 'They are part of the game' },
+      { title: 'Share the loot honestly', text: 'The chocolate coins too' },
+    ],
+    steps: [
+      { title: 'Find the map', text: 'It is taped under the printer' },
+      { title: 'Solve the riddle', text: 'It goes faster together' },
+      { title: 'Follow the trail', text: 'Stairs, not the lift' },
+      { title: 'Open the chest', text: 'The key hangs on the key board' },
+      { title: 'Share the treasure', text: 'Fairly, that is: after loud negotiation' },
+    ],
+    dates: ['Start', 'Copy room', 'Stairwell', 'Canteen', 'Basement'],
+    numbers: [
+      { value: '7 clues', label: 'lead from reception to the chest' },
+      { value: '45 minutes', label: 'is what a practised team needs' },
+      { value: '100 coins', label: 'made of chocolate lie in the chest' },
+    ],
+    sides: [
+      { title: 'With a map', points: ['Everyone walks the same way', 'Someone holds it upside down', 'In the end the route is right'] },
+      { title: 'Without a map', points: ['Everyone walks somewhere', 'Every door gets tried', 'In the end you know the whole building'] },
+    ],
+    axes: { y: ['A good hiding place', 'A poor hiding place'], x: ['Easy to reach', 'Hard to reach'] },
+    cells: [
+      { title: 'Behind the fire extinguisher', text: 'Nobody looks, anybody finds it' },
+      { title: 'At the back of the archive', text: 'Nobody has been there for years' },
+      { title: 'On the reception desk', text: 'Lasts less than five minutes' },
+      { title: 'In the flower box on the roof', text: 'A lot of trouble for nothing' },
+    ],
+    acronym: [
+      { letter: 'H', term: 'Have a look round', text: 'Eyes open on every floor' },
+      { letter: 'U', term: 'Use the map', text: 'Does the clue fit it?' },
+      { letter: 'N', term: 'New idea', text: 'When the trail goes cold' },
+      { letter: 'T', term: 'Tell the others', text: 'Whoever finds something says so' },
+    ],
+    exercise: {
+      tag: 'Exercise',
+      title: 'Writing a clue for the others',
+      lead: 'Each group hides something and describes the way in a riddle',
+      steps: ['Choose a hiding place in the room without being seen', 'Write a clue in two sentences', 'Swap clues and go looking'],
+      facts: [
+        ['Duration', '20 minutes'],
+        ['Format', 'Groups of four'],
+        ['Material', 'Cards, pens, one chocolate coin'],
+      ],
+    },
+    table: {
+      head: ['', 'Team Compass', 'Team Telescope'],
+      rows: [
+        ['Strategy', 'Think first, then walk', 'Walk first, then think'],
+        ['Pace', 'Leisurely', 'At a jog'],
+        ['Finds', 'The chest', 'Three old umbrellas'],
+      ],
+    },
+    boxes: [
+      { title: 'Treasure', text: 'What is in the chest?' },
+      { title: 'Hiding places', text: 'Which rooms may join the game?' },
+      { title: 'Clues', text: 'How hard may the riddles be?' },
+      { title: 'Teams', text: 'Who searches with whom?' },
+      { title: 'Rules of play', text: 'What is forbidden, what merely bad form?' },
+      { title: 'Prize giving', text: 'What do those get who find nothing?' },
+    ],
+    core: 'Treasure',
+    section: { title: 'The trail', text: 'From here on we search' },
+    caption: 'The map, found under the printer',
+    source: 'The treasure hunter’s handbook, our own edition',
+  },
 ]
 
 export const SAMPLE_SETS: Record<'de' | 'en', SampleSet[]> = { de, en }
+
+/** A random source that gives the same numbers for the same seed (mulberry32), so a picker shows the same samples while it is open. */
+export function seeded(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const shuffled = <T>(list: T[], random: () => number): T[] => {
+  const out = [...list]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
+
+/**
+ * A variant of a subject: what has no order of its own (the parallel points, the figures, the boxes) in another
+ * order, so a starter that shows three of six points shows other ones. Sequences, the two sides, the 2 × 2 and the
+ * acronym stay as they are written.
+ */
+export const variant = (set: SampleSet, random: () => number): SampleSet => ({ ...set, points: shuffled(set.points, random), numbers: shuffled(set.numbers, random), boxes: shuffled(set.boxes, random) })
 
 /** The sample sets of a language (German for "de…", English for everything else). */
 export const sampleSets = (language: string): SampleSet[] => (language.toLowerCase().startsWith('de') ? de : en)
