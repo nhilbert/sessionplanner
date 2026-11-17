@@ -67,14 +67,22 @@ describe('slide assets', () => {
     expect((await upload(app, '/api/library/assets', Buffer.from('<html><script>x()</script>'), OWNER, 'x.html')).status).toBe(400)
   })
 
-  it('serves a workshop asset only where a slide of that workshop shows it, to its guests too', async () => {
+  it('serves a workshop asset where a slide of that workshop shows it, to its guests too; before that to who may edit it', async () => {
     const { app } = setup()
     const ws = await workshop(app)
     const other = await workshop(app)
     const asset = (await (await upload(app, `/api/workshops/${ws.workshop.id}/assets`, PNG)).json()) as { hash: string }
     const url = (id: string) => `${BASE}/api/workshops/${id}/assets/${asset.hash}`
-    // Not referenced yet: not visible.
-    expect((await app.request(url(ws.workshop.id), { headers: H() })).status).toBe(404)
+    // Uploaded, on no stored slide yet: the editor shows it already, so who may edit the workshop loads it; who only looks does not.
+    expect((await app.request(url(ws.workshop.id), { headers: H() })).status).toBe(200)
+    expect((await app.request(`${url(ws.workshop.id)}/info`, { headers: H() })).status).toBe(200)
+    expect((await app.request(url(other.workshop.id), { headers: H() })).status).toBe(404)
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/members/${GUEST}`, { method: 'PUT', headers: H(), body: JSON.stringify({ role: 'view', showNotes: false }) })
+    expect((await app.request(url(ws.workshop.id), { headers: H(GUEST) })).status).toBe(404)
+    expect((await app.request(`${url(ws.workshop.id)}/info`, { headers: H(GUEST) })).status).toBe(404)
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/members/${GUEST}`, { method: 'PUT', headers: H(), body: JSON.stringify({ role: 'edit', showNotes: true }) })
+    expect((await app.request(url(ws.workshop.id), { headers: H(GUEST) })).status).toBe(200)
+    await app.request(`${BASE}/api/workshops/${ws.workshop.id}/members/${GUEST}`, { method: 'DELETE', headers: H() })
     const html = `<section class="slide figure"><figure class="main"><img src="asset:${asset.hash}" alt=""></figure></section>`
     const ops = { clientId: 'c', ops: [{ op: 'create', entity: 'item', record: item('i1', ws.workshop.id, ws.days[0].id, html) }] }
     expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}/ops`, { method: 'POST', headers: H(), body: JSON.stringify(ops) })).status).toBe(200)

@@ -716,18 +716,20 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     return c.body(new Uint8Array(data), 200, { 'Content-Type': asset.mime, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'private, max-age=31536000, immutable' })
   }
   app.post('/api/workshops/:id/assets', allow('workshop-edit'), async (c) => storeAsset(c, c.get('access'), c.req.param('id')!))
+  /**
+   * Who only looks at a workshop sees what its slides show, nothing else. Who may edit it also sees what it holds
+   * (repo.assetKnownTo): a picture just uploaded stands on the slide in the editor before the slide is stored, and
+   * those are the pictures an editor may place anyway (access.ts, mayPlace), so nothing is shown that they could
+   * not get by placing it.
+   */
+  const shownIn = (c: Context<Env>, id: string, hash: string): boolean => HASH.test(hash) && (mayEdit(c.get('access')) ? repo.assetKnownTo(id, hash) : repo.assetInWorkshop(id, hash))
   app.get('/api/workshops/:id/assets/:hash/info', allow('workshop-view'), (c) => {
-    const id = c.req.param('id')!
     const hash = c.req.param('hash')!
-    if (!HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
-    return assetInfo(c, hash)
+    return shownIn(c, c.req.param('id')!, hash) ? assetInfo(c, hash) : c.json({ error: 'not_found' }, 404)
   })
   app.get('/api/workshops/:id/assets/:hash', allow('workshop-view'), (c) => {
-    const id = c.req.param('id')!
     const hash = c.req.param('hash')!
-    // A guest of the workshop sees what its slides show, nothing else.
-    if (!HASH.test(hash) || !repo.assetInWorkshop(id, hash)) return c.json({ error: 'not_found' }, 404)
-    return sendAsset(c, hash, c.req.query('ground'))
+    return shownIn(c, c.req.param('id')!, hash) ? sendAsset(c, hash, c.req.query('ground')) : c.json({ error: 'not_found' }, 404)
   })
   app.post('/api/library/assets', allow('owner'), (c) => storeAsset(c, 'owner'))
   // A guest sees the pictures the library's slides show (as they read it), nothing else.
