@@ -6,6 +6,7 @@ import { blankSlide } from '../templates'
 import { convertLayout, LAYOUTS, type LayoutGroup, serializeSlide, type SlideDoc } from '@/domain/slideDoc'
 import { cx, Modal } from '@/components/ui'
 import { tr } from './fields'
+import './editor.css'
 
 const GROUPS: LayoutGroup[] = ['text', 'structure', 'visual', 'opening']
 
@@ -38,7 +39,7 @@ export function LayoutGrid({ current, doc, onPick, theme, scope, columns = 'grid
       {GROUPS.map((group) => (
         <section key={group}>
           <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{tr(t, `slides.layoutGroups.${group}`)}</div>
-          <ul className={cx('grid gap-2.5', columns)}>
+          <ul className={cx('slot-hints grid gap-2.5', columns)}>
             {LAYOUTS.filter((l) => l.group === group).map((l) => (
               <li key={l.id}>
                 <button type="button" onClick={() => onPick(l.id)} className={cx('block w-full rounded-lg p-1 text-left ring-offset-2 ring-offset-surface transition-colors hover:bg-surface-2', l.id === current && 'ring-2 ring-accent')} aria-pressed={l.id === current} aria-label={tr(t, `slides.layouts.${l.id}`)}>

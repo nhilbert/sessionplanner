@@ -292,6 +292,13 @@ def fits_checks(layout, sec):
         for side in sides:
             if sum(len(l.items()) for l in side.all() if l.tag == 'ul') > 6:
                 warn('more than six points on a side; split the slide')
+    elif layout == 'diagram':
+        for ol in (x for x in sec.all() if x.tag == 'ol'):
+            n = len(ol.items())
+            if n > 5:
+                warn(f'{n} entries: a diagram holds five')
+            elif n < 2:
+                warn(f'{n} entries: a diagram needs two')
     elif layout == 'timeline':
         for ol in (x for x in sec.all() if x.tag == 'ol' and 'timeline' in x.classes):
             n = len(ol.items())

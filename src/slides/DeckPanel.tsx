@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Download, FileText, MonitorSpeaker, Play, Presentation, Printer, Shuffle } from 'lucide-react'
+import { AlertTriangle, Download, FileText, MonitorSpeaker, Play, Presentation, Printer, Shuffle } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
 import { newId, type Op } from '@/domain/ops'
 import type { DeckSlideRef } from '@/domain/deck'
 import { MAX_SLIDES } from '@/domain/slides'
+import { sampleTextsOf } from '@/domain/starters'
 import { dropIndex, hasRoom } from '@/domain/slideMove'
 import { usePlanner } from '@/store/usePlanner'
 import { reportFailure } from '@/api'
@@ -31,6 +32,8 @@ import { pageUrl } from '@/domain/addresses'
 export function DeckPanel({ data, change, owner, onNotice }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onNotice: (text: string) => void }) {
   const { t, i18n } = useTranslation()
   const { deck, theme, options, update, pictures } = useDeck(data)
+  // the slides of the steps that still say a starter's sample words: named before the deck is shown or exported
+  const sampled = useMemo(() => deck.flatMap((s, i) => (!s.generated && sampleTextsOf(s.html).length ? [{ key: s.key, n: i + 1 }] : [])), [deck])
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<{ kind: 'pptx' | 'pdf'; done: number; of: number } | null>(null)
   const title = data.workshop.title || t('workshops.untitled')
@@ -132,6 +135,12 @@ export function DeckPanel({ data, change, owner, onNotice }: { data: WorkshopSta
           </>
         )}
       </div>
+      {sampled.length > 0 && (
+        <button type="button" onClick={() => useSlideEditing.getState().open({ kind: 'deck', key: sampled[0].key })} className="flex w-full items-start gap-2 rounded-md bg-amber-soft px-2.5 py-1.5 text-left text-[12px] leading-snug text-amber">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{t('slides.sampleSlides', { count: sampled.length, list: sampled.map((s) => s.n).join(', ') })}</span>
+        </button>
+      )}
       {!deck.some((s) => !s.generated) && <p className="text-[13px] text-ink-3">{t('slides.deckEmpty')}</p>}
       <ol className="grid grid-cols-2 gap-2">
         <SlideSort onDrop={drop} overlay={(key) => <SlideView html={deck.find((s) => s.key === key)?.html ?? ''} theme={theme} scope={scope} />}>

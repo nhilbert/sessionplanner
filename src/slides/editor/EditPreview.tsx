@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { type AssetScope, useFrameScale, useHostHtml, useTheme, useThemeGround } from '../SlideView'
 import { fieldSelectors, type SlideDoc } from '@/domain/slideDoc'
 import { normalizeSlideHtml } from '@/domain/slides'
+import { isReplaceable } from '../samples'
 import { clearAt, elementAt, removeAt, setImage, setInline, type TreePath } from '@/domain/slideEdit'
 import { boldPatch, formatRuns, nodesToRuns, type Patch, type RangeState, rangeState, runsLength, runsToNodes, sizePatch, trimBreaks } from '@/domain/inlineRuns'
 import { api } from '@/api'
@@ -326,7 +327,8 @@ export function EditPreview({ doc, html, theme, scope, focus, onFocus, onEdit, v
     el.contentEditable = 'true'
     el.classList.add('is-editing')
     el.focus({ preventScroll: true })
-    if (at.all) setSelection(s, 0, runsLength(domRuns(s)))
+    // sample and placeholder words are there to be replaced: selected as a whole, the first key typed does it
+    if (at.all || isReplaceable(el.textContent ?? '')) setSelection(s, 0, runsLength(domRuns(s)))
     else placeCaret(s, at.point)
     refresh()
 

@@ -1,3 +1,4 @@
+import { drawDiagrams } from './diagram.ts'
 import type { Slide } from './types.ts'
 
 /**
@@ -125,10 +126,11 @@ export function sanitizeSlide(html: string): string {
 
 /**
  * A slide as stored and as rendered: sanitised, and exactly one section.slide. Markup after the root is dropped:
- * it would sit outside the slide's frame, over the app around it.
+ * it would sit outside the slide's frame, over the app around it. A diagram is drawn from its entries here
+ * (diagram.ts), so the drawing is right wherever the slide came from.
  */
 export function normalizeSlideHtml(html: string): string {
-  const clean = sanitizeSlide(html)
+  const clean = drawDiagrams(sanitizeSlide(html))
   if (!/^<section class="slide[ "]/.test(clean)) return `<section class="slide list">${clean}</section>`
   // The sanitiser's output is well-formed and has no "<" or ">" in text or attribute values, so tags can be counted.
   let depth = 0

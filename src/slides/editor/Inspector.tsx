@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import type { AssetScope } from '@/api'
+import { DIAGRAM_CORE, DIAGRAM_SHAPES, type DiagramShape, diagramSvg } from '@/domain/diagram'
 import { type Block, emptyBox, emptyCard, emptyCell, emptyLetter, emptyStep, type LayoutSpec, layoutSpec, type SlideDoc, type TableCell, type Tone } from '@/domain/slideDoc'
-import { Segmented, Select, SectionLabel } from '@/components/ui'
+import { cx, Segmented, Select, SectionLabel } from '@/components/ui'
 import { Area, Entries, Row, Text, Toggle, tr } from './fields'
 import { PictureField } from './PicturePicker'
 
@@ -43,6 +44,14 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
   return (
     <div className="space-y-5">
       {structured && spec && spec.options.length > 0 && <Options spec={spec} doc={doc} onChange={(options) => set({ options })} />}
+
+      {structured && parts.has('shape') && (
+        <section>
+          <SectionLabel>{f('shape')}</SectionLabel>
+          <ShapePicker value={doc.shape ?? 'pyramid'} count={(doc.steps ?? []).filter((s) => s.title.trim() || s.text.trim()).length} onChange={(shape) => set({ shape })} />
+          {DIAGRAM_CORE.includes(doc.shape ?? 'pyramid') && <Text path="core" value={doc.core ?? ''} onChange={(core) => set({ core })} onFocus={onFocus} placeholder={f(`core.${doc.shape}`)} label={f(`core.${doc.shape}`)} className="mt-1.5" />}
+        </section>
+      )}
 
       {doc.raw === undefined && spec?.generated && <p className="rounded-md bg-amber-soft px-2.5 py-1.5 text-[12px] leading-snug text-amber">{t('slides.generatedHint')}</p>}
 
@@ -128,7 +137,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
 
       {structured && parts.has('steps') && (
         <Entries
-          label={f('steps')}
+          label={f(doc.layout === 'diagram' ? 'entries' : 'steps')}
           items={doc.steps ?? []}
           max={spec?.max}
           onChange={(steps) => set({ steps })}
@@ -138,7 +147,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
               <Area path={`steps.${i}`} value={s.text} onChange={(v) => setS({ ...s, text: v })} onFocus={onFocus} placeholder={f('step', { n: i + 1 })} label={f('step', { n: i + 1 })} />
             ) : (
               <>
-                <Text path={`steps.${i}.eyebrow`} value={s.eyebrow} onChange={(v) => setS({ ...s, eyebrow: v })} onFocus={onFocus} placeholder={f('eyebrow')} label={f('eyebrow')} />
+                {doc.layout !== 'diagram' && <Text path={`steps.${i}.eyebrow`} value={s.eyebrow} onChange={(v) => setS({ ...s, eyebrow: v })} onFocus={onFocus} placeholder={f('eyebrow')} label={f('eyebrow')} />}
                 <Area path={`steps.${i}.title`} value={s.title} onChange={(v) => setS({ ...s, title: v })} onFocus={onFocus} placeholder={f('title')} label={f('title')} className="font-medium" />
                 <Area path={`steps.${i}.text`} value={s.text} onChange={(v) => setS({ ...s, text: v })} onFocus={onFocus} placeholder={f('text')} label={f('text')} />
               </>
@@ -347,6 +356,24 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
 
 const header = (doc: SlideDoc) => doc.header ?? { eyebrow: '', title: '', lead: '', tag: '', small: '' }
 const text = (doc: SlideDoc) => doc.text ?? { eyebrow: '', title: '', subtitle: '', meta: '', lead: '', big: '', sub: '', until: '', body: '' }
+
+/** The part of the drawing a shape's picture shows: the drawing stands at the left, in the middle or across the box. */
+const SHAPE_VIEW: Record<DiagramShape, string> = { pyramid: '-10 0 600 470', onion: '-10 0 490 470', cycle: '341 0 470 470', venn: '341 0 470 470', hub: '341 0 470 470', pillars: '0 0 1152 470' }
+
+/** The shapes of a diagram as small pictures, drawn for the number of entries the slide has. */
+function ShapePicker({ value, count, onChange }: { value: DiagramShape; count: number; onChange: (shape: DiagramShape) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="grid grid-cols-3 gap-1.5" role="radiogroup">
+      {DIAGRAM_SHAPES.map((shape) => (
+        <button key={shape} type="button" role="radio" aria-checked={shape === value} onClick={() => onChange(shape)} className={cx('shape-pick flex flex-col items-center gap-1 rounded-md border px-1.5 pb-1 pt-2 text-[11px] transition-colors', shape === value ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-2 hover:bg-surface-2')}>
+          <span className="block h-9 w-full" dangerouslySetInnerHTML={{ __html: diagramSvg(shape, Math.max(2, count || 3)).replace(/viewBox="[^"]*"/, `viewBox="${SHAPE_VIEW[shape]}"`) }} />
+          {tr(t, `editor.shape.${shape}`)}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 /** The layout's options as switches and a column count. */
 function Options({ spec, doc, onChange }: { spec: LayoutSpec; doc: SlideDoc; onChange: (options: SlideDoc['options']) => void }) {

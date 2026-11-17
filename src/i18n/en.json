@@ -482,6 +482,7 @@
       "compare": "Comparison",
       "timeline": "Timeline",
       "canvas": "Canvas",
+      "diagram": "Diagram",
       "model": "Model",
       "table": "Table"
     },
@@ -614,6 +615,7 @@
       "compare": "two columns against each other: before and after, A and B",
       "timeline": "three to six dated points on one line",
       "canvas": "labelled boxes with guiding questions",
+      "diagram": "a shape drawn from two to five entries: pyramid, ring, circles",
       "model": "a diagram as inline SVG",
       "table": "a small table"
     },
@@ -624,6 +626,16 @@
       "visual": "Picture and model"
     },
     "new": "New slide",
+    "fromStarter": "Starters",
+    "sampleSubject": "Sample subject",
+    "sampleShuffle": "Another one",
+    "sampleHint": "The words are samples: type over them.",
+    "sampleLeft_one": "This slide still shows a sample phrase:",
+    "sampleLeft_other": "This slide still shows {{count}} sample phrases, for example:",
+    "sampleSlides_one": "Slide {{list}} still shows sample text of a starter slide.",
+    "sampleSlides_other": "{{count}} slides still show sample text of a starter slide: {{list}}.",
+    "starterGroups": {"say": "One thing, large", "points": "Side by side", "process": "One after another", "model": "How it hangs together", "picture": "With a picture"},
+    "starters": {"question": "Question for the group", "quote": "Quotation", "number": "One large figure", "numbers": "Three figures", "section": "Section divider", "rows": "Points with a heading", "list": "Plain points", "cards": "Three numbered cards", "cards4": "Four cards", "compare": "Two sides", "table": "Small table", "canvas": "Canvas with questions", "steps": "Sequence", "timeline": "Timeline", "cycle": "Cycle", "exercise": "Exercise with facts", "pyramid": "Pyramid", "venn": "Overlapping circles", "onion": "Core and rings", "pillars": "Pillars under a roof", "hub": "Hub", "matrix": "2 × 2", "acronym": "Acronym", "split": "Text beside a picture", "splitLeft": "Picture left, text right", "figure": "One large picture", "pictureCards": "Cards with pictures"},
     "fromTemplate": "Templates",
     "fromLayout": "Layouts",
     "fromPicture": "Picture",
@@ -655,6 +667,7 @@
     "lostFigure": "The picture has no place in this layout.",
     "lostSvg": "The diagram has no place in this layout.",
     "lostSource": "The source line has no place in this layout.",
+    "shape": {"pyramid": "Pyramid", "cycle": "Cycle", "venn": "Circles", "onion": "Onion", "pillars": "Pillars", "hub": "Hub"},
     "miss": {
       "items_one": "{{count}} entry does not fit",
       "items_other": "{{count}} entries do not fit",
@@ -673,6 +686,9 @@
     "up": "Move up",
     "down": "Move down",
     "f": {
+      "shape": "Shape",
+      "entries": "Entries",
+      "core": {"cycle": "In the middle", "hub": "In the middle", "venn": "Where they meet", "pillars": "On the roof"},
       "eyebrow": "Kicker",
       "title": "Title",
       "lead": "Lead",

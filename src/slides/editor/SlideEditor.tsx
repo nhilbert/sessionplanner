@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Code, Copy, FolderInput, Info, LayoutTemplate, MoveLeft, MoveRight, Pencil, Play, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react'
 import { MAX_SLIDES, normalizeSlideHtml, slideTitle } from '@/domain/slides'
+import { sampleTextsOf } from '@/domain/starters'
 import { convertLayout, parseSlide, serializeSlide, type SlideDoc } from '@/domain/slideDoc'
 import { Button, cx, IconButton, isTyping, Textarea, useIsPhone, useMediaQuery } from '@/components/ui'
 import Menu from '@/components/Menu'
@@ -546,6 +547,8 @@ export function SlideEditor(p: Props) {
       {t('slides.new')}
     </Button>
   )
+  // sample words of a starter slide that are still there (starters.ts)
+  const samples = editable ? sampleTextsOf(html) : []
   const notices = (
     <>
       {lost && (
@@ -572,6 +575,14 @@ export function SlideEditor(p: Props) {
         <div className="flex items-start gap-2 rounded-md bg-amber-soft px-2.5 py-1.5 text-[12px] leading-snug text-amber">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           {t('slides.overflow')}
+        </div>
+      )}
+      {samples.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md bg-amber-soft px-2.5 py-1.5 text-[12px] leading-snug text-amber" role="status">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            {t('slides.sampleLeft', { count: samples.length })} <span className="opacity-80">„{samples[0].length > 60 ? `${samples[0].slice(0, 57)}…` : samples[0]}“</span>
+          </span>
         </div>
       )}
     </>

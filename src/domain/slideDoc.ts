@@ -1,4 +1,5 @@
 import { type El, type Node, classes, el, elements, hasClass, inlineToText, isBlank, isEl, parseTree, serializeNode, serializeNodes, textOf, textToInline, txt } from './slideTree.ts'
+import { DIAGRAM_CORE, type DiagramShape, diagramClass, diagramSvg, isDiagramShape } from './diagram.ts'
 import { normalizeSlideHtml } from './slides.ts'
 
 /**
@@ -133,6 +134,10 @@ export interface SlideDoc {
   /** Inline SVG of a model slide (or in the figure of a split slide), kept as markup. */
   svg?: string
   glyph?: Glyph
+  /** Diagram slide: the shape drawn from the entries (diagram.ts); the entries are `steps`. */
+  shape?: DiagramShape
+  /** Diagram slide: the word in the middle of a cycle or a hub, in the overlap of the circles, on the roof. */
+  core?: string
   /** Closing slide: the theme's logo above the title. */
   logo?: boolean
   source?: string
@@ -148,7 +153,7 @@ export interface SlideDoc {
 
 // ---- the catalogue as a schema ----------------------------------------------------------------------------------
 
-export type Part = 'header' | 'text' | 'points' | 'cards' | 'steps' | 'facts' | 'quote' | 'figure' | 'blocks' | 'rows' | 'matrix' | 'letters' | 'boxes' | 'table' | 'svg' | 'glyph' | 'logo' | 'source'
+export type Part = 'header' | 'text' | 'points' | 'cards' | 'steps' | 'facts' | 'quote' | 'figure' | 'blocks' | 'rows' | 'matrix' | 'letters' | 'boxes' | 'table' | 'svg' | 'glyph' | 'logo' | 'source' | 'shape'
 export type OptionSpec = { key: string; kind: 'flag' } | { key: string; kind: 'choice'; values: number[]; default: number }
 export type LayoutGroup = 'opening' | 'text' | 'structure' | 'visual'
 
@@ -185,6 +190,7 @@ export const LAYOUTS: LayoutSpec[] = [
   { id: 'matrix', group: 'structure', parts: ['header', 'matrix', 'source'], options: [] },
   { id: 'acronym', group: 'structure', parts: ['header', 'letters', 'source'], options: [flag('compact')], max: 8 },
   { id: 'canvas', group: 'structure', parts: ['header', 'boxes', 'source'], options: [choice('cols', [2, 3, 4], 3)], max: 12 },
+  { id: 'diagram', group: 'visual', parts: ['header', 'shape', 'steps', 'source'], options: [], max: 5 },
   { id: 'model', group: 'visual', parts: ['header', 'svg', 'figure', 'source'], options: [] },
   { id: 'table', group: 'structure', parts: ['header', 'table', 'source'], options: [flag('compact')], max: 8 },
   { id: 'number', group: 'text', parts: ['header', 'cards', 'source'], options: [], max: 4 },
@@ -516,6 +522,26 @@ const readers: Record<string, BodyReader> = {
       .map((b) => ({ title: inline(only(elements(b), 'h3')), text: paragraphs(elements(b)), points: elements(only(elements(b), 'ul') ?? el('ul')).filter((e) => e.tag === 'li').map(inline), wide: hasClass(b, 'wide'), tall: hasClass(b, 'tall'), accent: hasClass(b, 'accent') }))
     return true
   },
+  diagram: (body, doc) => {
+    if (body.length !== 1 || body[0].tag !== 'div' || !hasClass(body[0], 'diagram')) return false
+    const kids = elements(body[0])
+    // the drawing is computed (diagram.ts), so whatever stands there is not content
+    if (!onlyOf(kids, (e) => e.tag === 'svg' || e.tag === 'ol' || (e.tag === 'p' && hasClass(e, 'core')))) return false
+    doc.shape = classes(body[0]).find(isDiagramShape) ?? 'pyramid'
+    doc.steps = []
+    for (const li of elements(only(kids, 'ol') ?? el('ol')).filter((e) => e.tag === 'li')) {
+      const step = emptyStep()
+      for (const c of elements(li)) {
+        if (c.tag === 'h3') step.title = inline(c)
+        else if (c.tag === 'p') step.text = step.text ? `${step.text}\n\n${inline(c)}` : inline(c)
+        else return false
+      }
+      doc.steps.push(step)
+    }
+    const core = only(kids, 'p', 'core')
+    if (core) doc.core = inline(core)
+    return true
+  },
   model: (body, doc) => {
     if (body.length !== 1 || body[0].tag !== 'figure' || !hasClass(body[0], 'model')) return false
     const ok = readFigure(body[0], doc)
@@ -778,6 +804,12 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
     const cols = Number(d.options.cols ?? 3)
     return [el('div', { class: cls('canvas', `cols-${cols}`) }, boxes.map((b) => el('div', { class: cls('box', b.wide && 'wide', b.tall && 'tall', b.accent && 'accent') }, [...h('h3', b.title), ...ps('', b.text), ...ul('list', b.points ?? [])])))]
   },
+  diagram: (d) => {
+    const steps = (d.steps ?? []).filter((s) => s.text.trim() || s.title.trim())
+    const shape = d.shape ?? 'pyramid'
+    const core = DIAGRAM_CORE.includes(shape) ? p('core', d.core ?? '') : []
+    return [el('div', { class: diagramClass(shape, steps.length) }, [...parseTree(diagramSvg(shape, steps.length)).filter(isEl), el('ol', {}, steps.map((s) => el('li', {}, [...h('h3', s.title), ...ps('', s.text)]))), ...core])]
+  },
   model: (d) => {
     const kids: Node[] = d.svg ? parseTree(d.svg).filter(isEl) : []
     kids.push(...img(d.figure?.image ?? '', d.figure?.alt ?? ''))
@@ -880,7 +912,7 @@ export function blankDoc(layout: string, w: BlankWords): SlideDoc {
       break
     case 'exercise':
       doc.steps = [1, 2, 3].map((i) => ({ ...emptyStep(), text: n(w.step, i) }))
-      doc.facts = []
+      doc.facts = [1, 2].map((i) => ({ term: n(w.term, i), value: n(w.value, i) }))
       break
     case 'steps':
       doc.steps = [1, 2, 3].map((i) => ({ ...emptyStep(), title: n(w.step, i), text: w.text }))
@@ -903,6 +935,10 @@ export function blankDoc(layout: string, w: BlankWords): SlideDoc {
     case 'canvas':
       doc.options.cols = 3
       doc.boxes = [1, 2, 3, 4, 5, 6].map((i) => ({ ...emptyBox(), title: n(w.point, i), text: w.text }))
+      break
+    case 'diagram':
+      doc.shape = 'pyramid'
+      doc.steps = [1, 2, 3].map((i) => ({ ...emptyStep(), title: n(w.point, i), text: w.text }))
       break
     case 'model':
       doc.svg = '<svg viewBox="0 0 1152 470" role="img"><polygon class="f-accent" points="576,20 416,170 736,170"></polygon><polygon class="f-accent-2" points="396,190 256,320 896,320 756,190"></polygon><polygon class="f-surface-2" points="236,340 96,460 1056,460 916,340"></polygon></svg>'
@@ -949,6 +985,11 @@ function poolOf(doc: SlideDoc): Pool {
   if (doc.letters) for (const l of doc.letters) items.push({ title: l.term || l.letter, text: l.text })
   if (doc.boxes) for (const b of doc.boxes) items.push({ title: b.title, text: [b.text, ...(b.points ?? [])].filter(Boolean).join('\n') })
   if (doc.table) for (const r of doc.table.rows) items.push({ title: r[0]?.text ?? '', text: r.slice(1).map((c) => c.text).filter(Boolean).join(' · ') })
+  // a diagram's word in the middle becomes the line under the title where there is none
+  if (doc.core?.trim()) {
+    if (!pool.lead) pool.lead = doc.core
+    else pool.extra.push(doc.core)
+  }
   if (doc.quote?.cite) {
     if (!pool.source) pool.source = doc.quote.cite
     else pool.extra.push(doc.quote.cite)
@@ -1044,6 +1085,10 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
     case 'timeline':
       out.steps = take(spec.max).map((i) => ({ ...emptyStep(), title: headline(i), text: rest(i) }))
       break
+    case 'diagram':
+      out.shape = doc.shape ?? 'pyramid'
+      out.steps = take(spec.max).map((i) => ({ ...emptyStep(), title: headline(i), text: rest(i) }))
+      break
     case 'number':
       out.cards = take(spec.max).map((i) => ({ ...emptyCard(), title: headline(i), text: rest(i) }))
       break
@@ -1120,7 +1165,7 @@ export function fieldSelectors(doc: SlideDoc): { path: string; selector: string 
     })
   if (doc.steps)
     doc.steps.forEach((_, i) => {
-      const li = doc.layout === 'exercise' ? `:scope > .exercise > .steps > li${nth(i)}` : doc.layout === 'timeline' ? `:scope > .timeline > li${nth(i)}` : `:scope > .flow > li${nth(i)}`
+      const li = doc.layout === 'exercise' ? `:scope > .exercise > .steps > li${nth(i)}` : doc.layout === 'diagram' ? `:scope > .diagram > ol > li${nth(i)}` : doc.layout === 'timeline' ? `:scope > .timeline > li${nth(i)}` : `:scope > .flow > li${nth(i)}`
       add(`steps.${i}.eyebrow`, `${li} > .eyebrow`)
       add(`steps.${i}.title`, `${li} > h3`)
       add(`steps.${i}.text`, `${li} > p`)
@@ -1148,6 +1193,7 @@ export function fieldSelectors(doc: SlideDoc): { path: string; selector: string 
   if (doc.letters) doc.letters.forEach((_, i) => add(`letters.${i}`, `:scope > .acronym > div${nth(i)}`))
   if (doc.boxes) doc.boxes.forEach((_, i) => add(`boxes.${i}`, `:scope > .canvas > .box${nth(i)}`))
   if (doc.table) add('table', ':scope > table')
+  if (doc.core !== undefined || doc.layout === 'diagram') add('core', ':scope > .diagram > .core')
   if (doc.glyph) add('glyph', ':scope > .glyph')
   if (doc.source !== undefined) add('source', ':scope > footer > .source')
   if (doc.takeaway !== undefined) add('takeaway', ':scope > footer > .takeaway')

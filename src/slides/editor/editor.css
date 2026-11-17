@@ -21,3 +21,25 @@
 /* The text typed in keeps every space as typed (it was folded when the editing began) and has room for the caret when empty. */
 .slide-edit .slide .is-editing { white-space: pre-wrap; cursor: text; min-width: 0.6em; min-height: 1em; }
 .slide-edit .slide .is-editing [contenteditable="false"] { cursor: default; }
+
+/* The shape pictures of a diagram's picker (Inspector): the drawing of diagram.ts in the button's own colour. */
+.shape-pick svg { width: 100%; height: 100%; display: block; }
+.shape-pick svg [class^="f-"] { fill: currentColor; }
+.shape-pick svg .f-bg { fill: var(--color-surface, #fff); }
+.shape-pick svg .f-surface { fill: currentColor; fill-opacity: 0.25; }
+.shape-pick svg line { stroke: currentColor; stroke-opacity: 0.5; stroke-width: 6; }
+.shape-pick svg .s-line, .shape-pick svg text { display: none; }
+
+/* A layout made for a picture that has none yet: a quiet dashed field where it would stand, in the pickers of a
+   new slide and while editing; never on a slide that is shown. */
+.slot-hints .slide .split:not(:has(> figure))::after, .slide-edit:not(.is-view) .slide .split:not(:has(> figure))::after {
+  content: ''; border: 2px dashed var(--line); border-radius: var(--radius, 8px); background: color-mix(in oklab, var(--fg) 4%, transparent); min-height: 0;
+}
+.slot-hints .slide .split.figure-left:not(:has(> figure))::after, .slide-edit:not(.is-view) .slide .split.figure-left:not(:has(> figure))::after { order: -1; }
+.slot-hints .slide.figure:not(:has(> figure))::after, .slide-edit:not(.is-view) .slide.figure:not(:has(> figure))::after {
+  content: ''; flex: 1 1 auto; border: 2px dashed var(--line); border-radius: var(--radius, 8px); background: color-mix(in oklab, var(--fg) 4%, transparent);
+}
+.slot-hints .slide.figure:has(> figure:not(:has(img)))::before, .slide-edit:not(.is-view) .slide.figure:has(> figure:not(:has(img)))::before {
+  content: ''; flex: 1 1 auto; order: 1; border: 2px dashed var(--line); border-radius: var(--radius, 8px); background: color-mix(in oklab, var(--fg) 4%, transparent);
+}
+.slot-hints .slide.figure:has(> figure:not(:has(img))) > figure, .slide-edit:not(.is-view) .slide.figure:has(> figure:not(:has(img))) > figure { order: 2; flex: 0 0 auto; }

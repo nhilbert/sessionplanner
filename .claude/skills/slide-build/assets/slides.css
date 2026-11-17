@@ -333,6 +333,67 @@
 .slide svg .s-line { stroke: var(--line); fill: none; }
 .slide svg .s-fg { stroke: var(--fg-2); fill: none; }
 
+/* diagram: a shape drawn from the number of its entries (src/domain/diagram.ts), the entries' words laid over it.
+   The box is the drawing's 1152 × 470 and keeps that ratio when a tall header leaves it less, so the words, placed
+   in parts of the box, stay on their shapes. --i is an entry's place (from 0), --n the number of entries. */
+.slide > .diagram { flex: 0 1 470px; aspect-ratio: 1152 / 470; align-self: center; position: relative; min-height: 0; max-width: 100%; }
+.slide .diagram > svg { position: absolute; inset: 0; width: 100%; height: 100%; font-family: var(--font-display), 'Noto Sans JP'; }
+.slide .diagram > svg text { font-size: 40px; font-weight: var(--numeral-weight, 300); letter-spacing: -0.02em; fill: var(--fg); }
+.slide .diagram > svg text.t-on { fill: var(--on-accent); }
+.slide .diagram > svg line { stroke-width: 1; }
+.slide .diagram > ol { list-style: none; position: absolute; inset: 0; counter-reset: n; }
+.slide .diagram > ol > li { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; min-height: 0; counter-increment: n; }
+.slide .diagram > ol > li:nth-child(n + 7) { display: none; }
+.slide .diagram > ol h3 { font-size: 24px; }
+.slide .diagram > ol p { font-size: 18px; line-height: 1.4; color: var(--fg-2); }
+.slide .diagram > ol > li:nth-child(1) { --i: 0; }
+.slide .diagram > ol > li:nth-child(2) { --i: 1; }
+.slide .diagram > ol > li:nth-child(3) { --i: 2; }
+.slide .diagram > ol > li:nth-child(4) { --i: 3; }
+.slide .diagram > ol > li:nth-child(5) { --i: 4; }
+.slide .diagram > ol > li:nth-child(6) { --i: 5; }
+.slide .diagram.n-1 { --n: 1; }
+.slide .diagram.n-2 { --n: 2; }
+.slide .diagram.n-3 { --n: 3; }
+.slide .diagram.n-4 { --n: 4; }
+.slide .diagram.n-5 { --n: 5; }
+.slide .diagram.n-6 { --n: 6; }
+/* pyramid and onion: the drawing at the left, every entry a row beside its layer or ring */
+.slide .diagram.pyramid { --span: 464; --gap: 6; }
+.slide .diagram.onion { --span: 458; --gap: 0; }
+.slide .diagram.pyramid > ol > li, .slide .diagram.onion > ol > li {
+  position: absolute; left: 56%; right: 0;
+  top: calc((6 + var(--i) * var(--span) / var(--n)) / 470 * 100%); height: calc((var(--span) / var(--n) - var(--gap)) / 470 * 100%);
+}
+.slide .diagram.n-5 > ol h3, .slide .diagram.n-6 > ol h3 { font-size: 21px; }
+.slide .diagram.n-5 > ol p, .slide .diagram.n-6 > ol p { font-size: 16px; line-height: 1.3; }
+/* cycle (a ring), circles and hub: the drawing in the middle, the entries clockwise around it, the first half down the
+   right side, the rest up the left; each under its numeral */
+.slide .diagram.cycle > ol, .slide .diagram.venn > ol, .slide .diagram.hub > ol { display: grid; grid-template-columns: 27% minmax(0, 1fr) 27%; grid-template-rows: repeat(6, minmax(0, 1fr)); }
+.slide .diagram.cycle > ol > li, .slide .diagram.venn > ol > li, .slide .diagram.hub > ol > li { grid-column: 3; grid-row: 1 / -1; }
+.slide .diagram.cycle > ol > li::before, .slide .diagram.venn > ol > li::before, .slide .diagram.hub > ol > li::before {
+  content: counter(n, decimal-leading-zero); font-family: var(--font-display), 'Noto Sans JP'; font-weight: var(--numeral-weight, 300); font-size: 30px; line-height: 1; letter-spacing: -0.02em;
+  color: var(--kicker, var(--accent-deep, var(--accent))); font-variant-numeric: tabular-nums; margin-bottom: 4px;
+}
+.slide .diagram:is(.cycle, .venn, .hub).n-2 > ol > li:nth-child(n + 2),
+.slide .diagram:is(.cycle, .venn, .hub):is(.n-3, .n-4) > ol > li:nth-child(n + 3),
+.slide .diagram:is(.cycle, .venn, .hub):is(.n-5, .n-6) > ol > li:nth-child(n + 4) { grid-column: 1; text-align: right; align-items: flex-end; }
+/* two beside each other on a side: the upper and the lower half; three: thirds */
+.slide .diagram:is(.cycle, .venn, .hub):is(.n-3, .n-4) > ol > li:nth-child(1), .slide .diagram:is(.cycle, .venn, .hub).n-4 > ol > li:nth-child(4), .slide .diagram:is(.cycle, .venn, .hub).n-5 > ol > li:nth-child(5) { grid-row: 1 / 4; }
+.slide .diagram:is(.cycle, .venn, .hub):is(.n-3, .n-4) > ol > li:nth-child(2), .slide .diagram:is(.cycle, .venn, .hub).n-4 > ol > li:nth-child(3), .slide .diagram:is(.cycle, .venn, .hub).n-5 > ol > li:nth-child(4) { grid-row: 4 / 7; }
+.slide .diagram:is(.cycle, .venn, .hub):is(.n-5, .n-6) > ol > li:nth-child(1), .slide .diagram:is(.cycle, .venn, .hub).n-6 > ol > li:nth-child(6) { grid-row: 1 / 3; }
+.slide .diagram:is(.cycle, .venn, .hub):is(.n-5, .n-6) > ol > li:nth-child(2), .slide .diagram:is(.cycle, .venn, .hub).n-6 > ol > li:nth-child(5) { grid-row: 3 / 5; }
+.slide .diagram:is(.cycle, .venn, .hub):is(.n-5, .n-6) > ol > li:nth-child(3), .slide .diagram:is(.cycle, .venn, .hub).n-6 > ol > li:nth-child(4) { grid-row: 5 / 7; }
+/* the word in the middle: in the ring's opening, on the hub, where the circles meet */
+.slide .diagram > .core { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 200px; text-align: center; font: 700 24px/1.2 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--title); }
+.slide .diagram.hub > .core { width: 150px; font-size: 21px; color: var(--on-accent); }
+.slide .diagram.venn > .core { width: 120px; font-size: 19px; }
+/* pillars: a roof with its word, the entries in the pillars, a base */
+.slide .diagram.pillars > ol { left: 3.4722%; right: 3.4722%; top: 26.383%; bottom: 11.064%; display: flex; gap: 2.612%; }
+.slide .diagram.pillars > ol > li { flex: 1 1 0; justify-content: flex-start; gap: 8px; padding: 24px 22px; }
+.slide .diagram.pillars.n-5 > ol > li, .slide .diagram.pillars.n-6 > ol > li { padding: 20px 16px; }
+.slide .diagram.pillars > .core { top: 15%; width: 520px; color: var(--on-accent); }
+
 /* table: hairlines, the header in small capitals */
 .slide table { width: 100%; border-collapse: collapse; font-size: 20px; line-height: 1.35; }
 .slide th { text-align: left; font: 700 12px/1.2 var(--font-body), 'Noto Sans JP'; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fg-3); padding: 0 16px 12px 0; border-bottom: 1px solid var(--fg-3); }

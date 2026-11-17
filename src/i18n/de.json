@@ -482,6 +482,7 @@
       "compare": "Vergleich",
       "timeline": "Zeitstrahl",
       "canvas": "Canvas",
+      "diagram": "Diagramm",
       "model": "Modell",
       "table": "Tabelle"
     },
@@ -629,6 +630,7 @@
       "compare": "zwei Spalten gegeneinander: vorher und nachher, A und B",
       "timeline": "drei bis sechs datierte Punkte auf einer Linie",
       "canvas": "beschriftete Felder mit Leitfragen",
+      "diagram": "eine Form aus zwei bis fünf Einträgen: Pyramide, Ring, Kreise",
       "model": "eine Grafik als Inline-SVG",
       "table": "eine kleine Tabelle"
     },
@@ -639,6 +641,16 @@
       "visual": "Bild und Modell"
     },
     "new": "Neue Folie",
+    "fromStarter": "Startfolien",
+    "sampleSubject": "Beispielthema",
+    "sampleShuffle": "Ein anderes",
+    "sampleHint": "Die Texte sind Beispiele: einfach überschreiben.",
+    "sampleLeft_one": "Auf dieser Folie steht noch ein Beispieltext:",
+    "sampleLeft_other": "Auf dieser Folie stehen noch {{count}} Beispieltexte, zum Beispiel:",
+    "sampleSlides_one": "Folie {{list}} zeigt noch Beispieltext einer Startfolie.",
+    "sampleSlides_other": "{{count}} Folien zeigen noch Beispieltext einer Startfolie: {{list}}.",
+    "starterGroups": {"say": "Eine Sache, groß", "points": "Nebeneinander", "process": "Nacheinander", "model": "Wie es zusammenhängt", "picture": "Mit Bild"},
+    "starters": {"question": "Frage an die Gruppe", "quote": "Zitat", "number": "Eine große Zahl", "numbers": "Drei Zahlen", "section": "Abschnitt", "rows": "Punkte mit Überschrift", "list": "Einfache Punkte", "cards": "Drei nummerierte Karten", "cards4": "Vier Karten", "compare": "Zwei Seiten", "table": "Kleine Tabelle", "canvas": "Canvas mit Leitfragen", "steps": "Abfolge", "timeline": "Zeitstrahl", "cycle": "Kreislauf", "exercise": "Übung mit Eckdaten", "pyramid": "Pyramide", "venn": "Überlappende Kreise", "onion": "Kern und Schalen", "pillars": "Säulen unter einem Dach", "hub": "Stern", "matrix": "2 × 2", "acronym": "Akronym", "split": "Text neben Bild", "splitLeft": "Bild links, Text rechts", "figure": "Ein großes Bild", "pictureCards": "Karten mit Bildern"},
     "fromTemplate": "Vorlagen",
     "fromLayout": "Layouts",
     "fromPicture": "Bild",
@@ -670,6 +682,7 @@
     "lostFigure": "Das Bild hat in diesem Layout keinen Platz.",
     "lostSvg": "Die Grafik hat in diesem Layout keinen Platz.",
     "lostSource": "Die Quellenzeile hat in diesem Layout keinen Platz.",
+    "shape": {"pyramid": "Pyramide", "cycle": "Kreislauf", "venn": "Kreise", "onion": "Zwiebel", "pillars": "Säulen", "hub": "Stern"},
     "miss": {
       "items_one": "{{count}} Eintrag passt nicht",
       "items_other": "{{count}} Einträge passen nicht",
@@ -688,6 +701,9 @@
     "up": "Nach oben",
     "down": "Nach unten",
     "f": {
+      "shape": "Form",
+      "entries": "Einträge",
+      "core": {"cycle": "In der Mitte", "hub": "In der Mitte", "venn": "Wo sie sich treffen", "pillars": "Auf dem Dach"},
       "eyebrow": "Kicker",
       "title": "Titel",
       "lead": "Einleitung",

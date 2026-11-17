@@ -61,6 +61,7 @@ Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) ar
 | `matrix` | a 2 × 2 with axis labels | `div.matrix > .axis-y + .cells > .cell×4 + .axis-x`; `.cell.accent` |
 | `acronym` | letters and their meaning (GROW, VUCA, SCAMPER) | `dl.acronym > div > dt + dd > strong + span`; modifier `.compact` |
 | `canvas` | a grid of labelled boxes with guiding questions | `div.canvas.cols-N > .box > h3 + p`; `.box.wide`, `.box.tall`, `.box.accent` |
+| `diagram` | two to five entries as a shape drawn from their number: a pyramid, a cycle (a ring with an open middle), overlapping circles, a core with rings, pillars under a roof, a hub | `div.diagram.SHAPE > ol > li > h3 + p?`, then `p.core?` (the word in the middle, in the overlap, on the roof); SHAPE is `pyramid`, `cycle`, `venn`, `onion`, `pillars` or `hub`; the drawing (`svg`) and the count (`n-N`) are put in by the app |
 | `model` | a diagram as inline SVG: pyramid, cycle, curve, triangle | `figure.model > svg + figcaption?` |
 | `table` | a small table | `table`, `td.good`, `td.bad`, modifier `.compact` |
 | `number` | one large figure with its evidence, or two to four side by side | `ul.numbers > li > p.value + p.label` |
@@ -68,6 +69,8 @@ Stages 1 to 3 (format and catalogue, translation workflow, slides in the app) ar
 | `timeline` | three to six dated points on one line | `ol.timeline > li > .eyebrow (the date) + h3 + p?` |
 
 Title, agenda, break and closing slides are the ones the app can generate from the workshop (section 5 of the concept); the others are written. The facts panel of an exercise (duration, format, material) can be filled from the item.
+
+**Diagrams** (`src/domain/diagram.ts`). A diagram slide holds its entries as a list; the shape is computed from how many there are, as inline SVG in the theme's classes with no words in it but the numerals. `normalizeSlideHtml` draws it, so the drawing is made wherever a slide is stored or shown, whoever wrote the markup, and can never differ from the entries: an agent writes the list only, the editor adds an entry and the pyramid has a layer more, the shape is changed by its class with the words kept. The words are text of the slide, laid over the drawing by `slides.css` from the same numbers (the box is 1152 × 470 and keeps that ratio): beside the layers of a pyramid and the rings of an onion, clockwise on both sides of a cycle, the circles and a hub, inside the pillars. Ordered shapes (pyramid, onion, cycle) are tints of the accent, the circles take the palette's accents. Two to five entries is the room; one and six are drawn too. The ring's class is `cycle` because `ring` is a utility class of the app's own stylesheet. The shapes were chosen by what recurs among the hand-drawn `model` slides of the real decks; charts, flowcharts and one-off drawings stay `model`.
 
 Common elements: `.eyebrow` (kicker above the title), `.tag` (the kicker in front of an exercise title, later derived from the item's category), `.lead`, `.takeaway` (the one-line takeaway in the footer of a content slide), `.source`, `.muted`, `.accent`.
 
@@ -172,7 +175,11 @@ The editor works on content, the layout arranges it, the theme colours it. Three
 
 [BELEG?] How the other tools behave is from their help pages read in November 2026 (Keynote for iPhone, Google Slides shortcuts, Notion shortcuts, Gutenberg's navigation and edit mode); Canva, Gamma and PowerPoint for the web could not be read first-hand.
 
-**New slides** start from a template (the owner's), a blank layout (every layout of the catalogue as a thumbnail in the current theme), a picture, or the pool; the first two open the editor at once. In the editor they go after the slide shown, in its step.
+**New slides** start from a starter, a template (the owner's), a blank layout (every layout of the catalogue as a thumbnail in the current theme), a picture, or the pool; the first three open the editor at once. In the editor they go after the slide shown, in its step.
+
+**Starter slides** (`src/domain/starters.ts`, `sampleSets.ts`) are the first page of "New slide", for everyone who may edit: every layout the way it is meant to be used, in the variants the real decks use most (points with a heading, numbered cards, an exercise with its facts, the six diagram shapes …), grouped by what a slide does – one thing large, side by side, one after another, how it hangs together, with a picture. They are filled with a sample subject, made up and a little silly so nobody takes it for content (an office outing to the moon, the perfect office coffee, keeping the office plant alive), in German or English after the app's language; the subject is drawn at random when the picker opens and can be changed there. Starters with pictures take them from the theme's pool; a layout made for a picture that has none shows a dashed field where it would stand, in the pickers and while editing only. Starters are code, not data: they follow the catalogue and need no upkeep by the owner, whose own templates stay beside them.
+
+**Sample text is there to be replaced.** A text that is still a sample's (or a blank layout's placeholder word) is selected as a whole when it is clicked on the slide or its field gets the focus, so the first key typed replaces it. What is left is found by comparison with the samples, word for word, with no mark in the slide: the editor names how many sample phrases a slide still shows, and the workshop's Slides tab names the slides that do, above the deck, before it is presented or exported. Only phrases count there; a single word of a sample ("Risks") may be a real slide's own.
 
 **Sorting, moving and removing** (`src/slides/SlideSort.tsx`, `src/domain/slideMove.ts`). Whoever may edit does this on the thumbnails, without opening a slide: in a step's details, in the workshop's Slides tab and on a library entry.
 

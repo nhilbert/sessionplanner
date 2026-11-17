@@ -1,4 +1,5 @@
 import { type ComponentProps, type ReactNode, useLayoutEffect, useRef } from 'react'
+import { isReplaceable } from '../samples'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react'
@@ -21,6 +22,12 @@ interface Bound {
   mono?: boolean
 }
 
+/** A field that still holds sample or placeholder words is selected as a whole, so typing replaces them. */
+const selectSample = (el: HTMLInputElement | HTMLTextAreaElement) => {
+  // after the click that gave the focus has set its caret
+  if (isReplaceable(el.value)) setTimeout(() => document.activeElement === el && el.select(), 0)
+}
+
 /** A one-line field of the slide. */
 export function Text({ path, value, onChange, onFocus, label, placeholder, className, ...rest }: Bound & Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'onFocus'>) {
   return (
@@ -28,7 +35,10 @@ export function Text({ path, value, onChange, onFocus, label, placeholder, class
       id={fieldId(path)}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      onFocus={() => onFocus(path)}
+      onFocus={(e) => {
+        onFocus(path)
+        selectSample(e.currentTarget)
+      }}
       placeholder={placeholder}
       aria-label={label}
       className={cx('field h-8 text-[13px]', className)}
@@ -53,7 +63,10 @@ export function Area({ path, value, onChange, onFocus, label, placeholder, mono,
       value={value}
       rows={rows}
       onChange={(e) => onChange(e.target.value)}
-      onFocus={() => onFocus(path)}
+      onFocus={(e) => {
+        onFocus(path)
+        selectSample(e.currentTarget)
+      }}
       placeholder={placeholder}
       aria-label={label}
       spellCheck={!mono}

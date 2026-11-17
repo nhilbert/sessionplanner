@@ -15,7 +15,7 @@ The rules an agent needs to write a slide, and every layout with its purpose, it
 - **pictures** – A picture is <img src="asset:<hash>" alt="…">. Only hashes that already exist can be used: the theme's pool (theme_pool: pictures for figures, icons with tags for cards as img.icon), a pool slide or another slide (slide_get lists a slide's assets). Agents cannot upload pictures; write the slide without one or copy a pool slide.
 - **text** – The deck's language and words: German typographic quotes „…“, no emoji, no trailing period on titles, no ALL CAPS, one li per point, at most two list levels, two to five cards or steps per slide. Keep a slide to what its layout holds (every layout says what fits): about six to ten points, five cards, eleven agenda lines; split a slide rather than crowd it.
 - **generated** – The app generates the title slide, the agenda slide per day (with the computed times) and a break slide for every break without slides of its own, and shows them in the deck (deck_outline). Write a title, agenda, break or closing slide yourself only for a special case.
-- **choosing** – Pick the layout by what the slide does: one sentence that carries the slide is statement, parallel points are cards, a sequence is steps, letters with meanings are acronym, labelled boxes with guiding questions are canvas, a 2 × 2 is matrix, a shape diagram is model, an exercise with task and steps is exercise, text beside a picture is split, one large figure with its evidence is number, two sides against each other are compare, dated points on a line are timeline, everything else that is text is list.
+- **choosing** – Pick the layout by what the slide does: one sentence that carries the slide is statement, parallel points are cards, a sequence is steps, letters with meanings are acronym, labelled boxes with guiding questions are canvas, a 2 × 2 is matrix, two to five entries as a pyramid, a cycle, overlapping circles, a core with rings, pillars or a hub are diagram (the app draws the shape), any other drawing is model, an exercise with task and steps is exercise, text beside a picture is split, one large figure with its evidence is number, two sides against each other are compare, dated points on a line are timeline, everything else that is text is list.
 
 Common classes:
 
@@ -48,6 +48,7 @@ Common classes:
 | [`matrix`](#matrix) | a 2 × 2 with axis labels | four cells with a heading and up to four lines each; axis labels of one to three words |
 | [`acronym`](#acronym) | letters and their meaning (GROW, VUCA, SCAMPER) | up to six letters, seven with .compact, with one bold word and one short line each |
 | [`canvas`](#canvas) | a grid of labelled boxes with guiding questions | up to nine boxes: with six boxes about five short lines each, with nine three |
+| [`diagram`](#diagram) | two to five entries as a shape: layers that build on each other (pyramid), a cycle with an open middle (cycle), sets that overlap (venn), a core with what surrounds it (onion), what carries a whole (pillars), one thing and what belongs to it (hub) | two to five entries with a heading of one to three words and one line of text, two lines at most; the pyramid reads from the top, the onion from the outside in, cycle, venn and hub clockwise |
 | [`model`](#model) | a diagram as inline SVG: pyramid, cycle, curve, triangle | a drawing on a 1152 × 470 canvas with up to about eight short labels; longer text goes into the figcaption |
 | [`table`](#table) | a small table | a header row and about nine rows of short cells, ten with .compact; three or four columns |
 | [`number`](#number) | one large figure with its unit and one line of evidence; two to four figures side by side | one figure of up to about eight characters with a label of one or two lines; two to four figures with a label of one line each |
@@ -370,6 +371,42 @@ Common classes:
     <div class="box wide"><h3>Nächste Schritte</h3><p>Was tun wir bis zum nächsten Treffen?</p></div>
     <div class="box"><h3>Stärken</h3><p>Was können wir besonders gut?</p></div>
   </div>
+</section>
+```
+
+### diagram
+
+![diagram](look/diagram.png)
+
+- **Use:** two to five entries as a shape: layers that build on each other (pyramid), a cycle with an open middle (cycle), sets that overlap (venn), a core with what surrounds it (onion), what carries a whole (pillars), one thing and what belongs to it (hub)
+- **Structure:** `header, then div.diagram.SHAPE > ol > li > h3 + p?, and p.core? after the list; SHAPE is pyramid, cycle, venn, onion, pillars or hub`
+- **Options:** p.core is the word in the middle of a cycle or a hub, where the circles of a venn meet, on the roof of the pillars; pyramid and onion have none. The app draws the shape from the number of li and puts the drawing (an svg) and the class n-N into the div: write the list only, never the svg, and change the shape by its class
+- **Fits:** two to five entries with a heading of one to three words and one line of text, two lines at most; the pyramid reads from the top, the onion from the outside in, cycle, venn and hub clockwise
+
+```html
+<section class="slide diagram">
+  <header><h2>Fünf Dysfunktionen eines Teams</h2></header>
+  <div class="diagram pyramid n-5">
+    <svg viewBox="0 0 1152 470" aria-hidden="true">
+      <polygon class="f-accent" points="290,6 290,6 345,92.8 235,92.8"></polygon>
+      <polygon class="f-accent" fill-opacity="0.83" points="231.2,98.8 348.8,98.8 403.7,185.6 176.3,185.6"></polygon>
+      <line class="s-line" x1="362.8" y1="95.8" x2="1152" y2="95.8"></line>
+      <polygon class="f-accent" fill-opacity="0.65" points="172.5,191.6 407.5,191.6 462.5,278.4 117.5,278.4"></polygon>
+      <line class="s-line" x1="421.5" y1="188.6" x2="1152" y2="188.6"></line>
+      <polygon class="f-accent" fill-opacity="0.48" points="113.7,284.4 466.3,284.4 521.2,371.2 58.8,371.2"></polygon>
+      <line class="s-line" x1="480.3" y1="281.4" x2="1152" y2="281.4"></line>
+      <polygon class="f-accent" fill-opacity="0.3" points="55,377.2 525,377.2 580,464 0,464"></polygon>
+      <line class="s-line" x1="539" y1="374.2" x2="1152" y2="374.2"></line>
+    </svg>
+    <ol>
+      <li><h3>Ergebnisse</h3><p>Das eigene Ansehen zählt mehr als das gemeinsame Ziel</p></li>
+      <li><h3>Verantwortung</h3><p>Niemand erinnert die anderen an ihre Zusagen</p></li>
+      <li><h3>Verbindlichkeit</h3><p>Entscheidungen bleiben vage</p></li>
+      <li><h3>Konflikte</h3><p>Künstliche Harmonie statt offener Debatte</p></li>
+      <li><h3>Vertrauen</h3><p>Niemand zeigt sich verletzlich</p></li>
+    </ol>
+  </div>
+  <footer><span class="source">Nach Patrick Lencioni</span></footer>
 </section>
 ```
 

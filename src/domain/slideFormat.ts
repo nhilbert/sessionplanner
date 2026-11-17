@@ -4,6 +4,8 @@
  * example that the sanitiser (slides.ts) leaves unchanged. Served by the MCP tool slide_format.
  */
 
+import { drawDiagrams } from './diagram.ts'
+
 export interface SlideLayoutDoc {
   layout: string
   /** What the layout is for. */
@@ -41,7 +43,7 @@ export const SLIDE_FORMAT = {
   pictures: 'A picture is <img src="asset:<hash>" alt="…">. Only hashes that already exist can be used: the theme\'s pool (theme_pool: pictures for figures, icons with tags for cards as img.icon), a pool slide or another slide (slide_get lists a slide\'s assets). Agents cannot upload pictures; write the slide without one or copy a pool slide.',
   text: 'The deck\'s language and words: German typographic quotes „…“, no emoji, no trailing period on titles, no ALL CAPS, one li per point, at most two list levels, two to five cards or steps per slide. Keep a slide to what its layout holds (every layout says what fits): about six to ten points, five cards, eleven agenda lines; split a slide rather than crowd it.',
   generated: 'The app generates the title slide, the agenda slide per day (with the computed times) and a break slide for every break without slides of its own, and shows them in the deck (deck_outline). Write a title, agenda, break or closing slide yourself only for a special case.',
-  choosing: 'Pick the layout by what the slide does: one sentence that carries the slide is statement, parallel points are cards, a sequence is steps, letters with meanings are acronym, labelled boxes with guiding questions are canvas, a 2 × 2 is matrix, a shape diagram is model, an exercise with task and steps is exercise, text beside a picture is split, one large figure with its evidence is number, two sides against each other are compare, dated points on a line are timeline, everything else that is text is list.',
+  choosing: 'Pick the layout by what the slide does: one sentence that carries the slide is statement, parallel points are cards, a sequence is steps, letters with meanings are acronym, labelled boxes with guiding questions are canvas, a 2 × 2 is matrix, two to five entries as a pyramid, a cycle, overlapping circles, a core with rings, pillars or a hub are diagram (the app draws the shape), any other drawing is model, an exercise with task and steps is exercise, text beside a picture is split, one large figure with its evidence is number, two sides against each other are compare, dated points on a line are timeline, everything else that is text is list.',
 }
 
 const PICTURE = 'asset:3f2a9c1e5b7d4a6f'
@@ -173,6 +175,14 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
     options: 'div.box.wide (two columns), div.box.tall (two rows), div.box.accent; cols-2 to cols-4, default three',
     fits: 'up to nine boxes: with six boxes about five short lines each, with nine three',
     example: '<section class="slide canvas"><header><h2>Team-Canvas</h2></header><div class="canvas cols-3"><div class="box accent"><h3>Zweck</h3><p>Wofür gibt es uns?</p></div><div class="box"><h3>Rollen</h3><p>Wer macht was?</p></div><div class="box"><h3>Regeln</h3><p>Wie arbeiten wir zusammen?</p></div><div class="box wide"><h3>Nächste Schritte</h3><p>Was tun wir bis zum nächsten Treffen?</p></div><div class="box"><h3>Stärken</h3><p>Was können wir besonders gut?</p></div></div></section>',
+  },
+  {
+    layout: 'diagram',
+    use: 'two to five entries as a shape: layers that build on each other (pyramid), a cycle with an open middle (cycle), sets that overlap (venn), a core with what surrounds it (onion), what carries a whole (pillars), one thing and what belongs to it (hub)',
+    structure: 'header, then div.diagram.SHAPE > ol > li > h3 + p?, and p.core? after the list; SHAPE is pyramid, cycle, venn, onion, pillars or hub',
+    options: 'p.core is the word in the middle of a cycle or a hub, where the circles of a venn meet, on the roof of the pillars; pyramid and onion have none. The app draws the shape from the number of li and puts the drawing (an svg) and the class n-N into the div: write the list only, never the svg, and change the shape by its class',
+    fits: 'two to five entries with a heading of one to three words and one line of text, two lines at most; the pyramid reads from the top, the onion from the outside in, cycle, venn and hub clockwise',
+    example: drawDiagrams('<section class="slide diagram"><header><h2>Fünf Dysfunktionen eines Teams</h2></header><div class="diagram pyramid"><ol><li><h3>Ergebnisse</h3><p>Das eigene Ansehen zählt mehr als das gemeinsame Ziel</p></li><li><h3>Verantwortung</h3><p>Niemand erinnert die anderen an ihre Zusagen</p></li><li><h3>Verbindlichkeit</h3><p>Entscheidungen bleiben vage</p></li><li><h3>Konflikte</h3><p>Künstliche Harmonie statt offener Debatte</p></li><li><h3>Vertrauen</h3><p>Niemand zeigt sich verletzlich</p></li></ol></div><footer><span class="source">Nach Patrick Lencioni</span></footer></section>'),
   },
   {
     layout: 'model',
