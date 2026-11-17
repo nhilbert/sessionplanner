@@ -45,6 +45,8 @@ export interface Card {
   /** Asset hash of the picture, or ''. */
   image: string
   alt: string
+  /** The picture stands without the class `icon` (as translated decks write picture cards); kept as it was. */
+  bare?: boolean
   eyebrow: string
   title: string
   text: string
@@ -69,7 +71,7 @@ export interface Figure {
   alt: string
   caption: string
 }
-export type Block = { kind: 'lead' | 'p' | 'small' | 'h3'; text: string } | { kind: 'list'; points: string[] }
+export type Block = { kind: 'lead' | 'p' | 'small' | 'big' | 'h3'; text: string } | { kind: 'list'; points: string[] }
 export interface AgendaRow {
   when: string
   text: string
@@ -123,6 +125,8 @@ export interface SlideDoc {
   cards?: Card[]
   steps?: Step[]
   facts?: Fact[]
+  /** Exercise: every fact stands in a div of its own (dl > div > dt + dd), as translated decks write it; kept as it was. */
+  factRows?: boolean
   quote?: Quote
   figure?: Figure
   blocks?: Block[]
@@ -368,6 +372,7 @@ const readers: Record<string, BodyReader> = {
         if (c.tag === 'img') {
           card.image = hash(c)
           card.alt = c.attrs.alt ?? ''
+          if (!hasClass(c, 'icon')) card.bare = true
         } else if (c.tag === 'div' && hasClass(c, 'eyebrow')) card.eyebrow = inline(c)
         else if (c.tag === 'h3') card.title = inline(c)
         else if (c.tag === 'p') card.text = card.text ? `${card.text}\n\n${inline(c)}` : inline(c)
@@ -391,6 +396,7 @@ const readers: Record<string, BodyReader> = {
     for (const c of t ? elements(t) : []) {
       if (c.tag === 'p' && hasClass(c, 'lead')) doc.blocks.push({ kind: 'lead', text: inline(c) })
       else if (c.tag === 'p' && hasClass(c, 'small')) doc.blocks.push({ kind: 'small', text: inline(c) })
+      else if (c.tag === 'p' && hasClass(c, 'big')) doc.blocks.push({ kind: 'big', text: inline(c) })
       else if (c.tag === 'p') doc.blocks.push({ kind: 'p', text: inline(c) })
       else if (c.tag === 'h3') doc.blocks.push({ kind: 'h3', text: inline(c) })
       else if (c.tag === 'ul' && hasClass(c, 'list')) doc.blocks.push({ kind: 'list', points: elements(c).filter((e) => e.tag === 'li').map(inline) })
@@ -414,7 +420,9 @@ const readers: Record<string, BodyReader> = {
     const dl = only(elements(only(ex, 'aside') ?? el('aside')), 'dl')
     if (dl) {
       let term = ''
-      for (const c of elements(dl)) {
+      const rows = elements(dl).filter((e) => e.tag === 'div')
+      if (rows.length) doc.factRows = true
+      for (const c of rows.length ? rows.flatMap(elements) : elements(dl)) {
         if (c.tag === 'dt') term = inline(c)
         else if (c.tag === 'dd') {
           doc.facts.push({ term, value: inline(c) })
@@ -740,7 +748,7 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
       el(
         'ul',
         { class: cls('cards', `cols-${cols}`, ...['numbered', 'plain', 'contain', 'picture'].filter((o) => d.options[o])) },
-        cards.map((c) => el('li', {}, [...img(c.image, c.alt ?? '', 'icon'), ...div('eyebrow', c.eyebrow), ...h('h3', c.title), ...ps('', c.text), ...ul('list', c.points)])),
+        cards.map((c) => el('li', {}, [...img(c.image, c.alt ?? '', c.bare ? undefined : 'icon'), ...div('eyebrow', c.eyebrow), ...h('h3', c.title), ...ps('', c.text), ...ul('list', c.points)])),
       ),
     ]
   },
@@ -755,7 +763,7 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
     return [
       el('div', { class: 'exercise' }, [
         el('ol', { class: 'steps' }, steps.map((s) => el('li', {}, textToInline([s.title.trim() && `**${s.title.trim()}**`, s.text.trim()].filter(Boolean).join(' '))))),
-        ...(facts.length ? [el('aside', { class: 'facts' }, [el('dl', {}, facts.flatMap((f) => [el('dt', {}, textToInline(f.term.trim())), el('dd', {}, textToInline(f.value.trim()))]))])] : []),
+        ...(facts.length ? [el('aside', { class: 'facts' }, [el('dl', {}, d.factRows ? facts.map((f) => el('div', {}, [el('dt', {}, textToInline(f.term.trim())), el('dd', {}, textToInline(f.value.trim()))])) : facts.flatMap((f) => [el('dt', {}, textToInline(f.term.trim())), el('dd', {}, textToInline(f.value.trim()))]))])] : []),
       ]),
     ]
   },
@@ -1171,7 +1179,7 @@ export function fieldSelectors(doc: SlideDoc): { path: string; selector: string 
       add(`steps.${i}.text`, `${li} > p`)
       add(`steps.${i}`, li)
     })
-  if (doc.facts) doc.facts.forEach((_, i) => add(`facts.${i}`, `:scope > .exercise > .facts > dl > dd:nth-of-type(${i + 1})`))
+  if (doc.facts) doc.facts.forEach((_, i) => add(`facts.${i}`, doc.factRows ? `:scope > .exercise > .facts > dl > div:nth-of-type(${i + 1}) > dd` : `:scope > .exercise > .facts > dl > dd:nth-of-type(${i + 1})`))
   if (doc.quote) {
     add('quote.text', ':scope > blockquote > p:not(.sub)')
     add('quote.sub', ':scope > blockquote > .sub')

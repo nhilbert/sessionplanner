@@ -769,6 +769,7 @@
       "plainSteps": "Without arrows"
     },
     "blockKind": {
+      "big": "Large sentence",
       "lead": "Lead",
       "p": "Paragraph",
       "small": "Small print",

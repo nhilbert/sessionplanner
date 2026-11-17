@@ -784,6 +784,7 @@
       "plainSteps": "Ohne Pfeile"
     },
     "blockKind": {
+      "big": "Großer Satz",
       "lead": "Einleitung",
       "p": "Absatz",
       "small": "Kleingedrucktes",

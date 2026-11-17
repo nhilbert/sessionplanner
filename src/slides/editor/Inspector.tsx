@@ -188,7 +188,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
                 className="h-7 w-auto text-[12px]"
                 aria-label={f('blocks')}
               >
-                {(['lead', 'p', 'small', 'h3', 'list'] as const).map((k) => (
+                {(['lead', 'p', 'small', 'big', 'h3', 'list'] as const).map((k) => (
                   <option key={k} value={k}>
                     {tr(t, `editor.blockKind.${k}`)}
                   </option>

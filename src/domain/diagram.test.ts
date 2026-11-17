@@ -78,3 +78,25 @@ describe('diagrams', () => {
     expect(fieldSelectors(doc).find((f) => f.path === 'steps.1.title')?.selector).toBe(':scope > .diagram > ol > li:nth-child(2) > h3')
   })
 })
+
+describe('markup of translated decks the fields hold as it is', () => {
+  const fields = (html: string) => {
+    const doc = parseSlide(html)
+    expect(doc.raw).toBeUndefined()
+    expect(serializeSlide(doc)).toBe(normalizeSlideHtml(html))
+    return doc
+  }
+  it('keeps a card picture without the icon class', () => {
+    const doc = fields('<section class="slide cards"><header><h2>Three</h2></header><ul class="cards cols-3 picture"><li><img src="asset:3f2a9c1e5b7d4a6f" alt=""><h3>One</h3></li><li><img class="icon" src="asset:4f2a9c1e5b7d4a6f" alt=""><h3>Two</h3></li><li><h3>Three</h3></li></ul></section>')
+    expect(doc.cards?.map((c) => !!c.bare)).toEqual([true, false, false])
+  })
+  it('keeps the facts of an exercise in their rows', () => {
+    const doc = fields('<section class="slide exercise"><header><h2><span class="tag">Übung</span> A task</h2></header><div class="exercise"><ol class="steps"><li>First</li><li>Then</li></ol><aside class="facts"><dl><div><dt>Dauer</dt><dd>20 Min.</dd></div><div><dt>Material</dt><dd>Karten</dd></div></dl></aside></div></section>')
+    expect(doc.facts).toEqual([{ term: 'Dauer', value: '20 Min.' }, { term: 'Material', value: 'Karten' }])
+    expect(fieldSelectors(doc).find((f) => f.path === 'facts.1')?.selector).toContain('div:nth-of-type(2) > dd')
+  })
+  it('reads a large sentence beside a picture', () => {
+    const doc = fields('<section class="slide split"><header><h2>A word</h2></header><div class="split contain"><div class="text"><p class="big">resilire</p><p>to spring back</p></div><figure><img src="asset:3f2a9c1e5b7d4a6f" alt=""></figure></div></section>')
+    expect(doc.blocks).toEqual([{ kind: 'big', text: 'resilire' }, { kind: 'p', text: 'to spring back' }])
+  })
+})
