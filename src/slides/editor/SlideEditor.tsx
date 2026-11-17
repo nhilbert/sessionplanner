@@ -752,7 +752,7 @@ export function SlideEditor(p: Props) {
   return (
     <>
       {body}
-      <LayoutPicker open={layoutOpen} onClose={() => setLayoutOpen(false)} current={doc.layout} onPick={changeLayout} theme={p.theme} scope={p.scope} />
+      <LayoutPicker open={layoutOpen} onClose={() => setLayoutOpen(false)} current={doc.layout} doc={doc} onPick={changeLayout} theme={p.theme} scope={p.scope} />
       <NewSlidePicker open={adding} onClose={() => setAdding(false)} onPick={add} onPool={p.owner ? () => setPool(true) : undefined} theme={p.theme} scope={p.scope} owner={p.owner} />
       {p.owner && <SlidePicker open={pool} onClose={() => setPool(false)} onPick={(htmls) => add(htmls, false)} theme={p.theme} />}
       {moving && src.current.transfer && (

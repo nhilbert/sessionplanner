@@ -670,6 +670,17 @@
     "lostFigure": "Das Bild hat in diesem Layout keinen Platz.",
     "lostSvg": "Die Grafik hat in diesem Layout keinen Platz.",
     "lostSource": "Die Quellenzeile hat in diesem Layout keinen Platz.",
+    "miss": {
+      "items_one": "{{count}} Eintrag passt nicht",
+      "items_other": "{{count}} Einträge passen nicht",
+      "images_one": "{{count}} Bild hat keinen Platz",
+      "images_other": "{{count}} Bilder haben keinen Platz",
+      "figure": "das Bild hat keinen Platz",
+      "svg": "die Grafik hat keinen Platz",
+      "source": "die Quellenzeile hat keinen Platz",
+      "takeaway": "die Kernaussage hat keinen Platz",
+      "other": "weitere Teile haben keinen Platz"
+    },
     "revert": "Zurück zu {{layout}}",
     "raw": "Diese Folie hat eine Struktur außerhalb des Katalogs; ihr Inhalt wird als Quelltext bearbeitet.",
     "add": "Hinzufügen",

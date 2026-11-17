@@ -655,6 +655,17 @@
     "lostFigure": "The picture has no place in this layout.",
     "lostSvg": "The diagram has no place in this layout.",
     "lostSource": "The source line has no place in this layout.",
+    "miss": {
+      "items_one": "{{count}} entry does not fit",
+      "items_other": "{{count}} entries do not fit",
+      "images_one": "{{count}} picture has no place",
+      "images_other": "{{count}} pictures have no place",
+      "figure": "the picture has no place",
+      "svg": "the diagram has no place",
+      "source": "the source line has no place",
+      "takeaway": "the takeaway has no place",
+      "other": "other parts have no place"
+    },
     "revert": "Back to {{layout}}",
     "raw": "This slide's structure is not in the catalogue; its content is edited as source.",
     "add": "Add",
