@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { Download, FileText, MonitorSpeaker, Play, Presentation, Printer, Shuffle } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
-import type { Op } from '@/domain/ops'
+import { newId, type Op } from '@/domain/ops'
+import type { DeckSlideRef } from '@/domain/deck'
+import { MAX_SLIDES } from '@/domain/slides'
+import { dropIndex, hasRoom } from '@/domain/slideMove'
+import { usePlanner } from '@/store/usePlanner'
 import { reportFailure } from '@/api'
 import { Button, cx } from '@/components/ui'
 import { Option } from './Option'
@@ -14,14 +18,17 @@ import { exportDeckPptx } from './pptx'
 import { exportDeckPdf } from './pdf'
 import { useDeck } from './useDeck'
 import { ThemeSelect } from './ThemeSelect'
-import { useSlideEditing } from './PlannerSlides'
+import { moveSlideInPlanner, useSlideEditing, useSlideMoving } from './PlannerSlides'
+import { SlideMenu, SlideSort, SortSlide, type Side } from './SlideSort'
 import { pageUrl } from '@/domain/addresses'
 
 /**
  * The whole deck in agenda order, with the generated slides; present, save as a file, print; the workshop's theme.
- * A slide opens the editor on the deck (generated slides read-only, with what can be done instead).
+ * A slide opens the editor on the deck (generated slides read-only, with what can be done instead). The steps'
+ * slides are sorted by dragging: within a step, and across its edge into the step of the slide dropped on; the
+ * generated slides stay where the plan puts them. A slide's menu moves it to any step, duplicates and removes it.
  */
-export function DeckPanel({ data, change, owner }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean }) {
+export function DeckPanel({ data, change, owner, onNotice }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onNotice: (text: string) => void }) {
   const { t, i18n } = useTranslation()
   const { deck, theme, options, update, pictures } = useDeck(data)
   const [busy, setBusy] = useState(false)
@@ -44,6 +51,33 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
       setBusy(false)
       setProgress(null)
     }
+  }
+  // ---- the steps' slides: sorted, moved, duplicated and removed in place, each one change of the planner ---------
+  /** The step of a deck slide and its id there; null for a generated slide. */
+  const place = (s: DeckSlideRef | undefined) => (s?.itemId && !s.generated ? { itemId: s.itemId, slideId: s.key.slice(s.itemId.length + 1) } : null)
+  const itemNow = (id: string) => usePlanner.getState().data?.items.find((i) => i.id === id)
+  const drop = (key: string, over: string, side: Side) => {
+    const state = usePlanner.getState().data
+    const from = place(deck.find((s) => s.key === key))
+    const to = place(deck.find((s) => s.key === over))
+    const target = to && itemNow(to.itemId)
+    if (!state || !from || !to || !target) return
+    if (from.itemId !== to.itemId && !hasRoom(target)) return onNotice(t('slides.noRoom', { title: target.title || t(`kinds.${target.kind}`), max: MAX_SLIDES }))
+    const at = dropIndex(state, from.slideId, to.itemId, to.slideId, side)
+    if (at !== null) moveSlideInPlanner(from.itemId, from.slideId, to.itemId, at)
+  }
+  const duplicate = (at: { itemId: string; slideId: string }) => {
+    const slides = itemNow(at.itemId)?.slides
+    const index = slides?.findIndex((s) => s.id === at.slideId) ?? -1
+    if (!slides || index === -1) return
+    if (slides.length >= MAX_SLIDES) return window.alert(t('slides.tooMany', { max: MAX_SLIDES, count: 1 }))
+    change([{ op: 'set', entity: 'item', id: at.itemId, fields: { slides: [...slides.slice(0, index + 1), { id: newId(), html: slides[index].html }, ...slides.slice(index + 1)] } }])
+  }
+  const remove = (at: { itemId: string; slideId: string }) => {
+    const slides = itemNow(at.itemId)?.slides
+    if (!slides?.some((s) => s.id === at.slideId)) return
+    change([{ op: 'set', entity: 'item', id: at.itemId, fields: { slides: slides.filter((s) => s.id !== at.slideId) } }])
+    onNotice(t('slides.removed'))
   }
   return (
     <div className="space-y-3">
@@ -100,15 +134,22 @@ export function DeckPanel({ data, change, owner }: { data: WorkshopState; change
       </div>
       {!deck.some((s) => !s.generated) && <p className="text-[13px] text-ink-3">{t('slides.deckEmpty')}</p>}
       <ol className="grid grid-cols-2 gap-2">
-        {deck.map((s, i) => (
-          <li key={s.key} className="min-w-0">
-            <SlideView html={s.html} theme={theme} scope={scope} chrome={{ label: title, n: i + 1, part: s.part && t('slides.part', s.part) }} onClick={() => useSlideEditing.getState().open({ kind: 'deck', key: s.key })} label={t('slides.slide', { n: i + 1 })} />
-            <div className={cx('mt-0.5 flex gap-1 truncate text-[11px]', s.generated ? 'text-ink-3' : 'text-ink-2')}>
-              <span className="tnum">{i + 1}</span>
-              <span className="truncate">{s.generated ? t(`slides.generated.${s.generated}`, { n: '' }).trim() : s.caption}</span>
-            </div>
-          </li>
-        ))}
+        <SlideSort onDrop={drop} overlay={(key) => <SlideView html={deck.find((s) => s.key === key)?.html ?? ''} theme={theme} scope={scope} />}>
+          {deck.map((s, i) => {
+            const at = place(s)
+            return (
+              <li key={s.key} className="min-w-0">
+                <SortSlide id={s.key} fixed={!at} menu={at && <SlideMenu n={i + 1} onMove={() => useSlideMoving.getState().ask(at.itemId, at.slideId)} onDuplicate={() => duplicate(at)} onRemove={() => remove(at)} />}>
+                  <SlideView html={s.html} theme={theme} scope={scope} chrome={{ label: title, n: i + 1, part: s.part && t('slides.part', s.part) }} onClick={() => useSlideEditing.getState().open({ kind: 'deck', key: s.key })} label={t('slides.slide', { n: i + 1 })} />
+                </SortSlide>
+                <div className={cx('mt-0.5 flex gap-1 truncate text-[11px]', s.generated ? 'text-ink-3' : 'text-ink-2')}>
+                  <span className="tnum">{i + 1}</span>
+                  <span className="truncate">{s.generated ? t(`slides.generated.${s.generated}`, { n: '' }).trim() : s.caption}</span>
+                </div>
+              </li>
+            )
+          })}
+        </SlideSort>
       </ol>
     </div>
   )

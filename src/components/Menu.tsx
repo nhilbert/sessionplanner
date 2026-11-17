@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, MoreHorizontal } from 'lucide-react'
 import { cx, Sheet, SheetRow, useIsPhone } from './ui'
 import { useOverlay } from './overlay'
@@ -20,11 +21,17 @@ export default function Menu({
   className,
   trigger,
   align = 'right',
+  float = false,
 }: {
   items: MenuItem[]
   label: string
   /** Which edge of the button the dropdown lines up with (a button at the left edge of a panel opens to the right). */
   align?: 'left' | 'right'
+  /**
+   * The dropdown floats over the page instead of sitting in its panel: for a button in a narrow or scrolling place
+   * (a thumbnail in the sidebar), where a dropdown in the flow would be cut off. It stays inside the window.
+   */
+  float?: boolean
   /** Heading of the sheet on phones (the group's name, "Print"); the label otherwise. */
   title?: string
   className?: string
@@ -39,16 +46,43 @@ export default function Menu({
   useEffect(() => {
     if (!open || phone) return
     const close = (e: Event) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+      if (!ref.current?.contains(e.target as Node) && !list.current?.contains(e.target as Node)) setOpen(false)
     }
     window.addEventListener('mousedown', close)
     return () => window.removeEventListener('mousedown', close)
   }, [open, phone])
   // Near the end of a panel the dropdown would open below what is in view.
   useEffect(() => {
-    if (open && !phone) list.current?.scrollIntoView({ block: 'nearest' })
-  }, [open, phone])
+    if (open && !phone && !float) list.current?.scrollIntoView({ block: 'nearest' })
+  }, [open, phone, float])
+  // Floating: below the button and in line with its edge, moved as far as the window asks; above when there is no room below.
+  const [spot, setSpot] = useState<{ left: number; top: number } | null>(null)
+  useLayoutEffect(() => {
+    if (!open || phone || !float) return setSpot(null)
+    const button = ref.current?.getBoundingClientRect()
+    const panel = list.current?.getBoundingClientRect()
+    if (!button || !panel) return
+    const edge = 8
+    const left = Math.max(edge, Math.min(align === 'left' ? button.left : button.right - panel.width, window.innerWidth - panel.width - edge))
+    const below = button.bottom + 4
+    setSpot({ left, top: below + panel.height > window.innerHeight - edge ? Math.max(edge, button.top - panel.height - 4) : below })
+  }, [open, phone, float, align])
+  // The page moving under a floating dropdown would leave it behind.
+  useEffect(() => {
+    if (!open || phone || !float) return
+    const close = (e: Event) => {
+      if (!list.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open, phone, float])
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
+  /** The floating dropdown hangs on the page; its events still reach this menu, which keeps them from what it sits on. */
+  const dropdown = (node: ReactNode) => (float ? createPortal(node, document.body) : node)
   const pick = (it: MenuItem) => {
     setOpen(false)
     it.onSelect()
@@ -75,33 +109,36 @@ export default function Menu({
           ))}
         </Sheet>
       ) : open ? (
-        <div
-          ref={list}
-          role="menu"
-          className={cx('card absolute z-40 mt-1 min-w-52 p-1 shadow-[var(--shadow)]', align === 'left' ? 'left-0' : 'right-0')}
-          onKeyDown={(e) => {
-            // Up and down move through the items, as in any menu.
-            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-            e.preventDefault()
-            const items = [...(list.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
-            const at = items.indexOf(document.activeElement as HTMLElement)
-            items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
-          }}
-        >
-          {items.map((it) => (
-            <button
-              key={it.label}
-              type="button"
-              role="menuitem"
-              onClick={() => pick(it)}
-              className={cx('flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] hover:bg-surface-2', it.danger && 'text-rose')}
-            >
-              {it.icon}
-              <span className="flex-1">{it.label}</span>
-              {it.checked && <Check size={14} className="shrink-0 text-accent" />}
-            </button>
-          ))}
-        </div>
+        dropdown(
+          <div
+            ref={list}
+            role="menu"
+            className={cx('card min-w-52 p-1 shadow-[var(--shadow)]', float ? 'fixed z-50' : 'absolute z-40 mt-1', !float && (align === 'left' ? 'left-0' : 'right-0'))}
+            style={float ? { left: spot?.left ?? 0, top: spot?.top ?? 0, visibility: spot ? undefined : 'hidden' } : undefined}
+            onKeyDown={(e) => {
+              // Up and down move through the items, as in any menu.
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+              e.preventDefault()
+              const items = [...(list.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+              const at = items.indexOf(document.activeElement as HTMLElement)
+              items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
+            }}
+          >
+            {items.map((it) => (
+              <button
+                key={it.label}
+                type="button"
+                role="menuitem"
+                onClick={() => pick(it)}
+                className={cx('flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] hover:bg-surface-2', it.danger && 'text-rose')}
+              >
+                {it.icon}
+                <span className="flex-1">{it.label}</span>
+                {it.checked && <Check size={14} className="shrink-0 text-accent" />}
+              </button>
+            ))}
+          </div>,
+        )
       ) : null}
     </div>
   )

@@ -128,7 +128,7 @@ On the owner's retired instance there was no public access, so no share links: e
 - Minimum duration and "optional" per item, with fit suggestions for a stretch that is over.
 - Asking before saving the same item to the library twice.
 - Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far. The presentation view is its seed; a break slide could show the re-forecast end.
-- Slides: moving a slide between items; updating placed copies from the library; themes and templates through the connector.
+- Slides: updating placed copies from the library; themes and templates through the connector; moving a slide between items through the connector; selecting several slides to move or remove at once.
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
 - Logos named by their ground instead of by place: "on a light ground" and "on a dark ground" for each theme, chosen by the app by the brightness of what they stand on (slide background, field, white paper), so a dark partner theme can bring its colour logo for the printouts. Existing logos would move by the brightness of their theme's background. Wait for the first dark partner theme.
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
@@ -146,6 +146,15 @@ On the owner's retired instance there was no public access, so no share links: e
 - The trash removes files before their records, so a file that cannot go is tried again. A workshop in the trash stays as it went in. The exports of all data and media hold it too, apart and marked.
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
+
+**2026-11-17, slides are sorted where they are seen**
+
+- Sorting, removing and moving a slide to another step had been possible only inside the editor, one slide and one place at a time, and moving between steps not at all. Now it happens on the thumbnails: in a step's details and in the workshop's Slides tab a thumbnail is dragged to its place, and its menu moves it to any step, duplicates and removes it (docs/slides.md, section 7).
+- A thumbnail dropped on the left half of another goes before it, on the right half after it, in the step of the slide dropped on; a line shows where, and nothing moves before the drop. A list that reshuffles while dragging was considered and dropped: at the edge between two steps it cannot tell the end of one from the start of the next.
+- Generated slides (title, agenda, break) stay where the plan puts them and are no targets. A step without slides is not in the deck, so "Move to …" in the menu lists every step that can carry slides, the parking lot's too.
+- Dragging is for the mouse. On touch screens the menu does the same, so scrolling a list never starts a drag (as with the agenda cards' length, 2026-10-30).
+- In a workshop, removing from a thumbnail does not ask: the planner's undo brings the slide back, and a notice says so. The editor still asks, and so does the library, which has no undo.
+- A slide keeps its id when it moves. One slide at a time; a selection of several is left for later.
 
 **2026-11-16, the library for guests, by a switch** (until then it was the owner's alone, section 8)
 

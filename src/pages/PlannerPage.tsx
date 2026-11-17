@@ -29,7 +29,7 @@ import TimeEditor, { type TimeMode } from '@/planner/TimeEditor'
 import type { InsertKind } from '@/planner/Insert'
 import type { Preview } from '@/planner/DayColumn'
 import AgendaView from './AgendaView'
-import { PlannerSlideEditor, useSlideEditing } from '@/slides/PlannerSlides'
+import { PlannerSlideEditor, PlannerSlideMover, useSlideEditing } from '@/slides/PlannerSlides'
 import { pageUrl } from '@/domain/addresses'
 
 const ZOOM: Record<string, number> = { s: 1, m: 1.6, l: 2.6 }
@@ -605,8 +605,10 @@ export default function PlannerPage() {
           onClose={() => setTimeEdit(null)}
         />
       )}
+      <PlannerSlideMover onNotice={setNotice} />
       <PlannerSlideEditor
         owner={owner}
+        onNotice={setNotice}
         onDetails={() => {
           setTab('details')
           setDetailsId(null)

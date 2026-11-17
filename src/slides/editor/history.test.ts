@@ -45,4 +45,15 @@ describe('slide editor history', () => {
     h = rekey(h, 'old', 'new')
     expect(h.past.map((s) => ('key' in s ? s.key : ''))).toEqual(['new', 'new'])
   })
+  it('keeps a move into another step as a step of its own, named by the steps and the slide, not by a key', () => {
+    const step = { kind: 'transfer' as const, slide: 's', from: 'a', fromAt: 1, to: 'b', toAt: 3 }
+    let h = recordEdit(EMPTY_HISTORY, edit('1', '2', 0, 'f', 's'))
+    h = record(seal(h), step)
+    expect(lastStep(h)).toEqual(step)
+    // a slide of that key getting a new one elsewhere leaves it alone
+    expect(lastStep(rekey(h, 's', 'other'))).toEqual(step)
+    h = undone(h, step)
+    expect(h.future).toEqual([step])
+    expect(lastStep(h)?.kind).toBe('edit')
+  })
 })

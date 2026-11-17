@@ -160,6 +160,15 @@ The editor works on content, the layout arranges it, the theme colours it. Three
 
 **New slides** start from a template (the owner's), a blank layout (every layout of the catalogue as a thumbnail in the current theme), a picture, or the pool; the first two open the editor at once. In the editor they go after the slide shown, in its step.
 
+**Sorting, moving and removing** (`src/slides/SlideSort.tsx`, `src/domain/slideMove.ts`). Whoever may edit does this on the thumbnails, without opening a slide: in a step's details, in the workshop's Slides tab and on a library entry.
+
+- **Dragging** a thumbnail sorts: dropped on the left half of another it goes before it, on the right half after it, and a line shows where; nothing moves before the drop. In the Slides tab the slide joins the step of the slide it is dropped on, so dragging across the edge of a step moves it there; the generated slides stay where the plan puts them and are no targets. Near the edge of a long list it scrolls. Dragging is for the mouse; on touch screens the menu does the same.
+- **The menu** of a thumbnail (⋯, shown when the thumbnail is pointed at or has the focus, always on touch screens): "Move to …" (in a workshop) lists the steps that can carry slides by day, the parking lot last, with the number of slides each has; the step the slide is in is marked, a full one (60 slides) cannot be chosen, and the slide goes to the end of the step chosen. "Duplicate" puts a copy after the slide, "Remove" takes it away.
+- In a workshop every one of these is one change of the planner and so one undo; removing does not ask, and a notice names the undo. On a library entry, which has no undo, removing asks first.
+- A slide keeps its id when it moves (a new one only if the target already holds a slide of that id). Its key in the deck names its step too: a presentation that shows a slide while it moves to another step stays at that slide's number.
+
+The editor's ⋯ menu has "Move to …" as well, next to moving a slide left and right within its step: the editor follows the slide where it still shows it (on the deck), else it goes on with the next slide, and closes when the step it is open on has none left.
+
 **One way to open a slide, everywhere** (`src/slides/editor/source.ts`). A slide thumbnail outside a picker opens that slide in the editor; in a picker (new slide, pool) a thumbnail selects. The editor pages within what it was opened from, and its header says what that is:
 
 | Opened from | Pages through | Can be changed |
@@ -172,7 +181,7 @@ The editor works on content, the layout arranges it, the theme colours it. Three
 
 Generated slides in the deck say what they are made of and what can be done instead: the title slide opens the workshop details; agenda and break slides can be hidden; a break can get a slide of its own (a copy of the generated one, from then on its slide). The editor works on a source of the same shape in every case – the slides with their keys and groups, and writing, inserting, removing and moving – so paging, editing and undo behave the same everywhere.
 
-**History.** The editor keeps its own history (`src/slides/editor/history.ts`): Ctrl+Z (⌘Z), Ctrl+Shift+Z or Ctrl+Y, and buttons in its header. Every change is a step – typing in a field (one step while it goes on; a pause of 1.5 s or leaving the field ends it), a layout or option, a picture, inserting, duplicating, removing and moving a slide. Undo works inside the fields too, so it means the same everywhere in the editor; only the source view keeps the field's own undo until it is applied. A step changed elsewhere since (another window, an agent) is not taken back – it is dropped with a note, rather than overwriting the other change. In the planner the whole session is one undo step: after closing the editor, one Ctrl+Z takes back everything done in it.
+**History.** The editor keeps its own history (`src/slides/editor/history.ts`): Ctrl+Z (⌘Z), Ctrl+Shift+Z or Ctrl+Y, and buttons in its header. Every change is a step – typing in a field (one step while it goes on; a pause of 1.5 s or leaving the field ends it), a layout or option, a picture, inserting, duplicating, removing and moving a slide, within its step or into another. Undo works inside the fields too, so it means the same everywhere in the editor; only the source view keeps the field's own undo until it is applied. A step changed elsewhere since (another window, an agent) is not taken back – it is dropped with a note, rather than overwriting the other change. In the planner the whole session is one undo step: after closing the editor, one Ctrl+Z takes back everything done in it.
 
 **Focus and keys.** The editor, like every dialog, sheet and menu of the app (`src/components/overlay.ts`), takes the focus when it opens, keeps Tab inside, and gives the focus back to what opened it when it closes. Escape leaves a field, then editing, then closes; a menu or picker above it takes Escape first. The arrows page while no field has the focus. The planner's shortcuts wait while anything lies above it.
 
@@ -184,4 +193,4 @@ Generated slides in the deck say what they are made of and what can be done inst
 - Charts: inline SVG drawn by the translation for now; a chart element of its own only if it is needed often.
 - The partner theme's speech bubble is drawn after the slide master as an SVG background; the fine shape of its curve may still change.
 - Accepted (2026-11-02): two people changing different slides of the same step within the same moment: the later save wins (the slides of a step are one field). The presentation's slide lives in the server's memory: after a restart the windows start where their links say.
-- Themes and templates through the connector (an agent setting up a client's colours from a style guide); a dark variant derived from a light theme with one click; moving a slide between items.
+- Themes and templates through the connector (an agent setting up a client's colours from a style guide); a dark variant derived from a light theme with one click; moving a slide between items through the connector, and several slides at once.

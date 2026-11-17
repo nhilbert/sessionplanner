@@ -18,7 +18,7 @@ import { FileManager } from './FileManager'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
 import { usePlanner } from '@/store/usePlanner'
-import { useSlideEditing } from '@/slides/PlannerSlides'
+import { useSlideEditing, useSlideMoving } from '@/slides/PlannerSlides'
 
 const KINDS: ItemKind[] = ['block', 'break', 'marker', 'note']
 
@@ -30,6 +30,7 @@ export default function ItemPanel({
   onClose,
   onSelect,
   onSaved,
+  onNotice,
   computedStart,
   owner,
 }: {
@@ -45,6 +46,7 @@ export default function ItemPanel({
   onSelect: (id: string) => void
   /** Saved to the library: a short confirmation. */
   onSaved: (title: string) => void
+  onNotice: (text: string) => void
 }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
@@ -168,6 +170,8 @@ export default function ItemPanel({
           theme={themeOf(data.workshop, settings)}
           canEdit
           owner={owner}
+          onMove={(slideId) => useSlideMoving.getState().ask(item.id, slideId)}
+          onRemoved={() => onNotice(t('slides.removed'))}
         />
       )}
 

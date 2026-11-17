@@ -1,5 +1,6 @@
 import type { Deck, DeckSlide, Slide, SlideTemplate } from '@/domain/types'
 import type { DeckSlideRef } from '@/domain/deck'
+import type { SlideHomes } from '@/domain/slideMove'
 import { newId } from '@/domain/ops'
 import { MAX_SLIDES, normalizeSlideHtml } from '@/domain/slides'
 
@@ -24,6 +25,23 @@ export interface EditorSlide {
   pool?: boolean
 }
 
+/**
+ * A workshop: a slide moves into another step. Steps and slides are named by their own ids here, not by the
+ * source's keys, because the slide may leave what the source shows (the editor is open on one step, or the other
+ * step is parked) and undo still has to find it.
+ */
+export interface SlideTransfer {
+  /** The steps a slide can move to, by day. */
+  homes(): SlideHomes[]
+  /** The step a slide of this source is in, and its id there; null for a slide that is not a step's. */
+  where(key: string): { home: string; slide: string } | null
+  /** Moves the slide to `at` among the slides of `to` (its end when left out); null when it cannot be done (full, gone). */
+  move(slide: string, from: string, to: string, at?: number): { slide: string; fromAt: number; toAt: number } | null
+  /** The key of that slide in this source, or null when the source does not show it. */
+  keyOf(home: string, slide: string): string | null
+  label(home: string): string
+}
+
 export interface SlideSource {
   /** What the editor is open on, for the header ("Schritt", "Folien des Workshops" …). */
   context: string
@@ -37,6 +55,8 @@ export interface SlideSource {
   remove?(key: string): void | Promise<void>
   /** Moves a slide to a position within its group. */
   move?(key: string, to: number): void | Promise<void>
+  /** The planner: moving a slide into another step of the workshop. */
+  transfer?: SlideTransfer
   /** The planner counts an editor session as one undo step. */
   session?: { begin(): void; end(): void }
   /** The deck: what can be done about a generated slide. */

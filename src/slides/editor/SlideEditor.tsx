@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Code, Copy, Info, LayoutTemplate, MoveLeft, MoveRight, Pencil, Play, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react'
-import { normalizeSlideHtml, slideTitle } from '@/domain/slides'
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Code, Copy, FolderInput, Info, LayoutTemplate, MoveLeft, MoveRight, Pencil, Play, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react'
+import { MAX_SLIDES, normalizeSlideHtml, slideTitle } from '@/domain/slides'
 import { convertLayout, parseSlide, serializeSlide, type SlideDoc } from '@/domain/slideDoc'
 import { Button, cx, IconButton, isTyping, Textarea, useIsPhone } from '@/components/ui'
 import Menu from '@/components/Menu'
@@ -10,6 +10,7 @@ import { useThemes } from '@/store/useThemes'
 import { type AssetScope, SlideView } from '../SlideView'
 import { NewSlidePicker } from '../NewSlidePicker'
 import { SlidePicker } from '../SlidePicker'
+import { MoveSlideDialog } from '../SlideSort'
 import { EditPreview } from './EditPreview'
 import { Inspector } from './Inspector'
 import { PictureField } from './PicturePicker'
@@ -69,6 +70,7 @@ export function SlideEditor(p: Props) {
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const [pool, setPool] = useState(false)
+  const [moving, setMoving] = useState(false)
   const [sourceView, setSourceView] = useState(false)
   const [overflow, setOverflow] = useState(false)
   const [lost, setLost] = useState<string[] | null>(null)
@@ -203,7 +205,7 @@ export function SlideEditor(p: Props) {
       commit()
       if (!src.current.insert) return
       const keys = await src.current.insert(group, at, htmls)
-      if (keys.length < htmls.length) window.alert(t('slides.tooMany', { max: 60, count: htmls.length - keys.length }))
+      if (keys.length < htmls.length) window.alert(t('slides.tooMany', { max: MAX_SLIDES, count: htmls.length - keys.length }))
       if (!keys.length) return
       setHistory(record(seal(history.current), { kind: 'insert', group, at, keys, html: htmls.slice(0, keys.length) }))
       if (open) {
@@ -243,6 +245,30 @@ export function SlideEditor(p: Props) {
       if (to < 0 || to >= size) return
       await src.current.move!(k, to)
       setHistory(record(seal(history.current), { kind: 'move', key: k, from: place.at, to }))
+    })
+  }
+  /** Into another step of the workshop, at its end; the editor follows the slide where it still shows it, else it goes on with the next. */
+  const transferTo = (home: string) => {
+    const transfer = src.current.transfer
+    if (!slide || !transfer) return
+    const k = slide.key
+    queue(async () => {
+      commit()
+      const here = transfer.where(k)
+      if (!here) return
+      const neighbour = slides[index + 1]?.key ?? slides[index - 1]?.key
+      const done = transfer.move(here.slide, here.home, home)
+      if (!done) {
+        setNotice(t('slides.noRoom', { title: transfer.label(home), max: MAX_SLIDES }))
+        return
+      }
+      setHistory(record(seal(history.current), { kind: 'transfer', slide: done.slide, from: here.home, fromAt: done.fromAt, to: home, toAt: done.toAt }))
+      const now = transfer.keyOf(home, done.slide) ?? neighbour
+      if (now) setKey(now)
+      const text = t('slides.movedTo', { title: transfer.label(home) })
+      setNotice(text)
+      // The last slide of what the editor is open on has left: the editor closes, and the page says where it went.
+      if (!src.current.current().length) p.onNotice?.(text)
     })
   }
 
@@ -287,6 +313,16 @@ export function SlideEditor(p: Props) {
         const h2 = rekey(h, step.key, k)
         setHistory(undone(h2, { ...step, key: k }))
         show(k)
+      } else if (step.kind === 'transfer') {
+        const back = src.current.transfer?.move(step.slide, step.to, step.from, step.fromAt)
+        if (!back) {
+          setHistory(dropUndo(h))
+          setNotice(t('editor.changedElsewhere'))
+          return
+        }
+        setHistory(undone(h, { ...step, slide: back.slide }))
+        const k = src.current.transfer!.keyOf(step.from, back.slide)
+        if (k) show(k)
       } else {
         const place = placeOf(step.key)
         if (!place || place.at !== step.to) {
@@ -327,6 +363,19 @@ export function SlideEditor(p: Props) {
       } else if (step.kind === 'remove') {
         if (list.some((x) => x.key === step.key)) await src.current.remove?.(step.key)
         setHistory(redone(h, step))
+      } else if (step.kind === 'transfer') {
+        const transfer = src.current.transfer
+        const from = transfer?.keyOf(step.from, step.slide)
+        const neighbour = from ? (list[list.findIndex((x) => x.key === from) + 1]?.key ?? list[list.findIndex((x) => x.key === from) - 1]?.key) : undefined
+        const again = transfer?.move(step.slide, step.from, step.to, step.toAt)
+        if (!again) {
+          setHistory(dropRedo(h))
+          setNotice(t('editor.changedElsewhere'))
+          return
+        }
+        setHistory(redone(h, { ...step, slide: again.slide }))
+        const k = transfer!.keyOf(step.to, again.slide) ?? neighbour
+        if (k) show(k)
       } else {
         const place = placeOf(step.key)
         if (!place || place.at !== step.from) {
@@ -420,6 +469,7 @@ export function SlideEditor(p: Props) {
           { label: t('slides.right'), icon: <MoveRight size={15} />, onSelect: () => move(1) },
         ]
       : []),
+    ...(editing && slide.editable && src.current.transfer?.where(slide.key) ? [{ label: t('slides.moveTo'), icon: <FolderInput size={15} />, onSelect: () => setMoving(true) }] : []),
     ...(editing
       ? [
           {
@@ -669,6 +719,18 @@ export function SlideEditor(p: Props) {
       <LayoutPicker open={layoutOpen} onClose={() => setLayoutOpen(false)} current={doc.layout} onPick={changeLayout} theme={p.theme} scope={p.scope} />
       <NewSlidePicker open={adding} onClose={() => setAdding(false)} onPick={add} onPool={p.owner ? () => setPool(true) : undefined} theme={p.theme} scope={p.scope} owner={p.owner} />
       {p.owner && <SlidePicker open={pool} onClose={() => setPool(false)} onPick={(htmls) => add(htmls, false)} theme={p.theme} />}
+      {moving && src.current.transfer && (
+        <MoveSlideDialog
+          open
+          homes={src.current.transfer.homes()}
+          current={src.current.transfer.where(slide.key)?.home ?? ''}
+          onClose={() => setMoving(false)}
+          onPick={(home) => {
+            setMoving(false)
+            transferTo(home)
+          }}
+        />
+      )}
     </>
   )
 }

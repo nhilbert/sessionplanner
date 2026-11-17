@@ -1,8 +1,9 @@
 /**
  * The slide editor's own history (docs/slides.md, section 7): every change made in the editor is a step that undo
  * takes back and redo puts again – typing in a field, a layout or an option, a picture, and inserting, removing or
- * moving a slide. Typing in one field is one step as long as it goes on (a pause or leaving the field ends it), as
- * in a text editor. Steps refer to slides by key, never by position, so slides moving meanwhile do not matter.
+ * moving a slide, within its step or into another. Typing in one field is one step as long as it goes on (a pause
+ * or leaving the field ends it), as in a text editor. Steps refer to slides by key, never by position, so slides
+ * moving meanwhile do not matter.
  *
  * Pure functions over plain data; the editor applies the steps to its slide source.
  */
@@ -16,6 +17,11 @@ export type Step =
   | { kind: 'remove'; group: string; at: number; key: string; html: string }
   /** A slide moved within its group. */
   | { kind: 'move'; key: string; from: number; to: number }
+  /**
+   * A slide moved into another step of the workshop: the steps and the slide by their own ids (source.ts,
+   * SlideTransfer), as the slide may be out of the editor's sight afterwards, and its place in each.
+   */
+  | { kind: 'transfer'; slide: string; from: string; fromAt: number; to: string; toAt: number }
 
 export interface History {
   past: Step[]
