@@ -620,6 +620,7 @@
       "table": "a small table"
     },
     "layoutGroups": {
+      "diagram": "Diagrams",
       "opening": "Frame",
       "text": "Text",
       "structure": "Structure",
@@ -668,6 +669,7 @@
     "lostFigure": "The picture has no place in this layout.",
     "lostSvg": "The diagram has no place in this layout.",
     "lostSource": "The source line has no place in this layout.",
+    "shapeUse": {"pyramid": "layers that build on each other", "cycle": "a cycle with an open middle", "venn": "sets that overlap", "onion": "a core and what surrounds it", "pillars": "what carries a whole", "hub": "one thing and what belongs to it"},
     "shape": {"pyramid": "Pyramid", "cycle": "Cycle", "venn": "Circles", "onion": "Onion", "pillars": "Pillars", "hub": "Hub"},
     "miss": {
       "items_one": "{{count}} entry does not fit",

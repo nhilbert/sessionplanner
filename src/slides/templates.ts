@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next'
+import type { DiagramShape } from '@/domain/diagram'
 import { esc } from '@/domain/slides'
 import { type BlankWords, blankDoc, serializeSlide } from '@/domain/slideDoc'
 
@@ -20,8 +21,11 @@ export const blankWords = (t: TFunction): BlankWords => ({
   caption: t('slides.placeholder.caption'),
 })
 
-/** A blank slide of a layout (docs/slides.md): its structure with placeholder words. */
-export const blankSlide = (layout: string, t: TFunction): string => serializeSlide(blankDoc(layout, blankWords(t)))
+/** A blank slide of a layout (docs/slides.md): its structure with placeholder words; a diagram in the shape asked for. */
+export const blankSlide = (layout: string, t: TFunction, shape?: DiagramShape): string => {
+  const doc = blankDoc(layout, blankWords(t))
+  return serializeSlide(shape && doc.layout === 'diagram' ? { ...doc, shape } : doc)
+}
 
 /** A slide that shows one uploaded picture. */
 export const pictureSlide = (hash: string, title: string): string => `<section class="slide figure">${title ? `<header><h2>${esc(title)}</h2></header>` : ''}<figure class="main"><img src="asset:${hash}" alt=""></figure></section>`

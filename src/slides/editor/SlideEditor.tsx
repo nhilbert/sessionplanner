@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Code, Copy, FolderInput, Info, LayoutTemplate, MoveLeft, MoveRight, Pencil, Play, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react'
+import type { DiagramShape } from '@/domain/diagram'
 import { MAX_SLIDES, normalizeSlideHtml, slideTitle } from '@/domain/slides'
 import { sampleTextsOf } from '@/domain/starters'
 import { convertLayout, parseSlide, serializeSlide, type SlideDoc } from '@/domain/slideDoc'
@@ -506,10 +507,14 @@ export function SlideEditor(p: Props) {
         )
         .join(' ')
     : ''
-  const changeLayout = (layout: string) => {
-    if (layout === doc.layout) return
+  const changeLayout = (layout: string, shape?: DiagramShape) => {
+    if (layout === doc.layout) {
+      // another shape of the diagram it is already: the entries and the word in the middle stay
+      if (shape && shape !== (doc.shape ?? 'pyramid')) update({ ...doc, shape }, null)
+      return
+    }
     const result = convertLayout(doc, layout)
-    update(result.doc, null)
+    update(shape ? { ...result.doc, shape } : result.doc, null)
     setLost(result.lost)
   }
 

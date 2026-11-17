@@ -635,6 +635,7 @@
       "table": "eine kleine Tabelle"
     },
     "layoutGroups": {
+      "diagram": "Diagramme",
       "opening": "Rahmen",
       "text": "Text",
       "structure": "Struktur",
@@ -683,6 +684,7 @@
     "lostFigure": "Das Bild hat in diesem Layout keinen Platz.",
     "lostSvg": "Die Grafik hat in diesem Layout keinen Platz.",
     "lostSource": "Die Quellenzeile hat in diesem Layout keinen Platz.",
+    "shapeUse": {"pyramid": "Ebenen, die aufeinander aufbauen", "cycle": "ein Kreislauf mit offener Mitte", "venn": "Mengen, die sich überschneiden", "onion": "ein Kern und was ihn umgibt", "pillars": "was ein Ganzes trägt", "hub": "eine Sache und was dazugehört"},
     "shape": {"pyramid": "Pyramide", "cycle": "Kreislauf", "venn": "Kreise", "onion": "Zwiebel", "pillars": "Säulen", "hub": "Stern"},
     "miss": {
       "items_one": "{{count}} Eintrag passt nicht",

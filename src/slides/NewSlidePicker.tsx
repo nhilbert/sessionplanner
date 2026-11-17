@@ -139,7 +139,7 @@ export function NewSlidePicker({ open, onClose, onPick, onPool, theme, scope, ow
           </p>
         </div>
       )}
-      {tab === 'layouts' && <LayoutGrid theme={theme} scope={scope} onPick={(l) => pick([blankSlide(l, t)], true)} />}
+      {tab === 'layouts' && <LayoutGrid theme={theme} scope={scope} onPick={(l, shape) => pick([blankSlide(l, t, shape)], true)} />}
       {tab === 'picture' && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <Image size={28} className="text-ink-3" />
