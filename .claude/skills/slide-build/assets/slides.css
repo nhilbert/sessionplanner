@@ -375,3 +375,18 @@
 /* the takeaway: one line at the foot of a content slide, above the chrome */
 .slide > footer > .takeaway { position: absolute; left: 0; bottom: 44px; max-width: 900px; font: 700 20px/1.35 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--kicker, var(--accent-deep, var(--accent))); }
 .slide:has(> footer > .takeaway) { padding-bottom: 152px; }
+
+/* ---------- formatting laid over the theme (docs/slides.md, section 2) ----------
+   What an author sets by hand on a word or a line: sizes as steps relative to the size the theme gives the text,
+   colours as places of the theme's palette, "not bold" for a word in a heading. A slide keeps them when its theme
+   changes; the theme decides what they look like. Last in the file, so they hold against the layouts' own rules. */
+.slide span.fs-xs { font-size: 0.72em; }
+.slide span.fs-s { font-size: 0.86em; }
+.slide span.fs-l { font-size: 1.2em; }
+.slide span.fs-xl { font-size: 1.45em; }
+.slide span.fw-normal { font-weight: 400; }
+.slide span.c-accent-2 { color: var(--accent-2); }
+.slide span.c-accent-3 { color: var(--accent-3); }
+.slide span.c-accent-4 { color: var(--accent-4); }
+.slide span.c-title { color: var(--title); }
+.slide span.c-text { color: var(--fg); }

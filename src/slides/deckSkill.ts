@@ -82,6 +82,7 @@ ${SLIDE_FORMAT.slide}
 - Elemente: ${SLIDE_FORMAT.elements}
 - Attribute: ${SLIDE_FORMAT.attributes}
 - Verboten: ${SLIDE_FORMAT.forbidden}
+- Formatierung von Hand: ${SLIDE_FORMAT.formatting}
 - SVG: ${SLIDE_FORMAT.svg}
 
 **Anders als im Text oben** bindest du Bilder hier nicht mit \`asset:<hash>\` ein, sondern mit \`assets/name.jpg\`: Die App lädt sie beim Import hoch und setzt die Adresse selbst. In den Beispielen unten steht deshalb \`asset:…\` für dein \`assets/name.jpg\`.

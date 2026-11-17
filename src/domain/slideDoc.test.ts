@@ -145,7 +145,9 @@ describe('slide document', () => {
       ['<section class="slide cards">\n  <header>\n    <h2>Drei Arten</h2>\n  </header>\n  <ul class="cards numbered">\n    <li><h3>A</h3><p>Text über\n      zwei Zeilen</p></li>\n  </ul>\n</section>', 'fields'],
       ['<section class="slide closing"><div class="logo"></div><h1>Danke</h1><p class="sub">bis bald</p></section>', 'body'],
       ['<section class="slide list"><header><h2>Titel <small>1/2</small></h2><p>Hinweis</p></header><ul class="list"><li>a</li></ul></section>', 'whole'],
-      ['<section class="slide list"><header><h2>Kolleg<em>innen</em></h2></header><ul class="list"><li>a</li></ul></section>', 'whole'],
+      ['<section class="slide list"><header><h2>Kolleg<em>innen</em></h2></header><ul class="list"><li>a</li></ul></section>', 'fields'],
+      ['<section class="slide list"><header><h2>Ein <span class="fs-l c-accent-2">lautes</span> Wort</h2></header><ul class="list"><li><span class="fw-normal">a</span></li></ul></section>', 'fields'],
+      ['<section class="slide list"><header><h2>Ein <span class="sonst">anderes</span> Wort</h2></header><ul class="list"><li>a</li></ul></section>', 'whole'],
       ['<section class="slide list"><header><h2>CO<sub>2</sub></h2></header><ul class="list"><li>a</li></ul></section>', 'whole'],
     ]
     for (const [html, mode] of slides) {

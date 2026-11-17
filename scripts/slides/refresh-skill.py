@@ -22,7 +22,7 @@ import { pathToFileURL } from 'node:url'
 const m = await import(pathToFileURL(process.env.SP_REPO + '/src/domain/slideFormat.ts').href)
 process.stdout.write(JSON.stringify({ format: m.SLIDE_FORMAT, layouts: m.SLIDE_LAYOUTS }))
 '''
-RULES = ['slide', 'elements', 'attributes', 'forbidden', 'svg', 'pictures', 'text', 'generated', 'choosing']
+RULES = ['slide', 'elements', 'attributes', 'forbidden', 'formatting', 'svg', 'pictures', 'text', 'generated', 'choosing']
 BREAK_BEFORE = 'section header footer ul ol li dl div figure figcaption aside table thead tbody tr blockquote cite svg g polygon rect circle path line text'.split()
 
 
