@@ -8,3 +8,16 @@
 /* Looking at a slide: no marks, no text cursor; the slide is just shown. */
 .slide-edit.is-view .slide [data-f] { cursor: default; outline-color: transparent !important; }
 .slide-edit.is-view.is-overflow .slide { box-shadow: none; }
+
+/* Editing on the slide itself (a mouse; docs/slides.md, section 7): the outline under the pointer is the element a
+   click selects – a text, a picture, an entry – not the field's; the selected one keeps it, the text typed in too. */
+.slide-edit.is-inplace .slide [data-f] { cursor: default; }
+.slide-edit.is-inplace .slide [data-f]:not(.is-focus):hover { outline-color: transparent; }
+.slide-edit.is-inplace .slide [data-t] { outline: 2px solid transparent; outline-offset: 6px; border-radius: 6px; transition: outline-color 120ms ease; }
+.slide-edit.is-inplace .slide [data-t="text"] { cursor: text; }
+.slide-edit.is-inplace .slide [data-t="image"] { cursor: pointer; }
+.slide-edit.is-inplace .slide [data-t]:hover:not(:has([data-t]:hover)) { outline-color: color-mix(in oklab, var(--accent) 45%, transparent); }
+.slide-edit.is-inplace .slide .is-selected, .slide-edit.is-inplace .slide .is-editing { outline: 2px solid var(--accent) !important; outline-offset: 6px; border-radius: 6px; }
+/* The text typed in keeps every space as typed (it was folded when the editing began) and has room for the caret when empty. */
+.slide-edit .slide .is-editing { white-space: pre-wrap; cursor: text; min-width: 0.6em; min-height: 1em; }
+.slide-edit .slide .is-editing [contenteditable="false"] { cursor: default; }

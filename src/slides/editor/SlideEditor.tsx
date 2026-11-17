@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Code, Copy, FolderInput, Info, LayoutTemplate, MoveLeft, MoveRight, Pencil, Play, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react'
 import { MAX_SLIDES, normalizeSlideHtml, slideTitle } from '@/domain/slides'
 import { convertLayout, parseSlide, serializeSlide, type SlideDoc } from '@/domain/slideDoc'
-import { Button, cx, IconButton, isTyping, Textarea, useIsPhone } from '@/components/ui'
+import { Button, cx, IconButton, isTyping, Textarea, useIsPhone, useMediaQuery } from '@/components/ui'
 import Menu from '@/components/Menu'
 import { useOverlay } from '@/components/overlay'
 import { useThemes } from '@/store/useThemes'
@@ -51,6 +51,8 @@ const stored = (doc: SlideDoc) => normalizeSlideHtml(serializeSlide(doc))
 export function SlideEditor(p: Props) {
   const { t } = useTranslation()
   const phone = useIsPhone()
+  /** Editing on the slide itself needs a pointer that hits a word: a mouse or a trackpad, on more than a phone's width. */
+  const onSlide = useMediaQuery('(pointer: fine)') && !phone
   const saveTemplate = useThemes((s) => s.saveTemplate)
   const root = useRef<HTMLDivElement>(null)
   const slides = p.source.slides
@@ -75,6 +77,8 @@ export function SlideEditor(p: Props) {
   const [overflow, setOverflow] = useState(false)
   const [lost, setLost] = useState<string[] | null>(null)
   const [notice, setNotice] = useState('')
+  /** The notice that tells of a change undo takes back (an element removed on the slide): shown with the way to do so. */
+  const [undoable, setUndoable] = useState('')
   const [, setVersion] = useState(0)
   const history = useRef<History>(EMPTY_HISTORY)
   const setHistory = (h: History) => {
@@ -173,6 +177,14 @@ export function SlideEditor(p: Props) {
     setDraft({ key: slide.key, doc: next, html: draft?.html ?? slide.html })
     clearTimeout(timer.current)
     timer.current = setTimeout(commit, COMMIT_DELAY)
+  }
+  /** A change made on the slide itself (EditPreview): taken when the layout's fields can still hold the slide. */
+  const applyOnSlide = (nextHtml: string, field: string | null): string | null => {
+    if (!slide || !editable || !doc) return null
+    const next = read(normalizeSlideHtml(nextHtml))
+    if (doc.raw === undefined && next.raw !== undefined) return null
+    update(next, field)
+    return serializeSlide(next)
   }
   const setFocus = (path: string | null) => {
     if (path !== focus) history.current = seal(history.current)
@@ -545,7 +557,17 @@ export function SlideEditor(p: Props) {
           </Button>
         </div>
       )}
-      {notice && <div className="rounded-md bg-surface-2 px-2.5 py-1.5 text-[12px] text-ink-2" role="status">{notice}</div>}
+      {notice && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-[12px] text-ink-2" role="status">
+          <span className="min-w-0 flex-1">{notice}</span>
+          {undoable === notice && (
+            <Button size="sm" variant="ghost" onClick={undo} disabled={!canUndo}>
+              <Undo2 size={13} />
+              {t('editor.undo')}
+            </Button>
+          )}
+        </div>
+      )}
       {overflow && (
         <div className="flex items-start gap-2 rounded-md bg-amber-soft px-2.5 py-1.5 text-[12px] leading-snug text-amber">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -604,10 +626,24 @@ export function SlideEditor(p: Props) {
         editable && !editing
           ? (path) => {
               setEditMode(true)
-              requestAnimationFrame(() => requestAnimationFrame(() => focusField(path, true)))
+              // With a mouse the text is typed in on the slide; else in its field.
+              if (!onSlide) requestAnimationFrame(() => requestAnimationFrame(() => focusField(path, true)))
             }
           : undefined
       }
+      edit={
+        editing && onSlide && !sourceView
+          ? {
+              apply: applyOnSlide,
+              known: p.known,
+              notice: (text, undoable) => {
+                setNotice(text)
+                setUndoable(undoable ? text : '')
+              },
+            }
+          : undefined
+      }
+      slideKey={slide.key}
       onOverflow={setOverflow}
       className={className}
       style={style}

@@ -44,7 +44,7 @@ export function PictureField({ path, value, onChange, onFocus, scope, known, lab
 }
 
 /** The original and the cut-out an asset belongs to, asked for once per asset. */
-function usePair(scope: AssetScope, hash: string): AssetInfo | null {
+export function usePair(scope: AssetScope, hash: string): AssetInfo | null {
   const [pair, setPair] = useState<AssetInfo | null>(null)
   useEffect(() => {
     let live = true

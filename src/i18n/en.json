@@ -635,7 +635,7 @@
     "templateName": "Name of the template",
     "templateSaved": "Template “{{name}}” saved",
     "overflow": "The content runs over the edge of the slide: shorten it or pick another layout.",
-    "markup": "**bold** · *italic* · ==accent==",
+    "markup": "**bold** · *italic* · ==accent== · [large]{l}",
     "generatedHint": "The app generates this kind of slide from the plan; write one only for a special case.",
     "openSlides": "Open slides",
     "deckTheme": "Branding (theme)",
@@ -794,7 +794,32 @@
     "poolIcons": "Icons from the pool",
     "searchPool": "Search the pool by tag …",
     "generatedPicture": "Picture of this slide",
-    "pictureAuto": "Automatic from the pool"
+    "pictureAuto": "Automatic from the pool",
+    "onSlide": {
+      "toolbar": "Edit on the slide",
+      "bold": "Bold (Ctrl+B)",
+      "italic": "Italic (Ctrl+I)",
+      "smaller": "Smaller",
+      "larger": "Larger",
+      "color": "Colour",
+      "colorDefault": "The theme's colour",
+      "colors": {
+        "accent": "Accent",
+        "accent-2": "Accent 2",
+        "accent-3": "Accent 3",
+        "accent-4": "Accent 4",
+        "title": "Title colour",
+        "text": "Text colour",
+        "muted": "Muted"
+      },
+      "clear": "Remove formatting",
+      "replace": "Replace",
+      "selectEntry": "Select the whole entry",
+      "remove": "Delete (Del)",
+      "removed": "Deleted.",
+      "cannotRemove": "This cannot be deleted on the slide. The fields can do it.",
+      "cannotChange": "This change does not fit the layout and was not saved. Please edit it in its field."
+    }
   },
   "themes": {
     "title": "Slide themes",

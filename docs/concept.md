@@ -118,7 +118,7 @@ On the owner's retired instance there was no public access, so no share links: e
 4. **Claude connector (MCP)** – done (2026-10-29): Claude reads and edits workshops (draft an agenda from a brief, adjust timings, group and park items, fill the packing list, use the library), over stdio locally and over `/mcp` with OAuth as in Zendo; see [mcp.md](mcp.md).
 5. **Import of the owner's sample sessions** into the hosted instance once the feature baseline stands (private material, never in this repository).
 6. **Slides** – done (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
-7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7.
+7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7. Since 2026-11-17 with a mouse on the slide itself, with formatting by hand that follows the theme (section 10).
 8. **Preparing for several workspaces** – in preparation: section 10, 2026-11-05. No change for users.
 
 **Backlog** (no order):
@@ -146,6 +146,13 @@ On the owner's retired instance there was no public access, so no share links: e
 - The trash removes files before their records, so a file that cannot go is tried again. A workshop in the trash stays as it went in. The exports of all data and media hold it too, apart and marked.
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
+
+**2026-11-17, slides are edited on the slide** (revises "no contentEditable on the slide" of 2026-11-01)
+
+- With a mouse, a click on a text of a slide types into it, a click on a picture or an entry selects it, and a bar above the selection formats, replaces and removes (docs/slides.md, section 7, "On the slide"). The fields beside the slide stay and follow; both write the same slide document, so nothing can be made on the slide that the fields cannot hold.
+- The objection of 2026-11-01 stands where it was strongest: phones and touch screens keep the fields only. On a phone the slide's text is too small to hit, the keyboard covers it, and the system's selection menu cannot be moved out of the way.
+- Formatting by hand is allowed, as names: size steps relative to the theme's size and places of the theme's palette, bold, italic, not bold. A slide keeps them through a change of theme, and the theme decides what they look like. Literal colours and pixel sizes stay out (`style` stays forbidden): they would not follow a dark theme, and they are what makes decks drift apart. Counter-argument considered: "the red of the client's logo, in every theme" cannot be written; the theme's accents are where a brand's colours belong.
+- Still content, not pixels: nothing is dragged or resized, a layout's fixed places are emptied instead of removed, and a change the layout cannot hold is refused.
 
 **2026-11-17, slides are sorted where they are seen**
 
@@ -231,7 +238,7 @@ On the owner's retired instance there was no public access, so no share links: e
 - Slides are edited in the app after all, but as content, never as pixels: fields for the words next to the live slide, the layout chosen from the catalogue, the appearance from the theme. Research into slide tools pointed the same way (Beautiful.ai's constraint templates, Gamma's cards, Marp's separation of content and style, the theme/master/layout split of PowerPoint and Google Slides); the catalogue of docs/slides.md is this app's constraint, the editor fills it. The source stays reachable for what the fields do not model, and no slide is locked.
 - Themes become data the owner edits in the app: ten colours, two hosted fonts, a few choices and the logo; the rest is derived in OKLab, the stylesheet is generated, the text contrast checked against WCAG 2.2. Theme folders stay for a brand that needs more than tokens. The reason to drop "themes live in the private setup": the owner should set a client's colours in minutes, not deploy a stylesheet.
 - Template slides are named slides to start from, shared like the library and copied on insert. They are not masters: the catalogue's layouts are the masters, and the stylesheet owns them.
-- No contentEditable on the slide. A click on the slide opens the field it shows, the field lights up its element; plain inputs behave the same on phones and with screen readers.
+- No contentEditable on the slide. A click on the slide opens the field it shows, the field lights up its element; plain inputs behave the same on phones and with screen readers. *(Revised 2026-11-17 for a mouse: see "slides are edited on the slide" above.)*
 - Guests with edit rights edit slides too; templates, themes and the pool stay the owner's.
 
 **2026-11-01, slides**

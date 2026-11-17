@@ -650,7 +650,7 @@
     "templateName": "Name der Vorlage",
     "templateSaved": "Vorlage „{{name}}“ gespeichert",
     "overflow": "Der Inhalt läuft über den Folienrand: kürzen oder ein anderes Layout wählen.",
-    "markup": "**fett** · *kursiv* · ==Akzent==",
+    "markup": "**fett** · *kursiv* · ==Akzent== · [groß]{l}",
     "generatedHint": "Diese Art Folie erzeugt die App aus dem Plan; schreib sie nur für einen Sonderfall selbst.",
     "openSlides": "Folien öffnen",
     "deckTheme": "Branding (Theme)",
@@ -809,7 +809,32 @@
     "poolIcons": "Icons aus dem Pool",
     "searchPool": "Pool nach Schlagwort durchsuchen …",
     "generatedPicture": "Bild dieser Folie",
-    "pictureAuto": "Automatisch aus dem Pool"
+    "pictureAuto": "Automatisch aus dem Pool",
+    "onSlide": {
+      "toolbar": "Auf der Folie bearbeiten",
+      "bold": "Fett (Strg+B)",
+      "italic": "Kursiv (Strg+I)",
+      "smaller": "Kleiner",
+      "larger": "Größer",
+      "color": "Farbe",
+      "colorDefault": "Farbe des Themes",
+      "colors": {
+        "accent": "Akzent",
+        "accent-2": "Akzent 2",
+        "accent-3": "Akzent 3",
+        "accent-4": "Akzent 4",
+        "title": "Titelfarbe",
+        "text": "Textfarbe",
+        "muted": "Gedämpft"
+      },
+      "clear": "Formatierung entfernen",
+      "replace": "Ersetzen",
+      "selectEntry": "Ganzen Eintrag auswählen",
+      "remove": "Löschen (Entf)",
+      "removed": "Gelöscht.",
+      "cannotRemove": "Das lässt sich auf der Folie nicht löschen. In den Feldern geht es.",
+      "cannotChange": "Diese Änderung passt nicht in das Layout und wurde nicht gespeichert. Bitte im Feld bearbeiten."
+    }
   },
   "themes": {
     "title": "Folien-Themes",
