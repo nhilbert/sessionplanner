@@ -131,6 +131,44 @@ describe('OAuth for /mcp', () => {
     expect((await ctx.app.request('/oauth/token', form({ grant_type: 'refresh_token', refresh_token: 'x', client_id: 'nope' }))).status).toBe(401)
   })
 
+  it("takes ChatGPT's callbacks, the fixed one and the one per connection, and nothing beside them on that host", async () => {
+    const ctx = setup()
+    const fixed = 'https://chatgpt.com/connector_platform_oauth_redirect'
+    const perConnection = 'https://chatgpt.com/connector/oauth/AbC_123-xyz'
+    for (const uri of [
+      'https://chatgpt.com/',
+      'https://chatgpt.com/connector_platform_oauth_redirect/',
+      'https://chatgpt.com/connector_platform_oauth_redirect?x=1',
+      'http://chatgpt.com/connector_platform_oauth_redirect',
+      'https://chatgpt.com.evil.example/connector_platform_oauth_redirect',
+      'https://evil.example/https://chatgpt.com/connector_platform_oauth_redirect',
+      'https://chatgpt.com/connector/oauth/',
+      'https://chatgpt.com/connector/oauth/a/b',
+      'https://chatgpt.com/connector/oauth/a?next=https://evil.example',
+      'https://chatgpt.com/connector/oauth/a#b',
+      'https://chatgpt.com/connector/oauth/..',
+      'https://chatgpt.com/connector/oauth/a%2Fb',
+      'https://chatgpt.com/connector/oauth/a\nb',
+      'https://chatgpt.com@example.com/connector/oauth/a',
+      'https://chatgpt.com:8443/connector/oauth/a',
+    ]) {
+      expect((await register(ctx.app, [uri])).status, uri).toBe(400)
+    }
+    for (const uri of [fixed, perConnection]) {
+      const { status, body } = await register(ctx.app, [uri])
+      expect(status).toBe(201)
+      const { verifier, challenge } = pkce()
+      const { url } = await authorize(ctx.app, body.client_id, challenge, LOCAL, uri)
+      expect(url!.startsWith(`${uri}?`)).toBe(true)
+      const code = new URL(url!).searchParams.get('code')!
+      // The address is compared as registered: another connection's callback gets no code and no token.
+      const other = await ctx.app.request(`/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: body.client_id, redirect_uri: 'https://chatgpt.com/connector/oauth/other', code_challenge: challenge, code_challenge_method: 'S256' })}`, { headers: LOCAL })
+      expect(other.status).toBe(400)
+      const issued = await ctx.app.request('/oauth/token', form({ grant_type: 'authorization_code', code, redirect_uri: uri, client_id: body.client_id, code_verifier: verifier }))
+      expect(issued.status).toBe(200)
+    }
+  })
+
   it('locally only a browser on this machine may approve', async () => {
     const ctx = setup()
     const { body } = await register(ctx.app)

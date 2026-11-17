@@ -153,7 +153,7 @@ Checklist after deploying:
 | `SP_OWNERS` | – | The owners' e-mail addresses (case-insensitive); hosted, only they may approve connections. Empty = local mode (loopback browser only). |
 | `SP_OWNER_HEADER` | `x-auth-request-email` | Header carrying the signed-in e-mail from the login proxy. |
 | `SP_PROXY_SECRET` | – | Secret the login proxy adds to every request as `X-SP-Proxy-Secret`; with it set, the e-mail header counts only on requests that carry it (API and consent page). |
-| `SP_OAUTH_REDIRECTS` | – | Extra redirect URIs clients may register, comma-separated. Claude's callbacks and loopback are always allowed. |
+| `SP_OAUTH_REDIRECTS` | – | Extra redirect URIs clients may register, comma-separated. Claude's and ChatGPT's callbacks and loopback are always allowed. |
 | `SP_MCP_TOKEN` | – | Static bearer token for `/mcp`; works with or without OAuth. |
 | `SP_PUBLIC_URL` | – | Public origin; becomes the OAuth issuer and the resource `…/mcp`. Must be exactly the URL entered in Claude. |
 
@@ -294,7 +294,7 @@ Not in cryptographic strength – both are 256-bit random values. The gain is in
 - **Short-lived and rotating.** Access tokens expire after an hour. Each refresh token works once; if an already used refresh token is presented again later, the server assumes it was copied and revokes the whole connection.
 - **Revocable per agent** in Settings, effective immediately, without restarting or reconfiguring other clients.
 - **Tied to the owner list.** A token belongs to the owner who approved it; once that address is no longer in `SP_OWNERS`, the next call is refused and the next refresh ends the connection, however long the tokens would still live.
-- **Narrow redirects.** Clients may register only Claude's callbacks (`https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`) and loopback addresses, so a third party cannot have authorization codes delivered to its own server.
+- **Narrow redirects.** Clients may register only Claude's callbacks (`https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`), ChatGPT's (`https://chatgpt.com/connector_platform_oauth_redirect`, `https://chatgpt.com/connector/oauth/<callback id>`) and loopback addresses, so a third party cannot have authorization codes delivered to its own server.
 
 What OAuth adds in exposure:
 
@@ -329,7 +329,7 @@ A build that hosts more than one protected address passes `resources` (`OAuthRes
 | Consent page says "Your account may not approve connections" | E-mail not in `SP_OWNERS`, or the proxy does not pass it or the proxy secret | Check the address; `--set-xauthrequest=true`; `copy_headers X-Auth-Request-Email`; the same `SP_PROXY_SECRET` for Caddy and Session Planner |
 | Every page says `forbidden`, the log shows "Refused a request without the proxy secret" | `SP_PROXY_SECRET` is set for Session Planner but Caddy does not send it | Add the `header_up` lines ([Hosting](#hosting-behind-caddy-and-oauth2-proxy)) and give Caddy the same value |
 | Consent page says "only … on the computer running Session Planner" while hosted | `SP_PUBLIC_URL` not set, so the server runs in local mode | Set `SP_PUBLIC_URL` and `SP_OWNERS` |
-| "Invalid redirect" on the consent page | The client registered a redirect URI that is not Claude's or loopback | Add it to `SP_OAUTH_REDIRECTS` if you trust that client |
+| "Invalid redirect" on the consent page | The client registered a redirect URI that is not Claude's, ChatGPT's or loopback | Add it to `SP_OAUTH_REDIRECTS` if you trust that client |
 | Claude reports `invalid_target` | The URL entered in Claude differs from `SP_PUBLIC_URL` + `/mcp` (other host, `http`, trailing path) | Enter exactly `https://<SP_PUBLIC_URL host>/mcp` |
 | Connector worked, now asks to sign in again | Refresh token expired (30 days unused), was revoked in Settings, replayed, or the approving address left `SP_OWNERS` | **Connect an agent**, then reconnect; if you did not disconnect it, look at who else might hold the token |
 | Consent page says "Start the connection in Session Planner first" | No **Connect an agent** in the last 10 minutes, or it was used for another approval meanwhile | Settings → AI agents → **Connect an agent**, then start the connection in Claude again. If you did not start one, close the page |

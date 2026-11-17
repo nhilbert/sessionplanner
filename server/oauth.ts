@@ -5,7 +5,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { type Env, fromProxy } from './guard.ts'
 
 /**
- * OAuth 2.1 authorization server for the MCP endpoint, as Claude's connectors expect it
+ * OAuth 2.1 authorization server for the MCP endpoint, as Claude's connectors (and ChatGPT's) expect it
  * (protected resource metadata RFC 9728, server metadata RFC 8414, dynamic client registration
  * RFC 7591, authorization code with S256 PKCE, rotating refresh tokens, revocation RFC 7009).
  *
@@ -33,7 +33,7 @@ export interface OAuthConfig {
   allowedUsers?: string[]
   /** Hosted: the login proxy's secret (SP_PROXY_SECRET); with it, the e-mail header counts only together with it. */
   proxySecret?: string
-  /** Extra redirect URIs accepted at registration besides Claude's callbacks and loopback. */
+  /** Extra redirect URIs accepted at registration besides Claude's and ChatGPT's callbacks and loopback. */
   extraRedirects?: string[]
   accessTtlSeconds?: number
   refreshTtlDays?: number
@@ -119,6 +119,10 @@ export interface AccessInfo {
 }
 
 export const CLAUDE_CALLBACKS = ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback']
+/** ChatGPT's callback for a server that names its issuer in the answer (RFC 9207), as this one does. */
+export const CHATGPT_CALLBACK = 'https://chatgpt.com/connector_platform_oauth_redirect'
+/** ChatGPT's other callback, one address per connection: https://chatgpt.com/connector/oauth/<callback id>. */
+const CHATGPT_CONNECTION_CALLBACK = /^https:\/\/chatgpt\.com\/connector\/oauth\/[A-Za-z0-9_-]{1,200}$/
 const SCOPE = 'sessionplanner'
 const CODE_TTL_MS = 60_000
 const PENDING_TTL_MS = 10 * 60_000
@@ -259,9 +263,9 @@ export class OAuthServer {
     return { ...englishTexts(this.cfg.product), ...this.cfg.texts?.(c) }
   }
 
-  /** Redirect URIs a client may register: Claude's callbacks, loopback (Claude Code, RFC 8252) and configured extras. */
+  /** Redirect URIs a client may register: Claude's and ChatGPT's callbacks, loopback (Claude Code, RFC 8252) and configured extras. */
   private redirectAllowed(uri: string): boolean {
-    if (CLAUDE_CALLBACKS.includes(uri) || this.cfg.extraRedirects.includes(uri)) return true
+    if (CLAUDE_CALLBACKS.includes(uri) || uri === CHATGPT_CALLBACK || CHATGPT_CONNECTION_CALLBACK.test(uri) || this.cfg.extraRedirects.includes(uri)) return true
     try {
       const u = new URL(uri)
       return u.protocol === 'http:' && isLoopbackHost(u.hostname) && !u.username && !u.password && !u.hash
