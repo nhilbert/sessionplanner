@@ -41,3 +41,6 @@ export function tagCounts(lists: readonly (readonly string[])[]): { tag: string;
     }
   return [...counts.values()].sort((a, b) => a.tag.localeCompare(b.tag, undefined, { sensitivity: 'base' }))
 }
+
+/** The tags of the rows by use: the most used first, equal counts by name (the filter's order). */
+export const tagsByUse = (lists: readonly (readonly string[])[]): { tag: string; count: number }[] => tagCounts(lists).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, undefined, { sensitivity: 'base' }))

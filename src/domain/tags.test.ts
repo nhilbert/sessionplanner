@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeTags, hasTag, normalizeTags, parseTags, tagCounts } from './tags'
+import { changeTags, hasTag, normalizeTags, parseTags, tagCounts, tagsByUse } from './tags'
 
 describe('tags', () => {
   it('stores tags trimmed, once, without empty ones', () => {
@@ -16,6 +16,17 @@ describe('tags', () => {
     expect(tagCounts([['b', 'A'], ['a'], []])).toEqual([
       { tag: 'A', count: 2 },
       { tag: 'b', count: 1 },
+    ])
+  })
+})
+
+describe('the tag filter', () => {
+  it('shows the most used tags first, equal counts by name', () => {
+    expect(tagsByUse([['Werte', 'Übung'], ['übung', 'Antreiber'], ['Übung', 'Werte'], ['Abschluss']]).map((c) => [c.tag, c.count])).toEqual([
+      ['Übung', 3],
+      ['Werte', 2],
+      ['Abschluss', 1],
+      ['Antreiber', 1],
     ])
   })
 })

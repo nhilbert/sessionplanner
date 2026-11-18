@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, Check, Minus, RotateCcw, Trash2, X } from 'lucide-react'
-import { hasTag, parseTags, tagCounts } from '@/domain/tags'
+import { hasTag, parseTags, tagCounts, tagsByUse } from '@/domain/tags'
 import { formatDate } from '@/i18n'
 import { Button, cx, isTyping, useLocalState } from './ui'
 
@@ -227,7 +227,8 @@ const TAGS_SHOWN = 12
 export function TagFilter({ rows, active, onChange }: { /** The tags of every row the other filters leave. */ rows: string[][]; active: string[]; onChange: (tags: string[]) => void }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const all = tagCounts(rows)
+  // the most used tags first (by all rows the other filters leave, so the chips do not jump while tags are chosen); equal counts by name
+  const all = tagsByUse(rows)
   if (!all.length && !active.length) return null
   const matching = rows.filter((tags) => active.every((a) => hasTag(tags, a)))
   const left = new Map(tagCounts(matching).map((c) => [c.tag.toLocaleLowerCase(), c.count]))
