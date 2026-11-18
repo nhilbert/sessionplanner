@@ -2,7 +2,7 @@
 
 Printed material for the steps of a workshop: worksheets for exercises and handouts for methods. A step says how many copies of each sheet the workshop needs; the workshop exports one print package with a file per print job. Sheets are written in the app as content in a small HTML subset, like slides, and laid out by one stylesheet; files made elsewhere (a PDF from a layout program) stay possible and follow the same print rule.
 
-Stage 0 (print rules and the print package) and stage 1 (the format, outside the app) are built. The format (sections 4 and 5) is settled once the owner accepts a test print of the rebuilt sample sheets.
+Stage 0 (print rules and the print package) and stage 1 (the format, outside the app) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
 
 No client, partner or brand names in this file. The owner's sample worksheets are private material and stay outside this repository.
 
@@ -142,7 +142,7 @@ What the block groups and the frame lean on. Effect sizes come from school and l
 ## 10. Stages
 
 0. **Print rule and print package for files.** Participants on the workshop, groups on the step, the rule per file, the package, the print list, the packing list.
-1. **Format and blocks, outside the app.** This file settled, the stylesheet, the v1 blocks, a check script and a static preview as for slides; the owner's sample pages rebuilt as fragments and accepted on a test print. Two of them (a picture with fields, a certificate) stay files for now. *Built 2026-11-18: 22 sheets with 24 pages rebuilt in the private design repository and printed to PDF; the test print is the owner's. One of them shows two pictures of the original where the format's own models would belong (stage 4).*
+1. **Format and blocks, outside the app.** This file settled, the stylesheet, the v1 blocks, a check script and a static preview as for slides; the owner's sample pages rebuilt as fragments and accepted on a test print. Two of them (a picture with fields, a certificate) stay files for now. *Built 2026-11-18: 22 sheets with 24 pages rebuilt in the private design repository and printed to PDF; the second test print was accepted the same day (line pitch 9 mm, the type sizes of section 4, the browser's vector PDF). One of them shows two pictures of the original where the format's own models would belong (stage 4).*
 2. **Sheets in the app.** Section 6, and sheets in the print package.
 3. **The editor.** Section 7.
 4. **More.** The print profile's choices per theme, the page kinds, the remaining blocks, a vector PDF if the test print asked for one.
@@ -159,5 +159,5 @@ What the block groups and the frame lean on. Effect sizes come from school and l
 
 - What a view guest sees of a step's sheets (stage 2).
 - The second instance: every new route of the core is a decision there (`core-routes.json`), and migrations run per workspace; sample sheets for the starter pack.
-- The pitch of writing lines (9 mm now) and the type sizes, on the test print; raster against vector after it (the test print is the browser's vector PDF); A3 pages at 300 dpi exceed the canvas size of iOS Safari.
+- Raster against vector for the app's own PDF: the accepted test print was the browser's vector PDF; the app's writer (`src/slides/pdf/pdf.ts`) draws raster pages. A3 pages at 300 dpi exceed the canvas size of iOS Safari.
 - Words in the segments of a circle; the remaining blocks and the page kinds of section 5 (stage 4).
