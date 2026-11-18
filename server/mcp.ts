@@ -392,8 +392,8 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
   )
   tool(
     'deck_outline',
-    'The deck of a workshop as it is presented: the generated title, agenda and break slides and the items\' own slides, in order, with the theme. agenda/breaks false leave the generated agenda or break slides out, as the app can.',
-    { workshop: workshopRef, agenda: z.boolean().optional(), breaks: z.boolean().optional() },
+    'The deck of a workshop as it is presented: the generated title, agenda and break slides and the items\' own slides, in order, with the theme. agenda/breaks false leave the generated agenda or break slides out, groups true adds a divider slide with the group\'s title before the first item of every titled group, as the app can.',
+    { workshop: workshopRef, agenda: z.boolean().optional(), breaks: z.boolean().optional(), groups: z.boolean().optional() },
     (a) => ops.deckOutline(a.workshop as string, a as never),
     'read',
   )

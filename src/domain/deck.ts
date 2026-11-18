@@ -6,7 +6,8 @@ import { esc, slideLayout } from './slides.ts'
 /**
  * The deck of a workshop (docs/slides.md): the slides of its placed items in agenda order, with the slides the
  * app generates from the plan: a title slide (one per day when there are several), an agenda per day with the
- * computed times, and a break slide with its end time for every break without slides of its own.
+ * computed times, a break slide with its end time for every break without slides of its own and, when asked for,
+ * a divider slide with the group's title before the first step of every group.
  */
 
 export interface DeckLabels {
@@ -26,13 +27,15 @@ export interface DeckLabels {
 export interface DeckOptions {
   agenda: boolean
   breaks: boolean
+  /** A divider slide with the group's title at the start of every group that has a title and steps. */
+  groups: boolean
   /** Whether the generated slides take pictures from the theme's pool. */
   pictures: boolean
   /** Turns the pool's rotation on (the viewer asked for other pictures); 0 = the workshop's own order. */
   shift: number
 }
 
-export const DECK_DEFAULTS: DeckOptions = { agenda: true, breaks: true, pictures: true, shift: 0 }
+export const DECK_DEFAULTS: DeckOptions = { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }
 
 /** A small stable number from a string, so a workshop starts the pool's rotation at a place of its own. */
 export function seedOf(text: string): number {
@@ -44,12 +47,14 @@ export function seedOf(text: string): number {
 /** Lines an agenda slide holds before a second one follows. */
 export const AGENDA_LINES = 11
 
+export type GeneratedKind = 'title' | 'agenda' | 'break' | 'group'
+
 export interface DeckSlideRef {
   key: string
   html: string
   /** The item it belongs to; none for a generated slide. */
   itemId?: string
-  generated?: 'title' | 'agenda' | 'break'
+  generated?: GeneratedKind
   /** What to call it in a list: the item's title, or the kind of generated slide. */
   caption: string
   /** The part of the deck the slide is in ("Teil 2 von 5"): counted by the section slides, set once the deck has two or more, from the first section on. */
@@ -65,13 +70,17 @@ export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOp
   return out
 }
 
-/** The section tracker: every slide from the first section slide on learns which part of how many it is in. */
+/**
+ * The section tracker: every slide from the first section slide on learns which part of how many it is in. The
+ * groups' divider slides are section slides and count like written ones.
+ */
 function withParts(deck: DeckSlideRef[]): DeckSlideRef[] {
-  const of = deck.filter((s) => !s.generated && slideLayout(s.html) === 'section').length
+  const opens = (s: DeckSlideRef) => (!s.generated || s.generated === 'group') && slideLayout(s.html) === 'section'
+  const of = deck.filter(opens).length
   if (of < 2) return deck
   let n = 0
   for (const s of deck) {
-    if (!s.generated && slideLayout(s.html) === 'section') n++
+    if (opens(s)) n++
     if (n) s.part = { n, of }
   }
   return deck
@@ -127,7 +136,17 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
         })
       }
     }
+    const dividers = new Map(options.groups ? entriesIn(state, day.id).flatMap((e) => (e.type === 'group' && e.group.title.trim() && e.items.length ? [[e.items[0].id, e.group] as const] : [])) : [])
     for (const item of items) {
+      const group = dividers.get(item.id)
+      if (group) {
+        out.push({
+          key: `group:${group.id}`,
+          generated: 'group',
+          caption: group.title,
+          html: `<section class="slide section"><div class="text"><h1>${esc(group.title)}</h1></div>${picture(`group:${group.id}`)}</section>`,
+        })
+      }
       if (item.kind === 'marker' || item.kind === 'note') continue
       if (item.slides.length) {
         for (const s of item.slides) out.push({ key: `${item.id}:${s.id}`, html: s.html, itemId: item.id, caption: item.title })

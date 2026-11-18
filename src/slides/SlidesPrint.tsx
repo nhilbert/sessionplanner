@@ -22,6 +22,7 @@ export default function SlidesPrint({ data }: { data: WorkshopState }) {
         <span className="font-medium">{t('slides.printSlides')}</span>
         <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
         <Option checked={options.breaks} onChange={(breaks) => update({ breaks })}>{t('slides.withBreaks')}</Option>
+        <Option checked={options.groups} onChange={(groups) => update({ groups })}>{t('slides.withGroups')}</Option>
         <span className="text-ink-3">{t('slides.count', { count: deck.length })}</span>
         <Button size="sm" variant="primary" className="ml-auto" onClick={() => window.print()}>
           <Printer size={13} />

@@ -61,6 +61,7 @@ export function DeckPanel({ data, change, onNotice }: { data: WorkshopState; cha
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
         <Option checked={options.breaks} onChange={(breaks) => update({ breaks })}>{t('slides.withBreaks')}</Option>
+        <Option checked={options.groups} onChange={(groups) => update({ groups })}>{t('slides.withGroups')}</Option>
         {pictures.length > 0 && (
           <>
             <Option checked={options.pictures} onChange={(pictures) => update({ pictures })}>{t('slides.withPictures')}</Option>

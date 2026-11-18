@@ -1125,8 +1125,8 @@ export class Ops {
     return { theme: id, pictures: entries('picture'), icons: entries('icon') }
   }
 
-  /** The deck of a workshop as it would be shown: generated slides and the items' own, in order; agenda and break slides can be left out as in the app. */
-  deckOutline(ref: string, options: { agenda?: boolean; breaks?: boolean } = {}) {
+  /** The deck of a workshop as it would be shown: generated slides and the items' own, in order; agenda and break slides can be left out and the groups' divider slides put in, as in the app. */
+  deckOutline(ref: string, options: { agenda?: boolean; breaks?: boolean; groups?: boolean } = {}) {
     const s = this.state(ref)
     const labels = { untitled: 'Workshop', day: (n: number) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t: string) => `bis ${t}`, minutes: (n: number) => `${n} Minuten`, date: (d: string) => d }
     const theme = s.workshop.theme || this.repo.getSettings().theme || 'default'

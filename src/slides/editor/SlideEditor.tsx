@@ -19,7 +19,7 @@ import { PictureField } from './PicturePicker'
 import { LayoutPicker } from './LayoutPicker'
 import { tr } from './fields'
 import { dropRedo, dropUndo, EMPTY_HISTORY, type History, lastStep, nextStep, record, recordEdit, redone, rekey, seal, undone } from './history'
-import type { EditorSlide, SlideSource } from './source'
+import type { EditorSlide, HideableKind, SlideSource } from './source'
 
 interface Props {
   source: SlideSource
@@ -811,7 +811,7 @@ function Thumbs({ slides, current, theme, scope, onPick }: { slides: EditorSlide
 }
 
 /** What a slide that is not edited here is, and what can be done instead. */
-function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, picture }: { slide: EditorSlide; canEdit: boolean; onDetails?: () => void; onHide?: (kind: 'agenda' | 'break') => void; onAdopt?: () => void; onTemplate?: () => void; picture?: { value: string; set: (hash: string) => void; scope: AssetScope; known: string[]; theme: string } }) {
+function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, picture }: { slide: EditorSlide; canEdit: boolean; onDetails?: () => void; onHide?: (kind: HideableKind) => void; onAdopt?: () => void; onTemplate?: () => void; picture?: { value: string; set: (hash: string) => void; scope: AssetScope; known: string[]; theme: string } }) {
   const { t } = useTranslation()
   const kind = slide.generated?.kind
   const text = kind ? tr(t, `editor.generated.${kind}`) : slide.pool ? t('editor.poolNote') : t('editor.viewOnly')
@@ -835,9 +835,9 @@ function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, pict
         )}
         {kind === 'title' && onDetails && <Button size="sm" onClick={onDetails}>{t('editor.openDetails')}</Button>}
         {kind === 'break' && onAdopt && canEdit && <Button size="sm" onClick={onAdopt}>{t('editor.adoptBreak')}</Button>}
-        {(kind === 'agenda' || kind === 'break') && onHide && canEdit && (
+        {kind && kind !== 'title' && onHide && canEdit && (
           <Button size="sm" variant="ghost" onClick={() => onHide(kind)}>
-            {kind === 'agenda' ? t('editor.hideAgenda') : t('editor.hideBreaks')}
+            {t(kind === 'agenda' ? 'editor.hideAgenda' : kind === 'break' ? 'editor.hideBreaks' : 'editor.hideGroups')}
           </Button>
         )}
         {slide.pool && onTemplate && (

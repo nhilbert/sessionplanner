@@ -866,13 +866,15 @@
       "title": "Titelfolie",
       "day": "Tag {{n}}",
       "agenda": "Agenda",
-      "break": "Pause"
+      "break": "Pause",
+      "group": "Trennblatt"
     },
     "until": "bis {{time}}",
     "minutes": "{{count}} Minuten",
     "deckEmpty": "Noch keine Folien in der Agenda. Füge Punkten Folien hinzu (Details) oder nimm Punkte mit Folien aus der Bibliothek.",
     "withAgenda": "Agenda-Folie je Tag",
     "withBreaks": "Pausenfolien",
+    "withGroups": "Trennblätter für Gruppen",
     "withPictures": "Bilder aus dem Pool",
     "otherPictures": "Andere Bilder",
     "exit": "Präsentation beenden",
@@ -1092,12 +1094,14 @@
     "generated": {
       "title": "Die Titelfolie entsteht aus dem Workshop: Titel, Datum, Kunde und Ort. Ändere sie dort, die Folie folgt.",
       "agenda": "Die Agenda-Folie entsteht aus dem Ablauf des Tages mit den berechneten Zeiten und folgt jeder Änderung.",
-      "break": "Die Pausenfolie entsteht aus der Pause: Titel, Dauer und Ende kommen aus dem Ablauf. Mit einer eigenen Folie für diese Pause gilt deine Folie statt der erzeugten."
+      "break": "Die Pausenfolie entsteht aus der Pause: Titel, Dauer und Ende kommen aus dem Ablauf. Mit einer eigenen Folie für diese Pause gilt deine Folie statt der erzeugten.",
+      "group": "Das Trennblatt entsteht aus der Gruppe: Es steht vor ihrem ersten Schritt und zeigt ihren Titel. Benenne die Gruppe im Ablauf um, die Folie folgt. Gruppen ohne Titel bekommen keins."
     },
     "openDetails": "Workshop-Details öffnen",
     "adoptBreak": "Eigene Folie für diese Pause",
     "hideAgenda": "Agenda-Folien ausblenden",
     "hideBreaks": "Pausenfolien ausblenden",
+    "hideGroups": "Trennblätter ausblenden",
     "poolNote": "Folien der Sammlung bleiben unverändert. Übernimm sie über „Neue Folie“ → „Aus der Foliensammlung“ in einen Schritt oder speichere sie als Vorlage.",
     "viewOnly": "Nur ansehen.",
     "ctx": {

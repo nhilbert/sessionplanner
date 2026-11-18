@@ -1,5 +1,5 @@
 import type { Deck, DeckSlide, Slide, SlideTemplate } from '@/domain/types'
-import type { DeckSlideRef } from '@/domain/deck'
+import type { DeckSlideRef, GeneratedKind } from '@/domain/deck'
 import type { SlideHomes } from '@/domain/slideMove'
 import { newId } from '@/domain/ops'
 import { MAX_SLIDES, normalizeSlideHtml } from '@/domain/slides'
@@ -20,7 +20,7 @@ export interface EditorSlide {
   groupLabel: string
   editable: boolean
   /** A slide the app generates from the plan: shown, explained, not edited. `adopt` names the step it can become a slide of. */
-  generated?: { kind: 'title' | 'agenda' | 'break'; adopt?: string }
+  generated?: { kind: GeneratedKind; adopt?: string }
   /** A slide of the pool: shown and taken from, never changed. */
   pool?: boolean
 }
@@ -41,6 +41,9 @@ export interface SlideTransfer {
   keyOf(home: string, slide: string): string | null
   label(home: string): string
 }
+
+/** The generated slides a deck can do without. */
+export type HideableKind = Exclude<GeneratedKind, 'title'>
 
 export interface SlideSource {
   /** What the editor is open on, for the header ("Schritt", "Folien des Workshops" …). */
@@ -64,7 +67,7 @@ export interface SlideSource {
   /** Generated slides of a deck: the picture chosen by hand for a slide key, and the way to set it ('' = automatic). */
   setPicture?(key: string, hash: string): void
   pictureOf?(key: string): string
-  hide?(kind: 'agenda' | 'break'): void
+  hide?(kind: HideableKind): void
   /** The planner: where a slide stands in the deck as presented (1-based), or null when it is not in it (a parked step). */
   presentAt?(key: string): number | null
   /** Opens the presentation at that slide. */
@@ -116,13 +119,13 @@ export function deckSource(o: {
   /** The deck now (deckOf over the store's state). */
   deck(): DeckSlideRef[]
   title(itemId: string): string
-  generatedLabel(kind: 'title' | 'agenda' | 'break'): string
+  generatedLabel(kind: GeneratedKind): string
   slidesOf(itemId: string): Slide[] | undefined
   setSlides(itemId: string, slides: Slide[]): void
   editable: boolean
   session?: SlideSource['session']
   openDetails?(): void
-  hide(kind: 'agenda' | 'break'): void
+  hide(kind: HideableKind): void
   /** The picture of a generated slide (by its key): '' = back to the pool's turn. */
   setPicture?(key: string, hash: string): void
   pictureOf?(key: string): string

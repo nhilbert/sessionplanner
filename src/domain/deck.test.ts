@@ -60,7 +60,7 @@ describe('deckOf', () => {
 describe('pictures from the pool', () => {
   const pool = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)]
   it('gives the generated title, agenda and break slides a picture each, in turn from a place the workshop decides', () => {
-    const deck = deckOf(state, labels, { agenda: true, breaks: true, pictures: true, shift: 0 }, pool)
+    const deck = deckOf(state, labels, { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }, pool)
     const pics = deck.filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
     expect(pics).toHaveLength(3)
     expect(new Set(pics).size).toBe(3)
@@ -68,12 +68,12 @@ describe('pictures from the pool', () => {
     expect(deck[1].html).toContain('<div class="cols"><ol class="agenda">')
     // the same every time; a shift turns the rotation; another workshop starts elsewhere
     expect(deckOf(state, labels, undefined, pool).map((s) => s.html)).toEqual(deck.map((s) => s.html))
-    const shifted = deckOf(state, labels, { agenda: true, breaks: true, pictures: true, shift: 1 }, pool).filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
+    const shifted = deckOf(state, labels, { agenda: true, breaks: true, groups: false, pictures: true, shift: 1 }, pool).filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
     expect(shifted).toEqual([...pics.slice(1), pics[0]])
     const other = deckOf({ ...state, workshop: { ...state.workshop, id: 'w2' } }, labels, undefined, pool).filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
     expect(other).not.toEqual(pics)
     // off, or an empty pool: the slides as before
-    expect(deckOf(state, labels, { agenda: true, breaks: true, pictures: false, shift: 0 }, pool).some((s) => s.html.includes('asset:'))).toBe(false)
+    expect(deckOf(state, labels, { agenda: true, breaks: true, groups: false, pictures: false, shift: 0 }, pool).some((s) => s.html.includes('asset:'))).toBe(false)
     expect(deckOf(state, labels).some((s) => s.html.includes('asset:'))).toBe(false)
   })
 })
@@ -81,9 +81,24 @@ describe('pictures from the pool', () => {
 describe('the section tracker', () => {
   const section = (id: string, title: string) => ({ id, html: `<section class="slide section"><div class="text"><h1>${title}</h1></div></section>` })
   const list = (id: string) => ({ id, html: '<section class="slide list"><p>x</p></section>' })
+  it('puts a divider with the group\'s title before the first step of a titled group, when asked for', () => {
+    const grouped: WorkshopState = { ...state, groups: [...state.groups, { id: 'empty', workshopId: 'w', dayId: 'd1', position: 5, title: 'Leer' }, { id: 'nameless', workshopId: 'w', dayId: 'd1', position: 6, title: ' ' }], items: [...state.items, item('n', { position: 1, groupId: 'nameless' })] }
+    expect(deckOf(grouped, labels).some((s) => s.generated === 'group')).toBe(false)
+    const deck = deckOf(grouped, labels, { ...DECK_DEFAULTS, groups: true })
+    expect(deck.map((s) => s.key)).toEqual(['title:d1', 'agenda:d1:0', 'a:s1', 'a:s2', 'group:g', 'break:pause'])
+    expect(deck[4]).toMatchObject({ generated: 'group', caption: 'Block A', html: '<section class="slide section"><div class="text"><h1>Block A</h1></div></section>' })
+    expect(deck[4].part).toBeUndefined()
+  })
+
+  it('counts the dividers in the section tracker', () => {
+    const two: WorkshopState = { ...state, items: state.items.map((i) => (i.id === 'b' ? { ...i, slides: [{ id: 's', html: '<section class="slide section"><h1>x</h1></section>' }] } : i)) }
+    const deck = deckOf(two, labels, { ...DECK_DEFAULTS, groups: true })
+    expect(deck.filter((s) => s.part).map((s) => [s.key, s.part!.n, s.part!.of])).toEqual([['group:g', 1, 2], ['b:s', 2, 2], ['break:pause', 2, 2]])
+  })
+
   it('numbers the parts from the first section slide on, once the deck has two sections', () => {
     const two: WorkshopState = { ...state, items: [item('a', { position: 1, slides: [list('s0'), section('s1', 'Eins'), list('s2')] }), item('b', { position: 2, slides: [section('s3', 'Zwei'), list('s4')] })] }
-    const deck = deckOf(two, labels, { agenda: true, breaks: false, pictures: false, shift: 0 })
+    const deck = deckOf(two, labels, { agenda: true, breaks: false, groups: false, pictures: false, shift: 0 })
     expect(deck.map((s) => (s.part ? `${s.part.n}/${s.part.of}` : '-'))).toEqual(['-', '-', '-', '1/2', '1/2', '2/2', '2/2'])
     const one: WorkshopState = { ...state, items: [item('a', { position: 1, slides: [section('s1', 'Eins'), list('s2')] })] }
     expect(deckOf(one, labels).some((s) => s.part)).toBe(false)
@@ -94,12 +109,12 @@ describe('pictures chosen by hand', () => {
   const pool = ['a'.repeat(64), 'b'.repeat(64)]
   it('a generated slide shows the picture chosen for its key and leaves the pool\'s turn to the others', () => {
     const chosen = { ...state, workshop: { ...state.workshop, pictures: { 'title:d1': 'c'.repeat(64) } } }
-    const deck = deckOf(chosen, labels, { agenda: true, breaks: true, pictures: true, shift: 0 }, pool)
+    const deck = deckOf(chosen, labels, { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }, pool)
     expect(deck[0].html).toContain(`asset:${'c'.repeat(64)}`)
     const rest = deck.filter((s) => s.generated && s.key !== 'title:d1').map((s) => /asset:([a-f])/.exec(s.html)?.[1])
     expect([...rest].sort()).toEqual(['a', 'b'])
     // chosen pictures stay when the pool's pictures are switched off
-    const off = deckOf(chosen, labels, { agenda: true, breaks: true, pictures: false, shift: 0 }, pool)
+    const off = deckOf(chosen, labels, { agenda: true, breaks: true, groups: false, pictures: false, shift: 0 }, pool)
     expect(off[0].html).toContain(`asset:${'c'.repeat(64)}`)
     expect(off.slice(1).some((s) => s.html.includes('asset:'))).toBe(false)
   })

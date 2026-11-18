@@ -127,7 +127,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
           editable: true,
           session: sessionHooks,
           openDetails: onDetails,
-          hide: (kind) => updateDeckOptions(kind === 'agenda' ? { agenda: false } : { breaks: false }),
+          hide: (kind) => updateDeckOptions(kind === 'agenda' ? { agenda: false } : kind === 'break' ? { breaks: false } : { groups: false }),
           pictureOf: (key) => now()?.workshop.pictures?.[key] ?? '',
           setPicture: (key, hash) => {
             const state = now()

@@ -851,13 +851,15 @@
       "title": "Title slide",
       "day": "Day {{n}}",
       "agenda": "Agenda",
-      "break": "Break"
+      "break": "Break",
+      "group": "Divider"
     },
     "until": "until {{time}}",
     "minutes": "{{count}} minutes",
     "deckEmpty": "No slides in the agenda yet. Add slides to items (details) or take items with slides from the library.",
     "withAgenda": "Agenda slide per day",
     "withBreaks": "Break slides",
+    "withGroups": "Divider slides for groups",
     "withPictures": "Pictures from the pool",
     "otherPictures": "Other pictures",
     "exit": "Leave the presentation",
@@ -1077,12 +1079,14 @@
     "generated": {
       "title": "The title slide comes from the workshop: title, date, client and location. Change them there and the slide follows.",
       "agenda": "The agenda slide comes from the day's plan with the computed times and follows every change.",
-      "break": "The break slide comes from the break: title, length and end come from the plan. With a slide of your own for this break, yours is shown instead."
+      "break": "The break slide comes from the break: title, length and end come from the plan. With a slide of your own for this break, yours is shown instead.",
+      "group": "The divider slide comes from the group: it stands before its first step and shows its title. Rename the group in the plan and the slide follows. Groups without a title get none."
     },
     "openDetails": "Open workshop details",
     "adoptBreak": "Own slide for this break",
     "hideAgenda": "Hide agenda slides",
     "hideBreaks": "Hide break slides",
+    "hideGroups": "Hide divider slides",
     "poolNote": "Slides of the pool stay as they are. Take them into a step with “New slide” → “From the slide pool”, or save them as a template.",
     "viewOnly": "View only.",
     "ctx": {
