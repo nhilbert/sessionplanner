@@ -32,7 +32,8 @@ interface Props {
   cutout?: { on: boolean; set: (on: boolean) => void }
   /** A text or picture inside an entry: select the entry (to remove the whole card). */
   onEntry?: () => void
-  onRemove: () => void
+  /** Remove the element; left out where removing is the fields' (a worksheet's blocks). */
+  onRemove?: () => void
 }
 
 /** The colour a place of the palette shows in the theme (slides.css). */
@@ -150,9 +151,11 @@ export function SlideToolbar({ anchor, kind, theme, state, onBold, onItalic, onS
           <CornerLeftUp size={14} />
         </Tool>
       )}
-      <Tool label={t('editor.onSlide.remove')} onClick={onRemove} className="hover:text-rose">
-        <Trash2 size={14} />
-      </Tool>
+      {onRemove && (
+        <Tool label={t('editor.onSlide.remove')} onClick={onRemove} className="hover:text-rose">
+          <Trash2 size={14} />
+        </Tool>
+      )}
     </div>
   )
 }
