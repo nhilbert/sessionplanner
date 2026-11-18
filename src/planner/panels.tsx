@@ -6,7 +6,7 @@ import type { TFunction } from 'i18next'
 import { type Attachment, type Member, type MemberRole, type PackingState, TRASH_DAYS, type WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
-import { packingList } from '@/domain/packing'
+import { workshopPacking } from '@/domain/packing'
 import { api, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { Button, Checkbox, cx, Field, IconButton, Input, Modal, SectionLabel, Segmented } from '@/components/ui'
@@ -91,7 +91,7 @@ export function MaterialPanel({ data, change, onAttachment, onRemove, owner }: {
 
 export function PackingPanel({ data, change }: { data: WorkshopState; change: (ops: Op[]) => void }) {
   const { t } = useTranslation()
-  const lines = useMemo(() => packingList(agendaOrder(data.days, data), data.workshop.packing, data.workshop.materials), [data])
+  const lines = useMemo(() => workshopPacking(data), [data])
   const w = data.workshop
   const update = (key: string, patch: PackingState) => {
     const packing = { ...w.packing, [key]: { ...w.packing[key], ...patch } }

@@ -67,6 +67,8 @@ export interface Workshop {
   materials: Material[]
   /** Pictures chosen by hand for generated slides: the slide's key (title:<day>, agenda:<day>:<page>, break:<item>) → asset hash; the others take the pool's pictures in turn. */
   pictures: Record<string, string>
+  /** How many take part, for the print rule "per person" (docs/worksheets.md); null = not known yet. */
+  participants: number | null
   archived: boolean
   createdAt: string
   updatedAt: string
@@ -115,11 +117,29 @@ export interface Item {
   notes: string
   materials: Material[]
   attachmentIds: string[]
+  /** How many copies of each linked file to print, keyed by the attachment's id; a file without one prints nothing (docs/worksheets.md). */
+  printRules: Record<string, PrintRule>
+  /** The number of groups that work on this step, for the print rule "per group"; 1 unless set by hand. */
+  groups: number
   /** Slides shown for this step, in order (docs/slides.md). */
   slides: Slide[]
   categoryId: string | null
   /** Overrides the category's colour. */
   color: PaletteKey | null
+}
+
+export const PRINT_MODES = ['off', 'person', 'group', 'once', 'count'] as const
+export type PrintMode = (typeof PRINT_MODES)[number]
+export const PAPERS = ['A4', 'A3', 'A5'] as const
+export type Paper = (typeof PAPERS)[number]
+
+/** How many copies of a sheet a workshop needs, and how they are printed (docs/worksheets.md, section 2). */
+export interface PrintRule {
+  mode: PrintMode
+  /** Only for mode 'count'. */
+  count?: number
+  paper: Paper
+  duplex: boolean
 }
 
 /** One slide: markup in the slide format, sanitised on write and on render (src/domain/slides.ts). */
@@ -226,8 +246,8 @@ export interface TrashedWorkshop {
 }
 
 /** The content of an item without its place in a workshop (library entries, copies). */
-/** attachmentIds name the files of the place the content is in: a workshop's attachments, or the library entry's. */
-export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'attachmentIds' | 'slides' | 'categoryId' | 'color'>
+/** attachmentIds (and the keys of printRules) name the files of the place the content is in: a workshop's attachments, or the library entry's. */
+export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'attachmentIds' | 'printRules' | 'slides' | 'categoryId' | 'color'>
 
 /** A file of a library entry; inserting the entry gives the workshop a copy of it. */
 export type LibraryAttachment = Omit<Attachment, 'workshopId'> & { entryId: string }

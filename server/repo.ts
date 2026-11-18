@@ -3,6 +3,7 @@ import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAU
 import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op, picturesIn } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
+import { mapRules, rulesOfLinked } from '../src/domain/printing.ts'
 import { changeTags, normalizeTags } from '../src/domain/tags.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
@@ -25,6 +26,7 @@ const WORKSHOP_COLS: Columns = {
   pictures: ['pictures', 'json'],
   archived: ['archived', 'bool'],
   theme: ['theme', 'text'],
+  participants: ['participants', 'num'],
 }
 const DAY_COLS: Columns = {
   position: ['position', 'num'],
@@ -52,6 +54,8 @@ const ITEM_COLS: Columns = {
   notes: ['notes', 'text'],
   materials: ['materials', 'json'],
   attachmentIds: ['attachment_ids', 'json'],
+  printRules: ['print_rules', 'json'],
+  groups: ['groups', 'num'],
   slides: ['slides', 'json'],
   categoryId: ['category_id', 'text'],
   color: ['color', 'text'],
@@ -78,6 +82,7 @@ const toWorkshop = (r: Row): Workshop => ({
   packing: JSON.parse(r.packing as string),
   materials: JSON.parse(r.materials as string),
   pictures: JSON.parse((r.pictures as string | null) ?? '{}'),
+  participants: (r.participants as number | null) ?? null,
   archived: r.archived === 1,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
@@ -117,6 +122,8 @@ const toItem = (r: Row): Item => ({
   notes: r.notes as string,
   materials: JSON.parse(r.materials as string),
   attachmentIds: JSON.parse(r.attachment_ids as string),
+  printRules: JSON.parse((r.print_rules as string | null) ?? '{}'),
+  groups: (r.groups as number | null) ?? 1,
   slides: JSON.parse((r.slides as string | null) ?? '[]'),
   categoryId: (r.category_id as string | null) ?? null,
   color: (r.color as Item['color']) ?? null,
@@ -164,10 +171,10 @@ const toLibraryEntry = (r: Row, attachments: LibraryAttachment[]): LibraryEntry 
     updatedAt: r.updated_at as string,
   }) as unknown as LibraryEntry
 
-/** Entries saved before slides and files existed get empty lists. */
+/** Entries saved before slides, files and print rules existed get empty ones. */
 function entryDefaults(data: { items?: Record<string, unknown>[] } & Record<string, unknown>) {
-  if (Array.isArray(data.items)) return { ...data, items: data.items.map((i) => ({ slides: [], attachmentIds: [], ...i })) }
-  return { slides: [], attachmentIds: [], ...data }
+  if (Array.isArray(data.items)) return { ...data, items: data.items.map((i) => ({ slides: [], attachmentIds: [], printRules: {}, ...i })) }
+  return { slides: [], attachmentIds: [], printRules: {}, ...data }
 }
 
 const toMember = (r: Row): Member => ({
@@ -495,8 +502,8 @@ export class Repo {
     const w = src.workshop
     this.tx(() => {
       this.db
-        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, theme, packing, materials, pictures, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
-        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, w.theme, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), JSON.stringify(w.pictures ?? {}), t, t)
+        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, theme, packing, materials, pictures, participants, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
+        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, w.theme, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), JSON.stringify(w.pictures ?? {}), w.participants, t, t)
       for (const d of days) this.insert('days', DAY_COLS, { ...d, id: dayIds.get(d.id)!, workshopId: newWs, date: moved(d.date) })
       for (const g of src.groups) this.insert('groups', GROUP_COLS, { ...g, id: groupIds.get(g.id)!, workshopId: newWs, dayId: g.dayId ? (dayIds.get(g.dayId) ?? null) : null })
       for (const a of src.attachments)
@@ -511,6 +518,7 @@ export class Repo {
           materials: i.materials.map((m) => ({ ...m, id: newId() })),
           slides: i.slides.map((s) => ({ ...s, id: newId() })),
           attachmentIds: i.attachmentIds.filter((x) => files[x]).map((x) => files[x]),
+          printRules: mapRules(i.printRules, (x) => files[x]),
         })
     })
     return { state: this.loadWorkshop(newWs)!, files }
@@ -563,11 +571,13 @@ export class Repo {
     if (!att) return null
     return this.tx(() => {
       const ops: Op[] = []
-      const linked = this.db.prepare(`SELECT id, attachment_ids FROM items WHERE workshop_id = ? AND attachment_ids LIKE ?`).all(att.workshopId, `%${id}%`) as Row[]
+      const linked = this.db.prepare(`SELECT id, attachment_ids, print_rules FROM items WHERE workshop_id = ? AND attachment_ids LIKE ?`).all(att.workshopId, `%${id}%`) as Row[]
       for (const r of linked) {
         const attachmentIds = (JSON.parse(r.attachment_ids as string) as string[]).filter((x) => x !== id)
-        this.update('items', ITEM_COLS, r.id as string, { attachmentIds })
-        ops.push({ op: 'set', entity: 'item', id: r.id as string, fields: { attachmentIds } })
+        // The file's print rule goes with it.
+        const printRules = rulesOfLinked(JSON.parse((r.print_rules as string | null) ?? '{}'), attachmentIds)
+        this.update('items', ITEM_COLS, r.id as string, { attachmentIds, printRules })
+        ops.push({ op: 'set', entity: 'item', id: r.id as string, fields: { attachmentIds, printRules } })
       }
       this.db.prepare('DELETE FROM attachments WHERE id = ?').run(id)
       this.nextRevision(att.workshopId)
@@ -765,7 +775,10 @@ export class Repo {
     const entry = att && this.getLibraryEntry(att.entryId)
     if (!entry) return null
     this.tx(() => {
-      this.setEntryItems(entry, (c) => ({ ...c, attachmentIds: c.attachmentIds.filter((x) => x !== id) }))
+      this.setEntryItems(entry, (c) => {
+        const attachmentIds = c.attachmentIds.filter((x) => x !== id)
+        return { ...c, attachmentIds, printRules: rulesOfLinked(c.printRules ?? {}, attachmentIds) }
+      })
       this.db.prepare('DELETE FROM library_attachments WHERE id = ?').run(id)
     })
     return this.getLibraryEntry(entry.id)

@@ -1,6 +1,7 @@
 import { copyFileSync, rmSync } from 'node:fs'
 import { newId } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
+import { mapRules } from '../src/domain/printing.ts'
 import type { Attachment, ItemContent, LibraryEntry } from '../src/domain/types.ts'
 import type { LibraryFile, Repo } from './repo.ts'
 import { type NoRoom, type StorageBudget, StorageFull } from './budget.ts'
@@ -109,6 +110,8 @@ export function copyToLibrary<E extends Pick<LibraryEntry, 'kind' | 'title' | 'd
       return [copies.get(source)!.id]
     }),
   })
-  const data = draft.kind === 'group' ? { items: entryItems(draft).map(withCopies) } : withCopies(draft.data as ItemContent)
+  // Each print rule follows its file to the copy (docs/worksheets.md).
+  const withRules = (c: ItemContent): ItemContent => ({ ...withCopies(c), printRules: mapRules(c.printRules, (source) => copies.get(source)?.id) })
+  const data = draft.kind === 'group' ? { items: entryItems(draft).map(withRules) } : withRules(draft.data as ItemContent)
   return { entry: { ...draft, data }, files: [...copies.values()] }
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { Op } from '../src/domain/ops.ts'
-import { PALETTE, type ItemContent, type LibraryBatch, type Settings } from '../src/domain/types.ts'
+import { PALETTE, PAPERS, PRINT_MODES, type ItemContent, type LibraryBatch, type Settings } from '../src/domain/types.ts'
 import { normalizeTags } from '../src/domain/tags.ts'
 import { extensionOf } from '../src/domain/attachments.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
@@ -26,6 +26,10 @@ const slides = z.array(slide).max(60)
 // A theme is a folder under data/themes; '' = the default.
 const theme = text(60).regex(/^[a-z0-9-]*$/)
 const color = z.enum(PALETTE)
+// A print rule per file of a step, keyed by the attachment's id (docs/worksheets.md).
+const printRule = z.strictObject({ mode: z.enum(PRINT_MODES), count: z.number().int().min(0).max(10_000).optional(), paper: z.enum(PAPERS), duplex: z.boolean() })
+const printRules = z.record(id, printRule).refine((r) => Object.keys(r).length <= 200, 'at most 200 print rules')
+const groupCount = z.number().int().min(1).max(500)
 const packingState = z.strictObject({ checked: z.boolean().optional(), venue: z.boolean().optional(), qty: z.number().int().min(0).max(100_000).optional() })
 
 const workshopFields = z.strictObject({
@@ -40,6 +44,7 @@ const workshopFields = z.strictObject({
   pictures: z.record(z.string().max(80), z.string().regex(/^[0-9a-f]{64}$/, 'an asset hash')).refine((r) => Object.keys(r).length <= 200, 'at most 200 pictures'),
   archived: z.boolean(),
   theme,
+  participants: z.number().int().min(1).max(10_000).nullable(),
 })
 
 const dayFields = z.strictObject({
@@ -66,6 +71,7 @@ const itemContent = z.strictObject({
   notes: text(100_000),
   materials: z.array(material).max(200),
   attachmentIds: z.array(id).max(200).default([]),
+  printRules: printRules.default({}),
   slides: slides.default([]),
   categoryId: id.nullable(),
   color: color.nullable(),
@@ -86,6 +92,8 @@ const itemFields = z.strictObject({
   notes: text(100_000),
   materials: z.array(material).max(200),
   attachmentIds: z.array(id).max(200),
+  printRules,
+  groups: groupCount,
   slides,
   categoryId: id.nullable(),
   color: color.nullable(),
@@ -98,7 +106,7 @@ const op = z.union([
   z.strictObject({ op: z.literal('set'), entity: z.literal('item'), id, fields: itemFields.partial() }),
   z.strictObject({ op: z.literal('create'), entity: z.literal('day'), record: dayFields.extend({ id, workshopId: id }) }),
   z.strictObject({ op: z.literal('create'), entity: z.literal('group'), record: groupFields.extend({ id, workshopId: id }) }),
-  z.strictObject({ op: z.literal('create'), entity: z.literal('item'), record: itemFields.extend({ id, workshopId: id, slides: slides.default([]) }) }),
+  z.strictObject({ op: z.literal('create'), entity: z.literal('item'), record: itemFields.extend({ id, workshopId: id, slides: slides.default([]), printRules: printRules.default({}), groups: groupCount.default(1) }) }),
   z.strictObject({ op: z.literal('delete'), entity: z.enum(['day', 'group', 'item']), id }),
 ])
 

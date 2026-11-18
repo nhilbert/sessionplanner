@@ -1,7 +1,7 @@
 import type { Category, Day, Item, Material, WorkshopState } from './types.ts'
-import { agendaOrder, entriesIn, itemsIn, sortedDays } from './order.ts'
+import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { type DaySchedule, durationOf, formatDuration, formatTime, scheduleDay } from './time.ts'
-import { packingList } from './packing.ts'
+import { workshopPacking } from './packing.ts'
 
 /**
  * Print views and their Markdown twin (docs/concept.md, section 6). One set of switches drives both the printed
@@ -315,6 +315,6 @@ function sectionLines(rows: PrintRow[], state: WorkshopState, o: PrintOptions, l
 }
 
 function packingLines(state: WorkshopState, l: PrintLabels): string[] {
-  const lines = packingList(agendaOrder(state.days, state), state.workshop.packing, state.workshop.materials)
+  const lines = workshopPacking(state)
   return lines.map((p) => `- [${p.state.checked ? 'x' : ' '}] ${p.qty > 1 ? `${p.qty} × ` : ''}${p.label}${p.state.venue ? ` (${l.venue})` : ''}`)
 }
