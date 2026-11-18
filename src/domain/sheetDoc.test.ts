@@ -91,3 +91,17 @@ describe('starter sheets', () => {
         }
   })
 })
+
+describe('typing on the page', () => {
+  it('finds an element by its path and replaces its inline content, the rest as it was', async () => {
+    const { setSheetInline, sheetElementAt } = await import('./sheetDoc.ts')
+    const page = '<section class="sheet"><header><h1>Titel</h1></header><div class="block circle"><ol><li></li><li></li><li></li></ol><p class="middle">Std.</p></div><div class="block question lines-2"><h3>Frage</h3></div></section>'
+    // the circle's drawing is the first child of its block, as in the page the browser shows
+    expect(sheetElementAt(page, [1, 2], ['div', 'p'])?.attrs.class).toBe('middle')
+    expect(sheetElementAt(page, [2, 0], ['div', 'p'])).toBeNull()
+    const next = setSheetInline(page, [2, 0], textInline('Was **nehme** ich mit? ___'))!
+    expect(next).toContain('<h3>Was <strong>nehme</strong> ich mit? <span class="blank"></span></h3>')
+    expect(canonicalSheet(next).replace(/<h3>Was.*?<\/h3>/, '<h3>Frage</h3>')).toBe(canonicalSheet(page))
+    expect(setSheetInline(page, [9], [])).toBeNull()
+  })
+})

@@ -223,6 +223,7 @@
     "filter": "With worksheet"
   },
   "sheetEditor": {
+    "onPageHint": "Click a text on the page to type in it · Ctrl+B bold, Ctrl+I italic · Enter or Esc ends · blanks (___) and new entries in the fields",
     "sheet": "Sheet",
     "page": "Page {{n}} of {{total}}",
     "landscape": "Landscape",

@@ -121,7 +121,7 @@ On the owner's retired instance there was no public access, so no share links: e
 6. **Slides** – done (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
 7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7. Since 2026-11-17 with a mouse on the slide itself, with formatting by hand that follows the theme (section 10).
 8. **Preparing for several workspaces** – in preparation: section 10, 2026-11-05. No change for users.
-9. **Worksheets** – stages 0 to 3a done (2026-11-18): print rules and a print package, the worksheet format, sheets on units with library, print view and connector, sheets in the print package printed job by job, the editor with fields and starter sheets; typing on the page (3b) and the remaining blocks (stage 4) later; see [worksheets.md](worksheets.md).
+9. **Worksheets** – stages 0 to 3a done (2026-11-18): print rules and a print package, the worksheet format, sheets on units with library, print view and connector, sheets in the print package printed job by job, the editor with fields, typing on the page and starter sheets; the remaining blocks and page kinds (stage 4) later; see [worksheets.md](worksheets.md).
 
 **Backlog** (no order):
 

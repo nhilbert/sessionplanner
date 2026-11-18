@@ -223,6 +223,7 @@
     "filter": "Mit Arbeitsblatt"
   },
   "sheetEditor": {
+    "onPageHint": "Klick auf einen Text der Seite tippt hinein · Strg+B fett, Strg+I kursiv · Enter oder Esc beendet · Schreiblücken (___) und neue Einträge in den Feldern",
     "sheet": "Blatt",
     "page": "Seite {{n}} von {{total}}",
     "landscape": "Querformat",

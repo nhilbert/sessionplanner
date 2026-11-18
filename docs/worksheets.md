@@ -2,7 +2,7 @@
 
 Printed material for the steps of a workshop: worksheets for exercises and handouts for methods. A step says how many copies of each sheet the workshop needs; the workshop exports one print package with a file per print job. Sheets are written in the app as content in a small HTML subset, like slides, and laid out by one stylesheet; files made elsewhere (a PDF from a layout program) stay possible and follow the same print rule.
 
-Stage 0 (print rules and the print package), stage 1 (the format, outside the app), stage 2 (sheets in the app, with the print package) and stage 3a (the editor with fields) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
+Stage 0 (print rules and the print package), stage 1 (the format, outside the app), stage 2 (sheets in the app, with the print package) and stage 3 (the editor, with fields and typing on the page) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
 
 No client, partner or brand names in this file. The owner's sample worksheets are private material and stay outside this repository.
 
@@ -141,7 +141,7 @@ Stage 3a, built 2026-11-18:
 - Guests who may edit a workshop edit its sheets as the owner does (decided 2026-11-18).
 - On a phone the page stands above the fields.
 
-Stage 3b: typing on the page itself, as on slides, is left for later (decided 2026-11-18).
+Stage 3b, built 2026-11-18 (brought forward by the owner the same day): **typing on the page**, with the slides' machinery (`src/slides/editor/inplace.ts`, `src/domain/inlineRuns.ts`; `src/worksheets/editor/onPage.ts`). With a mouse on more than a phone's width, a click on a text of the page – a title, an eyebrow, a lead, a question, a hint, a prompt, an entry of a list, a term, a cell, a caption, a step's time – puts the caret there; what is typed is written into the page's markup at that element's place (`setSheetInline`) and read as the page's document, so the fields follow and undo takes it back, one step per text while typing goes on. The bar above the text sets bold, italic, a size step, a colour of the theme's palette or removes formatting; Ctrl+B and Ctrl+I as well. Enter or Escape ends. While a text is typed in, the page is held still so the caret never jumps. A step's heading (it holds its time) and what a text does not hold yet – a blank, a new entry, a block – stay with the fields. Touch screens keep the fields only, as for slides.
 
 ## 8. Themes on paper
 

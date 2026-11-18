@@ -11,6 +11,9 @@ import { Button, cx, IconButton, Modal, useIsPhone } from '@/components/ui'
 import Menu, { type MenuItem } from '@/components/Menu'
 import { pageSize, SheetPage, useSheetChrome } from '../SheetView'
 import { Blocks } from './BlockFields'
+import { useOnPage } from './onPage'
+import { SlideToolbar } from '@/slides/editor/SlideToolbar'
+import { useMediaQuery } from '@/components/ui'
 
 /**
  * The worksheet editor (docs/worksheets.md, section 7): the slide editor's shell for sheets. It opens for looking –
@@ -51,6 +54,9 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
   const page = draft.pages[Math.min(current, draft.pages.length - 1)]
   const html = useMemo(() => serializeSheetPage(page.doc), [page.doc])
   const words = useBlockWords()
+  // typing on the page: with a mouse on more than a phone's width (touch screens keep the fields)
+  const fine = useMediaQuery('(pointer: fine)') && !phone
+  const onPage = useOnPage(html, (next, field) => update((d) => void (d.pages[current].doc = parseSheetPage(next)), field ?? undefined))
 
   // ---- changes, history, saving ------------------------------------------------------------------------------------
   const pending = useRef<Draft | null>(null)
@@ -77,6 +83,7 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
     schedule(next)
   }
   const undo = () => {
+    onPage.end()
     const prev = hist.past[hist.past.length - 1]
     if (!prev) return
     setHist({ past: hist.past.slice(0, -1), future: [...hist.future, draft], field: null, at: 0 })
@@ -85,6 +92,7 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
     schedule(prev)
   }
   const redo = () => {
+    onPage.end()
     const next = hist.future[hist.future.length - 1]
     if (!next) return
     setHist({ past: [...hist.past, draft], future: hist.future.slice(0, -1), field: null, at: 0 })
@@ -92,13 +100,15 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
     schedule(next)
   }
   const close = () => {
+    onPage.end()
     flush()
     onClose()
   }
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const typing = (e.target as HTMLElement | null)?.closest('input, textarea, select')
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
+      const typing = (e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]')
+      const onText = (e.target as HTMLElement | null)?.isContentEditable
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && (!typing || onText)) {
         e.preventDefault()
         if (e.shiftKey) redo()
         else undo()
@@ -157,7 +167,11 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
   const overCount = Object.keys(overflow).length
   const preview = (
     <div className="flex min-h-0 flex-col items-center gap-3">
-      <div ref={frame} className="w-full" style={{ maxWidth: `min(720px, calc((100dvh - ${phone ? 260 : 230}px) * ${size.w / size.h}))` }} onClick={(e) => {
+      <div ref={frame} className="w-full" onMouseDown={(e) => {
+        if (!editing || !fine || e.button !== 0) return
+        const section = frame.current?.querySelector('section.sheet')
+        if (section && onPage.begin(section, e.target as Element, { x: e.clientX, y: e.clientY })) e.preventDefault()
+      }} style={{ maxWidth: `min(720px, calc((100dvh - ${phone ? 260 : 230}px) * ${size.w / size.h}))` }} onClick={(e) => {
         // a click on a block of the page opens its card
         if (!editing) return
         const s = frame.current?.querySelector('section.sheet')
@@ -168,14 +182,15 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
           requestAnimationFrame(() => document.getElementById(`sheet-block-p${current}.${hit}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
         }
       }}>
-        <SheetPage html={html} paper={draft.paper} theme={theme} scope={scope} chrome={chrome(current + 1)} label={t('sheets.page', { n: current + 1 })} />
+        <SheetPage html={onPage.shown(html)} paper={draft.paper} theme={theme} scope={scope} chrome={chrome(current + 1)} label={t('sheets.page', { n: current + 1 })} />
       </div>
+      {editing && fine && <p className="text-[12px] text-ink-3">{t('sheetEditor.onPageHint')}</p>}
       {overCount > 0 && <p className="text-[13px] text-rose">{t('sheetEditor.overPage', { count: overCount })}</p>}
       <div className="flex w-full max-w-[640px] flex-wrap items-start gap-2">
         {draft.pages.map((p, i) => (
           <div key={p.id} className="w-[72px]">
             <div className={cx('rounded-sm ring-2', i === current ? 'ring-accent' : 'ring-transparent')}>
-              <SheetPage html={serializeSheetPage(p.doc)} paper={draft.paper} theme={theme} scope={scope} chrome={chrome(i + 1)} onClick={() => setCurrent(i)} label={t('sheets.page', { n: i + 1 })} />
+              <SheetPage html={serializeSheetPage(p.doc)} paper={draft.paper} theme={theme} scope={scope} chrome={chrome(i + 1)} onClick={() => (onPage.end(), setCurrent(i))} label={t('sheets.page', { n: i + 1 })} />
             </div>
             <div className="flex items-center justify-between text-[11px] text-ink-3">
               <span>{i + 1}</span>
@@ -276,7 +291,7 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
             <IconButton label={t('common.redo')} onClick={redo} disabled={!hist.future.length}>
               <Redo2 size={15} />
             </IconButton>
-            <Button size="sm" variant={editing ? 'primary' : 'ghost'} onClick={() => setEditing(!editing)}>
+            <Button size="sm" variant={editing ? 'primary' : 'ghost'} onClick={() => (onPage.end(), setEditing(!editing))}>
               {editing ? null : <Pencil size={13} />}
               {editing ? t('sheetEditor.done') : t('sheetEditor.edit')}
             </Button>
@@ -297,6 +312,9 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
         <div className={cx('overflow-y-auto bg-surface-2 p-4 md:p-6', editing && !phone && 'min-h-0')}>{preview}</div>
         {editing && <div className="min-h-0 overflow-y-auto border-l border-line p-4">{fields}</div>}
       </div>
+      {onPage.active && (
+        <SlideToolbar anchor={onPage.active.anchor} kind="text" theme={theme} state={onPage.active.state} onBold={onPage.bold} onItalic={onPage.italic} onSize={onPage.size} onColor={onPage.color} onClear={onPage.clear} />
+      )}
       {source !== null && (
         <PageSource
           html={source}

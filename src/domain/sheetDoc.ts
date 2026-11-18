@@ -564,3 +564,37 @@ export function blockSummary(b: SheetBlock): string {
       return ''
   }
 }
+
+// ---- one element of a page, by its path (typing on the page, docs/worksheets.md, section 7) ------------------------
+
+/** The page's tree and its section. */
+function openPage(html: string): { nodes: Node[]; root: El } | null {
+  const nodes = parseTree(normalizeSheetHtml(html))
+  const root = nodes.find((n): n is El => isEl(n) && n.tag === 'section')
+  return root ? { nodes, root } : null
+}
+
+function walkPath(root: El, path: number[], tags?: string[]): El | null {
+  let at = root
+  for (let i = 0; i < path.length; i++) {
+    const next = elements(at)[path[i]]
+    if (!next || (tags && tags[i] !== next.tag)) return null
+    at = next
+  }
+  return at
+}
+
+/** The element at a path of element positions from the section down, if its tags are the ones given (as the browser shows them). */
+export function sheetElementAt(html: string, path: number[], tags?: string[]): El | null {
+  const page = openPage(html)
+  return page && path.length ? walkPath(page.root, path, tags) : null
+}
+
+/** The page with the inline content of one element replaced; null when there is no such element. */
+export function setSheetInline(html: string, path: number[], children: Node[]): string | null {
+  const page = openPage(html)
+  const target = page && path.length ? walkPath(page.root, path) : null
+  if (!page || !target) return null
+  target.children = children
+  return serializeNodes(page.nodes)
+}
