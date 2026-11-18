@@ -187,6 +187,7 @@
     "printed": "print"
   },
   "sheets": {
+    "blackWhite": "Black and white",
     "title": "Worksheets",
     "asOf": "As of {{date}}",
     "newTitle": "New worksheet",
@@ -1132,6 +1133,13 @@
     }
   },
   "themes": {
+    "paper": "On paper",
+    "paperHint": "For worksheets: the ground is white, type and logo come from the theme, the accent only where it reads on white.",
+    "paperDark": "A dark theme prints light: white ground, dark text, the fonts kept. The logo comes from the printout settings, as the one uploaded here is made for the dark ground.",
+    "paperLogo": "Logo on worksheets",
+    "paperLogos": {"foot": "bottom right", "head": "top centre", "head-right": "top right", "none": "no logo"},
+    "paperFooter": "Line in the footer",
+    "paperFooterHint": "Stands beside the date, e.g. a name or a web address.",
     "title": "Slide themes",
     "subtitle": "Colours, fonts and logo of the slides; the logo also heads the printouts. A theme is chosen per workshop as its branding; the layouts stay the same.",
     "new": "New theme",

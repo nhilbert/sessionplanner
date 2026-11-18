@@ -5,7 +5,7 @@ import { normalizeTags } from '../src/domain/tags.ts'
 import { extensionOf } from '../src/domain/attachments.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml } from '../src/domain/sheets.ts'
-import { DERIVED_COLOR_KEYS, FAMILY_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_FILE_PATH, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
+import { DERIVED_COLOR_KEYS, FAMILY_KEYS, PAPER_LOGOS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_FILE_PATH, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
 export class BadRequest extends Error {}
 
@@ -273,6 +273,7 @@ const tokensBody = z.strictObject({
   logo: z.enum(['none', 'title', 'all']).optional(),
   mark: z.enum(['square', 'circle', 'none']).optional(),
   family: z.enum(FAMILY_KEYS).optional(),
+  paper: z.strictObject({ logo: z.enum(PAPER_LOGOS).optional(), footer: text(120).optional() }).optional(),
 })
 /** The size of a theme's own rules (a whole stylesheet kept for a partner's brand is about 45 kB). */
 export const MAX_THEME_CSS = 256 * 1024

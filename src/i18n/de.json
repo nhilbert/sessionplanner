@@ -187,6 +187,7 @@
     "printed": "Druck"
   },
   "sheets": {
+    "blackWhite": "Schwarz-weiß",
     "title": "Arbeitsblätter",
     "asOf": "Stand {{date}}",
     "newTitle": "Neues Arbeitsblatt",
@@ -1147,6 +1148,13 @@
     }
   },
   "themes": {
+    "paper": "Auf Papier",
+    "paperHint": "Für Arbeitsblätter: Der Grund ist weiß, Schrift und Logo kommen aus dem Theme, der Akzent nur, wo er auf Weiß lesbar ist.",
+    "paperDark": "Ein dunkles Theme druckt hell: weißer Grund, dunkle Schrift, die Schriften bleiben. Das Logo kommt aus den Ausdruck-Einstellungen, weil das hier hochgeladene für den dunklen Grund gemacht ist.",
+    "paperLogo": "Logo auf Arbeitsblättern",
+    "paperLogos": {"foot": "unten rechts", "head": "oben mittig", "head-right": "oben rechts", "none": "kein Logo"},
+    "paperFooter": "Zeile in der Fußzeile",
+    "paperFooterHint": "Steht neben dem Datum, z. B. der Name oder eine Webadresse.",
     "title": "Folien-Themes",
     "subtitle": "Farben, Schriften und Logo der Folien; das Logo steht auch auf den Ausdrucken. Ein Theme wird je Workshop als Branding gewählt; die Layouts bleiben gleich.",
     "new": "Neues Theme",

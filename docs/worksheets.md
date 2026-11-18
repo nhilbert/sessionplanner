@@ -149,6 +149,13 @@ Stage 3b, built 2026-11-18 (brought forward by the owner the same day): **typing
 - Per theme: where the logo stands (foot right, head centre, head right), the footer text.
 - Per export: a black-and-white switch.
 
+Stage 4a, built 2026-11-18:
+
+- A data theme carries `paper` in its tokens: where the logo stands on worksheets (`foot`, `head`, `head-right`, `none`; default `foot`) and a line beside the date in the footer. The theme editor sets both under "On paper". Built-in and folder themes print with the logo at the foot and no line.
+- The accent on paper (`paperAccent`): the deeper accent, else the accent, where it reaches 3:1 against white; else the text colour stands in. The host hands it to the page as `--paper-accent`.
+- A dark theme prints light (`paper-ink`): dark text on the white ground, its fonts kept; its own logo is made for the dark ground, so the owner's printout logo stands in, as on the other printouts.
+- The print view of worksheets has a black-and-white switch (`paper-bw`: no colour, pictures in grey), remembered on the device.
+
 ## 9. Sources
 
 What the block groups and the frame lean on. Effect sizes come from school and laboratory studies of learning from text and multimedia; none of them tested seminars with adults.

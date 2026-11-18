@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { themeFolderFile } from './storage.ts'
 import { themeUrl } from '../src/domain/addresses.ts'
-import { type Theme, type ThemeInfo, themeLogoUrl } from '../src/domain/theme.ts'
+import { paperAccent, type Theme, type ThemeInfo, themeLogoUrl } from '../src/domain/theme.ts'
 import { isDark } from '../src/domain/color.ts'
 
 /** A theme folder's name under data/themes, as the server accepts it in a URL and on a workshop. */
@@ -55,7 +55,8 @@ export function listThemes(themesDir: string | undefined, dataThemes: (Pick<Them
       .map((n): ThemeInfo => ({ id: n, name: n, kind: 'folder', printLogo: folderLogo(themesDir!, n, base), dark: folderDark(themesDir!, n) })),
     ...dataThemes.filter((t) => t.id !== 'default').map((t): ThemeInfo => {
       const dark = !!t.tokens && isDark(t.tokens.colors.bg)
-      return { id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, printLogo: dark ? null : themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo', base), dark }
+      // on paper: where the logo stands, the footer line, and an accent that reads on white (a dark theme prints light)
+      return { id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, printLogo: dark ? null : themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo', base), dark, paper: t.tokens?.paper, paperAccent: t.tokens ? paperAccent(t.tokens) : undefined }
     }),
   ]
 }

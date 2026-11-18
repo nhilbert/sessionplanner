@@ -17,7 +17,8 @@
   --ink: var(--fg, #22272E); --ink-2: var(--fg-2, #4B5055); --ink-3: var(--fg-3, #828488);
   --rule: color-mix(in srgb, var(--ink) 40%, #fff);
   --frame: var(--ink);
-  --mark: var(--accent-deep, var(--ink));
+  /* the accent on white paper: the host names one that reads there (--paper-accent), else the theme's deeper accent */
+  --mark: var(--paper-accent, var(--accent-deep, var(--ink)));
   --gap: 6mm;
   width: var(--w); height: var(--h); box-sizing: border-box; position: relative; overflow: hidden;
   background: #fff; color: var(--ink);
@@ -251,5 +252,15 @@
 /* ---------- formatting by hand, as on slides (docs/slides.md, section 2): steps of size and places of the palette ---------- */
 .sheet .fs-xs { font-size: 0.72em; } .sheet .fs-s { font-size: 0.86em; } .sheet .fs-l { font-size: 1.2em; } .sheet .fs-xl { font-size: 1.45em; }
 .sheet .accent { color: var(--mark); }
+.sheet .c-accent-2 { color: var(--accent-2, var(--mark)); } .sheet .c-accent-3 { color: var(--accent-3, var(--mark)); } .sheet .c-accent-4 { color: var(--accent-4, var(--mark)); }
+.sheet .c-title { color: var(--title, var(--ink)); } .sheet .c-text { color: var(--ink); }
 .sheet .muted { color: var(--ink-3); }
 .sheet .fw-normal { font-weight: 400; }
+
+/* ---------- a theme on paper (docs/worksheets.md, section 8) ---------- */
+/* a dark theme prints light: dark text on the white ground, its fonts kept */
+.paper-ink .sheet { --ink: #22272E; --ink-2: #4B5055; --ink-3: #7A7A78; --title: #22272E; }
+/* black and white: no colour anywhere, pictures in grey */
+.paper-bw .sheet { --mark: var(--ink); --title: var(--ink); --paper-accent: var(--ink); }
+.paper-bw .sheet img { filter: grayscale(1); }
+.paper-bw .sheet :where(.accent, .c-accent-2, .c-accent-3, .c-accent-4, .c-title) { color: var(--ink); }
