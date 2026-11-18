@@ -133,3 +133,16 @@ export function splitPages(source: string): string[] {
   starts.forEach((at, i) => pages.push(source.slice(at, starts[i + 1] ?? source.length).trim()))
   return pages
 }
+
+/** The rules of the worksheet format, for agents writing pages (the connector's worksheet_format, the sheet-build skill). */
+export const SHEET_FORMAT = {
+  page: 'One page is <section class="sheet"> (portrait) or <section class="sheet landscape">. A sheet has 1 to 8 pages on one paper size (A4, A3, A5); write several pages one after the other.',
+  header: '<header> with <div class="eyebrow"> (kicker, e.g. "Arbeitsblatt Transfer"), <h1> (title), up to two <p class="lead">, optionally a small <figure><img src="asset:…" alt=""></figure> at its right.',
+  blocks: 'Under the root only blocks: an element with class="block NAME" (NAME from blocks below) and modifiers. Blocks stack from the top; one block with fill takes the rest of the page.',
+  sizes: 'Heights and writing room are classes, never values: h-N (N mm: 10 15 20 25 30 35 40 45 50 60 70 80 90 100 120 140), lines-N (writing lines: 1-10, 12, 15), fill. Line pitch 9 mm; pitch-l 12 mm, pitch-xl 24 mm (posters). Picture widths w-N (20 30 40 50 60 70 80 100 120).',
+  inline: 'A blank inside a sentence: <span class="blank"></span> (short, long); a line of its own: <p class="fill-in">Label: <span class="blank"></span></p>. Hints under a heading: <p class="hint">. Prompts in frames: <p class="prompt">. Quiet text: class quiet.',
+  formatting: 'By hand, as on slides: span or heading classes fs-xs fs-s fs-l fs-xl, accent, muted, fw-normal; strong, em.',
+  host: 'Do not write the logo, the footer, the date or page numbers: the app adds them. Do not number steps or questions by hand: steps and question.numbered count across the page.',
+  forbidden: 'As on slides: no style, id, script, event attributes, external addresses. Pictures only as asset:<hash> the workshop or library already shows.',
+  fit: 'Nothing flows to the next page: content that does not fit is cut. Keep a page to what fits on paper; split long material into pages yourself.',
+} as const

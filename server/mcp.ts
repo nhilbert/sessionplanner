@@ -26,6 +26,8 @@ const INSTRUCTIONS = `Session Planner holds workshop agendas: a workshop has day
 - The packing list is computed from the material of all placed items (largest quantity per label, not the sum); packing_update ticks lines, overrides quantities and adds workshop-wide material.
 - Library entries carry tags (library_list shows them; set them with library_create and library_update), and a deleted entry waits 30 days in the trash.
 - The library holds reusable items and groups shared by all workshops, as copies both ways: library_insert copies an entry with its files into an agenda, and changing or deleting an entry leaves the placed copies alone. Read library_get before library_update.
+- Worksheets: a unit (or a library entry) carries printed sheets, each with pages in the worksheet format (blocks in the slides' HTML subset). Call worksheet_format before writing pages; the app adds logo, footer and date. Nothing flows to a next page: write what fits, split into pages yourself.
+- Printing: print_rule says how many copies of a step's PDF the workshop needs (per person uses the workshop's participants, set with workshop_update; per group the step's groups).
 - Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show, or the theme's pool (theme_pool: pictures for figures, icons for cards).
 - Prefer small, reversible changes and say what you changed. Workshops cannot be deleted through these tools; archive instead.`
 
@@ -61,14 +63,16 @@ const itemFields = {
   category: z.string().nullable().optional().describe('Category id or name (settings_get lists them); null clears'),
   color: color.nullable().optional().describe('Overrides the category colour'),
   slides: z.array(slideGiven).max(MAX_SLIDES).optional().describe('Replaces the item\'s slides: markup or pool copies, in order (the slide_* tools change single slides)'),
+  groups: z.number().int().min(1).max(500).optional().describe('How many groups work on this step, for the print rule "per group" (default 1)'),
 }
 // Library content has no fixed start: that belongs to a place in an agenda.
-const { fixedStart: _fixedStart, ...contentFields } = itemFields
+const { fixedStart: _fixedStart, groups: _groups, ...contentFields } = itemFields
 // A new item has no notes to add to.
 const { appendNotes: _appendNotes, ...newContentFields } = contentFields
 const libraryItem = z.object({ title: z.string().min(1), ...newContentFields })
 const memberRef = z.union([z.string(), z.number().int().min(1)])
 const workshopFields = {
+  participants: z.number().int().min(1).max(10_000).nullable().optional().describe('How many take part, for print rules "per person"; null: not known'),
   client: z.string().optional(),
   location: z.string().optional(),
   goal: z.string().optional(),
@@ -320,6 +324,58 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
     (a) => ops.slideSet(a as never),
     'destructive',
   )
+  // ---------- print rules and worksheets (docs/worksheets.md) ----------
+  tool(
+    'print_rule',
+    'How many copies of a PDF attached to a step the workshop prints: mode off, person (the workshop\'s participants), group (the step\'s groups), once or count; paper A4/A3/A5 and duplex. groups sets the step\'s number of groups. The print package in the app turns the rules into print jobs.',
+    {
+      workshop: workshopRef,
+      item: itemRef,
+      file: z.string().describe('The PDF, by name or id, as the item lists it'),
+      mode: z.enum(['off', 'person', 'group', 'once', 'count']),
+      count: z.number().int().min(0).max(10_000).optional().describe('For mode count'),
+      paper: z.enum(['A4', 'A3', 'A5']).optional(),
+      duplex: z.boolean().optional(),
+      groups: z.number().int().min(1).max(500).optional(),
+    },
+    (a) => ops.printRuleSet(a.workshop as string, a.item as string, a as never),
+  )
+  const sheetRef = z.union([z.string(), z.number().int().min(1)]).describe('Worksheet id, title or number (1 = first)')
+  const paper = z.enum(['A4', 'A3', 'A5'])
+  tool(
+    'worksheet_format',
+    'The worksheet format for writing pages: the rules and every building block with its use, modifiers and an example. Read it before writing or changing worksheets; block narrows it to one block.',
+    { block: z.string().optional() },
+    (a) => ops.worksheetFormat(a as never),
+    'read',
+  )
+  tool('worksheet_list', 'The worksheets of a unit or library entry: number, id, title, paper, and per page its blocks and text; html: true adds the markup.', { ...target, html: z.boolean().optional() }, (a) => ops.worksheetList(a as never), 'read')
+  tool('worksheet_get', 'One worksheet with the markup of every page and the pictures (asset hashes) it shows.', { ...target, sheet: sheetRef }, (a) => ops.worksheetGet(a as never), 'read')
+  tool(
+    'worksheet_add',
+    'Add a worksheet to a unit (kind block) or library entry: a title, the paper (default A4) and its pages, as a list (pages) or one text with a <section class="sheet"> per page (source). The app adds logo, footer and date. Answers with the list.',
+    { ...target, title: z.string().min(1), paper: paper.optional(), pages: z.array(z.string()).min(1).max(8).optional(), source: z.string().optional(), at: z.number().int().min(0).optional() },
+    (a) => ops.worksheetAdd(a as never),
+  )
+  tool(
+    'worksheet_update',
+    'Change one worksheet: title, paper, all its pages (pages or source), one page (page + html; the number after the last adds a page), exact replacements in its markup (replace, every occurrence), or its position (at). Its date changes with its content.',
+    {
+      ...target,
+      sheet: sheetRef,
+      title: z.string().optional(),
+      paper: paper.optional(),
+      pages: z.array(z.string()).min(1).max(8).optional(),
+      source: z.string().optional(),
+      page: z.number().int().min(1).optional(),
+      html: z.string().optional(),
+      replace: z.array(z.object({ find: z.string().min(1), with: z.string() })).max(50).optional(),
+      at: z.number().int().min(0).optional(),
+    },
+    (a) => ops.worksheetUpdate(a as never),
+    'destructive',
+  )
+  tool('worksheet_remove', 'Remove one worksheet (sheet) or several (sheets) of a unit or library entry.', { ...target, sheet: sheetRef.optional(), sheets: z.array(sheetRef).max(10).optional() }, (a) => ops.worksheetRemove(a as never), 'destructive')
   tool(
     'pool_search',
     'The slide pool (translated decks): the decks, and the slides whose deck, caption or text contain every word of query; deck (title or id) and layout narrow it. Returns ids for slide_get, slide_add and slide_set.',
