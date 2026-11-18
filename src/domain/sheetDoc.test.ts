@@ -8,7 +8,7 @@ import { normalizeSheetHtml, SHEET_BLOCK_NAMES } from './sheets.ts'
 const dir = path.join(import.meta.dirname, '..', '..', 'scripts', 'sheets', 'examples', 'sheets', 'katalog')
 const pages = readdirSync(dir).filter((f) => f.endsWith('.html')).map((f) => readFileSync(path.join(dir, f), 'utf8'))
 const flat = (bs: SheetBlock[]): SheetBlock[] => bs.flatMap((b) => (b.kind === 'pair' ? [b, ...flat(b.columns[0]), ...flat(b.columns[1])] : [b]))
-const words: BlockWords = { heading: 'Überschrift', text: 'Text', term: 'Begriff', explanation: 'Erklärung', question: 'Frage?', hint: 'Hinweis', prompt: 'Aufforderung …', step: 'Schritt', entry: 'Eintrag', label: 'Bezeichnung', rating: 'Einschätzung', criterion: 'Kriterium', note: 'Notiz …', caption: 'Bildunterschrift' }
+const words: BlockWords = { heading: 'Überschrift', text: 'Text', term: 'Begriff', explanation: 'Erklärung', question: 'Frage?', hint: 'Hinweis', prompt: 'Aufforderung …', step: 'Schritt', entry: 'Eintrag', label: 'Bezeichnung', rating: 'Einschätzung', criterion: 'Kriterium', note: 'Notiz …', caption: 'Bildunterschrift', noteTitle: 'Merke', starter: 'Mir ist wichtig, dass …', axisY: 'Wichtigkeit', axisX: 'Dringlichkeit', low: 'gar nicht', high: 'voll und ganz', never: 'nie', sometimes: 'selten', often: 'oft', always: 'immer', statement: 'Eine Aussage über mich.', sum: 'Summe:', when: 'Wenn …', then: 'dann …', certFor: 'Hiermit erhält', certTitle: 'Erlaubnis', together: 'Was wir gemeinsam festhalten' }
 
 describe('a worksheet page as a document', () => {
   it('reads every block of the catalogue as fields and writes the pages back as they were', () => {

@@ -1,4 +1,5 @@
 import { normalizeSheetHtml, SHEET_BLOCK_NAMES } from './sheets.ts'
+import { DIAGRAM_SHAPES, isDiagramShape, type DiagramShape } from './diagram.ts'
 import { classes, el, elements, hasClass, inlineToText, isBlank, isEl, parseTree, serializeNodes, textToInline, txt, type El, type Node } from './slideTree.ts'
 
 /**
@@ -60,6 +61,19 @@ export type SheetBlock = Common &
     | { kind: 'picture'; image: string; alt: string; caption: string }
     | { kind: 'pictures'; items: { image: string; alt: string; caption: string }[] }
     | { kind: 'pair'; columns: [SheetBlock[], SheetBlock[]] }
+    | { kind: 'note'; items: TextItem[] }
+    | { kind: 'facts' }
+    | { kind: 'starters'; items: string[] }
+    | { kind: 'matrix'; y: string; x: string; fields: TextItem[][] }
+    | { kind: 'timeline'; items: string[] }
+    | { kind: 'shape'; form: DiagramShape; entries: string[] }
+    | { kind: 'scale'; rows: { label: string; low: string; high: string }[] }
+    | { kind: 'selftest'; head: string[]; items: string[]; sum: string }
+    | { kind: 'ifthen'; plans: { if: string; then: string }[] }
+    | { kind: 'cards'; cards: TextItem[][] }
+    | { kind: 'certificate'; items: TextItem[]; room: Room | null; stamp: string }
+    | { kind: 'figure'; image: string; alt: string; caption: string; fields: TextItem[][] }
+    | { kind: 'placemat'; middle: TextItem[]; seats: TextItem[][] }
     | { kind: 'raw'; html: string }
   )
 
@@ -95,7 +109,7 @@ function canon(nodes: Node[], inSvg: boolean): Node[] {
       continue
     }
     // the circle's drawing is made from its entries on every write: never a difference of its own
-    if (n.tag === 'svg' && hasClass(n, 'drawn')) continue
+    if ((n.tag === 'svg' || n.tag === 'div') && hasClass(n, 'drawn')) continue
     const attrs: Record<string, string> = {}
     for (const k of Object.keys(n.attrs).sort()) {
       if (k !== 'class') attrs[k] = n.attrs[k]
@@ -334,6 +348,100 @@ const readers: Record<string, Reader> = {
     }
     return { ...c, kind: 'pictures', items }
   },
+  note: (e, c) => {
+    const items = readItems(elements(e))
+    return items && { ...c, kind: 'note', items }
+  },
+  facts: (e, c) => (e.tag === 'p' ? { ...c, kind: 'facts' } : null),
+  starters: (e, c) => (e.tag === 'ul' && elements(e).every((li) => li.tag === 'li') ? { ...c, kind: 'starters', items: elements(e).map(inline) } : null),
+  matrix: (e, c) => {
+    const kids = elements(e)
+    const y = only(kids, 'p', 'y')
+    const x = only(kids, 'p', 'x')
+    const fields = kids.filter((k) => k.tag === 'div' && clsOf(k) === 'field')
+    if (kids.length !== fields.length + (y ? 1 : 0) + (x ? 1 : 0) || fields.length !== 4) return null
+    const items = fields.map((f) => readItems(elements(f)))
+    return items.every(Boolean) ? { ...c, kind: 'matrix', y: inline(y), x: inline(x), fields: items as TextItem[][] } : null
+  },
+  timeline: (e, c) => (e.tag === 'ol' && elements(e).every((li) => li.tag === 'li') ? { ...c, kind: 'timeline', items: elements(e).map(inline) } : null),
+  shape: (e, c) => {
+    const kids = elements(e).filter((k) => !(k.tag === 'svg' && hasClass(k, 'drawn')))
+    const list = only(kids, 'ol')
+    if (kids.some((k) => k !== list)) return null
+    const form = c.mods.find(isDiagramShape) ?? 'pyramid'
+    return { ...c, mods: c.mods.filter((m) => !isDiagramShape(m)), kind: 'shape', form, entries: list ? elements(list).map(inline) : [] }
+  },
+  scale: (e, c) => {
+    const rows = []
+    for (const r of elements(e)) {
+      if (r.tag !== 'div' || clsOf(r) !== 'rate') return null
+      const kids = elements(r).filter((k) => !(k.tag === 'div' && hasClass(k, 'drawn')))
+      const label = only(kids, 'p', 'label')
+      const low = only(kids, 'p', 'low')
+      const high = only(kids, 'p', 'high')
+      if (kids.length !== [label, low, high].filter(Boolean).length) return null
+      rows.push({ label: inline(label), low: inline(low), high: inline(high) })
+    }
+    return { ...c, kind: 'scale', rows }
+  },
+  selftest: (e, c) => {
+    const kids = elements(e)
+    const head = only(kids, 'ul', 'head')
+    const items = only(kids, 'ol', 'items')
+    const sum = only(kids, 'p', 'sum')
+    if (kids.length !== [head, items, sum].filter(Boolean).length) return null
+    return { ...c, mods: c.mods.filter((m) => !/^c-\d$/.test(m)), kind: 'selftest', head: head ? elements(head).map(inline) : [], items: items ? elements(items).map(inline) : [], sum: inline(sum) }
+  },
+  ifthen: (e, c) => {
+    const plans = []
+    for (const k of elements(e)) {
+      const parts = elements(k)
+      if (k.tag !== 'div' || clsOf(k) !== 'plan' || parts.length !== 2 || clsOf(parts[0]) !== 'if' || clsOf(parts[1]) !== 'then') return null
+      plans.push({ if: inline(parts[0]), then: inline(parts[1]) })
+    }
+    return { ...c, kind: 'ifthen', plans }
+  },
+  cards: (e, c) => {
+    const cards = []
+    for (const k of elements(e)) {
+      if (k.tag !== 'div' || clsOf(k) !== 'card') return null
+      const items = readItems(elements(k))
+      if (!items) return null
+      cards.push(items)
+    }
+    return { ...c, kind: 'cards', cards }
+  },
+  certificate: (e, c) => {
+    let kids = elements(e)
+    const stamp = kids.length && kids[kids.length - 1].tag === 'img' && clsOf(kids[kids.length - 1]) === 'stamp' ? kids[kids.length - 1] : undefined
+    if (stamp) kids = kids.slice(0, -1)
+    const write = kids.length && isWrite(kids[kids.length - 1]) ? kids[kids.length - 1] : undefined
+    if (write) kids = kids.slice(0, -1)
+    const items = readItems(kids)
+    return items && { ...c, kind: 'certificate', items, room: readRoom(write), stamp: stamp?.attrs.src ?? '' }
+  },
+  figure: (e, c) => {
+    const [fig, ...rest] = elements(e)
+    if (!fig || fig.tag !== 'figure' || classes(fig).length) return null
+    const img = only(elements(fig), 'img')
+    const cap = only(elements(fig), 'figcaption')
+    if (elements(fig).some((k) => k !== img && k !== cap)) return null
+    const fields = []
+    for (const f of rest) {
+      if (f.tag !== 'div' || clsOf(f) !== 'field') return null
+      const items = readItems(elements(f))
+      if (!items) return null
+      fields.push(items)
+    }
+    return { ...c, kind: 'figure', image: img?.attrs.src ?? '', alt: img?.attrs.alt ?? '', caption: inline(cap), fields }
+  },
+  placemat: (e, c) => {
+    const [middle, ...seats] = elements(e)
+    if (!middle || middle.tag !== 'div' || clsOf(middle) !== 'middle' || seats.length !== 4 || seats.some((x) => x.tag !== 'div' || clsOf(x) !== 'seat')) return null
+    const m = readItems(elements(middle))
+    const all = seats.map((x) => readItems(elements(x)))
+    return m && all.every(Boolean) ? { ...c, kind: 'placemat', middle: m, seats: all as TextItem[][] } : null
+  },
   pair: (e, c) => {
     const cols = elements(e)
     if (cols.length !== 2 || cols.some((col) => col.tag !== 'div' || classes(col).length)) return null
@@ -400,10 +508,11 @@ function writeItems(items: TextItem[]): El[] {
 const writeRoom = (r: Room | null): El[] => (r ? [el('div', { class: ['write', r.lines ? `lines-${r.lines}` : '', r.space ? `h-${r.space}` : ''].filter(Boolean).join(' ') })] : [])
 
 function blockClass(b: SheetBlock): string {
-  return ['block', b.kind, ...b.mods, b.space ? `h-${b.space}` : '', b.lines ? `lines-${b.lines}` : '', b.fill ? 'fill' : ''].filter(Boolean).join(' ')
+  const own = b.kind === 'shape' ? [b.form] : b.kind === 'selftest' && b.head.length && b.head.length !== 4 ? [`c-${Math.min(6, Math.max(2, b.head.length))}`] : []
+  return ['block', b.kind, ...own, ...b.mods, b.space ? `h-${b.space}` : '', b.lines ? `lines-${b.lines}` : '', b.fill ? 'fill' : ''].filter(Boolean).join(' ')
 }
 
-const TAG: Partial<Record<BlockKind, string>> = { terms: 'dl', table: 'table', steps: 'ol', ticks: 'ul', picture: 'figure' }
+const TAG: Partial<Record<BlockKind, string>> = { terms: 'dl', table: 'table', steps: 'ol', ticks: 'ul', picture: 'figure', facts: 'p', starters: 'ul', timeline: 'ol' }
 
 /** A block in the catalogue's markup. */
 export function writeBlock(b: SheetBlock): Node[] {
@@ -448,6 +557,31 @@ export function writeBlock(b: SheetBlock): Node[] {
         return b.items.map((x) => el('figure', {}, [el('img', { src: x.image, alt: x.alt }), ...(x.caption.trim() ? [el('figcaption', {}, textInline(x.caption))] : [])]))
       case 'pair':
         return b.columns.map((col) => el('div', {}, col.flatMap(writeBlock)))
+      case 'note':
+        return writeItems(b.items)
+      case 'facts':
+        return []
+      case 'starters':
+      case 'timeline':
+        return b.items.map((x) => el('li', {}, textInline(x)))
+      case 'matrix':
+        return [...(b.y.trim() ? [textEl('p', 'y', b.y)] : []), ...(b.x.trim() ? [textEl('p', 'x', b.x)] : []), ...b.fields.map((f) => el('div', { class: 'field' }, writeItems(f)))]
+      case 'shape':
+        return [el('ol', {}, b.entries.map((x) => el('li', {}, textInline(x))))]
+      case 'scale':
+        return b.rows.map((r) => el('div', { class: 'rate' }, [...(r.label.trim() ? [textEl('p', 'label', r.label)] : []), ...(r.low.trim() ? [textEl('p', 'low', r.low)] : []), ...(r.high.trim() ? [textEl('p', 'high', r.high)] : [])]))
+      case 'selftest':
+        return [el('ul', { class: 'head' }, b.head.map((x) => el('li', {}, textInline(x)))), el('ol', { class: 'items' }, b.items.map((x) => el('li', {}, textInline(x)))), ...(b.sum.trim() ? [textEl('p', 'sum', b.sum)] : [])]
+      case 'ifthen':
+        return b.plans.map((x) => el('div', { class: 'plan' }, [textEl('p', 'if', x.if), textEl('p', 'then', x.then)]))
+      case 'cards':
+        return b.cards.map((x) => el('div', { class: 'card' }, writeItems(x)))
+      case 'certificate':
+        return [...writeItems(b.items), ...writeRoom(b.room), ...(b.stamp ? [el('img', { class: 'stamp', src: b.stamp, alt: '' })] : [])]
+      case 'figure':
+        return [el('figure', {}, [...(b.image ? [el('img', { src: b.image, alt: b.alt })] : []), ...(b.caption.trim() ? [el('figcaption', {}, textInline(b.caption))] : [])]), ...b.fields.map((f) => el('div', { class: 'field' }, writeItems(f)))]
+      case 'placemat':
+        return [el('div', { class: 'middle' }, writeItems(b.middle)), ...b.seats.map((x) => el('div', { class: 'seat' }, writeItems(x)))]
     }
   })()
   return [el(TAG[b.kind] ?? 'div', { class: blockClass(b) }, kids)]
@@ -475,6 +609,25 @@ const none = (): Common => ({ mods: [], space: 0, lines: 0, fill: false })
 
 /** Words of a new block, in the app's language. */
 export interface BlockWords {
+  /** stage 4c */
+  certFor: string
+  certTitle: string
+  together: string
+  /** stage 4b */
+  noteTitle: string
+  starter: string
+  axisY: string
+  axisX: string
+  low: string
+  high: string
+  never: string
+  sometimes: string
+  often: string
+  always: string
+  statement: string
+  sum: string
+  when: string
+  then: string
   heading: string
   text: string
   term: string
@@ -526,8 +679,37 @@ export function newBlock(kind: Exclude<BlockKind, 'raw'>, w: BlockWords): SheetB
       return { ...none(), kind, space: 40, items: [] }
     case 'pair':
       return { ...none(), kind, columns: [[newBlock('question', w)], [newBlock('question', w)]] }
+    case 'note':
+      return { ...none(), kind, items: [item('h3', '', w.noteTitle), item('p', '', w.text)] }
+    case 'facts':
+      return { ...none(), kind }
+    case 'starters':
+      return { ...none(), kind, items: [w.starter, w.starter, w.starter] }
+    case 'matrix':
+      return { ...none(), kind, space: 100, y: w.axisY, x: w.axisX, fields: [[item('p', 'prompt', w.prompt)], [], [], []] }
+    case 'timeline':
+      return { ...none(), kind, space: 40, items: ['1', '2', '3', '4', '5'] }
+    case 'shape':
+      return { ...none(), kind, space: 70, form: 'pyramid', entries: ['', '', ''] }
+    case 'scale':
+      return { ...none(), kind, rows: [{ label: w.criterion, low: w.low, high: w.high }] }
+    case 'selftest':
+      return { ...none(), kind, head: [w.never, w.sometimes, w.often, w.always], items: [w.statement, w.statement, w.statement], sum: `${w.sum} ___` }
+    case 'ifthen':
+      return { ...none(), kind, plans: [{ if: w.when, then: w.then }, { if: w.when, then: w.then }] }
+    case 'cards':
+      return { ...none(), kind, fill: true, cards: Array.from({ length: 6 }, () => [item('p', 'big', w.heading), item('p', '', w.text)]) }
+    case 'certificate':
+      return { ...none(), kind, space: 90, items: [item('p', 'small', w.certFor), item('p', 'line', ''), item('p', 'big', w.certTitle)], room: { lines: 2, space: 0 }, stamp: '' }
+    case 'figure':
+      return { ...none(), kind, space: 140, image: '', alt: '', caption: w.caption, fields: [[item('p', 'prompt', w.prompt)], [item('p', 'prompt', w.prompt)]] }
+    case 'placemat':
+      return { ...none(), kind, middle: [item('p', 'prompt', w.together)], seats: [[], [], [], []] }
   }
 }
+
+/** The diagram shapes a shape block can take. */
+export const SHEET_SHAPES: readonly DiagramShape[] = DIAGRAM_SHAPES
 
 /** The plain words of a block, for its card's title in the editor. */
 export function blockSummary(b: SheetBlock): string {
@@ -560,6 +742,29 @@ export function blockSummary(b: SheetBlock): string {
       return t(b.caption || b.alt)
     case 'pictures':
       return t(b.items.map((x) => x.caption).join(', '))
+    case 'note':
+      return t(b.items.map((i) => i.text || i.points[0] || '').find(Boolean) ?? '')
+    case 'starters':
+    case 'timeline':
+      return t(b.items.join(', '))
+    case 'matrix':
+      return t(`${b.y} / ${b.x}`)
+    case 'shape':
+      return `${b.form} · ${b.entries.length || 3}`
+    case 'scale':
+      return t(b.rows.map((r) => r.label).join(', '))
+    case 'selftest':
+      return t(b.items[0] ?? '')
+    case 'ifthen':
+      return t(b.plans.map((x) => x.if).join(', '))
+    case 'cards':
+      return `${b.cards.length}`
+    case 'certificate':
+      return t(b.items.map((i) => i.text).filter(Boolean).join(' '))
+    case 'figure':
+      return t(b.caption)
+    case 'placemat':
+      return t(b.middle[0]?.text ?? '')
     default:
       return ''
   }

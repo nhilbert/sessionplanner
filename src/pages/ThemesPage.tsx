@@ -6,7 +6,7 @@ import { Copy, Moon, Plus, Trash2, Upload, X } from 'lucide-react'
 import { api } from '@/api'
 import { SLIDE_LAYOUTS } from '@/domain/slideFormat'
 import { contrastHex } from '@/domain/color'
-import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, themeFileUrls, type ThemeTokens } from '@/domain/theme'
+import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, PAPER_LOGOS, type PaperLogo, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, themeFileUrls, type ThemeTokens } from '@/domain/theme'
 import { themeLabel, useThemes } from '@/store/useThemes'
 import { PoolEditor } from '@/slides/PoolEditor'
 import { useSettings } from '@/store/useSettings'
@@ -363,6 +363,20 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
                 { value: 'all', label: t('themes.logoAll') },
               ]}
             />
+          </Field>
+          <SectionLabel className="mt-5">{t('themes.paper')}</SectionLabel>
+          <p className="mb-2 text-[12px] leading-snug text-ink-3">{isDark(tokens.colors.bg) ? t('themes.paperDark') : t('themes.paperHint')}</p>
+          <Field label={t('themes.paperLogo')}>
+            <Select value={tokens.paper.logo} onChange={(e) => update({ paper: { ...tokens.paper, logo: e.target.value as PaperLogo } })} className="h-8 text-[13px]">
+              {PAPER_LOGOS.map((v) => (
+                <option key={v} value={v}>
+                  {t(`themes.paperLogos.${v}`)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('themes.paperFooter')} hint={t('themes.paperFooterHint')} className="mt-3">
+            <Input value={tokens.paper.footer} maxLength={120} onChange={(e) => update({ paper: { ...tokens.paper, footer: e.target.value } })} />
           </Field>
         </section>
 

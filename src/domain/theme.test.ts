@@ -112,3 +112,18 @@ describe('theme', () => {
     expect(pairs.every((p) => contrastHex(p.fg, p.bg)! >= 3)).toBe(true)
   })
 })
+
+describe('a theme on paper', () => {
+  it('prints with its logo at the foot by default and keeps what it is given', () => {
+    expect(withDefaults({}).paper).toEqual({ logo: 'foot', footer: '' })
+    expect(withDefaults({ paper: { logo: 'head', footer: 'beispiel.de' } } as never).paper).toEqual({ logo: 'head', footer: 'beispiel.de' })
+  })
+
+  it('uses an accent on white paper only where it reads there', async () => {
+    const { paperAccent, DARK_TOKENS } = await import('./theme.ts')
+    // the default's deeper accent reads on white
+    expect(paperAccent(DEFAULT_TOKENS)).toMatch(/^#/)
+    // a pale accent (a dark theme's, made for its dark ground) does not: the text colour stands in
+    expect(paperAccent({ ...DARK_TOKENS, colors: { ...DARK_TOKENS.colors, accent: '#F3E9A0' } })).toBeNull()
+  })
+})

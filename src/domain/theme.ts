@@ -1,5 +1,5 @@
 import { themeUrl } from './addresses.ts'
-import { isDark, isHex, mixHex, parseHex } from './color.ts'
+import { contrast, isDark, isHex, mixHex, parseHex } from './color.ts'
 import { familyCss, type FamilyKey } from './families.ts'
 
 export { FAMILY_KEYS, type FamilyKey } from './families.ts'
@@ -55,6 +55,15 @@ export interface ThemeTokens {
   mark: MarkShape
   /** The template family (docs/slide-design-playful.md): the calm look of the stylesheet, or the playful one laid over it. */
   family: FamilyKey
+  /** Worksheets (docs/worksheets.md, section 8): where the logo stands on paper, and a line of the theme's in the footer. */
+  paper: PaperProfile
+}
+
+export const PAPER_LOGOS = ['foot', 'head', 'head-right', 'none'] as const
+export type PaperLogo = (typeof PAPER_LOGOS)[number]
+export interface PaperProfile {
+  logo: PaperLogo
+  footer: string
 }
 
 /** What a theme's pool holds: pictures (photos for the moment slides) and icons (for cards). */
@@ -108,6 +117,9 @@ export interface ThemeInfo {
    * file beside a folder's theme.css; null or absent without one (a dark theme's logo is made for its dark ground).
    */
   printLogo?: string | null
+  /** Worksheets: where the logo stands on paper and the theme's footer line; the accent that reads on white paper, or null. */
+  paper?: PaperProfile
+  paperAccent?: string | null
   /** Whether the slides' ground is dark: the host then asks for the cut-outs made for a dark ground (docs/slides.md, section 5). */
   dark?: boolean
 }
@@ -135,6 +147,7 @@ export const DEFAULT_TOKENS: ThemeTokens = {
   logo: 'none',
   mark: 'square',
   family: 'calm',
+  paper: { logo: 'foot', footer: '' },
 }
 
 /** A dark counterpart to the default: what "new dark theme" starts from. */
@@ -179,6 +192,7 @@ export function withDefaults(tokens: Partial<ThemeTokens> | undefined, base: The
     logo: t.logo ?? base.logo,
     mark: t.mark ?? base.mark,
     family: t.family ?? base.family ?? 'calm',
+    paper: { ...(base.paper ?? { logo: 'foot', footer: '' }), ...(t.paper ?? {}) },
   }
 }
 
@@ -294,4 +308,18 @@ export function contrastPairs(tokens: ThemeTokens): { key: string; fg: string; b
     { key: 'textOnTint', fg: c.fg, bg: d.tint, large: false },
     { key: 'kickerOnTint', fg: d.accentDeep, bg: d.tint, large: false },
   ]
+}
+
+/**
+ * The accent a worksheet may use on white paper (docs/worksheets.md, section 8): the deeper accent, or the accent, where
+ * it reaches 3:1 against white (numbers and short headings are large or bold); else none, and the text colour stands in.
+ */
+export function paperAccent(tokens: ThemeTokens): string | null {
+  const white = parseHex('#FFFFFF')!
+  const d = derivedColors(tokens)
+  for (const c of [d.accentDeep, tokens.colors.accent]) {
+    const rgb = parseHex(c)
+    if (rgb && contrast(rgb, white) >= 3) return c
+  }
+  return null
 }

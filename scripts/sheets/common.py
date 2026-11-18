@@ -10,9 +10,9 @@ BRIDGE = r'''
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 const repo = process.env.SP_REPO
-const { normalizeSheetHtml, SHEET_BLOCK_NAMES } = await import(pathToFileURL(repo + '/src/domain/sheets.ts').href)
+const { normalizeSheetHtml, SHEET_BLOCK_NAMES, SHEET_BLOCKS } = await import(pathToFileURL(repo + '/src/domain/sheets.ts').href)
 const pages = JSON.parse(readFileSync(0, 'utf8'))
-process.stdout.write(JSON.stringify({ blocks: SHEET_BLOCK_NAMES, pages: pages.map((h) => normalizeSheetHtml(h)) }))
+process.stdout.write(JSON.stringify({ blocks: SHEET_BLOCK_NAMES, modifiers: SHEET_BLOCKS.flatMap((b) => b.modifiers ?? []), pages: pages.map((h) => normalizeSheetHtml(h)) }))
 '''
 
 
@@ -37,7 +37,7 @@ def normalize_pages(pages, with_blocks=False):
         return f'src="{stand_in(m.group(1))}"'
     out = bridge([re.sub(r'src="(assets/[^"]+)"', swap, p) for p in pages])
     back = [re.sub(r'src="(asset:[0-9a-f]{64})"', lambda m: f'src="{names.get(m.group(1), m.group(1))}"', p) for p in out['pages']]
-    return (back, out['blocks']) if with_blocks else back
+    return (back, out['blocks'] + out['modifiers']) if with_blocks else back
 
 
 def copy_fonts(fmt):

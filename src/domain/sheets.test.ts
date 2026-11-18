@@ -46,16 +46,16 @@ describe('the circle', () => {
 describe('the example sheets (scripts/sheets/examples)', () => {
   const dir = path.join(import.meta.dirname, '..', '..', 'scripts', 'sheets', 'examples', 'sheets', 'katalog')
   const pages = readdirSync(dir).filter((f) => f.endsWith('.html')).map((f) => readFileSync(path.join(dir, f), 'utf8'))
-  const tight = (html: string) => html.replace(/<svg class="drawn"[\s\S]*?<\/svg>/g, '').replace(/>\s+</g, '><').trim()
+  const tight = (html: string) => html.replace(/<svg class="drawn"[\s\S]*?<\/svg>|<div class="points drawn">[\s\S]*?<\/div>/g, '').replace(/>\s+</g, '><').trim()
 
   it('are stored as they are written, the circle drawn', () => {
     expect(pages.length).toBeGreaterThan(0)
     for (const page of pages) expect(tight(normalizeSheetHtml(page))).toBe(tight(page))
   })
 
-  it('use only blocks of the catalogue, and the twelve of v1 all appear', () => {
+  it('use only blocks of the catalogue, and those of v1 and stage 4b all appear', () => {
     const used = new Set(pages.flatMap((p) => sheetBlocks(normalizeSheetHtml(p))))
     for (const b of used) expect(SHEET_BLOCK_NAMES).toContain(b)
-    for (const b of ['text', 'terms', 'columns', 'table', 'steps', 'question', 'box', 'grid', 'rows', 'circle', 'criteria', 'ticks']) expect(used).toContain(b)
+    for (const b of ['text', 'terms', 'columns', 'table', 'steps', 'question', 'box', 'grid', 'rows', 'circle', 'criteria', 'ticks', 'note', 'facts', 'starters', 'matrix', 'timeline', 'shape', 'scale', 'selftest', 'ifthen']) expect(used).toContain(b)
   })
 })

@@ -2,7 +2,7 @@
 
 Printed material for the steps of a workshop: worksheets for exercises and handouts for methods. A step says how many copies of each sheet the workshop needs; the workshop exports one print package with a file per print job. Sheets are written in the app as content in a small HTML subset, like slides, and laid out by one stylesheet; files made elsewhere (a PDF from a layout program) stay possible and follow the same print rule.
 
-Stage 0 (print rules and the print package), stage 1 (the format, outside the app), stage 2 (sheets in the app, with the print package) and stage 3 (the editor, with fields and typing on the page) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
+Stage 0 (print rules and the print package), stage 1 (the format, outside the app), stage 2 (sheets in the app, with the print package) stage 3 (the editor, with fields and typing on the page) and stage 4 (a theme on paper, more blocks, the page kinds) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
 
 No client, partner or brand names in this file. The owner's sample worksheets are private material and stay outside this repository.
 
@@ -109,6 +109,35 @@ A grid can be `ruled`: no frames, the fields divided by thin rules, for a page o
 
 The markup of each block, with its modifiers, is in `SHEET_BLOCKS` (`src/domain/sheets.ts`), which the check script and later the connector read.
 
+Stage 4b, built 2026-11-18, adds nine blocks, each with its fields in the editor and in the connector's catalogue:
+
+| Group | Block | What it is |
+|---|---|---|
+| read | `note` | a note to remember, set apart by a rule in the accent |
+| instruct | `facts` | the step's duration, method and material, filled in by the app from the step the sheet is on (empty in the library preview of an entry without them) |
+| write | `starters` | sentence starters, each continued on its line; `lines-N` adds lines below |
+| order | `matrix` | a 2 × 2 with an axis up and one across, a field per quarter |
+| order | `timeline` | marks across the page with room to write above them |
+| order | `shape` | a diagram shape of the slides (pyramid, cycle, venn, onion, pillars, hub) as an outline to fill in, drawn from its entries like the circle, the entries numbered below |
+| rate | `scale` | scales from 0 to 10 (`s5`: 1 to 5) with words at both ends; the points are drawn by the app |
+| rate | `selftest` | statements with a box per answer column (2 to 6) and a sum line |
+| plan | `ifthen` | if-then plans, each part continued on its line |
+
+Still open from section 5: checklists (ticks with text cover them), appointment fields (a grid of three covers them).
+
+Stage 4c, built 2026-11-18: the page kinds, as blocks so they combine with the others (group `page`):
+
+| Block | What it is |
+|---|---|
+| `cards` | cards to cut out: a grid with dashed cut lines, two columns (`cols-3`: three) |
+| `certificate` | a certificate or permission slip in a double frame: small and large lines, a line for a name, lines to write, a stamp picture tilted over its top right |
+| `figure` | a picture in a frame with fields to write around it: the first above, the second beside it, more below |
+| `placemat` | a placemat for a group, best on A3: a field in the middle and four seats, each written towards its side |
+
+The poster is a starter sheet (landscape, a large accented title, lines 24 mm apart), as are cards, a permission slip and a placemat on A3; starter sheets carry their paper. The owner's two sample pages that stayed files in stage 1 are rebuilt in the private design repository; the barrel picture of one is still to be chosen.
+
+A step of the size scale on a heading itself (`h1.fs-xl`) now scales the heading's own size; before, it took the size of the text around it, and the poster of the samples came out smaller instead of larger. Writing room inside a block with a height (`h-N`) no longer inherits that height.
+
 ## 6. In the app (stage 2)
 
 Stage 2a, built 2026-11-18:
@@ -148,6 +177,13 @@ Stage 3b, built 2026-11-18 (brought forward by the owner the same day): **typing
 - Derived from the theme: white ground, dark text, the accent where its contrast on white suffices (else the deeper accent), the theme's fonts, the theme's logo for paper.
 - Per theme: where the logo stands (foot right, head centre, head right), the footer text.
 - Per export: a black-and-white switch.
+
+Stage 4a, built 2026-11-18:
+
+- A data theme carries `paper` in its tokens: where the logo stands on worksheets (`foot`, `head`, `head-right`, `none`; default `foot`) and a line beside the date in the footer. The theme editor sets both under "On paper". Built-in and folder themes print with the logo at the foot and no line.
+- The accent on paper (`paperAccent`): the deeper accent, else the accent, where it reaches 3:1 against white; else the text colour stands in. The host hands it to the page as `--paper-accent`.
+- A dark theme prints light (`paper-ink`): dark text on the white ground, its fonts kept; its own logo is made for the dark ground, so the owner's printout logo stands in, as on the other printouts.
+- The print view of worksheets has a black-and-white switch (`paper-bw`: no colour, pictures in grey), remembered on the device.
 
 ## 9. Sources
 

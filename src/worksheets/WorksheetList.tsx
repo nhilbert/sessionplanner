@@ -30,7 +30,7 @@ export interface SheetPrinting {
   onGroups: (groups: number) => void
 }
 
-export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing }: { sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
+export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing, facts }: { /** The step's facts, for the facts block of its sheets. */ facts?: string; sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
   const { t } = useTranslation()
   /** The sheet open in the editor, and whether it opened for editing. */
   const [viewing, setViewing] = useState<string | null>(null)
@@ -66,7 +66,7 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-3">
           {sheets.map((sheet) => (
             <li key={sheet.id} className="min-w-0">
-              <Thumb sheet={sheet} scope={scope} theme={theme} logo={logo} onOpen={() => open(sheet.id)} />
+              <Thumb sheet={sheet} scope={scope} theme={theme} logo={logo} facts={facts} onOpen={() => open(sheet.id)} />
               <div className="mt-1 flex items-start gap-1">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px]" title={sheet.title}>
@@ -110,15 +110,15 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
           ]}
         />
       )}
-      {viewed && <SheetEditor key={viewed.id} sheet={viewed} scope={scope} theme={theme} logo={logo} canEdit={canEdit} startEditing={startEditing} onSave={(sheet) => replace({ ...sheet, updatedAt: now() })} onClose={() => setViewing(null)} onPrint={onPrint && (() => onPrint(viewed.id))} />}
+      {viewed && <SheetEditor key={viewed.id} sheet={viewed} scope={scope} theme={theme} logo={logo} facts={facts} canEdit={canEdit} startEditing={startEditing} onSave={(sheet) => replace({ ...sheet, updatedAt: now() })} onClose={() => setViewing(null)} onPrint={onPrint && (() => onPrint(viewed.id))} />}
       {starting && (
         <StarterPicker
           scope={scope}
           theme={theme}
           logo={logo}
           onClose={() => setStarting(false)}
-          onPick={(title, pages) => {
-            const sheet: Worksheet = { id: newId(), title, paper: 'A4', updatedAt: now(), pages: pages.map((html) => ({ id: newId(), html })) }
+          onPick={(title, pages, paper) => {
+            const sheet: Worksheet = { id: newId(), title, paper: paper ?? 'A4', updatedAt: now(), pages: pages.map((html) => ({ id: newId(), html })) }
             onChange?.([...sheets, sheet])
             setStarting(false)
             open(sheet.id, true)
@@ -131,15 +131,15 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
   )
 }
 
-function Thumb({ sheet, scope, theme, logo, onOpen }: { sheet: Worksheet; scope: AssetScope; theme: string; logo: string | null; onOpen: () => void }) {
-  const chrome = useSheetChrome(sheet, logo)
+function Thumb({ sheet, scope, theme, logo, facts, onOpen }: { sheet: Worksheet; scope: AssetScope; theme: string; logo: string | null; facts?: string; onOpen: () => void }) {
+  const chrome = useSheetChrome(sheet, logo, facts)
   return <SheetPage html={sheet.pages[0]?.html ?? ''} paper={sheet.paper} theme={theme} scope={scope} chrome={chrome(1)} onClick={onOpen} label={sheet.title} />
 }
 
 /** All pages of a sheet, large, one under the other. */
-export function SheetViewer({ sheet, scope, theme, logo, onClose, onSource, onPrint }: { sheet: Worksheet; scope: AssetScope; theme: string; logo: string | null; onClose: () => void; onSource?: () => void; onPrint?: () => void }) {
+export function SheetViewer({ sheet, scope, theme, logo, facts, onClose, onSource, onPrint }: { facts?: string; sheet: Worksheet; scope: AssetScope; theme: string; logo: string | null; onClose: () => void; onSource?: () => void; onPrint?: () => void }) {
   const { t } = useTranslation()
-  const chrome = useSheetChrome(sheet, logo)
+  const chrome = useSheetChrome(sheet, logo, facts)
   return (
     <Modal open onClose={onClose} width="max-w-3xl" top="pt-[max(1rem,env(safe-area-inset-top))] md:pt-[4vh]">
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -277,7 +277,7 @@ function PickThumb({ sheet, scope, theme, logo, onPick }: { sheet: Worksheet; sc
 }
 
 /** "New worksheet": the starter sheets, filled with a made-up subject drawn at random (Shuffle draws again). */
-function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetScope; theme: string; logo: string | null; onClose: () => void; onPick: (title: string, pages: string[]) => void }) {
+function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetScope; theme: string; logo: string | null; onClose: () => void; onPick: (title: string, pages: string[], paper?: Paper) => void }) {
   const { t, i18n } = useTranslation()
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9))
   const starters = useMemo(() => {
@@ -298,7 +298,7 @@ function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetSc
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4">
         {starters.map((s) => (
           <li key={s.kind} className="min-w-0">
-            <SheetPage html={s.pages[0]} paper="A4" theme={theme} scope={scope} chrome={{ date: '', n: 1, total: 1, logo }} onClick={() => onPick(s.title, s.pages)} label={t(`sheets.starter.${s.kind}`)} />
+            <SheetPage html={s.pages[0]} paper={s.paper ?? 'A4'} theme={theme} scope={scope} chrome={{ date: '', n: 1, total: 1, logo }} onClick={() => onPick(s.title, s.pages, s.paper)} label={t(`sheets.starter.${s.kind}`)} />
             <div className="mt-1 text-[13px]">{t(`sheets.starter.${s.kind}`)}</div>
           </li>
         ))}

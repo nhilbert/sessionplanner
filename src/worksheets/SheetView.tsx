@@ -1,8 +1,9 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { isLandscape, normalizeSheetHtml } from '@/domain/sheets'
+import { isLandscape, normalizeSheetHtml, stepFacts } from '@/domain/sheets'
+import { formatDuration } from '@/domain/time'
 import { esc, renderSlideHtml } from '@/domain/slides'
-import { workshopBrand } from '@/domain/theme'
+import { type PaperLogo, workshopBrand } from '@/domain/theme'
 import type { Paper, Worksheet } from '@/domain/types'
 import { type AssetScope, api, assetUrl } from '@/api'
 import { cx } from '@/components/ui'
@@ -32,16 +33,49 @@ export interface SheetChrome {
   n: number
   total: number
   logo: string | null
+  /** The facts of the step the sheet is on, for its facts block. */
+  facts?: string
 }
 
-export function hostSheetHtml(html: string, scope: AssetScope, chrome?: SheetChrome): string {
+/** How a theme prints (docs/worksheets.md, section 8): where its logo stands, its footer line, its ground, its accent on white. */
+export interface PaperLook {
+  logo: PaperLogo
+  footer: string
+  dark: boolean
+  accent: string | null | undefined
+}
+export const PLAIN_PAPER: PaperLook = { logo: 'foot', footer: '', dark: false, accent: undefined }
+
+export function hostSheetHtml(html: string, scope: AssetScope, chrome?: SheetChrome, paper: PaperLook = PLAIN_PAPER): string {
   let out = renderSlideHtml(normalizeSheetHtml(html), (hash) => assetUrl(scope, hash, 'light'))
+  // the facts block shows the step's facts; outside a step it stays empty
+  if (chrome?.facts) out = out.replace(/<p class="block facts([^"]*)"><\/p>/g, (_m, more: string) => `<p class="block facts${more}">${esc(chrome.facts!)}</p>`)
   if (chrome) {
-    const foot = `<div class="sheet-foot"><span class="date">${esc(chrome.date)}</span>${chrome.total > 1 ? `<span class="page">${chrome.n}/${chrome.total}</span>` : ''}${chrome.logo ? `<img src="${esc(chrome.logo)}" alt="">` : '<span></span>'}</div>`
+    const logo = chrome.logo && paper.logo !== 'none' ? `<img src="${esc(chrome.logo)}" alt="">` : ''
+    const footer = paper.footer.trim() ? ` · ${esc(paper.footer.trim())}` : ''
+    const foot = `<div class="sheet-foot"><span class="date">${esc(chrome.date)}${footer}</span>${chrome.total > 1 ? `<span class="page">${chrome.n}/${chrome.total}</span>` : ''}${logo && paper.logo === 'foot' ? logo : '<span></span>'}</div>`
+    const head = logo && paper.logo !== 'foot' ? `<div class="sheet-head${paper.logo === 'head-right' ? ' right' : ''}">${logo}</div>` : ''
+    // a logo at the head needs room above the page's content
+    if (head) out = out.replace(/^<section class="sheet/, '<section class="sheet logo-head')
     const at = out.lastIndexOf('</section>')
-    out = at === -1 ? out + foot : out.slice(0, at) + foot + out.slice(at)
+    out = at === -1 ? out + head + foot : out.slice(0, at) + head + foot + out.slice(at)
   }
   return out
+}
+
+/** The paper of a theme, from the list of themes: built-in and folder themes print plain, logo at the foot. */
+export function usePaper(theme: string): PaperLook {
+  const info = useThemes((st) => st.themes.find((x) => x.id === theme))
+  return useMemo(() => ({ logo: info?.paper?.logo ?? 'foot', footer: info?.paper?.footer ?? '', dark: !!info?.dark, accent: info?.paperAccent }), [info])
+}
+
+/**
+ * The classes and style of the element around a page: the paper size, a dark theme turned light for paper, black and
+ * white, and the accent that reads on white (else the text colour).
+ */
+export function paperFrame(size: string, paper: PaperLook, bw = false): { className: string; style: React.CSSProperties } {
+  const accent = paper.accent === undefined ? undefined : (paper.accent ?? (paper.dark ? '#22272E' : 'var(--fg)'))
+  return { className: cx(`paper-${size.toLowerCase()}`, paper.dark && 'paper-ink', bw && 'paper-bw'), style: accent ? ({ '--paper-accent': accent } as React.CSSProperties) : {} }
 }
 
 /** The theme and logo sheets are printed with: the workshop's (or, in the library, the settings' default) and its printout logo. */
@@ -63,9 +97,15 @@ export function useSheetDate(): (iso: string) => string {
 }
 
 /** The chrome of each page of a sheet. */
-export function useSheetChrome(sheet: Worksheet, logo: string | null): (n: number) => SheetChrome {
+export function useSheetChrome(sheet: Worksheet, logo: string | null, facts?: string): (n: number) => SheetChrome {
   const date = useSheetDate()(sheet.updatedAt)
-  return (n: number) => ({ date, n, total: sheet.pages.length, logo })
+  return (n: number) => ({ date, n, total: sheet.pages.length, logo, facts })
+}
+
+/** The facts line of a step, for the facts block of its sheets. */
+export function useStepFacts(): (step: { duration: number; method: string; materials: { label: string; qty: number }[] } | undefined) => string | undefined {
+  const { t } = useTranslation()
+  return (step) => (step ? stepFacts(step, { duration: t('sheets.factDuration'), method: t('sheets.factMethod'), material: t('sheets.factMaterial') }, formatDuration) || undefined : undefined)
 }
 
 /**
@@ -77,8 +117,10 @@ export function SheetPage({ html, paper, theme, scope, chrome, className, onClic
   const [width, setWidth] = useState(0)
   useTheme(theme)
   const scopeKey = scope === 'library' ? 'library' : scope.workshopId
+  const look = usePaper(theme)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const rendered = useMemo(() => hostSheetHtml(html, scope, chrome), [html, scopeKey, chrome?.date, chrome?.n, chrome?.total, chrome?.logo])
+  const rendered = useMemo(() => hostSheetHtml(html, scope, chrome, look), [html, scopeKey, chrome?.date, chrome?.n, chrome?.total, chrome?.logo, chrome?.facts, look])
+  const frame = paperFrame(paper, look)
   const size = pageSize(paper, isLandscape(normalizeSheetHtml(html)))
   useLayoutEffect(() => {
     const el = ref.current
@@ -102,7 +144,7 @@ export function SheetPage({ html, paper, theme, scope, chrome, className, onClic
       tabIndex={button ? 0 : undefined}
       aria-label={label}
     >
-      <div className={cx('absolute left-0 top-0 origin-top-left', `paper-${paper.toLowerCase()}`)} data-theme={theme} style={{ transform: `scale(${scale || 0.0001})` }} dangerouslySetInnerHTML={{ __html: rendered }} />
+      <div className={cx('absolute left-0 top-0 origin-top-left', frame.className)} data-theme={theme} style={{ ...frame.style, transform: `scale(${scale || 0.0001})` }} dangerouslySetInnerHTML={{ __html: rendered }} />
     </div>
   )
 }

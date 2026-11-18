@@ -1,5 +1,6 @@
 import { serializeSheetPage, type SheetBlock, type SheetHeader, type TextItem } from './sheetDoc.ts'
 import type { SampleSet } from './sampleSets.ts'
+import type { Paper } from './types.ts'
 
 /**
  * Starter sheets (docs/worksheets.md, section 7): the first page of "New worksheet", for everyone who may edit. Each
@@ -8,7 +9,7 @@ import type { SampleSet } from './sampleSets.ts'
  * nobody takes it for content. They are code, not data: they follow the block catalogue and need no upkeep.
  */
 
-export const SHEET_STARTERS = ['reflection', 'exercise', 'handout', 'fields', 'rating', 'transfer', 'blank'] as const
+export const SHEET_STARTERS = ['reflection', 'exercise', 'handout', 'fields', 'rating', 'transfer', 'poster', 'cards', 'certificate', 'placemat', 'blank'] as const
 export type SheetStarter = (typeof SHEET_STARTERS)[number]
 
 /** The fixed words of the starters, in the app's language. */
@@ -23,11 +24,19 @@ export interface StarterWords {
   dropNow: string
   notes: string
   blankTitle: string
+  poster: string
+  ourAnswer: string
+  certFor: string
+  certTitle: string
+  certTo: string
+  together: string
+  forCutting: string
+  myThoughts: string
 }
 
 export const STARTER_WORDS: Record<'de' | 'en', StarterWords> = {
-  de: { worksheet: 'Arbeitsblatt', handout: 'Handout', ourResult: 'Unser Ergebnis:', rating: 'Einschätzung', resources: 'Was schon trägt …', strengthen: 'Was helfen könnte …', tryOut: 'Das probiere ich aus', dropNow: 'Das lasse ich ab jetzt weg', notes: 'Notizen', blankTitle: 'Titel' },
-  en: { worksheet: 'Worksheet', handout: 'Handout', ourResult: 'Our result:', rating: 'Rating', resources: 'What already helps …', strengthen: 'What could help …', tryOut: 'What I will try', dropNow: 'What I will drop from now on', notes: 'Notes', blankTitle: 'Title' },
+  de: { worksheet: 'Arbeitsblatt', handout: 'Handout', ourResult: 'Unser Ergebnis:', rating: 'Einschätzung', resources: 'Was schon trägt …', strengthen: 'Was helfen könnte …', tryOut: 'Das probiere ich aus', dropNow: 'Das lasse ich ab jetzt weg', notes: 'Notizen', blankTitle: 'Titel', poster: 'Plakat', ourAnswer: 'Unsere Antwort:', certFor: 'Hiermit erhält', certTitle: 'Erlaubnis', certTo: 'für', together: 'Was wir gemeinsam festhalten', forCutting: 'Zum Ausschneiden', myThoughts: 'Meine Gedanken' },
+  en: { worksheet: 'Worksheet', handout: 'Handout', ourResult: 'Our result:', rating: 'Rating', resources: 'What already helps …', strengthen: 'What could help …', tryOut: 'What I will try', dropNow: 'What I will drop from now on', notes: 'Notes', blankTitle: 'Title', poster: 'Poster', ourAnswer: 'Our answer:', certFor: 'This is to certify that', certTitle: 'Permission', certTo: 'to', together: 'What we agree on together', forCutting: 'To cut out', myThoughts: 'My thoughts' },
 }
 
 export const starterWords = (language: string): StarterWords => STARTER_WORDS[language.toLowerCase().startsWith('de') ? 'de' : 'en']
@@ -38,7 +47,7 @@ const head = (eyebrow: string, title: string, lead = ''): SheetHeader => ({ eyeb
 const page = (header: SheetHeader | null, blocks: SheetBlock[]): string => serializeSheetPage({ landscape: false, header, blocks })
 
 /** A starter sheet's title and pages, filled with a sample subject. */
-export function starterSheet(kind: SheetStarter, s: SampleSet, w: StarterWords): { title: string; pages: string[] } {
+export function starterSheet(kind: SheetStarter, s: SampleSet, w: StarterWords): { title: string; pages: string[]; paper?: Paper } {
   switch (kind) {
     case 'reflection':
       return {
@@ -100,6 +109,32 @@ export function starterSheet(kind: SheetStarter, s: SampleSet, w: StarterWords):
             c({ kind: 'question', fill: true, title: w.notes, plain: false, hint: '' }) as SheetBlock,
           ]),
         ],
+      }
+    case 'poster':
+      return {
+        title: s.question,
+        pages: [serializeSheetPage({ landscape: true, header: { eyebrow: w.poster, title: s.question, titleCls: 'accent fs-xl', leads: [], picture: null }, blocks: [c({ kind: 'text', items: [p('quiet', w.ourAnswer)] }) as SheetBlock, c({ kind: 'write', mods: ['pitch-xl'], fill: true }) as SheetBlock] })],
+      }
+    case 'cards':
+      return {
+        title: s.title,
+        pages: [page(head(`${w.forCutting} · ${s.kicker}`, s.title), [c({ kind: 'cards', fill: true, cards: s.points.map((x) => [p('big', x.title), p('', x.text)]) }) as SheetBlock])],
+      }
+    case 'certificate':
+      return {
+        title: w.certTitle,
+        pages: [
+          page(head(`${w.worksheet} · ${s.kicker}`, s.title, s.lead), [
+            c({ kind: 'question', lines: 3, title: s.question, plain: false, hint: '' }) as SheetBlock,
+            c({ kind: 'certificate', space: 90, items: [p('small', w.certFor), p('line', ''), p('small', w.certTo), p('big', w.certTitle)], room: { lines: 2, space: 0 }, stamp: '' }) as SheetBlock,
+          ]),
+        ],
+      }
+    case 'placemat':
+      return {
+        title: s.question,
+        paper: 'A3',
+        pages: [page(head(`${w.worksheet} · ${s.kicker}`, s.question, s.lead), [c({ kind: 'placemat', middle: [p('prompt', w.together)], seats: [0, 1, 2, 3].map(() => [p('prompt quiet', w.myThoughts)]) }) as SheetBlock])],
       }
     case 'blank':
       return { title: w.blankTitle, pages: [page(head(w.worksheet, w.blankTitle), [c({ kind: 'write', fill: true }) as SheetBlock])] }

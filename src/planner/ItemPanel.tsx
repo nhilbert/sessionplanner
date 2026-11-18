@@ -17,7 +17,7 @@ import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from 
 import NotesField from './NotesField'
 import { FileManager } from './FileManager'
 import { WorksheetList } from '@/worksheets/WorksheetList'
-import { useSheetBrand } from '@/worksheets/SheetView'
+import { useSheetBrand, useStepFacts } from '@/worksheets/SheetView'
 import { pageUrl } from '@/domain/addresses'
 import { PrintRuleField } from './PrintRuleField'
 import { copyPrinted, isPrintable, printKeys, ruleOf, rulesOfLinked, withRule } from '@/domain/printing'
@@ -51,6 +51,7 @@ export default function ItemPanel({
   const categories = useSettings((s) => s.settings.categories)
   const settings = useSettings((s) => s.settings)
   const brand = useSheetBrand(data.workshop.theme)
+  const stepFacts = useStepFacts()
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
 
@@ -152,6 +153,7 @@ export default function ItemPanel({
       )}
       {item.kind === 'block' && (
         <WorksheetList
+          facts={stepFacts(item)}
           sheets={item.worksheets ?? []}
           // a removed sheet takes its print rule along
           onChange={(worksheets) => set({ worksheets, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds: item.attachmentIds, worksheets })) })}

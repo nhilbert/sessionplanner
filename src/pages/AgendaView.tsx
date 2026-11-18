@@ -4,7 +4,7 @@ import { Eye, FileText, Flag, Package, Paperclip, Printer, StickyNote } from 'lu
 import { api } from '@/api'
 import type { Item, Worksheet, WorkshopState } from '@/domain/types'
 import { SheetViewer } from '@/worksheets/WorksheetList'
-import { useSheetBrand } from '@/worksheets/SheetView'
+import { useSheetBrand, useStepFacts } from '@/worksheets/SheetView'
 import { entriesIn, itemsIn, sortedDays } from '@/domain/order'
 import { durationOf, formatDuration, formatTime, scheduleDay, type DaySchedule } from '@/domain/time'
 import { formatDate } from '@/i18n'
@@ -134,7 +134,7 @@ function Row({ item, schedule, data, color }: { item: Item; schedule: DaySchedul
                 </a>
               ))}
               {(item.worksheets ?? []).map((w) => (
-                <SheetLink key={w.id} sheet={w} data={data} />
+                <SheetLink key={w.id} sheet={w} data={data} item={item} />
               ))}
             </div>
           )}
@@ -145,7 +145,8 @@ function Row({ item, schedule, data, color }: { item: Item; schedule: DaySchedul
 }
 
 /** A worksheet of a step: its title, a click shows its pages (docs/worksheets.md; guests see sheets as they see slides). */
-function SheetLink({ sheet, data }: { sheet: Worksheet; data: WorkshopState }) {
+function SheetLink({ sheet, data, item }: { sheet: Worksheet; data: WorkshopState; item: Item }) {
+  const facts = useStepFacts()
   const [open, setOpen] = useState(false)
   const brand = useSheetBrand(data.workshop.theme)
   return (
@@ -154,7 +155,7 @@ function SheetLink({ sheet, data }: { sheet: Worksheet; data: WorkshopState }) {
         <FileText size={11} />
         {sheet.title}
       </button>
-      {open && <SheetViewer sheet={sheet} scope={{ workshopId: data.workshop.id }} theme={brand.theme} logo={brand.logo} onClose={() => setOpen(false)} />}
+      {open && <SheetViewer sheet={sheet} scope={{ workshopId: data.workshop.id }} theme={brand.theme} logo={brand.logo} facts={facts(item)} onClose={() => setOpen(false)} />}
     </>
   )
 }

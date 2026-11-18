@@ -15,7 +15,7 @@ import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { WorksheetList } from '@/worksheets/WorksheetList'
-import { useSheetBrand } from '@/worksheets/SheetView'
+import { useSheetBrand, useStepFacts } from '@/worksheets/SheetView'
 import { SlideView } from '@/slides/SlideView'
 import { SlideEditor } from '@/slides/editor/SlideEditor'
 import { listSource } from '@/slides/editor/source'
@@ -674,7 +674,7 @@ function EntryView({ entry, theme, onOpenSlide }: { entry: LibraryEntry; theme: 
                 ))}
               </div>
             )}
-            {entry.kind === 'item' && (i.worksheets ?? []).length > 0 && <LibrarySheets sheets={i.worksheets} />}
+            {entry.kind === 'item' && (i.worksheets ?? []).length > 0 && <LibrarySheets sheets={i.worksheets} step={i} />}
           </div>
         )
       })}
@@ -756,7 +756,7 @@ function EntryDetails({ entry, theme, known, onSave, onDelete, onOpenSlide, list
                 </div>
               )}
               <SlideStrip slides={entry.data.slides} list={list} onOpen={onOpenSlide} scope="library" theme={theme} canEdit owner />
-              {entry.data.kind === 'block' && <LibrarySheets sheets={entry.data.worksheets ?? []} onChange={(worksheets) => setItem({ worksheets })} />}
+              {entry.data.kind === 'block' && <LibrarySheets sheets={entry.data.worksheets ?? []} step={entry.data} onChange={(worksheets) => setItem({ worksheets })} />}
             </>
           )}
           <div className="flex flex-wrap items-center justify-end gap-3">
@@ -776,7 +776,8 @@ function EntryDetails({ entry, theme, known, onSave, onDelete, onOpenSlide, list
 const hasWorksheet = (e: LibraryEntry): boolean => entryItems(e).some((c) => (c.worksheets ?? []).length > 0)
 
 /** An entry's worksheets in the theme and with the logo of the settings, as a new workshop would print them. */
-function LibrarySheets({ sheets, onChange }: { sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void }) {
+function LibrarySheets({ sheets, step, onChange }: { sheets: Worksheet[]; step: ItemContent; onChange?: (next: Worksheet[]) => void }) {
   const brand = useSheetBrand('')
-  return <WorksheetList sheets={sheets} onChange={onChange} scope="library" theme={brand.theme} logo={brand.logo} />
+  const facts = useStepFacts()
+  return <WorksheetList sheets={sheets} onChange={onChange} scope="library" theme={brand.theme} logo={brand.logo} facts={facts(step)} />
 }
