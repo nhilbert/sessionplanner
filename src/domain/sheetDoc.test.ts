@@ -73,3 +73,21 @@ describe('a worksheet page as a document', () => {
     expect(doc.header).toEqual({ eyebrow: 'Arbeitsblatt', title: 'Titel', titleCls: 'accent fs-xl', leads: ['Eins', 'Zwei'], picture: null })
   })
 })
+
+describe('starter sheets', () => {
+  it('are pages of the catalogue in both languages, every block as fields, for every sample subject', async () => {
+    const { SHEET_STARTERS, starterSheet, STARTER_WORDS } = await import('./sheetStarters.ts')
+    const { SAMPLE_SETS } = await import('./sampleSets.ts')
+    for (const lang of ['de', 'en'] as const)
+      for (const set of SAMPLE_SETS[lang])
+        for (const kind of SHEET_STARTERS) {
+          const sheet = starterSheet(kind, set, STARTER_WORDS[lang])
+          expect(sheet.title.trim(), kind).not.toBe('')
+          for (const html of sheet.pages) {
+            const doc = parseSheetPage(html)
+            expect(flat(doc.blocks).filter((b) => b.kind === 'raw'), `${lang} ${set.name} ${kind}`).toEqual([])
+            expect(doc.headerRaw).toBeUndefined()
+          }
+        }
+  })
+})

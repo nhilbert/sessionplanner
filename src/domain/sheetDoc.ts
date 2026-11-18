@@ -499,7 +499,7 @@ export function newBlock(kind: Exclude<BlockKind, 'raw'>, w: BlockWords): SheetB
     case 'terms':
       return { ...none(), kind, entries: [{ term: w.term, text: w.explanation }, { term: w.term, text: w.explanation }] }
     case 'columns':
-      return { ...none(), kind, mods: ['cols-2'], sections: [{ heading: '', items: [w.entry, w.entry, w.entry, w.entry] }] }
+      return { ...none(), kind, sections: [{ heading: '', items: [w.entry, w.entry, w.entry, w.entry] }] }
     case 'table':
       return { ...none(), kind, head: [w.heading, w.heading], rows: [[w.entry, w.entry], [w.entry, w.entry]] }
     case 'steps':
