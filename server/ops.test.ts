@@ -580,6 +580,27 @@ describe('worksheets and print rules (docs/worksheets.md)', () => {
     expect(() => ops.worksheetAdd({ ...step, title: 'leer', source: '' })).toThrow(/at least one page/)
   })
 
+  it('prints a new worksheet once until told otherwise, on a step and in a library entry', () => {
+    const { ops, repo } = setup()
+    const id = teamDay(ops)
+    const step = { workshop: id, item: 'Begrüßung' }
+    const rulesOf = () => repo.loadWorkshop(id)!.items.find((i) => i.title === 'Begrüßung')!
+    ops.worksheetAdd({ ...step, title: 'Mein Tag', source: page('Eins') })
+    const sheetId = rulesOf().worksheets[0].id
+    expect(rulesOf().printRules).toEqual({ [sheetId]: { mode: 'once', paper: 'A4', duplex: false } })
+    // switched off, it stays off when the sheet changes or another is added
+    ops.printRuleSet(id, 'Begrüßung', { file: 'Mein Tag', mode: 'off' })
+    ops.worksheetUpdate({ ...step, sheet: 1, replace: [{ find: 'Eins', with: 'Zwei' }] })
+    ops.worksheetAdd({ ...step, title: 'Noch eins', source: page('Drei') })
+    const now = rulesOf()
+    expect(now.printRules).toEqual({ [now.worksheets[1].id]: { mode: 'once', paper: 'A4', duplex: false } })
+    // in the library the rule waits with the sheet for the workshop it is inserted into
+    const entry = ops.libraryCreate({ title: 'Rückblick', duration: 20 })
+    ops.worksheetAdd({ entry: entry.id, title: 'Blatt', source: page('Vier') })
+    const data = repo.listLibrary().find((e) => e.id === entry.id)!.data as { worksheets: { id: string }[]; printRules: Record<string, unknown> }
+    expect(data.printRules).toEqual({ [data.worksheets[0].id]: { mode: 'once', paper: 'A4', duplex: false } })
+  })
+
   it('reads its format and one block', () => {
     const { ops } = setup()
     expect(ops.worksheetFormat()).toHaveProperty('catalogue')

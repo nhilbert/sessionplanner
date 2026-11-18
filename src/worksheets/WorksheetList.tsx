@@ -10,7 +10,7 @@ import { entryItems } from '@/domain/copy'
 import { newId } from '@/domain/ops'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, newWorksheets, normalizeSheetHtml, splitPages } from '@/domain/sheets'
 import { type ItemContent, PAPERS, type Paper, type PrintRule, type Worksheet } from '@/domain/types'
-import { ruleOf } from '@/domain/printing'
+import { ruleOf, rulesWithNewSheets } from '@/domain/printing'
 import { PrintRuleField } from '@/planner/PrintRuleField'
 import type { AssetScope } from '@/api'
 import { Button, cx, Field, Input, Modal, SectionLabel } from '@/components/ui'
@@ -346,7 +346,8 @@ function LibraryTargetPicker({ sheet, onClose, onCopied }: { sheet: Worksheet; o
   const shown = targets.filter((x) => !query.trim() || matchesWords(x.label.toLowerCase(), query))
   const pick = async (x: (typeof targets)[number]) => {
     const copy = { ...newWorksheets([sheet], newId)[0], updatedAt: new Date().toISOString() }
-    const add = (c: ItemContent): ItemContent => ({ ...c, worksheets: [...(c.worksheets ?? []), copy] })
+    // new in the entry: printed once wherever the entry is inserted, until said otherwise there
+    const add = (c: ItemContent): ItemContent => ({ ...c, worksheets: [...(c.worksheets ?? []), copy], printRules: rulesWithNewSheets(c.printRules, c.worksheets, [...(c.worksheets ?? []), copy]) })
     const e = x.entry
     setBusy(true)
     try {

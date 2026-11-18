@@ -10,6 +10,7 @@ import { ariaSort, BulkBar, NoticeBar, SelectAll, SelectBox, type Selection, sho
 import { hasTag, tagCounts } from '@/domain/tags'
 import { api, reportFailure } from '@/api'
 import { entryItems } from '@/domain/copy'
+import { rulesWithNewSheets } from '@/domain/printing'
 import { FileManager } from '@/planner/FileManager'
 import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
@@ -769,7 +770,7 @@ function EntryDetails({ entry, theme, known, onSave, onDelete, onOpenSlide, list
                 </div>
               )}
               <SlideStrip slides={entry.data.slides} list={list} onOpen={onOpenSlide} scope="library" theme={theme} canEdit owner />
-              {entry.data.kind === 'block' && <LibrarySheets sheets={entry.data.worksheets ?? []} step={entry.data} onChange={(worksheets) => setItem({ worksheets })} />}
+              {entry.data.kind === 'block' && <LibrarySheets sheets={entry.data.worksheets ?? []} step={entry.data} onChange={(worksheets) => setItem({ worksheets, printRules: rulesWithNewSheets(entry.data.printRules, entry.data.worksheets, worksheets) })} />}
             </>
           )}
           <div className="flex flex-wrap items-center justify-end gap-3">

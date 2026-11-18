@@ -36,6 +36,7 @@ interface PrintRule {
 - `Item.groups: number`, default 1.
 - A print rule per file of a step (stage 0) and per sheet of a step (stage 2). For files the rule is kept on the item and keyed by the attachment's id; wherever attachment ids are mapped to new ones (inserting a library entry, saving to the library, duplicating) the rules are mapped with them.
 - Copies: per person = participants, per group = the step's groups, once = 1, count = the number typed. A reserve (for example 2 more per job) is a setting of the export dialog, remembered per device like the print switches, not a field of a sheet.
+- **A new worksheet is printed once (decided 2026-11-18).** A sheet that is new on a step – from a starter, from its source, copied from the library, duplicated, added through the connector – gets the rule "once" (`NEW_SHEET_RULE`, `rulesWithNewSheets`), so a sheet made is never forgotten at the printer; "not printed" is then a choice and stays one when the sheet changes. A sheet made in a library entry gets the same rule there, and it travels into the workshop the entry is inserted into. Sheets that were there before keep what they have; files keep "not printed" as their start.
 
 On screen:
 

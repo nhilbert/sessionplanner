@@ -20,7 +20,7 @@ import { WorksheetList } from '@/worksheets/WorksheetList'
 import { useSheetBrand, useStepFacts } from '@/worksheets/SheetView'
 import { pageUrl } from '@/domain/addresses'
 import { PrintRuleField } from './PrintRuleField'
-import { copyPrinted, isPrintable, printKeys, ruleOf, rulesOfLinked, withRule } from '@/domain/printing'
+import { copyPrinted, isPrintable, printKeys, ruleOf, rulesOfLinked, rulesWithNewSheets, withRule } from '@/domain/printing'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
 import { usePlanner } from '@/store/usePlanner'
@@ -160,8 +160,8 @@ export default function ItemPanel({
           facts={stepFacts(item)}
           onCopiedToLibrary={libraryEdit ? (title) => onNotice(t('sheets.copiedToLibrary', { title })) : undefined}
           sheets={item.worksheets ?? []}
-          // a removed sheet takes its print rule along
-          onChange={(worksheets) => set({ worksheets, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds: item.attachmentIds, worksheets })) })}
+          // a removed sheet takes its print rule along; a new one is printed once until said otherwise
+          onChange={(worksheets) => set({ worksheets, printRules: rulesOfLinked(rulesWithNewSheets(item.printRules, item.worksheets, worksheets), printKeys({ attachmentIds: item.attachmentIds, worksheets })) })}
           printing={{
             rules: item.printRules ?? {},
             groups: item.groups ?? 1,

@@ -37,6 +37,23 @@ export function mapRules(rules: Record<string, PrintRule> | undefined, to: (id: 
   return out
 }
 
+/**
+ * A worksheet that is new on a step is printed once until someone says otherwise (decided 2026-11-18): a sheet made
+ * and never printed is the mistake to keep from, one copy too many is none. Files keep "not printed": most of them
+ * are not for the room.
+ */
+export const NEW_SHEET_RULE: PrintRule = { mode: 'once', paper: 'A4', duplex: false }
+
+/**
+ * The rules after a step's worksheets changed from `before` to `after`: a sheet that was not there gets the rule of a
+ * new sheet, unless it brought one. The same rules when no sheet is new.
+ */
+export function rulesWithNewSheets(rules: Record<string, PrintRule> | undefined, before: Worksheet[] | undefined, after: Worksheet[]): Record<string, PrintRule> {
+  const known = new Set((before ?? []).map((w) => w.id))
+  const fresh = after.filter((w) => !known.has(w.id) && !rules?.[w.id])
+  return fresh.length ? { ...rules, ...Object.fromEntries(fresh.map((w) => [w.id, NEW_SHEET_RULE])) } : (rules ?? {})
+}
+
 /** What a rule can be kept for: the files a step links and its worksheets. */
 export const printKeys = (c: Pick<ItemContent, 'attachmentIds' | 'worksheets'>): string[] => [...c.attachmentIds, ...(c.worksheets ?? []).map((w) => w.id)]
 

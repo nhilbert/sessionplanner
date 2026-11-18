@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fromLibrary, withFilesOf } from './copy.ts'
 import { workshopPacking } from './packing.ts'
-import { copiesOf, copyPrinted, jobLabel, jobTitle, mapRules, needsParticipants, packageFileName, printKeys, printLines, printListMarkdown, printWords, rulesOfLinked, sheetJobs, withRule } from './printing.ts'
+import { copiesOf, copyPrinted, jobLabel, jobTitle, mapRules, needsParticipants, packageFileName, printKeys, printLines, printListMarkdown, printWords, rulesOfLinked, rulesWithNewSheets, sheetJobs, withRule } from './printing.ts'
 import type { Item, ItemContent, LibraryEntry, PrintRule, Worksheet, WorkshopState } from './types.ts'
 
 const rule = (mode: PrintRule['mode'], over: Partial<PrintRule> = {}): PrintRule => ({ mode, paper: 'A4', duplex: false, ...over })
@@ -68,6 +68,24 @@ describe('rules on a step', () => {
   it('maps rules to new file ids and drops those whose file did not come along', () => {
     expect(mapRules({ a: rule('once'), b: rule('person') }, (id) => ({ a: 'x' })[id])).toEqual({ x: rule('once') })
     expect(rulesOfLinked({ a: rule('once'), b: rule('person') }, ['b'])).toEqual({ b: rule('person') })
+  })
+})
+
+describe('a new worksheet', () => {
+  const sheet = (id: string): Worksheet => ({ id, title: id, paper: 'A4', pages: [], updatedAt: '' })
+
+  it('is printed once until someone says otherwise', () => {
+    expect(rulesWithNewSheets({}, [], [sheet('a')])).toEqual({ a: rule('once') })
+    expect(rulesWithNewSheets(undefined, undefined, [sheet('a')])).toEqual({ a: rule('once') })
+    // one that came with a rule keeps it
+    expect(rulesWithNewSheets({ a: rule('person') }, [], [sheet('a')])).toEqual({ a: rule('person') })
+  })
+
+  it('leaves the sheets that were there alone: "not printed" stays chosen', () => {
+    const rules = { f1: rule('group') }
+    // a was there without a rule: it was switched off, or is older than this default
+    expect(rulesWithNewSheets(rules, [sheet('a')], [sheet('a')])).toBe(rules)
+    expect(rulesWithNewSheets(rules, [sheet('a')], [sheet('a'), sheet('b')])).toEqual({ f1: rule('group'), b: rule('once') })
   })
 })
 

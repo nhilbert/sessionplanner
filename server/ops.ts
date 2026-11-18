@@ -6,14 +6,14 @@ import { copyEntryFiles, copyToLibrary, removeFiles } from './files.ts'
 import { BadRequest, isCalendarDate, MAX_OPS, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { filePaths } from './storage.ts'
-import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, LibraryEntryInput, Material, PackingState, PaletteKey, Paper, PrintMode, Slide, Worksheet, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
+import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, LibraryEntryInput, Material, PackingState, PaletteKey, Paper, PrintMode, PrintRule, Slide, Worksheet, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import { DEFAULT_TIMEZONE, TRASH_DAYS, ZERO_KINDS } from '../src/domain/types.ts'
 import { changeTags } from '../src/domain/tags.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, placeIn, sortedDays } from '../src/domain/order.ts'
 import { clockIn, formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
 import { packingKey, workshopPacking } from '../src/domain/packing.ts'
-import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, printWords, withRule } from '../src/domain/printing.ts'
+import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, rulesWithNewSheets, printWords, withRule } from '../src/domain/printing.ts'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
 import { slideText as pageText } from '../src/domain/slides.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
@@ -132,6 +132,12 @@ interface SlideTarget {
 
 /** The target part of a slide tool's input, without the slide fields (html there is markup, in slideList a switch). */
 const targetOf = (i: SlideTargetInput): SlideTargetInput => ({ workshop: i.workshop, entry: i.entry, item: i.item })
+
+/** The print rules to store with a step's worksheets when one of them is new (it is printed once); nothing otherwise. */
+function newRules(c: Pick<ItemContent, 'printRules' | 'worksheets'>, worksheets: Worksheet[]): { printRules?: Record<string, PrintRule> } {
+  const printRules = rulesWithNewSheets(c.printRules, c.worksheets, worksheets)
+  return printRules === c.printRules || !Object.keys(printRules).length ? {} : { printRules }
+}
 
 type GroupEntry = Extract<LibraryEntry, { kind: 'group' }>
 
@@ -983,13 +989,13 @@ export class Ops {
       const s = this.state(input.workshop)
       const item = this.item(s, input.item)
       check(item.kind)
-      return { where: { item: item.title || item.id }, sheets: item.worksheets ?? [], save: (worksheets) => this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields: { worksheets } }]) }
+      return { where: { item: item.title || item.id }, sheets: item.worksheets ?? [], save: (worksheets) => this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields: { worksheets, ...newRules(item, worksheets) } }]) }
     }
     if (input.entry === undefined) throw new BadRequest('give a workshop and its item, or a library entry')
     const entry = this.entry(input.entry)
     if (entry.kind === 'item') {
       check(entry.data.kind)
-      return { where: { entry: entry.title }, sheets: entry.data.worksheets ?? [], save: (worksheets) => void this.saveEntry(entry.id, { kind: 'item', title: entry.title, data: { ...entry.data, worksheets } }) }
+      return { where: { entry: entry.title }, sheets: entry.data.worksheets ?? [], save: (worksheets) => void this.saveEntry(entry.id, { kind: 'item', title: entry.title, data: { ...entry.data, worksheets, ...newRules(entry.data, worksheets) } }) }
     }
     if (input.item === undefined) throw new BadRequest(`"${entry.title}" is a group: give the item inside it, by title or number (${this.memberNames(entry)})`)
     const index = this.member(entry, input.item)
@@ -998,7 +1004,7 @@ export class Ops {
     return {
       where: { entry: entry.title, item: content.title || String(index + 1) },
       sheets: content.worksheets ?? [],
-      save: (worksheets) => void this.saveEntry(entry.id, { kind: 'group', title: entry.title, data: { items: entry.data.items.map((c, n) => (n === index ? { ...c, worksheets } : c)) } }),
+      save: (worksheets) => void this.saveEntry(entry.id, { kind: 'group', title: entry.title, data: { items: entry.data.items.map((c, n) => (n === index ? { ...c, worksheets, ...newRules(c, worksheets) } : c)) } }),
     }
   }
 
