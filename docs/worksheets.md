@@ -2,7 +2,7 @@
 
 Printed material for the steps of a workshop: worksheets for exercises and handouts for methods. A step says how many copies of each sheet the workshop needs; the workshop exports one print package with a file per print job. Sheets are written in the app as content in a small HTML subset, like slides, and laid out by one stylesheet; files made elsewhere (a PDF from a layout program) stay possible and follow the same print rule.
 
-Stage 0 (print rules and the print package) and stage 1 (the format, outside the app) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
+Stage 0 (print rules and the print package), stage 1 (the format, outside the app) and stage 2a (sheets in the app, without the print package) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
 
 No client, partner or brand names in this file. The owner's sample worksheets are private material and stay outside this repository.
 
@@ -111,10 +111,17 @@ The markup of each block, with its modifiers, is in `SHEET_BLOCKS` (`src/domain/
 
 ## 6. In the app (stage 2)
 
-- `Item.worksheets` beside `Item.slides`; the library's item content carries them, so inserting, saving, duplicating and the connector take them along.
-- Thumbnails of a step's sheets in its details and on the library entry; a click opens the viewer. A print view per sheet and for all sheets of a workshop.
-- The library filters by "has a worksheet". A new sheet can start as a copy of a sheet in another library entry.
-- The connector reads and writes sheets as text (`worksheet_format`, list, get, add, update, remove), and a project skill like `slide-build` carries the block catalogue with examples and the check script.
+Stage 2a, built 2026-11-18:
+
+- `Item.worksheets` beside `Item.slides`: each sheet with an id, a title, a paper size, its pages (id and markup) and `updatedAt`, the date its footer shows. At most 10 sheets on a step, 8 pages on a sheet; units (kind block) have them. The library's item content carries them, so inserting, saving, duplicating and the connector take them along, with new ids. Their pictures count as held by the workshop and the library, like the pictures of slides.
+- Thumbnails of a step's sheets in its details and on the library entry; a click opens the viewer with every page. Each sheet's ⋯: view, print, edit the source, duplicate, remove. A new sheet starts from its source (title, paper, the pages as one text with a live preview; sanitised on saving) or as a copy of a sheet in the library. The editor proper is stage 3.
+- The host adds the footer: the date of the last change, the page number on sheets of several pages, the logo of the workshop's theme (or the owner's printout logo); in the library the settings' theme. Where the theme puts its logo is stage 4; for now always at the foot.
+- A print view (`/w/:id/print/sheets`, Output → "Print worksheets", or one sheet with `?sheet=<id>`): the sheets of placed units in agenda order, each page on a named page of its paper and orientation, printed by the browser into a vector PDF, as the accepted test print of stage 1 was.
+- The library filters by "with worksheet".
+- Guests see a workshop's sheets as they see its slides: they are participants' material, not facilitation notes (decided 2026-11-18). Guests who may edit can edit them.
+- The connector: `worksheet_format`, `worksheet_list`, `worksheet_get`, `worksheet_add`, `worksheet_update`, `worksheet_remove`; and, closing a gap of stage 0, `workshop_update` sets the participants, `item_update` a step's groups, `print_rule` the rule of a step's PDF. The project skill `sheet-build` carries the workflow with the check script.
+
+Stage 2b: sheets in the print package (section 3) – print rules on sheets, the sheets of a job merged in agenda order, two-sided jobs starting each sheet on a new leaf. Open (2026-11-18): how the package gets a PDF of a sheet without the print dialog – the browser's raster writer (`src/slides/pdf/pdf.ts`) at 300 dpi, or a vector PDF from a headless browser on the server; a comparison print decides.
 
 ## 7. Editing (stage 3)
 
@@ -157,7 +164,7 @@ What the block groups and the frame lean on. Effect sizes come from school and l
 
 ## 12. Open points
 
-- What a view guest sees of a step's sheets (stage 2).
-- The second instance: every new route of the core is a decision there (`core-routes.json`), and migrations run per workspace; sample sheets for the starter pack.
-- Raster against vector for the app's own PDF: the accepted test print was the browser's vector PDF; the app's writer (`src/slides/pdf/pdf.ts`) draws raster pages. A3 pages at 300 dpi exceed the canvas size of iOS Safari.
+- Sample sheets for the starter pack of the second instance (later, decided 2026-11-18). Stage 2a adds no route; migration 0018 runs per workspace.
+- The PDF of a sheet in the print package (stage 2b): raster from the app's writer or vector from a headless browser on the server (section 6). A3 pages at 300 dpi exceed the canvas size of iOS Safari.
+- An agenda card does not yet show that its step has worksheets.
 - Words in the segments of a circle; the remaining blocks and the page kinds of section 5 (stage 4).
