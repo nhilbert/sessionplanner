@@ -1,23 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Copy, Download, ExternalLink, Plus, Trash2, UserMinus, UserPlus, X } from 'lucide-react'
+import { ExternalLink, Plus, UserMinus, UserPlus, X } from 'lucide-react'
+import type { TFunction } from 'i18next'
 import { type Attachment, type Member, type MemberRole, type PackingState, TRASH_DAYS, type WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
 import { packingList } from '@/domain/packing'
 import { api, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
-import { Button, Checkbox, cx, DownloadButton, Field, IconButton, Input, Modal, Segmented } from '@/components/ui'
+import { Button, Checkbox, cx, Field, IconButton, Input, Modal, SectionLabel, Segmented } from '@/components/ui'
 import { sortedDays } from '@/domain/order'
 import { QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
 import { FileManager } from './FileManager'
-import { ThemeSelect } from '@/slides/ThemeSelect'
+import { ManageThemes, ThemeSelect } from '@/slides/ThemeSelect'
 
 export function WorkshopPanel({ data, change, owner, onDayDate }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onDayDate: (dayId: string, date: string) => void }) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const w = data.workshop
   const set = (fields: Partial<WorkshopFields>) => change([{ op: 'set', entity: 'workshop', id: w.id, fields }])
   return (
@@ -49,40 +49,42 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
       {owner && (
         <Field label={t('workshop.branding')}>
           <ThemeSelect value={w.theme} onChange={(theme) => set({ theme })} withDefault className="h-8 w-full text-[13px]" />
-          <p className="mt-1 text-[12px] text-ink-3">{t('workshop.brandingHint')}</p>
+          <p className="mt-1 text-[12px] text-ink-3">
+            {t('workshop.brandingHint')} <ManageThemes />
+          </p>
         </Field>
       )}
-      {owner && (
-      <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-        <DuplicateButton data={data} />
-        <DownloadButton size="sm" href={api.workshopExportUrl(w.id)} title={t('workshop.exportHint')}>
-          <Download size={13} />
-          {t('workshop.export')}
-        </DownloadButton>
-        <Button size="sm" onClick={() => set({ archived: !w.archived })}>
-          {w.archived ? t('workshop.unarchive') : t('workshop.archive')}
-        </Button>
-        <Button
-          size="sm"
-          variant="danger"
-          onClick={async () => {
-            if (!window.confirm(t('workshop.deleteConfirm', { title: w.title || t('workshops.untitled'), days: TRASH_DAYS }))) return
-            // Stop listening first: the deletion's own notice would show "this workshop does not exist" on the way out.
-            usePlanner.getState().close()
-            try {
-              await api.deleteWorkshop(w.id)
-              navigate('/')
-            } catch (err) {
-              usePlanner.getState().open(w.id)
-              reportFailure(err)
-            }
-          }}
-        >
-          <Trash2 size={13} />
-          {t('workshop.delete')}
-        </Button>
-      </div>
-      )}
+    </div>
+  )
+}
+
+/** Moves the workshop to the trash after asking, and returns to the list; its live connection is closed first. */
+export async function deleteWorkshop(w: WorkshopState['workshop'], t: TFunction, navigate: (to: string) => void) {
+  if (!window.confirm(t('workshop.deleteConfirm', { title: w.title || t('workshops.untitled'), days: TRASH_DAYS }))) return
+  // Stop listening first: the deletion's own notice would show "this workshop does not exist" on the way out.
+  usePlanner.getState().close()
+  try {
+    await api.deleteWorkshop(w.id)
+    navigate('/')
+  } catch (err) {
+    usePlanner.getState().open(w.id)
+    reportFailure(err)
+  }
+}
+
+/** The workshop's material: the packing list from all its steps, then all its files. */
+export function MaterialPanel({ data, change, onAttachment, onRemove, owner }: { data: WorkshopState; change: (ops: Op[]) => void; onAttachment: (a: Attachment) => void; onRemove: (id: string) => void; owner: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-6">
+      <section>
+        <SectionLabel>{t('planner.packing')}</SectionLabel>
+        <PackingPanel data={data} change={change} />
+      </section>
+      <section>
+        <SectionLabel>{t('planner.files')}</SectionLabel>
+        <FilesPanel data={data} onAttachment={onAttachment} onRemove={onRemove} owner={owner} />
+      </section>
     </div>
   )
 }
@@ -217,65 +219,57 @@ export function FilesPanel({ data, onAttachment, onRemove, owner }: { data: Work
 }
 
 /** A copy of the workshop under a new title, its days moved to a new first date. */
-function DuplicateButton({ data }: { data: WorkshopState }) {
+export function DuplicateDialog({ data, open, onClose }: { data: WorkshopState; open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [busy, setBusy] = useState(false)
   const first = sortedDays(data.days)[0]?.date ?? ''
+  // Each opening starts from the workshop as it is now.
+  useEffect(() => {
+    if (!open) return
+    setTitle(t('workshop.copyTitle', { title: data.workshop.title || t('workshops.untitled') }))
+    setDate(first)
+  }, [open]) // only on opening: typing in the fields must not reset them
   return (
-    <>
-      <Button
-        size="sm"
-        onClick={() => {
-          setTitle(t('workshop.copyTitle', { title: data.workshop.title || t('workshops.untitled') }))
-          setDate(first)
-          setOpen(true)
+    <Modal open={open} onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setBusy(true)
+          try {
+            const copy = await api.duplicateWorkshop(data.workshop.id, { title: title.trim(), firstDate: date || undefined })
+            onClose()
+            navigate(`/w/${copy.workshop.id}`)
+          } catch (err) {
+            reportFailure(err)
+          } finally {
+            setBusy(false)
+          }
         }}
       >
-        <Copy size={13} />
-        {t('workshop.duplicate')}
-      </Button>
-      <Modal open={open} onClose={() => setOpen(false)}>
-        <form
-          className="space-y-4"
-          onSubmit={async (e) => {
-            e.preventDefault()
-            setBusy(true)
-            try {
-              const copy = await api.duplicateWorkshop(data.workshop.id, { title: title.trim(), firstDate: date || undefined })
-              setOpen(false)
-              navigate(`/w/${copy.workshop.id}`)
-            } catch (err) {
-              reportFailure(err)
-            } finally {
-              setBusy(false)
-            }
-          }}
-        >
-          <h2 className="text-lg font-medium">{t('workshop.duplicate')}</h2>
-          <Field label={t('workshop.title')}>
-            <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+        <h2 className="text-lg font-medium">{t('workshop.duplicate')}</h2>
+        <Field label={t('workshop.title')}>
+          <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+        </Field>
+        {first && (
+          <Field label={t('workshops.firstDay')} hint={data.days.length > 1 ? t('workshop.daysFollow') : undefined}>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          {first && (
-            <Field label={t('workshops.firstDay')} hint={data.days.length > 1 ? t('workshop.daysFollow') : undefined}>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </Field>
-          )}
-          <p className="text-[13px] text-ink-3">{t('workshop.duplicateHint')}</p>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button variant="primary" type="submit" disabled={busy || !title.trim()}>
-              {t('workshop.duplicate')}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-    </>
+        )}
+        <p className="text-[13px] text-ink-3">{t('workshop.duplicateHint')}</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="primary" type="submit" disabled={busy || !title.trim()}>
+            {t('workshop.duplicate')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

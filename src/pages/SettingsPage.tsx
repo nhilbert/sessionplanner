@@ -11,8 +11,7 @@ import Swatches from '@/components/Swatches'
 import AgentConnections from '@/components/AgentConnections'
 import StorageSection from '@/components/StorageSection'
 import { TextField, TimeField } from '@/planner/fields'
-import { ThemeSelect } from '@/slides/ThemeSelect'
-import { ManageThemes } from '@/slides/DeckPanel'
+import { ManageThemes, ThemeSelect } from '@/slides/ThemeSelect'
 
 const MAX_LOGO = 2 * 1024 * 1024
 

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { Select, useLocalState } from '@/components/ui'
 import { themeLabel, useThemes } from '@/store/useThemes'
 import { useSettings } from '@/store/useSettings'
@@ -54,5 +55,15 @@ export function ViewThemeSelect({ value, onChange, defaultLabel }: { value: stri
       <span className="text-ink-3">{t('slides.viewIn')}</span>
       <ThemeSelect value={value} onChange={onChange} withDefault defaultLabel={defaultLabel} />
     </label>
+  )
+}
+
+/** The link that sits next to every theme choice. */
+export function ManageThemes() {
+  const { t } = useTranslation()
+  return (
+    <Link to="/slides/themes" className="text-[12px] text-ink-3 hover:text-ink hover:underline">
+      {t('themes.manage')}
+    </Link>
   )
 }

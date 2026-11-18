@@ -54,6 +54,10 @@
     "purgeAllConfirm": "Delete all {{count}} workshops in the trash with all their days, items and files for good? This cannot be undone."
   },
   "planner": {
+    "parkingTab": "Parking",
+    "dayMenu": "Day actions",
+    "material": "Material",
+    "view": "View",
     "parking": "Parking lot",
     "parkingHint": "Not part of the agenda. Drag items here to keep them for later, and back when you need them.",
     "addDay": "Add day",
@@ -72,7 +76,6 @@
     "openSegment": "from {{from}}: {{planned}}",
     "packing": "Packing list",
     "files": "Files",
-    "print": "Print",
     "printOverview": "Planning overview",
     "printPlan": "Facilitation plan",
     "printAgenda": "Client agenda",
@@ -92,7 +95,6 @@
     "zoomS": "View: compact",
     "zoomM": "View: normal",
     "zoomL": "View: large",
-    "agenda": "Agenda",
     "date": "Date",
     "parkingEmpty": "Nothing parked",
     "hideDescription": "Hide short descriptions",
@@ -114,6 +116,8 @@
     "note": "Note"
   },
   "item": {
+    "menu": "Item actions",
+    "close": "Close details",
     "kind": "Kind",
     "title": "Title",
     "description": "Short description",
@@ -148,6 +152,7 @@
     "saveToLibrary": "Save to library"
   },
   "workshop": {
+    "menu": "Workshop actions",
     "details": "Workshop details",
     "title": "Title",
     "client": "Client",
@@ -164,9 +169,7 @@
     "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked.",
     "days": "Days",
     "branding": "Branding (theme)",
-    "brandingHint": "Sets the slides and the logo on the printouts of this workshop. If the theme has no logo for paper, the printout logo from the settings is used. Themes are edited under Slides → Themes.",
-    "export": "Export as ZIP",
-    "exportHint": "Downloads the workshop with all days, items, notes, files and slide pictures as a ZIP."
+    "brandingHint": "Sets the slides and the logo on the printouts of this workshop. If the theme has no logo for paper, the printout logo from the settings is used."
   },
   "packing": {
     "empty": "No material yet. Add material to the agenda items.",
@@ -270,7 +273,7 @@
     "settings": "Settings",
     "collapse": "Collapse",
     "expand": "Expand",
-    "slides": "Slides",
+    "slides": "Slide pool",
     "pictures": "Pictures"
   },
   "settings": {
@@ -354,6 +357,7 @@
     "deleteConfirm": "Delete “{{title}}” with all its items?"
   },
   "toolbox": {
+    "tabs": "Workshop tools",
     "open": "Open sidebar",
     "close": "Close sidebar",
     "resize": "Drag to resize · double-click to reset"
@@ -409,7 +413,8 @@
     "print": "Print"
   },
   "access": {
-    "title": "Access",
+    "share": "Share “{{title}}”",
+    "shareButton": "Share",
     "hint": "Guests sign in with their own Microsoft account. They need a guest account in your Entra and must be let in at the Session Planner's login (see the guide).",
     "email": "E-mail",
     "view": "View",
@@ -451,7 +456,24 @@
     "heading": "Heading",
     "syntax": "**bold** · *italic* · - list · 1. numbered · ## heading · - [ ] to-do · [link](https://…)"
   },
+  "output": {
+    "menu": "Output",
+    "pptx": "Slides as PowerPoint",
+    "pptxHint": "text boxes, shapes and pictures to edit further",
+    "pdf": "Slides as PDF",
+    "pdfHint": "every slide as it looks here; text searchable",
+    "html": "Slides as HTML file",
+    "htmlHint": "one file that runs in any browser",
+    "zip": "Workshop as ZIP",
+    "zipHint": "all days, items, notes, files and slide pictures",
+    "exportingHtml": "Exporting …",
+    "presentMenu": "Other ways to present",
+    "presentFull": "Presentation",
+    "presentFullHint": "for the projector, in a new window",
+    "presenterHint": "current and next slide, time and notes; also a remote on the phone"
+  },
   "slides": {
+    "keys": "Keyboard",
     "title": "Slides",
     "tooMany": "At most {{max}} slides per step: {{count}} were not added.",
     "missingPictures": "Not found, taken over without the picture: {{names}}",
@@ -560,12 +582,8 @@
     "swept_one": "{{count}} picture removed",
     "swept_other": "{{count}} pictures removed",
     "present": "Present",
-    "downloadHtml": "Save as HTML",
-    "downloadPptx": "Save as PowerPoint",
-    "downloadPdf": "Save as PDF",
     "exporting": "Exporting {{done}} / {{of}} …",
     "themeUnavailable": "The slide theme could not be loaded, so the file was not made (it would have had unstyled slides).",
-    "exportHint": "PowerPoint: text boxes, shapes and pictures to edit; fonts the computer lacks are replaced. PDF: every slide as it looks here, text searchable and copyable.",
     "printSlides": "Print slides (16:9)",
     "generated": {
       "title": "Title slide",
@@ -652,7 +670,6 @@
     "markup": "**bold** · *italic* · ==accent== · [large]{l}",
     "generatedHint": "The app generates this kind of slide from the plan; write one only for a special case.",
     "openSlides": "Open slides",
-    "deckTheme": "Branding (theme)",
     "themeDefaultNamed": "Default (settings: {{name}})"
   },
   "editor": {

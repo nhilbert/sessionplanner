@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
-import { AlertTriangle, Download, FileText, MonitorSpeaker, Play, Presentation, Printer, Shuffle } from 'lucide-react'
+import { AlertTriangle, Shuffle } from 'lucide-react'
 import type { WorkshopState } from '@/domain/types'
 import { newId, type Op } from '@/domain/ops'
 import type { DeckSlideRef } from '@/domain/deck'
@@ -9,52 +8,27 @@ import { MAX_SLIDES } from '@/domain/slides'
 import { sampleTextsOf } from '@/domain/starters'
 import { dropIndex, hasRoom } from '@/domain/slideMove'
 import { usePlanner } from '@/store/usePlanner'
-import { reportFailure } from '@/api'
-import { Button, cx } from '@/components/ui'
+import { cx } from '@/components/ui'
 import { Option } from './Option'
-import { downloadBlob, fileSlug } from '@/print/options'
 import { SlideView } from './SlideView'
-import { exportDeckHtml } from './export'
-import { exportDeckPptx } from './pptx'
-import { exportDeckPdf } from './pdf'
 import { useDeck } from './useDeck'
-import { ThemeSelect } from './ThemeSelect'
 import { moveSlideInPlanner, useSlideEditing, useSlideMoving } from './PlannerSlides'
 import { SlideMenu, SlideSort, SortSlide, type Side } from './SlideSort'
-import { pageUrl } from '@/domain/addresses'
 
 /**
- * The whole deck in agenda order, with the generated slides; present, save as a file, print; the workshop's theme.
- * A slide opens the editor on the deck (generated slides read-only, with what can be done instead). The steps'
+ * The whole deck in agenda order, with the generated slides, and which generated slides it shows. Presenting, printing
+ * and saving it are in the workshop's header (Present, Output), its theme in the workshop's details. A slide opens
+ * the editor on the deck (generated slides read-only, with what can be done instead). The steps'
  * slides are sorted by dragging: within a step, and across its edge into the step of the slide dropped on; the
  * generated slides stay where the plan puts them. A slide's menu moves it to any step, duplicates and removes it.
  */
-export function DeckPanel({ data, change, owner, onNotice }: { data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onNotice: (text: string) => void }) {
-  const { t, i18n } = useTranslation()
+export function DeckPanel({ data, change, onNotice }: { data: WorkshopState; change: (ops: Op[]) => void; onNotice: (text: string) => void }) {
+  const { t } = useTranslation()
   const { deck, theme, options, update, pictures } = useDeck(data)
   // the slides of the steps that still say a starter's sample words: named before the deck is shown or exported
   const sampled = useMemo(() => deck.flatMap((s, i) => (!s.generated && sampleTextsOf(s.html).length ? [{ key: s.key, n: i + 1 }] : [])), [deck])
-  const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState<{ kind: 'pptx' | 'pdf'; done: number; of: number } | null>(null)
   const title = data.workshop.title || t('workshops.untitled')
   const scope = { workshopId: data.workshop.id }
-  const common = { title, theme, scope, chrome: title, lang: i18n.language, part: (p: { n: number; of: number }) => t('slides.part', p) }
-  const save = async (kind: 'html' | 'pptx' | 'pdf') => {
-    setBusy(true)
-    const onProgress = (done: number, of: number) => kind !== 'html' && setProgress({ kind, done, of })
-    try {
-      if (kind === 'html') downloadBlob(`${fileSlug(title)}-folien.html`, await exportDeckHtml(deck, common))
-      else if (kind === 'pdf') downloadBlob(`${fileSlug(title)}-folien.pdf`, await exportDeckPdf(deck, { ...common, onProgress }))
-      else downloadBlob(`${fileSlug(title)}-folien.pptx`, await exportDeckPptx(deck, { ...common, onProgress }))
-    } catch (err) {
-      // a browser that will not hand out the drawn slides (a tainted canvas): the print view makes the PDF instead
-      if (kind === 'pdf' && err instanceof DOMException && err.name === 'SecurityError') window.open(pageUrl(`/w/${data.workshop.id}/print/slides`), '_blank', 'noopener')
-      else reportFailure(err)
-    } finally {
-      setBusy(false)
-      setProgress(null)
-    }
-  }
   // ---- the steps' slides: sorted, moved, duplicated and removed in place, each one change of the planner ---------
   /** The step of a deck slide and its id there; null for a generated slide. */
   const place = (s: DeckSlideRef | undefined) => (s?.itemId && !s.generated ? { itemId: s.itemId, slideId: s.key.slice(s.itemId.length + 1) } : null)
@@ -84,42 +58,6 @@ export function DeckPanel({ data, change, owner, onNotice }: { data: WorkshopSta
   }
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${data.workshop.id}/present`), '_blank', 'noopener')} disabled={!deck.length}>
-          <Play size={13} />
-          {t('slides.present')}
-        </Button>
-        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${data.workshop.id}/presenter`), '_blank', 'noopener')} disabled={!deck.length}>
-          <MonitorSpeaker size={13} />
-          {t('slides.presenter')}
-        </Button>
-        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${data.workshop.id}/print/slides`), '_blank', 'noopener')} disabled={!deck.length}>
-          <Printer size={13} />
-          {t('slides.printSlides')}
-        </Button>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => void save('pptx')} disabled={!deck.length || busy}>
-          <Presentation size={13} />
-          {progress?.kind === 'pptx' ? t('slides.exporting', progress) : t('slides.downloadPptx')}
-        </Button>
-        <Button size="sm" onClick={() => void save('pdf')} disabled={!deck.length || busy}>
-          <FileText size={13} />
-          {progress?.kind === 'pdf' ? t('slides.exporting', progress) : t('slides.downloadPdf')}
-        </Button>
-        <Button size="sm" onClick={() => void save('html')} disabled={!deck.length || busy}>
-          <Download size={13} />
-          {t('slides.downloadHtml')}
-        </Button>
-      </div>
-      <p className="text-[12px] text-ink-3">{t('slides.exportHint')}</p>
-      {owner && (
-        <div className="flex flex-wrap items-center gap-2 text-[13px]">
-          <span className="text-ink-2">{t('slides.deckTheme')}</span>
-          <ThemeSelect value={data.workshop.theme} onChange={(theme) => change([{ op: 'set', entity: 'workshop', id: data.workshop.id, fields: { theme } }])} withDefault />
-          <ManageThemes />
-        </div>
-      )}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
         <Option checked={options.breaks} onChange={(breaks) => update({ breaks })}>{t('slides.withBreaks')}</Option>
@@ -161,15 +99,5 @@ export function DeckPanel({ data, change, owner, onNotice }: { data: WorkshopSta
         </SlideSort>
       </ol>
     </div>
-  )
-}
-
-/** The link that sits next to every theme choice. */
-export function ManageThemes() {
-  const { t } = useTranslation()
-  return (
-    <Link to="/slides/themes" className="text-[12px] text-ink-3 hover:text-ink hover:underline">
-      {t('themes.manage')}
-    </Link>
   )
 }

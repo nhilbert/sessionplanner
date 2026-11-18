@@ -10,6 +10,11 @@ export interface MenuItem {
   danger?: boolean
   /** Shown with a check mark: the current zoom, an option that is on. */
   checked?: boolean
+  /** A line above this item: the start of a new group (output after printing, delete after the rest). */
+  separated?: boolean
+  /** A short second line: what the choice gives (an editable PowerPoint, a PDF as seen here). */
+  hint?: string
+  disabled?: boolean
   onSelect: () => void
 }
 
@@ -20,6 +25,7 @@ export default function Menu({
   title,
   className,
   trigger,
+  triggerClassName,
   align = 'right',
   float = false,
 }: {
@@ -36,6 +42,8 @@ export default function Menu({
   title?: string
   className?: string
   trigger?: ReactNode
+  /** The trigger's look instead of the small icon button: a labelled button in a header. */
+  triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const phone = useIsPhone()
@@ -96,16 +104,21 @@ export default function Menu({
         aria-haspopup={phone ? 'dialog' : 'menu'}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="tap inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-1 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink pointer-coarse:h-9 pointer-coarse:min-w-9"
+        className={
+          triggerClassName ??
+          'tap inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-1 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink pointer-coarse:h-9 pointer-coarse:min-w-9'
+        }
       >
         {trigger ?? <MoreHorizontal size={15} />}
       </button>
       {open && phone ? (
         <Sheet open onClose={() => setOpen(false)} label={label} title={title ?? label}>
-          {items.map((it) => (
-            <SheetRow key={it.label} icon={it.icon} checked={it.checked} danger={it.danger} onClick={() => pick(it)}>
-              {it.label}
-            </SheetRow>
+          {items.map((it, i) => (
+            <div key={i} className={cx(it.separated && i > 0 && 'mt-1 border-t border-line pt-1')}>
+              <SheetRow icon={it.icon} checked={it.checked} danger={it.danger} disabled={it.disabled} onClick={() => pick(it)} className="disabled:opacity-40">
+                {it.label}
+              </SheetRow>
+            </div>
           ))}
         </Sheet>
       ) : open ? (
@@ -113,7 +126,7 @@ export default function Menu({
           <div
             ref={list}
             role="menu"
-            className={cx('card min-w-52 p-1 shadow-[var(--shadow)]', float ? 'fixed z-50' : 'absolute z-40 mt-1', !float && (align === 'left' ? 'left-0' : 'right-0'))}
+            className={cx('card min-w-52 max-w-80 p-1 shadow-[var(--shadow)]', float ? 'fixed z-50' : 'absolute z-40 mt-1', !float && (align === 'left' ? 'left-0' : 'right-0'))}
             style={float ? { left: spot?.left ?? 0, top: spot?.top ?? 0, visibility: spot ? undefined : 'hidden' } : undefined}
             onKeyDown={(e) => {
               // Up and down move through the items, as in any menu.
@@ -124,18 +137,23 @@ export default function Menu({
               items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
             }}
           >
-            {items.map((it) => (
-              <button
-                key={it.label}
-                type="button"
-                role="menuitem"
-                onClick={() => pick(it)}
-                className={cx('flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] hover:bg-surface-2', it.danger && 'text-rose')}
-              >
-                {it.icon}
-                <span className="flex-1">{it.label}</span>
-                {it.checked && <Check size={14} className="shrink-0 text-accent" />}
-              </button>
+            {items.map((it, i) => (
+              <div key={i} role="none" className={cx(it.separated && i > 0 && 'mt-1 border-t border-line pt-1')}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={it.disabled}
+                  onClick={() => pick(it)}
+                  className={cx('flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-40', it.danger && 'text-rose')}
+                >
+                  {it.icon && <span className="flex w-4 shrink-0 justify-center self-start pt-0.5">{it.icon}</span>}
+                  <span className="min-w-0 flex-1">
+                    <span className="block whitespace-nowrap">{it.label}</span>
+                    {it.hint && <span className="block text-[11px] leading-snug text-ink-3">{it.hint}</span>}
+                  </span>
+                  {it.checked && <Check size={14} className="shrink-0 text-accent" />}
+                </button>
+              </div>
             ))}
           </div>,
         )

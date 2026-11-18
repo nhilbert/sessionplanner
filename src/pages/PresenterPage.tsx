@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, ExternalLink, Pencil, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Keyboard, Pencil, X } from 'lucide-react'
 import { itemsIn, sortedDays } from '@/domain/order'
 import { clockIn, formatTime, scheduleDay } from '@/domain/time'
 import { usePlanner } from '@/store/usePlanner'
@@ -34,6 +34,8 @@ export default function PresenterPage() {
   const [start] = useState(() => parseInt(params.get('n') ?? '1', 10) || 1)
   const { at: n, go } = usePresentSync(id, deck, start, false)
   const touchX = useRef<number | null>(null)
+  // The keys that page and leave: behind a button, not across the top bar.
+  const [keys, setKeys] = useState(false)
   useWakeLock()
 
   useEffect(() => {
@@ -110,15 +112,19 @@ export default function PresenterPage() {
         <span className="tnum text-ink-2">{formatTime(minutesNow)}</span>
         <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-accent' : 'bg-amber')} />
         {!live && <span className="text-[12px] text-amber">{t('planner.offline')}</span>}
-        <span className="ml-auto hidden text-ink-3 md:inline">{t('slides.presenterHint')}</span>
-        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${id}/present`), '_blank', 'noopener')} className="max-md:ml-auto max-md:hidden">
+        <span className="flex-1" />
+        <IconButton label={t('slides.keys')} aria-pressed={keys} onClick={() => setKeys(!keys)} className={cx('max-md:hidden', keys && 'bg-surface-2 text-ink')}>
+          <Keyboard size={15} />
+        </IconButton>
+        <Button size="sm" onClick={() => window.open(pageUrl(`/w/${id}/present`), '_blank', 'noopener')} className="max-md:hidden">
           <ExternalLink size={13} />
           {t('slides.projector')}
         </Button>
-        <IconButton label={t('slides.exit')} onClick={() => void navigate(`/w/${id}`)} className="max-md:ml-auto">
+        <IconButton label={t('slides.exit')} onClick={() => void navigate(`/w/${id}`)}>
           <X size={16} />
         </IconButton>
       </header>
+      {keys && <p className="border-b border-line bg-surface-2/60 px-4 py-1.5 text-right text-[12px] text-ink-2 max-md:hidden">{t('slides.presenterHint')}</p>}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-[2fr_1fr] md:overflow-visible">
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
           {slide ? (
@@ -158,15 +164,7 @@ export default function PresenterPage() {
         </div>
         <aside className="flex min-h-0 min-w-0 flex-col gap-4 md:overflow-y-auto">
           <div>
-            <div className="mb-1 flex items-center gap-2">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('slides.nextSlide')}</span>
-              {next && canEdit && (
-                <button type="button" onClick={() => edit(next.key)} className="tap ml-auto inline-flex items-center gap-1 rounded px-1 text-[12px] text-ink-2 hover:bg-surface-2 hover:text-ink">
-                  <Pencil size={12} />
-                  {t('slides.edit')}
-                </button>
-              )}
-            </div>
+            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('slides.nextSlide')}</div>
             {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2, part: next.part && t('slides.part', next.part) }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
             {next && <div className="mt-1 truncate text-[12px] text-ink-3">{next.caption}</div>}
           </div>

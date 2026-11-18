@@ -6,12 +6,13 @@ import { newId, type ItemFields, type Op } from '@/domain/ops'
 import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
 import { contentOf } from '@/domain/copy'
 import { newSlides } from '@/domain/slides'
-import { categoryName, useLibraryEdit, useSettings } from '@/store/useSettings'
-import { useLibrary } from '@/store/useLibrary'
+import { categoryName, useSettings } from '@/store/useSettings'
 import Swatches from '@/components/Swatches'
 import { MAX_DURATION, SNAP } from '@/domain/time'
 import { api, reportFailure } from '@/api'
+import type { TFunction } from 'i18next'
 import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/components/ui'
+import type { MenuItem } from '@/components/Menu'
 import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
 import { FileManager } from './FileManager'
@@ -27,14 +28,11 @@ export default function ItemPanel({
   data,
   change,
   onAttachment,
-  onClose,
-  onSelect,
-  onSaved,
   onNotice,
   computedStart,
   owner,
 }: {
-  /** Guests cannot save to the library; nor can an owner the host lets only read it (useLibraryEdit). */
+  /** Guests cannot replace files of the workshop. */
   owner: boolean
   item: Item
   /** The item's start as computed now; a fixed start switched on takes this time. */
@@ -42,17 +40,11 @@ export default function ItemPanel({
   data: WorkshopState
   change: (ops: Op[]) => void
   onAttachment: (a: Attachment) => void
-  onClose: () => void
-  onSelect: (id: string) => void
-  /** Saved to the library: a short confirmation. */
-  onSaved: (title: string) => void
   onNotice: (text: string) => void
 }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
   const settings = useSettings((s) => s.settings)
-  const saveToLibrary = useLibrary((s) => s.save)
-  const mayChangeLibrary = useLibraryEdit()
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
 
@@ -61,28 +53,6 @@ export default function ItemPanel({
     // A marker or note turned into a block gets a sensible length again.
     if ((kind === 'block' || kind === 'break') && item.duration < SNAP) fields.duration = DEFAULT_DURATION[kind]
     set(fields)
-  }
-
-  const duplicate = () => {
-    const grouped = item.groupId !== null && data.groups.some((g) => g.id === item.groupId)
-    const siblings = grouped ? membersOf(data.items, item.groupId!) : entriesIn(data, item.dayId)
-    const index = siblings.findIndex((s) => s.id === item.id) + 1
-    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })), slides: newSlides(item.slides, newId) }
-    const { position, ops } = placeIn(data, siblings.map((s) => s.id), copy.id, index)
-    ops.push({ op: 'create', entity: 'item', record: { ...copy, position } })
-    change(ops)
-    onSelect(copy.id)
-  }
-
-  const toParking = () => set({ dayId: null, groupId: null, position: positionAtEnd(entriesIn(data, null)) })
-
-  const save = async () => {
-    try {
-      await saveToLibrary({ kind: 'item', title: item.title || t(`kinds.${item.kind}`), data: contentOf(item) })
-      onSaved(item.title)
-    } catch (err) {
-      reportFailure(err)
-    }
   }
 
   return (
@@ -175,37 +145,71 @@ export default function ItemPanel({
         />
       )}
 
-      <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-        <Button size="sm" onClick={duplicate}>
-          <Copy size={13} />
-          {t('item.duplicate')}
-        </Button>
-        {owner && mayChangeLibrary && item.kind !== 'note' && (
-          <Button size="sm" onClick={() => void save()}>
-            <BookmarkPlus size={13} />
-            {t('item.saveToLibrary')}
-          </Button>
-        )}
-        {item.dayId !== null && (
-          <Button size="sm" onClick={toParking}>
-            <Archive size={13} />
-            {t('item.toParking')}
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="danger"
-          onClick={() => {
-            change([{ op: 'delete', entity: 'item', id: item.id }])
-            onClose()
-          }}
-        >
-          <Trash2 size={13} />
-          {t('item.delete')}
-        </Button>
-      </div>
     </div>
   )
+}
+
+/**
+ * What can be done with an item, in the order every object's menu has: duplicate, keep in the library, move to the
+ * parking lot, then (apart) delete. Shown in the ⋯ of the item's details.
+ */
+export function itemActions({
+  item,
+  data,
+  change,
+  t,
+  mayChangeLibrary,
+  onSelect,
+  onClose,
+  onSaved,
+  save,
+}: {
+  item: Item
+  data: WorkshopState
+  change: (ops: Op[]) => void
+  t: TFunction
+  /** The owner who may change the library (useLibraryEdit); guests and read-only owners may not. */
+  mayChangeLibrary: boolean
+  onSelect: (id: string) => void
+  onClose: () => void
+  onSaved: (title: string) => void
+  save: (entry: { kind: 'item'; title: string; data: ReturnType<typeof contentOf> }) => Promise<unknown>
+}): MenuItem[] {
+  const duplicate = () => {
+    const grouped = item.groupId !== null && data.groups.some((g) => g.id === item.groupId)
+    const siblings = grouped ? membersOf(data.items, item.groupId!) : entriesIn(data, item.dayId)
+    const index = siblings.findIndex((s) => s.id === item.id) + 1
+    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })), slides: newSlides(item.slides, newId) }
+    const { position, ops } = placeIn(data, siblings.map((s) => s.id), copy.id, index)
+    ops.push({ op: 'create', entity: 'item', record: { ...copy, position } })
+    change(ops)
+    onSelect(copy.id)
+  }
+  const toLibrary = async () => {
+    try {
+      await save({ kind: 'item', title: item.title || t(`kinds.${item.kind}`), data: contentOf(item) })
+      onSaved(item.title || t(`kinds.${item.kind}`))
+    } catch (err) {
+      reportFailure(err)
+    }
+  }
+  return [
+    { label: t('item.duplicate'), icon: <Copy size={14} />, onSelect: duplicate },
+    ...(mayChangeLibrary && item.kind !== 'note' ? [{ label: t('item.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => void toLibrary() }] : []),
+    ...(item.dayId !== null
+      ? [{ label: t('item.toParking'), icon: <Archive size={14} />, onSelect: () => change([{ op: 'set', entity: 'item', id: item.id, fields: { dayId: null, groupId: null, position: positionAtEnd(entriesIn(data, null)) } }]) }]
+      : []),
+    {
+      label: t('item.delete'),
+      icon: <Trash2 size={14} />,
+      danger: true,
+      separated: true,
+      onSelect: () => {
+        change([{ op: 'delete', entity: 'item', id: item.id }])
+        onClose()
+      },
+    },
+  ]
 }
 
 function Materials({ materials, onChange }: { materials: Material[]; onChange: (m: Material[]) => void }) {

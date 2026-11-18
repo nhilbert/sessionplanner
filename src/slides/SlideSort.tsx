@@ -98,9 +98,10 @@ export function SortSlide({ id, fixed, menu, className, children }: { id: string
 export function SlideMenu({ n, onMove, onDuplicate, onRemove }: { n: number; onMove?: () => void; onDuplicate?: () => void; onRemove?: () => void }) {
   const { t } = useTranslation()
   const items: MenuItem[] = [
-    ...(onMove ? [{ label: t('slides.moveTo'), icon: <FolderInput size={15} />, onSelect: onMove }] : []),
+    // The order of every object's menu: duplicate, move it elsewhere, then (apart) remove.
     ...(onDuplicate ? [{ label: t('slides.duplicateSlide'), icon: <Copy size={15} />, onSelect: onDuplicate }] : []),
-    ...(onRemove ? [{ label: t('slides.remove'), icon: <Trash2 size={15} />, danger: true, onSelect: onRemove }] : []),
+    ...(onMove ? [{ label: t('slides.moveTo'), icon: <FolderInput size={15} />, onSelect: onMove }] : []),
+    ...(onRemove ? [{ label: t('slides.remove'), icon: <Trash2 size={15} />, danger: true, separated: true, onSelect: onRemove }] : []),
   ]
   if (!items.length) return null
   return <Menu items={items} label={t('slides.menu', { n })} title={t('slides.slide', { n })} float />

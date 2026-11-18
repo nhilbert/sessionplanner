@@ -3,10 +3,8 @@ import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { AlignLeft, CalendarPlus, ChevronLeft, FolderOpen, PanelRight, Printer, Redo2, Rows2, Rows3, Rows4, Undo2, X } from 'lucide-react'
-import { PRINT_VARIANTS } from '@/domain/print'
-import { VARIANT_LABEL } from '@/print/options'
-import { productName, workshopToolFor } from '@/features'
+import { FolderOpen, X } from 'lucide-react'
+import { productName } from '@/features'
 import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
@@ -17,20 +15,19 @@ import { newId, type Op } from '@/domain/ops'
 import { contentOf, fromLibrary } from '@/domain/copy'
 import type { Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import { formatDate } from '@/i18n'
-import { Button, cx, IconButton, isTyping, Segmented, useIsPhone, useLocalState } from '@/components/ui'
-import Menu from '@/components/Menu'
+import { Button, cx, IconButton, isTyping, useIsPhone, useLocalState } from '@/components/ui'
 import { overlayOpen } from '@/components/overlay'
 import { BoardContext, type BoardCtx, DayColumn } from '@/planner/DayColumn'
 import { ItemCard } from '@/planner/ItemCard'
-import Toolbox, { type Tab } from '@/planner/Toolbox'
+import Toolbox from '@/planner/Toolbox'
+import WorkshopHeader from '@/planner/WorkshopHeader'
 import { flatIds, inner, PARKING, placeOf, useBoard } from '@/planner/board'
-import { newItem, TextField } from '@/planner/fields'
+import { newItem } from '@/planner/fields'
 import TimeEditor, { type TimeMode } from '@/planner/TimeEditor'
 import type { InsertKind } from '@/planner/Insert'
 import type { Preview } from '@/planner/DayColumn'
 import AgendaView from './AgendaView'
 import { PlannerSlideEditor, PlannerSlideMover, useSlideEditing } from '@/slides/PlannerSlides'
-import { pageUrl } from '@/domain/addresses'
 
 const ZOOM: Record<string, number> = { s: 1, m: 1.6, l: 2.6 }
 const EMPTY = { workshop: { id: '' }, days: [], groups: [], items: [], attachments: [] } as unknown as WorkshopState
@@ -276,6 +273,14 @@ export default function PlannerPage() {
     change([...(board.lists[inner(gid)] ?? []).map((x): Op => ({ op: 'delete', entity: 'item', id: x })), { op: 'delete', entity: 'group', id: gid }])
   }
 
+  /** A group with its steps to the end of the parking lot, as a drag there would put it. */
+  const parkGroup = (gid: string) => {
+    if (!data || !groups[gid]) return
+    const ops: Op[] = [{ op: 'set', entity: 'group', id: gid, fields: { dayId: null, position: positionAtEnd(entriesIn(data, null)) } }]
+    for (const x of board.lists[inner(gid)] ?? []) ops.push({ op: 'set', entity: 'item', id: x, fields: { dayId: null } })
+    change(ops)
+  }
+
   const saveGroup = async (gid: string) => {
     const members = (board.lists[inner(gid)] ?? []).map((x) => items[x]).filter(Boolean)
     if (!members.length) return
@@ -376,6 +381,7 @@ export default function PlannerPage() {
     onRenameGroup: (gid, title) => change([{ op: 'set', entity: 'group', id: gid, fields: { title } }]),
     onUngroup: ungroup,
     onDeleteGroup: deleteGroup,
+    onParkGroup: parkGroup,
     onSaveGroup: owner && mayChangeLibrary ? (gid) => void saveGroup(gid) : undefined,
     onOpenSlides: (itemId) => {
       const first = items[itemId]?.slides[0]
@@ -397,96 +403,32 @@ export default function PlannerPage() {
   const activeItem = active ? items[active] : undefined
   const activeGroup = active ? groups[active] : undefined
   const activeLib = active?.startsWith('lib:') ? library.entries.find((e) => `lib:${e.id}` === active) : undefined
-  const dates = days.length ? (days.length === 1 ? formatDate(days[0].date) : `${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`) : ''
   const focused = focusDay && days.some((d) => d.id === focusDay) ? focusDay : null
   const shownDays = focused ? days.filter((d) => d.id === focused) : days
   // One day gets one wide, centred column; two share the width; more scroll sideways.
   const dayWidth = shownDays.length === 1 ? 'w-full md:max-w-[760px]' : shownDays.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
-  const printItems = [
-    ...PRINT_VARIANTS.map((v) => ({
-      label: t(VARIANT_LABEL[v]),
-      icon: <Printer size={15} />,
-      onSelect: () => window.open(pageUrl(`/w/${data.workshop.id}/print/${v}`), '_blank', 'noopener'),
-    })),
-    { label: t('slides.printSlides'), icon: <Printer size={15} />, onSelect: () => window.open(pageUrl(`/w/${data.workshop.id}/print/slides`), '_blank', 'noopener') },
-  ]
-  const zoomItems = [
-    { value: 's', label: t('planner.zoomS'), icon: <Rows4 size={15} /> },
-    { value: 'm', label: t('planner.zoomM'), icon: <Rows3 size={15} /> },
-    { value: 'l', label: t('planner.zoomL'), icon: <Rows2 size={15} /> },
-  ]
-
   return (
     <BoardContext.Provider value={ctx}>
       <DndContext sensors={sensors} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
         <div className="flex h-full min-h-0">
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="no-print flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-3 py-2 md:gap-x-3 md:px-6 md:py-2.5">
-              <Link to="/" aria-label={t('common.back')} title={t('common.back')} className="tap -ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink md:hidden">
-                <ChevronLeft size={20} />
-              </Link>
-              <div className="min-w-0 flex-1">
-                <TextField
-                  value={data.workshop.title}
-                  onCommit={(title) => change([{ op: 'set', entity: 'workshop', id: data.workshop.id, fields: { title } }])}
-                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                  placeholder={t('workshops.untitled')}
-                  aria-label={t('workshop.title')}
-                  className="field-bare -ml-2 h-8 w-full max-w-xl text-ellipsis px-2 text-[17px] font-medium"
-                />
-                <div className="truncate text-[12px] text-ink-3">{[data.workshop.client, data.workshop.location, dates].filter(Boolean).join(' · ')}</div>
-              </div>
-              {/* Phones keep undo and the sidebar at hand; the rest sits in a ⋯ menu. Desktop shows everything. */}
-              <div className="flex shrink-0 items-center gap-1">
-                <span title={live ? t('planner.live') : t('planner.offline')} className={cx('mx-1 h-2 w-2 shrink-0 rounded-full', live ? 'bg-accent' : 'bg-amber')} />
-                {!live && <span className="text-[12px] text-amber">{t('planner.offline')}</span>}
-                <IconButton label={t('common.undo')} onClick={undo} disabled={!past.length}>
-                  <Undo2 size={15} />
-                </IconButton>
-                <IconButton label={t('common.redo')} onClick={redo} disabled={!future.length} className="max-md:hidden">
-                  <Redo2 size={15} />
-                </IconButton>
-                <IconButton
-                  label={desc === '1' ? t('planner.hideDescription') : t('planner.showDescription')}
-                  aria-pressed={desc === '1'}
-                  onClick={() => setDesc(desc === '1' ? '0' : '1')}
-                  className={cx('max-md:hidden', desc === '1' && 'bg-surface-2 text-ink')}
-                >
-                  <AlignLeft size={15} />
-                </IconButton>
-                <span className="max-md:hidden">
-                  <Segmented
-                    size="sm"
-                    value={zoom}
-                    onChange={setZoom}
-                    options={[
-                      { value: 's', label: 'S' },
-                      { value: 'm', label: 'M' },
-                      { value: 'l', label: 'L' },
-                    ]}
-                  />
-                </span>
-                <IconButton label={t('planner.addDay')} onClick={addDay} className="max-md:hidden">
-                  <CalendarPlus size={15} />
-                </IconButton>
-                <Menu label={t('planner.print')} trigger={<Printer size={15} />} className="max-md:hidden" items={printItems} />
-                {workshopToolFor(data.workshop.id)}
-                <Menu
-                  label={t('planner.actions')}
-                  className="md:hidden"
-                  items={[
-                    ...(future.length ? [{ label: t('common.redo'), icon: <Redo2 size={15} />, onSelect: redo }] : []),
-                    { label: t('planner.showDescription'), icon: <AlignLeft size={15} />, checked: desc === '1', onSelect: () => setDesc(desc === '1' ? '0' : '1') },
-                    ...zoomItems.map((z) => ({ label: z.label, icon: z.icon, checked: zoom === z.value, onSelect: () => setZoom(z.value) })),
-                    { label: t('planner.addDay'), icon: <CalendarPlus size={15} />, onSelect: addDay },
-                    ...printItems,
-                  ]}
-                />
-                <IconButton label={t('toolbox.open')} onClick={() => setMobileToolbox(true)} className="md:hidden">
-                  <PanelRight size={15} />
-                </IconButton>
-              </div>
-            </header>
+            <WorkshopHeader
+              data={data}
+              owner={owner}
+              phone={phone}
+              live={live}
+              canUndo={past.length > 0}
+              canRedo={future.length > 0}
+              undo={undo}
+              redo={redo}
+              change={change}
+              showDescription={desc === '1'}
+              onShowDescription={(on) => setDesc(on ? '1' : '0')}
+              zoom={zoom}
+              onZoom={setZoom}
+              onAddDay={addDay}
+              onOpenSidebar={() => setMobileToolbox(true)}
+            />
 
             {syncError && (
               <div className="no-print flex items-center justify-between gap-3 bg-rose-soft px-5 py-2 text-[13px] text-rose">
@@ -554,7 +496,7 @@ export default function PlannerPage() {
             owner={owner}
             onDayDate={changeDate}
             change={change}
-            tab={tab as Tab}
+            tab={tab}
             onTab={(x) => {
               setTab(x)
               setDetailsId(null)
@@ -567,7 +509,7 @@ export default function PlannerPage() {
             itemId={detailsItem ? detailsItem.id : null}
             computedStart={computedStart}
             onCloseItem={clearSelection}
-            itemBack={phone && overlayForItem ? t('planner.agenda') : undefined}
+            itemFromAgenda={phone && overlayForItem}
             onSelect={openDetails}
             onAddParked={(kind) => add(null, kind)}
             onLibraryInsert={(entry) => insertLibrary(entry, PARKING, (board.lists[PARKING] ?? []).length)}

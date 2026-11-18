@@ -147,6 +147,16 @@ On the owner's retired instance there was no public access, so no share links: e
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
 
+**2026-11-18, one place per kind of thing** (revises the planner header of "phones", 2026-10-29, and the theme in the Slides tab of 2026-11-04)
+
+Functions had been placed one by one as they came: printing in the header, presenting and the slide files in the Slides tab, the ZIP export, duplicating, archiving and deleting at the foot of the details, sharing as a tab of its own; the theme in two places; a step's actions at the foot of its long details, a group's in a ⋯, a day's as an icon that only showed on hover. Now one rule says where a thing is:
+
+- **The header holds the workshop as a whole**: title, the live dot (with the client line), undo and redo, View (descriptions, zoom), Share (the access list, now a dialog), Output (the four printouts and the slides printed; the slides as PowerPoint, PDF or HTML, each with a line on what it gives; the ZIP), Present as the one main button with the presenter view in its arrow, and the workshop's ⋯ (a day more, duplicate, archive, delete apart). On a phone the same groups sit in one ⋯, with undo, Present and the sidebar beside it. The deck is put together when it is saved, so the header does not build it on every change.
+- **The sidebar has two modes.** Its tabs are the workshop's tools, labelled under their icons: parking lot ("Speicher" on the tab), library, material (the packing list and the files together), the slides (the deck: its options and sorting) and the details (the theme is chosen there only). A step opened from the agenda is an inspector over them, headed by what it is and when ("Einheit · 10:00–10:30"), with ⋯ and ×; no tab is marked while it is open and choosing a tab closes it. The back button that named the last tab, whatever the step had to do with it, is gone. On a phone, details opened from the agenda show without the tabs and × returns to the agenda.
+- **Every object's actions are in its ⋯, in one order**: duplicate, keep in the library, move to the parking lot, then apart and in red: delete. Steps, groups (which can now go to the parking lot from the menu too), days (showing one day alone, deleting it) and slides follow it.
+- **The slides area in the navigation is "Folienpool"** (Slide pool), so it is not mistaken for the workshop's Slides tab.
+- **Presenter view**: one "Edit slide", next to the current slide; the keys behind a keyboard button instead of across the top bar.
+
 **2026-11-17, slides are edited on the slide** (revises "no contentEditable on the slide" of 2026-11-01)
 
 - With a mouse, a click on a text of a slide types into it, a click on a picture or an entry selects it, and a bar above the selection formats, replaces and removes (docs/slides.md, section 7, "On the slide"). The fields beside the slide stay and follow; both write the same slide document, so nothing can be made on the slide that the fields cannot hold.

@@ -3,13 +3,13 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, BookmarkPlus, CalendarDays, ChevronDown, Maximize2, Minimize2, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
+import { AlertTriangle, Archive, BookmarkPlus, CalendarDays, ChevronDown, Maximize2, Minimize2, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
 import type { Category, Day, Group, Item, ItemKind } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH } from '@/domain/time'
 import { itemColor } from '@/store/useSettings'
 import { formatDate } from '@/i18n'
-import { cx, IconButton, useIsPhone } from '@/components/ui'
+import { cx, useIsPhone } from '@/components/ui'
 import Menu from '@/components/Menu'
 import { Inline, SortableItem } from './ItemCard'
 import { TimeField } from './fields'
@@ -44,6 +44,8 @@ export interface BoardCtx {
   onRenameGroup: (id: string, title: string) => void
   onUngroup: (id: string) => void
   onDeleteGroup: (id: string) => void
+  /** Moves a group with its steps to the end of the parking lot. */
+  onParkGroup: (id: string) => void
   /** Absent for guests (saving to the library is the owner's). */
   onSaveGroup?: (id: string) => void
   /** Opens the slide editor on a step (the slide count on its card). */
@@ -151,9 +153,11 @@ function GroupBlock({ group, schedule, after }: { group: Group; schedule?: DaySc
           label={t('group.menu')}
           title={group.title || t('group.untitled')}
           items={[
+            // The order of every object's menu: keep in the library, move to the parking lot, then (apart) delete.
             ...(ctx.onSaveGroup ? [{ label: t('group.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => ctx.onSaveGroup!(group.id) }] : []),
+            ...(group.dayId !== null ? [{ label: t('item.toParking'), icon: <Archive size={14} />, onSelect: () => ctx.onParkGroup(group.id) }] : []),
             { label: t('group.ungroup'), icon: <Ungroup size={14} />, onSelect: () => ctx.onUngroup(group.id) },
-            { label: t('group.delete'), icon: <Trash2 size={14} />, danger: true, onSelect: () => ctx.onDeleteGroup(group.id) },
+            { label: t('group.delete'), icon: <Trash2 size={14} />, danger: true, separated: true, onSelect: () => ctx.onDeleteGroup(group.id) },
           ]}
         />
       </div>
@@ -198,15 +202,15 @@ export function DayColumn({ day, index, count, ids, schedule, className, focused
             <TimeField value={day.startMin} onChange={(v) => v !== null && onChange({ startMin: v })} className="h-7 w-[58px] text-[12px] max-md:h-9 max-md:w-[66px]" aria-label={t('planner.start')} title={t('planner.start')} />
             <span>–</span>
             <TimeField value={day.endMin} nullable onChange={(v) => onChange({ endMin: v })} className="h-7 w-[58px] text-[12px] max-md:h-9 max-md:w-[66px]" aria-label={t('planner.end')} title={t('planner.end')} />
-            {count > 1 && onFocus && (
-              <IconButton label={focused ? t('planner.allDays') : t('planner.focusDay')} onClick={onFocus} className="max-md:hidden">
-                {focused ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              </IconButton>
-            )}
             {count > 1 && (
-              <IconButton label={t('planner.deleteDay')} onClick={onDelete} className="reveal opacity-0 group-hover/day:opacity-100">
-                <Trash2 size={14} />
-              </IconButton>
+              <Menu
+                label={t('planner.dayMenu')}
+                title={formatDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}
+                items={[
+                  ...(onFocus && !phone ? [{ label: focused ? t('planner.allDays') : t('planner.focusDay'), icon: focused ? <Minimize2 size={14} /> : <Maximize2 size={14} />, onSelect: onFocus }] : []),
+                  { label: t('planner.deleteDay'), icon: <Trash2 size={14} />, danger: true, separated: true, onSelect: onDelete },
+                ]}
+              />
             )}
           </div>
         </div>

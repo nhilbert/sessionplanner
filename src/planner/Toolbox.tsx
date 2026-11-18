@@ -2,39 +2,41 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Archive, ArrowLeft, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, Users, X } from 'lucide-react'
-import type { Attachment, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
+import { Archive, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, X } from 'lucide-react'
+import type { Attachment, Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
-import { durationOf, formatDuration } from '@/domain/time'
+import { durationOf, formatDuration, formatTime } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { cx, IconButton, SearchField, useLocalState } from '@/components/ui'
 import { AddBar, Entries, List } from './DayColumn'
-import ItemPanel from './ItemPanel'
-import { AccessPanel, FilesPanel, PackingPanel, WorkshopPanel } from './panels'
-import { hasWorkshopSharing } from '@/features'
+import Menu from '@/components/Menu'
+import ItemPanel, { itemActions } from './ItemPanel'
+import { MaterialPanel, WorkshopPanel } from './panels'
 import { DeckPanel } from '@/slides/DeckPanel'
 import { LIB, PARKING } from './board'
 
-export type Tab = 'parking' | 'library' | 'packing' | 'files' | 'deck' | 'details' | 'access'
+export type Tab = 'parking' | 'library' | 'material' | 'deck' | 'details'
 
 const TABS = [
-  { id: 'parking', icon: Archive, key: 'planner.parking' },
+  // A tab is about 64 px wide at the sidebar's default width: the parking lot's tab says it short, its tooltip in full.
+  { id: 'parking', icon: Archive, key: 'planner.parking', short: 'planner.parkingTab' },
   { id: 'library', icon: BookMarked, key: 'nav.library' },
-  { id: 'packing', icon: Package, key: 'planner.packing' },
-  { id: 'files', icon: Paperclip, key: 'planner.files' },
+  { id: 'material', icon: Package, key: 'planner.material' },
   { id: 'deck', icon: Presentation, key: 'slides.tab' },
   { id: 'details', icon: Info, key: 'planner.details' },
-  { id: 'access', icon: Users, key: 'access.title' },
-] as const satisfies readonly { id: Tab; icon: typeof Archive; key: string }[]
+] as const satisfies readonly { id: Tab; icon: typeof Archive; key: string; short?: string }[]
+
+/** A tab remembered from before the tabs were merged: the packing list and the files are the material now; sharing moved to the header. */
+const tabOf = (raw: string): Tab => (raw === 'packing' || raw === 'files' ? 'material' : (TABS.find((x) => x.id === raw)?.id ?? 'parking'))
 
 interface Props {
   data: WorkshopState
-  /** Guests (who may edit: view guests get the agenda only) see no access tab and none of the owner's actions; the library tab only with the library switched on for them here. */
+  /** Guests (who may edit: view guests get the agenda only) see none of the owner's actions; the library tab only with the library switched on for them here. */
   owner: boolean
   onDayDate: (dayId: string, date: string) => void
   change: (ops: Op[]) => void
-  tab: Tab
+  tab: string
   onTab: (tab: Tab) => void
   open: boolean
   onOpen: (open: boolean) => void
@@ -45,8 +47,8 @@ interface Props {
   itemId: string | null
   computedStart: number | null
   onCloseItem: () => void
-  /** Phones: label of the back button when the details were opened from the agenda; closing them returns there. */
-  itemBack?: string
+  /** Phones: the details were opened by a tap on the agenda; they show alone, and closing them returns there. */
+  itemFromAgenda?: boolean
   onSelect: (id: string) => void
   onAddParked: (kind: ItemKind | 'group') => void
   onLibraryInsert: (entry: LibraryEntry) => void
@@ -55,15 +57,20 @@ interface Props {
   onNotice: (text: string) => void
 }
 
-/** The right-hand sidebar: parking lot, library, packing list, files and details; item details open here too. */
+/**
+ * The right-hand sidebar, in two modes. Its tabs are the workshop's tools: parking lot, library, material (packing
+ * list and files), the deck and the details. A step chosen on the agenda opens over them as an inspector, headed by
+ * what it is and when, with its actions in a ⋯ menu and × to close; the tabs stay in reach, and choosing one closes it.
+ */
 export default function Toolbox(p: Props) {
   const { t } = useTranslation()
   const [widthRaw, setWidthRaw] = useLocalState('sp.toolboxWidth', String(DEFAULT_WIDTH))
   const width = clampWidth(Number(widthRaw) || DEFAULT_WIDTH)
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
-  const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, files: p.data.attachments.length }
-  const tabs = TABS.filter((x) => (x.id !== 'access' || (p.owner && hasWorkshopSharing())) && (x.id !== 'library' || p.owner || !!p.data.access?.library))
-  const tab: Tab = tabs.some((x) => x.id === p.tab) ? p.tab : 'parking'
+  const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, material: p.data.attachments.length }
+  const tabs = TABS.filter((x) => x.id !== 'library' || p.owner || !!p.data.access?.library)
+  const wanted = tabOf(p.tab)
+  const tab: Tab = tabs.some((x) => x.id === wanted) ? wanted : 'parking'
 
   if (!p.open && !p.mobile)
     return (
@@ -87,19 +94,7 @@ export default function Toolbox(p: Props) {
     )
 
   const body: ReactNode = item ? (
-    <ItemPanel
-      key={item.id}
-      item={item}
-      computedStart={p.computedStart}
-      data={p.data}
-      change={p.change}
-      onAttachment={p.onAttachment}
-      onClose={p.onCloseItem}
-      onSelect={p.onSelect}
-      onSaved={(title) => p.onNotice(t('library.saved', { title }))}
-      onNotice={p.onNotice}
-      owner={p.owner}
-    />
+    <ItemPanel key={item.id} item={item} computedStart={p.computedStart} data={p.data} change={p.change} onAttachment={p.onAttachment} onNotice={p.onNotice} owner={p.owner} />
   ) : tab === 'parking' ? (
     <div>
       <p className="mb-2 text-[12px] leading-snug text-ink-3">{t('planner.parkingHint')}</p>
@@ -110,17 +105,15 @@ export default function Toolbox(p: Props) {
     </div>
   ) : tab === 'library' ? (
     <LibraryTab onInsert={p.onLibraryInsert} owner={p.owner} />
-  ) : tab === 'packing' ? (
-    <PackingPanel data={p.data} change={p.change} />
-  ) : tab === 'files' ? (
-    <FilesPanel data={p.data} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} owner={p.owner} />
+  ) : tab === 'material' ? (
+    <MaterialPanel data={p.data} change={p.change} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} owner={p.owner} />
   ) : tab === 'deck' ? (
-    <DeckPanel data={p.data} change={p.change} owner={p.owner} onNotice={p.onNotice} />
-  ) : tab === 'access' ? (
-    <AccessPanel data={p.data} />
+    <DeckPanel data={p.data} change={p.change} onNotice={p.onNotice} />
   ) : (
     <WorkshopPanel data={p.data} change={p.change} owner={p.owner} onDayDate={p.onDayDate} />
   )
+  // On a phone, details opened from the agenda are a sheet of their own: no tabs above them.
+  const showTabs = !(item && p.mobile && p.itemFromAgenda)
 
   return (
     <aside
@@ -128,43 +121,69 @@ export default function Toolbox(p: Props) {
       className={cx('no-print flex flex-col bg-surface', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]' : 'relative hidden shrink-0 border-l border-line md:flex')}
     >
       {!p.mobile && <ResizeEdge width={width} onWidth={(w) => setWidthRaw(String(w))} label={t('toolbox.resize')} />}
-      <div className="flex items-center gap-0.5 border-b border-line px-2 py-1.5">
-        {item ? (
-          <button type="button" onClick={p.onCloseItem} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink-2 hover:bg-surface-2 hover:text-ink pointer-coarse:h-10">
-            <ArrowLeft size={15} />
-            {p.itemBack ?? t(TABS.find((x) => x.id === tab)!.key)}
-          </button>
-        ) : (
-          tabs.map(({ id, icon: Icon, key }) => (
-            <button
-              key={id}
-              type="button"
-              title={t(key)}
-              onClick={() => p.onTab(id)}
-              className={cx(
-                'inline-flex h-8 items-center gap-1 rounded-md px-2 text-[12px] transition-colors pointer-coarse:h-10 pointer-coarse:px-2.5',
-                tab === id ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink',
-              )}
-            >
-              <Icon size={15} />
-              {tab === id && <span className="max-w-[110px] truncate">{t(key)}</span>}
-              {!!counts[id] && tab !== id && <span className="text-[11px] tnum">{counts[id]}</span>}
-            </button>
-          ))
-        )}
-        <span className="flex-1" />
-        {p.mobile ? (
-          <IconButton label={t('common.close')} onClick={p.onCloseMobile}>
-            <X size={16} />
-          </IconButton>
-        ) : (
-          <IconButton label={t('toolbox.close')} onClick={() => p.onOpen(false)}>
-            <PanelRightClose size={16} />
-          </IconButton>
-        )}
-      </div>
+      {showTabs && (
+        <div className="flex items-stretch gap-0.5 border-b border-line px-1.5 py-1.5">
+          <div role="tablist" aria-label={t('toolbox.tabs')} className="flex min-w-0 flex-1 gap-0.5">
+            {tabs.map((x) => {
+              const { id, icon: Icon, key } = x
+              const active = !item && tab === id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  aria-label={t(key)}
+                  title={t(key)}
+                  onClick={() => p.onTab(id)}
+                  className={cx(
+                    'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-1 py-1 text-[11px] leading-tight transition-colors pointer-coarse:py-1.5',
+                    active ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink',
+                  )}
+                >
+                  <Icon size={15} />
+                  <span className="max-w-full truncate">{t('short' in x ? x.short : key)}</span>
+                  {!!counts[id] && <span className="absolute right-1 top-0.5 text-[10px] text-ink-3 tnum">{counts[id]}</span>}
+                </button>
+              )
+            })}
+          </div>
+          {p.mobile ? (
+            <IconButton label={t('common.close')} onClick={p.onCloseMobile} className="self-center">
+              <X size={16} />
+            </IconButton>
+          ) : (
+            <IconButton label={t('toolbox.close')} onClick={() => p.onOpen(false)} className="self-center">
+              <PanelRightClose size={16} />
+            </IconButton>
+          )}
+        </div>
+      )}
+      {item && <InspectorHeader item={item} start={p.computedStart} data={p.data} change={p.change} owner={p.owner} onSelect={p.onSelect} onClose={p.onCloseItem} onNotice={p.onNotice} />}
       <div className="flex-1 overflow-y-auto overscroll-contain p-4">{body}</div>
     </aside>
+  )
+}
+
+/** The head of a step's details: what it is and when, its actions, and × back to where the sidebar was. */
+function InspectorHeader({ item, start, data, change, owner, onSelect, onClose, onNotice }: { item: Item; start: number | null; data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onSelect: (id: string) => void; onClose: () => void; onNotice: (text: string) => void }) {
+  const { t } = useTranslation()
+  const save = useLibrary((s) => s.save)
+  const mayChangeLibrary = useLibraryEdit()
+  const length = durationOf(item)
+  const when = item.dayId === null ? t('planner.parking') : start === null ? '' : length > 0 ? `${formatTime(start)}–${formatTime(start + length)}` : formatTime(start)
+  const actions = itemActions({ item, data, change, t, mayChangeLibrary: owner && mayChangeLibrary, onSelect, onClose, onSaved: (title) => onNotice(t('library.saved', { title })), save })
+  return (
+    <div className="flex items-center gap-1 border-b border-line bg-surface-2/50 py-1.5 pl-4 pr-1.5">
+      <div className="min-w-0 flex-1 truncate text-[13px]">
+        <span className="font-medium text-ink">{t(`kinds.${item.kind}`)}</span>
+        {when && <span className="text-ink-3 tnum"> · {when}</span>}
+      </div>
+      <Menu label={t('item.menu')} title={item.title || t(`kinds.${item.kind}`)} items={actions} />
+      <IconButton label={t('item.close')} onClick={onClose}>
+        <X size={16} />
+      </IconButton>
+    </div>
   )
 }
 
