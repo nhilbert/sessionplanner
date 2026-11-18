@@ -17,6 +17,9 @@ import type { MenuItem } from '@/components/Menu'
 import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
 import { FileManager } from './FileManager'
+import { WorksheetList } from '@/worksheets/WorksheetList'
+import { useSheetBrand } from '@/worksheets/SheetView'
+import { pageUrl } from '@/domain/addresses'
 import { PrintRuleField } from './PrintRuleField'
 import { isPrintable, ruleOf, rulesOfLinked, withRule } from '@/domain/printing'
 import { SlideStrip } from '@/slides/SlideStrip'
@@ -48,6 +51,7 @@ export default function ItemPanel({
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
   const settings = useSettings((s) => s.settings)
+  const brand = useSheetBrand(data.workshop.theme)
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
 
@@ -145,6 +149,16 @@ export default function ItemPanel({
           owner={owner}
           onMove={(slideId) => useSlideMoving.getState().ask(item.id, slideId)}
           onRemoved={() => onNotice(t('slides.removed'))}
+        />
+      )}
+      {item.kind === 'block' && (
+        <WorksheetList
+          sheets={item.worksheets ?? []}
+          onChange={(worksheets) => set({ worksheets })}
+          scope={{ workshopId: data.workshop.id }}
+          theme={brand.theme}
+          logo={brand.logo}
+          onPrint={(sheetId) => window.open(pageUrl(`/w/${data.workshop.id}/print/sheets?sheet=${encodeURIComponent(sheetId)}`), '_blank', 'noopener')}
         />
       )}
 
