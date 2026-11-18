@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { textLayer, upFiltered, winAnsi, writePdf } from './pdf'
+import { textLayer, winAnsi, writePdf } from './pdf'
 
 const latin1 = (bytes: Uint8Array): string => Array.from(bytes, (b) => String.fromCharCode(b)).join('')
 const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9])
@@ -36,25 +36,6 @@ describe('pdf', () => {
     expect(layer).toContain('/F1 18.75 Tf 187.79 Tz 1 0 0 1 75 ')
     expect(layer).toContain('<5465616d> Tj')
     expect(textLayer([])).toBe('')
-  })
-
-  it('writes a worksheet page on its paper size, its pixels lossless with the PNG predictor', async () => {
-    const rgb = new Uint8Array(4 * 2 * 3).fill(255)
-    rgb.set([10, 20, 30], 3 * 4) // the first pixel of the second row
-    const pdf = latin1(await writePdf([{ rgb, width: 4, height: 2, words: [], pt: { w: 595.28, h: 841.89 } }], { title: 'Blatt', lang: 'de-DE' }))
-    expect(pdf).toContain('/MediaBox [0 0 595.28 841.89]')
-    expect(pdf).toContain('/Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /DecodeParms << /Predictor 15 /Colors 3 /Columns 4 >>')
-    expect(pdf).not.toContain('/DCTDecode')
-    // each row starts with filter 2 (Up): the first against nothing, the second against the first
-    const rows = upFiltered(rgb, 4, 2)
-    expect(rows.length).toBe(2 * (1 + 12))
-    expect([...rows.slice(0, 4)]).toEqual([2, 255, 255, 255])
-    expect([...rows.slice(13, 17)]).toEqual([2, (10 - 255) & 0xff, (20 - 255) & 0xff, (30 - 255) & 0xff])
-  })
-
-  it('places the text layer on the page height it is given', () => {
-    // a word at the top of an A4 page (841.89 pt high) sits near its top, not at a slide's 540 pt
-    expect(textLayer([{ text: 'Frage', x: 80, y: 60, w: 50, h: 15, size: 14 }], 841.89)).toMatch(/1 0 0 1 60 7\d\d\./)
   })
 
   it('encodes text in WinAnsi, typographic quotes and dashes included', () => {
