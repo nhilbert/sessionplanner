@@ -2,7 +2,7 @@
 
 Printed material for the steps of a workshop: worksheets for exercises and handouts for methods. A step says how many copies of each sheet the workshop needs; the workshop exports one print package with a file per print job. Sheets are written in the app as content in a small HTML subset, like slides, and laid out by one stylesheet; files made elsewhere (a PDF from a layout program) stay possible and follow the same print rule.
 
-Nothing of this is built yet. Stage 0 comes first and stands on its own. The format (sections 4 and 5) is a proposal until the owner's sample worksheets have been rebuilt in it (stage 1).
+Stage 0 (print rules and the print package) and stage 1 (the format, outside the app) are built. The format (sections 4 and 5) is settled once the owner accepts a test print of the rebuilt sample sheets.
 
 No client, partner or brand names in this file. The owner's sample worksheets are private material and stay outside this repository.
 
@@ -66,11 +66,18 @@ The workshop's Output menu gets "Print package (ZIP)".
 </section>
 ```
 
-- A sheet has a title, a version label and date for the footer ("v1.0 · Nov 2026"), a paper size, one- or two-sided, and its pages. A page is one `section.sheet` with an orientation and its blocks.
-- The host adds what the page must not contain: the logo, the footer line, the page number on sheets of several pages.
-- Sizes are millimetres of the paper; the host scales a page for thumbnails and the editor.
-- Elements, attributes and what is forbidden: as for slides (docs/slides.md, section 2). Formatting by hand names the theme's means, never values.
-- Type and margins start from the guidance for classroom worksheets (section 9): body text around 12 pt, margins of 20 to 25 mm with room for punching at the left. The pitch of writing lines is open and decided on a test print.
+- A sheet has a title, a version label and date for the footer ("v1.0 · Nov 2026"), a paper size, one- or two-sided, and its pages. A page is one `section.sheet`, or `section.sheet.landscape`, with its blocks.
+- The header holds an eyebrow, the title (`h1`), one or two leads and optionally a small picture (`figure`) at its right.
+- Under the root stand only blocks: `class="block NAME"` with a name of the catalogue (section 5) and modifiers. The blocks stack from the top; one block with `fill` takes the rest of the page.
+- Heights and writing room are classes, never values: `h-N` (N millimetres: 10 … 140), `lines-N` (N writing lines), `fill`; the line pitch is 9 mm, `pitch-l` 12 mm, `pitch-xl` 20 mm (for posters). A picture's width is `w-N`. A blank inside a sentence is `span.blank` (`short`, `long`), a line of its own `p.fill-in`.
+- Formatting by hand as on slides: `fs-xs fs-s fs-l fs-xl`, `accent`, `muted`, `fw-normal`, `strong`, `em`.
+- The host adds what the page must not contain: the logo where the theme puts it (`.sheet-head` at the top, centred or right, with `logo-head` on the root for the room; or in `.sheet-foot`), the footer line with the version and, on sheets of several pages, the page number. The paper size is a class of a wrapper: `paper-a3`, `paper-a5`, A4 without one.
+- Sizes are millimetres and points of the paper; the host scales a page for thumbnails and the editor.
+- Elements, attributes and what is forbidden: as for slides (docs/slides.md, section 2), with the slides' sanitiser (`src/domain/sheets.ts`); the root is `section.sheet` instead of `section.slide`. A circle is drawn from its entries, as slide diagrams are.
+- Type and margins: body 11 pt, lead 11.5 pt, title 19 pt, hints 9.5 pt; margins 16 mm at the top, 17 mm right, 24 mm at the bottom (the footer) and 22 mm at the left for punching. The pitch of writing lines (9 mm) is decided on the test print.
+- On paper the theme gives the fonts, the text colour, the title colour and the deeper accent (numbers, the eyebrow's place, `accent`); the ground is white, frames are thin and black, writing lines thin and grey, nothing is filled. A dark theme is not yet turned into a print profile (stage 4).
+
+**Tools** (`scripts/sheets/`, as `scripts/slides/` for slides): `build.py ROOT` writes a preview per sheet, a print page per sheet and one for all A4 sheets; `check.py` checks pages against the format (sanitiser, blocks, classes, pictures, and rendered: overflow at the bottom margin, text leaving its frame); `render.sh` takes screenshots and prints PDFs with the browser, which is the test print of stage 1. A sheet is a folder `ROOT/sheets/<name>/` with `sheet.json` (title, version, theme, paper) and one `NN.html` per page; `scripts/sheets/examples/` holds a fictional catalogue sheet with every block. The stylesheet is `src/worksheets/sheets.css`.
 
 ## 5. Building blocks
 
@@ -98,7 +105,9 @@ Grouped by what participants do with the sheet. **v1** is what stage 1 builds; t
 | plan | if-then plan, appointment fields | | |
 | page kinds | poster (landscape, large type), cards to cut out, certificate, placemat on A3 for groups, picture with fields | | |
 
-A picture can stand beside or below any block (an illustration from the theme's pool or an upload).
+Built in stage 1, besides the twelve: `write` (writing room on its own, or inside a step, field or row), `picture`, `pictures` (a row with captions) and `pair` (two columns of blocks; `r-2-1`, `r-1-2`, `r-3-2`). A picture can so stand beside or below any block (an illustration from the theme's pool or an upload). The circle shows its segments, not yet words in them.
+
+The markup of each block, with its modifiers, is in `SHEET_BLOCKS` (`src/domain/sheets.ts`), which the check script and later the connector read.
 
 ## 6. In the app (stage 2)
 
@@ -133,7 +142,7 @@ What the block groups and the frame lean on. Effect sizes come from school and l
 ## 10. Stages
 
 0. **Print rule and print package for files.** Participants on the workshop, groups on the step, the rule per file, the package, the print list, the packing list.
-1. **Format and blocks, outside the app.** This file settled, the stylesheet, the v1 blocks, a check script and a static preview as for slides; the owner's sample pages rebuilt as fragments and accepted on a test print. Two of them (a picture with fields, a certificate) stay files for now.
+1. **Format and blocks, outside the app.** This file settled, the stylesheet, the v1 blocks, a check script and a static preview as for slides; the owner's sample pages rebuilt as fragments and accepted on a test print. Two of them (a picture with fields, a certificate) stay files for now. *Built 2026-11-18: 22 sheets with 24 pages rebuilt in the private design repository and printed to PDF; the test print is the owner's. One of them shows two pictures of the original where the format's own models would belong (stage 4).*
 2. **Sheets in the app.** Section 6, and sheets in the print package.
 3. **The editor.** Section 7.
 4. **More.** The print profile's choices per theme, the page kinds, the remaining blocks, a vector PDF if the test print asked for one.
@@ -150,4 +159,5 @@ What the block groups and the frame lean on. Effect sizes come from school and l
 
 - What a view guest sees of a step's sheets (stage 2).
 - The second instance: every new route of the core is a decision there (`core-routes.json`), and migrations run per workspace; sample sheets for the starter pack.
-- The pitch of writing lines; raster against vector after the first test print; A3 pages at 300 dpi exceed the canvas size of iOS Safari.
+- The pitch of writing lines (9 mm now) and the type sizes, on the test print; raster against vector after it (the test print is the browser's vector PDF); A3 pages at 300 dpi exceed the canvas size of iOS Safari.
+- Words in the segments of a circle; the remaining blocks and the page kinds of section 5 (stage 4).

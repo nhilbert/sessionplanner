@@ -1,0 +1,243 @@
+/* Session Planner worksheet format – base stylesheet (docs/worksheets.md, sections 4 and 5). Shared by the app (stage 2)
+   and the static preview (scripts/sheets/build.py).
+
+   A page is a <section class="sheet"> (or "sheet landscape") holding a header (eyebrow, title, lead) and a stack of
+   blocks. Sizes are millimetres and points of the paper; the host scales a page for thumbnails and the editor. The
+   host adds what the page must not contain: the logo and the footer line (.sheet-foot, .sheet-head), and the paper
+   size as a class on a wrapper (.paper-a5, .paper-a3; A4 without one).
+
+   On paper a theme is a print profile: the ground is white, the text the theme's text colour, the accent appears in
+   numbers and the eyebrow. Frames are thin and black, writing lines thin and grey; nothing is filled. */
+
+/* ---------- the page ---------- */
+.sheet {
+  --w: 210mm; --h: 297mm;
+  --m-top: 16mm; --m-right: 17mm; --m-bottom: 24mm; --m-left: 22mm;
+  --pitch: 9mm;
+  --ink: var(--fg, #22272E); --ink-2: var(--fg-2, #4B5055); --ink-3: var(--fg-3, #828488);
+  --rule: color-mix(in srgb, var(--ink) 40%, #fff);
+  --frame: var(--ink);
+  --mark: var(--accent-deep, var(--ink));
+  --gap: 6mm;
+  width: var(--w); height: var(--h); box-sizing: border-box; position: relative; overflow: hidden;
+  background: #fff; color: var(--ink);
+  font: 400 11pt/1.38 var(--font-body, system-ui), system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  padding: var(--m-top) var(--m-right) var(--m-bottom) var(--m-left);
+  display: flex; flex-direction: column; gap: var(--gap);
+  counter-reset: n;
+  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+.sheet.landscape { --w: 297mm; --h: 210mm; --m-top: 14mm; --m-bottom: 18mm; }
+.paper-a5 .sheet { --w: 148mm; --h: 210mm; --m-top: 12mm; --m-right: 12mm; --m-bottom: 16mm; --m-left: 15mm; --gap: 4.5mm; font-size: 10pt; }
+.paper-a5 .sheet.landscape { --w: 210mm; --h: 148mm; }
+.paper-a3 .sheet { --w: 297mm; --h: 420mm; --m-top: 22mm; --m-right: 24mm; --m-bottom: 28mm; --m-left: 28mm; --gap: 8mm; font-size: 14pt; --pitch: 13mm; }
+.paper-a3 .sheet.landscape { --w: 420mm; --h: 297mm; }
+.sheet.logo-head { --m-top: 30mm; }
+.sheet.landscape.logo-head { --m-top: 26mm; }
+
+.sheet *, .sheet *::before, .sheet *::after { box-sizing: border-box; }
+.sheet :is(h1, h2, h3, p, ul, ol, dl, dd, figure, blockquote, table) { margin: 0; }
+.sheet img { display: block; }
+.sheet strong { font-weight: 700; }
+.sheet em { font-style: italic; }
+
+/* ---------- the header ---------- */
+.sheet > header { flex: none; display: grid; grid-template-columns: 1fr auto; column-gap: 8mm; align-items: start; }
+.sheet > header > :not(figure) { grid-column: 1; }
+.sheet > header > figure { grid-column: 2; grid-row: 1 / span 3; width: 30mm; }
+.sheet > header > figure img { width: 100%; height: auto; max-height: 26mm; object-fit: contain; }
+.sheet .eyebrow { font-size: 9.5pt; line-height: 1.3; color: var(--ink-2); margin-bottom: 1.5mm; }
+.sheet h1 { font: 700 19pt/1.2 var(--font-display, var(--font-body, system-ui)), system-ui, sans-serif; color: var(--title, var(--ink)); letter-spacing: -0.005em; }
+.sheet .lead { font-size: 11.5pt; line-height: 1.4; margin-top: 4mm; }
+.sheet .lead + .lead { margin-top: 2mm; }
+
+/* ---------- the blocks: a stack; .fill takes the rest of the page ---------- */
+.sheet > .block { flex: none; min-width: 0; }
+.sheet > .fill { flex: 1 1 0; min-height: 12mm; }
+.sheet h2 { font: 700 12.5pt/1.25 var(--font-body, system-ui), system-ui, sans-serif; }
+.sheet h3 { font: 700 11pt/1.3 var(--font-body, system-ui), system-ui, sans-serif; }
+.sheet .hint { font-size: 9.5pt; line-height: 1.35; color: var(--ink-2); margin-top: 0.8mm; }
+.sheet .prompt { font-size: 10.5pt; line-height: 1.3; }
+.sheet .prompt + .prompt { margin-top: 0.6mm; }
+.sheet .quiet { color: var(--ink-3); font-style: italic; }
+/* plain lists, kept weak so every block's own rules win */
+.sheet :where(ul:not([class]), ol:not([class])) { padding-left: 5.5mm; }
+.sheet :where(ul:not([class]), ol:not([class])) > :where(li + li) { margin-top: 0.8mm; }
+
+/* heights and lines, for any block that takes them: h-N is N millimetres, lines-N is N writing lines */
+.h-10 { --space: 10mm; } .h-15 { --space: 15mm; } .h-20 { --space: 20mm; } .h-25 { --space: 25mm; } .h-30 { --space: 30mm; }
+.h-35 { --space: 35mm; } .h-40 { --space: 40mm; } .h-45 { --space: 45mm; } .h-50 { --space: 50mm; } .h-60 { --space: 60mm; }
+.h-70 { --space: 70mm; } .h-80 { --space: 80mm; } .h-90 { --space: 90mm; } .h-100 { --space: 100mm; } .h-120 { --space: 120mm; } .h-140 { --space: 140mm; }
+.lines-1 { --lines: 1; } .lines-2 { --lines: 2; } .lines-3 { --lines: 3; } .lines-4 { --lines: 4; } .lines-5 { --lines: 5; } .lines-6 { --lines: 6; }
+.lines-7 { --lines: 7; } .lines-8 { --lines: 8; } .lines-9 { --lines: 9; } .lines-10 { --lines: 10; } .lines-12 { --lines: 12; } .lines-15 { --lines: 15; }
+.sheet .pitch-l { --pitch: 12mm; }
+.sheet .pitch-xl { --pitch: 20mm; }
+.sheet .w-20 { width: 20mm; } .sheet .w-30 { width: 30mm; } .sheet .w-40 { width: 40mm; } .sheet .w-50 { width: 50mm; } .sheet .w-60 { width: 60mm; }
+.sheet .w-70 { width: 70mm; } .sheet .w-80 { width: 80mm; } .sheet .w-100 { width: 100mm; } .sheet .w-120 { width: 120mm; }
+
+/* writing room: lines (lines-N), free space (h-N) or both; .write stands alone or inside a step, field or row */
+.sheet :is(.question, .write.block)::after, .sheet .write:not(.block) {
+  content: ''; display: block;
+  height: calc(var(--lines, 0) * var(--pitch) + var(--space, 0mm));
+  background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--pitch) - 0.3mm), var(--rule) calc(var(--pitch) - 0.3mm) var(--pitch)) top left / 100% calc(var(--lines, 0) * var(--pitch)) no-repeat;
+}
+.sheet .write.block { display: flex; flex-direction: column; }
+.sheet .write.block::after { flex: none; }
+.sheet .write.block.fill::after, .sheet .question.fill::after { flex: 1 1 auto; height: auto; background-size: 100% var(--pitch); background-repeat: repeat-y; min-height: var(--pitch); }
+
+/* a blank to write on inside a sentence: "Unsere Gruppe heißt: ____" */
+.sheet .blank { display: inline-block; width: 55mm; height: 1em; border-bottom: 0.3mm solid var(--rule); vertical-align: baseline; margin: 0 1mm; }
+.sheet .blank.short { width: 22mm; }
+.sheet .blank.long { width: 105mm; }
+.sheet .blank.rest { width: auto; flex: 1; }
+.sheet .fill-in { display: flex; align-items: baseline; gap: 2mm; }
+.sheet .fill-in > .blank { flex: 1; width: auto; }
+
+/* ---------- read: text ---------- */
+.text > * + * { margin-top: 2.4mm; }
+.text > h2 + *, .text > h3 + * { margin-top: 1mm; }
+.text > * + h2, .text > * + h3 { margin-top: 5mm; }
+.text.loose > * + * { margin-top: 4mm; }
+
+/* ---------- read: terms (a definition list) ---------- */
+.terms { display: grid; grid-template-columns: fit-content(36mm) 1fr; column-gap: 6mm; row-gap: 5mm; align-items: baseline; align-content: start; }
+.terms.fill { align-content: space-evenly; }
+.terms > dt { font-weight: 700; font-size: 11.5pt; line-height: 1.3; }
+.terms > dd { margin: 0; }
+.terms.wide { grid-template-columns: fit-content(50mm) 1fr; }
+
+/* ---------- read: a list in columns, with optional section headings and running numbers ---------- */
+.columns { column-count: 2; column-gap: 10mm; line-height: 1.3; }
+.columns.cols-3 { column-count: 3; column-gap: 7mm; }
+.columns.fill { column-fill: auto; }
+.sheet .columns > ul, .sheet .columns > ol { list-style: none; padding: 0; }
+.sheet .columns li { break-inside: avoid; margin: 0; }
+.columns > h3 { break-after: avoid; margin: 4mm 0 0.8mm; }
+.columns > h3:first-child { margin-top: 0; }
+.columns.numbered { counter-reset: item; }
+.columns.numbered li::before { counter-increment: item; content: counter(item) ". "; color: var(--ink-2); }
+.columns.small { font-size: 9.5pt; line-height: 1.15; }
+.columns.small > h3 { font-size: 10pt; margin: 2.6mm 0 0.5mm; }
+
+/* ---------- read: a table, also with empty rows to fill in ---------- */
+.sheet table.table { width: 100%; border-collapse: collapse; font-size: 10.5pt; line-height: 1.3; }
+.table th { text-align: left; font-weight: 700; padding: 1.6mm 2mm; border-bottom: 0.35mm solid var(--frame); vertical-align: bottom; }
+.table td { padding: 1.6mm 2mm; border-bottom: 0.3mm solid var(--rule); vertical-align: top; }
+.table.boxed th, .table.boxed td { border: 0.3mm solid var(--frame); }
+.table.tall td { height: var(--space, 11mm); }
+
+/* ---------- instruct: the steps of an exercise (title, hint, optional time), numbered across the page ---------- */
+.steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 5mm; }
+.steps.fill { justify-content: space-between; }
+.steps.tight { gap: 3mm; }
+.steps > li > h3 { display: flex; align-items: baseline; gap: 2mm; }
+.steps > li > h3::before { counter-increment: n; content: counter(n) "."; color: var(--mark); }
+.steps.plain > li > h3::before { content: none; counter-increment: none; }
+.steps > li > h3 > .time { margin-left: auto; font-weight: 400; font-size: 9.5pt; color: var(--ink-2); white-space: nowrap; }
+.steps > li > :not(h3) { margin-top: 1.4mm; }
+.steps:not(.plain) > li > :not(h3) { margin-left: 5mm; }
+.steps > li ul { list-style: disc; padding-left: 5mm; }
+.steps > li ul > li + li { margin-top: 0.6mm; }
+
+/* ---------- write: a question with lines or free space ---------- */
+.question { display: flex; flex-direction: column; }
+.question::after { margin-top: 1mm; }
+.question.numbered > h3::before { counter-increment: n; content: counter(n) ". "; color: var(--mark); }
+.question > h3.plain { font-weight: 400; }
+
+/* ---------- write: a box with a prompt ---------- */
+.box { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: var(--space, 25mm); display: flex; flex-direction: column; }
+.box.round { border-radius: 3mm; }
+.box.fill { min-height: 0; }
+.box > .write { flex: 1 1 auto; }
+
+/* ---------- order: a grid of fields ---------- */
+.grid { display: grid; gap: 4mm; height: var(--space, auto); grid-auto-rows: 1fr; }
+.grid.fill { height: auto; }
+.grid.g-2 { grid-template-columns: 1fr 1fr; }
+.grid.g-3 { grid-template-columns: repeat(3, 1fr); }
+.grid.g-2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.grid.g-wide { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(26mm, 0.55fr) 1fr 1fr; }
+.grid.g-wide > :first-child { grid-column: 1 / -1; }
+.grid.narrow { width: 82%; }
+.field { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: 20mm; min-width: 0; display: flex; flex-direction: column; }
+.field.center { align-items: center; justify-content: center; text-align: center; }
+.field.big .prompt, .field.big p { font-size: 15pt; letter-spacing: 0.02em; }
+.field.thick { border-width: 0.6mm; }
+
+/* ---------- order: rows with a label and a field ---------- */
+.rows { display: flex; flex-direction: column; gap: 3.5mm; }
+.rows > .row { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: var(--space, 32mm); display: grid; grid-template-columns: 32mm 1fr; column-gap: 4mm; align-content: start; }
+.rows.fill > .row { flex: 1 1 0; min-height: 0; }
+.rows > .row > h3 { grid-column: 1; grid-row: 1 / span 4; font-weight: 400; font-size: 11.5pt; line-height: 1.3; }
+.rows > .row > :not(h3) { grid-column: 2; }
+
+/* ---------- order: a circle with segments and an open middle (drawn from the number of entries) ---------- */
+.circle { position: relative; display: flex; justify-content: center; align-items: center; height: var(--space, 120mm); container-type: size; }
+.circle.fill { height: auto; min-height: 0; }
+.circle > svg.drawn { height: 100%; width: auto; max-width: 100%; aspect-ratio: 1; overflow: visible; }
+.circle .drawn .outer, .circle .drawn .spoke { fill: none; stroke: var(--rule); stroke-width: 0.3mm; vector-effect: non-scaling-stroke; }
+.circle .drawn .outer { stroke: var(--frame); }
+.circle .drawn .hub { fill: none; stroke: var(--frame); stroke-width: 1.8mm; vector-effect: non-scaling-stroke; }
+.circle > ol { display: none; }
+/* the middle scales with the circle: the open middle is 30 % of its diameter */
+.circle > .middle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: clamp(8pt, 4.2cqmin, 14pt); white-space: nowrap; }
+.circle > .middle .blank { width: 13cqmin; margin: 0 0.5mm; }
+
+/* ---------- rate: criteria rows with a value and notes ---------- */
+.criteria { display: flex; flex-direction: column; gap: 2.5mm; }
+.criteria > .crit { border: 0.35mm solid var(--frame); padding: 2mm 3mm 2.5mm; min-height: var(--space, 30mm); display: grid; grid-template-columns: 36mm; grid-template-rows: auto 1fr auto; grid-auto-columns: 1fr; grid-auto-flow: column; column-gap: 4mm; }
+.criteria.fill > .crit { flex: 1 1 0; min-height: 0; }
+.crit > .label { grid-column: 1; grid-row: 1; font-size: 9.5pt; }
+.crit > .score { grid-column: 1; grid-row: 2; align-self: center; display: flex; align-items: flex-end; gap: 1.2mm; font-size: 10pt; color: var(--ink-3); padding: 1.5mm 0; }
+.crit > .score::before { content: ''; width: 11mm; height: 11mm; border: 0.3mm solid var(--rule); }
+.crit > h3 { grid-column: 1; grid-row: 3; font-size: 12pt; color: var(--mark); white-space: nowrap; }
+.crit > .note { grid-row: 1 / span 2; font-size: 9.5pt; }
+
+/* ---------- plan: lines with a box to tick ---------- */
+.ticks { list-style: none; padding: 0; }
+.ticks > li { position: relative; min-height: var(--pitch); padding: 0 0 1.2mm 9mm; display: flex; align-items: flex-end; }
+.ticks > li::before { content: ''; position: absolute; left: 0; bottom: 1mm; width: 5mm; height: 5mm; border: 0.3mm solid var(--ink); }
+.ticks > li::after { content: ''; position: absolute; left: 9mm; right: 0; bottom: 0; border-bottom: 0.3mm solid var(--rule); }
+.ticks.no-lines > li::after { display: none; }
+.ticks.no-boxes > li { padding-left: 0; }
+.ticks.no-boxes > li::before { display: none; }
+.ticks.no-boxes > li::after { left: 16mm; }
+.ticks.pitch-l > li::before { width: 6mm; height: 6mm; }
+.ticks.cols-2 { column-count: 2; column-gap: 10mm; }
+.ticks.cols-2 > li { break-inside: avoid; }
+
+/* ---------- a picture, pictures in a row, two blocks side by side ---------- */
+figure.picture { display: flex; flex-direction: column; align-items: center; gap: 1.5mm; }
+figure.picture.left { align-items: flex-start; }
+figure.picture.right { align-items: flex-end; }
+figure.picture > img { max-width: 100%; max-height: var(--space, 60mm); width: auto; height: auto; object-fit: contain; }
+figure.picture.fill > img { max-height: 100%; }
+.sheet figcaption { font-size: 9pt; line-height: 1.25; color: var(--ink-2); text-align: center; }
+.pictures { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3mm; }
+.pictures > figure { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+.pictures > figure > img { width: 100%; height: var(--space, 45mm); object-fit: cover; }
+.pictures.contain > figure > img { object-fit: contain; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm; align-items: start; }
+.pair.r-2-1 { grid-template-columns: 2fr 1fr; }
+.pair.r-1-2 { grid-template-columns: 1fr 2fr; }
+.pair.r-3-2 { grid-template-columns: 3fr 2fr; }
+.pair.fill { align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+.pair > div { display: flex; flex-direction: column; gap: 4mm; min-width: 0; min-height: 0; }
+.pair > div > .fill { flex: 1 1 0; min-height: 0; }
+.pair.bottom { align-items: end; }
+
+/* ---------- what the host adds: the logo and the footer line ---------- */
+.sheet > .sheet-foot { position: absolute; left: 14mm; right: var(--m-right); bottom: 8mm; display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; font-size: 8pt; line-height: 1.2; color: var(--ink-3); }
+.sheet > .sheet-foot .page { margin-left: auto; margin-right: auto; }
+.sheet > .sheet-foot img { height: 11mm; width: auto; }
+.sheet > .sheet-head { position: absolute; top: 8mm; left: var(--m-left); right: var(--m-right); display: flex; justify-content: center; }
+.sheet > .sheet-head.right { justify-content: flex-end; }
+.sheet > .sheet-head img { height: 15mm; width: auto; }
+.sheet.landscape > .sheet-head img { height: 12mm; }
+
+/* ---------- formatting by hand, as on slides (docs/slides.md, section 2): steps of size and places of the palette ---------- */
+.sheet .fs-xs { font-size: 0.72em; } .sheet .fs-s { font-size: 0.86em; } .sheet .fs-l { font-size: 1.2em; } .sheet .fs-xl { font-size: 1.45em; }
+.sheet .accent { color: var(--mark); }
+.sheet .muted { color: var(--ink-3); }
+.sheet .fw-normal { font-weight: 400; }
