@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type Color, formatRuns, type Patch, rangeState, type RangeState, runsLength, runsToNodes, sizePatch, boldPatch, trimBreaks } from '@/domain/inlineRuns'
 import { setSheetInline, sheetElementAt } from '@/domain/sheetDoc'
-import { baseBold, domRuns, pathOf, placeCaret, renderRuns, selectionOffsets, type Session, setSelection, startSession } from '@/slides/editor/inplace'
+import { baseBold, domRuns, pathOf, renderRuns, selectionOffsets, type Session, setSelection, startSession } from '@/slides/editor/inplace'
 import type { Anchor } from '@/slides/editor/SlideToolbar'
 
 /**
@@ -34,8 +34,11 @@ export function textTarget(section: Element, from: Element | null): HTMLElement 
 export interface OnPage {
   /** The markup to render: held still while a text is typed in. */
   shown: (html: string) => string
-  /** Starts typing into the text under a mouse press on the page; true when it did (the press is then the caret's). */
-  begin: (section: Element, target: Element, point: { x: number; y: number }) => boolean
+  /**
+   * Makes the text under a mouse press on the page editable, during the press: the browser's own handling of the press
+   * then puts the caret there, and a drag or a double-click selects words, as in any text. True when it did.
+   */
+  begin: (section: Element, target: Element) => boolean
   /** Ends typing (undo, redo, paging, closing). */
   end: () => void
   /** The text being typed in, for the bar above it. */
@@ -61,6 +64,8 @@ interface Live {
 export function useOnPage(html: string, write: (html: string, field: string | null) => void): OnPage {
   const [frozen, setFrozen] = useState<string | null>(null)
   const [active, setActive] = useState<OnPage['active']>(null)
+  /** Counts the texts typed in: the element's listeners belong to one of them. */
+  const [epoch, setEpoch] = useState(0)
   const live = useRef<Live | null>(null)
   const latest = useRef({ html, write })
   latest.current = { html, write }
@@ -82,32 +87,39 @@ export function useOnPage(html: string, write: (html: string, field: string | nu
     if (next !== null) latest.current.write(next, typing ? `page:${cur.path.join('.')}` : null)
   }, [])
 
-  const end = useCallback(() => {
+  /** The text is no longer typed in; the page stays as it is shown. */
+  const stop = useCallback(() => {
     const cur = live.current
     if (!cur) return
     live.current = null
     cur.s.el.contentEditable = 'false'
     cur.s.el.classList.remove('is-editing')
     setActive(null)
-    setFrozen(null)
   }, [])
 
-  const begin = (section: Element, target: Element, point: { x: number; y: number }): boolean => {
+  /** Typing is over: the page is rendered afresh from what was stored. */
+  const end = useCallback(() => {
+    stop()
+    setFrozen(null)
+  }, [stop])
+
+  const begin = (section: Element, target: Element): boolean => {
     const el = textTarget(section, target)
     if (!el) return false
     if (live.current?.s.el === el) return true
-    end()
+    // Another text of the same page: the page stays still (it shows what was typed, which is stored), so the
+    // element pressed on stays in place; the new text is found in what is stored now.
+    stop()
     const at = pathOf(section, el)
     const base = latest.current.html
     const tree = at && sheetElementAt(base, at.path, at.tags)
     const s = tree ? startSession(el, tree) : null
     if (!at || !s) return false
     live.current = { s, base, path: at.path }
-    setFrozen(base)
+    setFrozen((f) => f ?? base)
     el.contentEditable = 'true'
     el.classList.add('is-editing')
-    el.focus({ preventScroll: true })
-    placeCaret(s, point)
+    setEpoch((n) => n + 1)
     refresh()
     return true
   }
@@ -148,7 +160,8 @@ export function useOnPage(html: string, write: (html: string, field: string | nu
       }
     }
     const onBlur = () => {
-      if (document.hasFocus()) end()
+      // left for a field or a button of the editor; not for another text of the page, which took over already
+      if (live.current === cur && document.hasFocus()) end()
     }
     const onStart = () => (composing = true)
     const onEnd = () => {
@@ -175,7 +188,7 @@ export function useOnPage(html: string, write: (html: string, field: string | nu
       document.removeEventListener('selectionchange', onSelection)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frozen])
+  }, [epoch])
 
   /** A formatting command on the selected words, or on the whole text when none are selected. */
   const format = (make: (state: RangeState) => Patch) => {

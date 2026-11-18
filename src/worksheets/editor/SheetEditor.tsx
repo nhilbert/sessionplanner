@@ -170,7 +170,8 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
       <div ref={frame} className="w-full" onMouseDown={(e) => {
         if (!editing || !fine || e.button !== 0) return
         const section = frame.current?.querySelector('section.sheet')
-        if (section && onPage.begin(section, e.target as Element, { x: e.clientX, y: e.clientY })) e.preventDefault()
+        // no preventDefault: the browser places the caret and selects with a drag or a double-click
+        if (section) onPage.begin(section, e.target as Element)
       }} style={{ maxWidth: `min(720px, calc((100dvh - ${phone ? 260 : 230}px) * ${size.w / size.h}))` }} onClick={(e) => {
         // a click on a block of the page opens its card
         if (!editing) return
