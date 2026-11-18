@@ -76,6 +76,17 @@ describe('worksheets of a step', () => {
     expect(repo.sweepAssets()).not.toContain(hash)
   })
 
+  it('are shown to guests as slides are, also to guests without the notes', async () => {
+    const { app, repo } = setup()
+    const ws = await workshop(app)
+    await ops(app, ws.workshop.id, [{ op: 'create', entity: 'item', record: item(ws.workshop.id, ws.days[0].id, [sheet('<section class="sheet"><div class="block text"><p>x</p></div></section>')]) }])
+    repo.setMember(ws.workshop.id, GUEST, 'view', false)
+    const seen = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { headers: H(GUEST) })).json()) as WorkshopState
+    expect(seen.items[0].worksheets[0].title).toBe('Mein Teamtag')
+    // a guest who may only view cannot change them
+    expect((await ops(app, ws.workshop.id, [{ op: 'set', entity: 'item', id: 'i1', fields: { worksheets: [] } }], GUEST)).status).toBe(403)
+  })
+
   it('come along when a workshop is duplicated, with ids of their own', async () => {
     const { app, repo } = setup()
     const ws = await workshop(app)
