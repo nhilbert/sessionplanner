@@ -23,6 +23,8 @@ const INLINE = 'strong,em,b,i,code,span,br'
 export function textTarget(section: Element, from: Element | null): HTMLElement | null {
   for (let e = from; e && e !== section && section.contains(e); e = e.parentElement) {
     if (e.closest('svg, .sheet-foot, .sheet-head')) return null
+    // the facts block is the step's, filled in by the app
+    if (e.matches('.facts')) return null
     if (!(e instanceof HTMLElement) || !e.matches(TEXT)) continue
     // a step's heading holds its time: the heading is edited in the fields, the time on the page
     if ([...e.children].every((c) => c.matches(INLINE) && !c.matches('span.time, span.score'))) return e

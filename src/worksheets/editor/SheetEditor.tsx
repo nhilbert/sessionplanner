@@ -41,7 +41,7 @@ const MM = 96 / 25.4
 
 const toSheet = (sheet: Worksheet, d: Draft): Worksheet => ({ ...sheet, title: d.title.trim() || sheet.title, paper: d.paper, pages: d.pages.map((p) => ({ id: p.id, html: serializeSheetPage(p.doc) })) })
 
-export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing = false, onSave, onClose, onPrint }: { sheet: Worksheet; scope: AssetScope; theme: string; logo: string | null; canEdit: boolean; startEditing?: boolean; onSave: (sheet: Worksheet) => void; onClose: () => void; onPrint?: () => void }) {
+export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEditing = false, onSave, onClose, onPrint }: { facts?: string; sheet: Worksheet; scope: AssetScope; theme: string; logo: string | null; canEdit: boolean; startEditing?: boolean; onSave: (sheet: Worksheet) => void; onClose: () => void; onPrint?: () => void }) {
   const { t } = useTranslation()
   const phone = useIsPhone()
   const [draft, setDraft] = useState<Draft>(() => ({ title: sheet.title, paper: sheet.paper, pages: sheet.pages.map((p) => ({ id: p.id, doc: parseSheetPage(p.html) })) }))
@@ -148,7 +148,7 @@ export function SheetEditor({ sheet, scope, theme, logo, canEdit, startEditing =
   }, [html, draft.paper])
 
   // ---- pages -----------------------------------------------------------------------------------------------------------
-  const chrome = useSheetChrome({ ...sheet, pages: draft.pages.map((p) => ({ id: p.id, html: '' })), updatedAt: sheet.updatedAt }, logo)
+  const chrome = useSheetChrome({ ...sheet, pages: draft.pages.map((p) => ({ id: p.id, html: '' })), updatedAt: sheet.updatedAt }, logo, facts)
   const setPage = (fn: (d: SheetPageDoc) => void, field?: string) => update((d) => fn(d.pages[current].doc), field)
   const pageMenu = (i: number): MenuItem[] => [
     { label: t('sheetEditor.pageLeft'), icon: <ArrowLeft size={14} />, disabled: i === 0, onSelect: () => (update((d) => void d.pages.splice(i - 1, 0, d.pages.splice(i, 1)[0])), setCurrent(i - 1)) },
@@ -372,6 +372,20 @@ function useBlockWords(): BlockWords {
       criterion: t('sheetEditor.words.criterion'),
       note: t('sheetEditor.words.note'),
       caption: t('sheetEditor.words.caption'),
+      noteTitle: t('sheetEditor.words.noteTitle'),
+      starter: t('sheetEditor.words.starter'),
+      axisY: t('sheetEditor.words.axisY'),
+      axisX: t('sheetEditor.words.axisX'),
+      low: t('sheetEditor.words.low'),
+      high: t('sheetEditor.words.high'),
+      never: t('sheetEditor.words.never'),
+      sometimes: t('sheetEditor.words.sometimes'),
+      often: t('sheetEditor.words.often'),
+      always: t('sheetEditor.words.always'),
+      statement: t('sheetEditor.words.statement'),
+      sum: t('sheetEditor.words.sum'),
+      when: t('sheetEditor.words.when'),
+      then: t('sheetEditor.words.then'),
     }),
     [t],
   )

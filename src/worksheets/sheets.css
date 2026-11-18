@@ -240,6 +240,75 @@
 :where(.sheet) .pair > div > .fill { flex: 1 1 0; min-height: 0; }
 :where(.sheet) .pair.bottom { align-items: end; }
 
+/* ---------- stage 4b ---------- */
+
+/* read: a note to remember, set apart by a rule in the accent */
+.sheet .note { border-left: 1.2mm solid var(--mark); padding: 0.5mm 0 0.5mm 4mm; }
+.sheet .note > * + * { margin-top: 1.6mm; }
+
+/* instruct: the step's facts, filled in by the app */
+.sheet .facts { font-size: 10pt; line-height: 1.35; color: var(--ink-2); }
+
+/* write: sentence starters, each continued on its line; lines-N adds lines below */
+.sheet .starters { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 1.5mm; }
+.sheet .starters > li { display: grid; grid-template-columns: auto 1fr; column-gap: 2mm; align-items: end; }
+.sheet .starters > li::after { content: ''; grid-row: 1; grid-column: 2; height: var(--pitch); border-bottom: 0.3mm solid var(--rule); }
+.sheet .starters > li::before { content: ''; grid-row: 2; grid-column: 1 / -1; height: calc((var(--lines, 1) - 1) * var(--pitch)); background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--pitch) - 0.3mm), var(--rule) calc(var(--pitch) - 0.3mm) var(--pitch)); }
+
+/* order: a 2 × 2 with an axis up and one across */
+.sheet .matrix { display: grid; grid-template-columns: 8mm 1fr 1fr; grid-template-rows: 1fr 1fr 8mm; height: var(--space, 110mm); }
+.sheet .matrix.fill { height: auto; }
+.sheet .matrix::before { content: ''; grid-column: 2 / 4; grid-row: 1 / 3; border-left: 0.5mm solid var(--ink); border-bottom: 0.5mm solid var(--ink); pointer-events: none; }
+.sheet .matrix > .y { grid-column: 1; grid-row: 1 / 3; writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; justify-self: center; font-size: 10pt; color: var(--ink-2); }
+.sheet .matrix > .x { grid-column: 2 / 4; grid-row: 3; align-self: end; text-align: center; font-size: 10pt; color: var(--ink-2); }
+.sheet .matrix > .field { border: 0; min-height: 0; padding: 3mm 4mm; }
+.sheet .matrix > .field:nth-of-type(1) { grid-column: 2; grid-row: 1; border-right: 0.3mm dashed var(--rule); border-bottom: 0.3mm dashed var(--rule); }
+.sheet .matrix > .field:nth-of-type(2) { grid-column: 3; grid-row: 1; border-bottom: 0.3mm dashed var(--rule); }
+.sheet .matrix > .field:nth-of-type(3) { grid-column: 2; grid-row: 2; border-right: 0.3mm dashed var(--rule); }
+.sheet .matrix > .field:nth-of-type(4) { grid-column: 3; grid-row: 2; }
+
+/* order: a timeline across the page, room to write above its marks */
+.sheet .timeline { list-style: none; padding: 0; display: flex; height: var(--space, 40mm); }
+.sheet .timeline > li { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; text-align: center; font-size: 10pt; line-height: 1.2; }
+.sheet .timeline > li::before { content: ''; align-self: stretch; margin-top: auto; margin-bottom: 1.5mm; height: 3mm; border-top: 0.5mm solid var(--ink); background: linear-gradient(var(--ink), var(--ink)) center top / 0.4mm 100% no-repeat; }
+
+/* order: a diagram shape of the slides, empty, its entries listed below */
+.sheet .shape { display: flex; flex-direction: column; gap: 3mm; }
+.sheet .shape > svg.drawn { width: 100%; height: var(--space, 70mm); flex: none; }
+.sheet .shape.fill > svg.drawn { height: auto; flex: 1 1 0; min-height: 30mm; }
+.sheet .shape > svg.drawn :is(polygon, rect, circle, path, ellipse) { fill: none; fill-opacity: 1; stroke: var(--ink); stroke-width: 0.3mm; vector-effect: non-scaling-stroke; }
+.sheet .shape > svg.drawn line { stroke: var(--rule); stroke-width: 0.3mm; vector-effect: non-scaling-stroke; }
+.sheet .shape > svg.drawn text { fill: var(--mark); font: 700 30px var(--font-body, system-ui), sans-serif; }
+.sheet .shape > ol { list-style: none; padding: 0; counter-reset: k; display: flex; flex-direction: column; }
+.sheet .shape > ol > li { counter-increment: k; display: grid; grid-template-columns: auto auto 1fr; column-gap: 2mm; align-items: end; min-height: var(--pitch); }
+.sheet .shape > ol > li::before { content: counter(k, decimal-leading-zero); grid-column: 1; grid-row: 1; color: var(--mark); font-weight: 700; font-size: 10pt; }
+.sheet .shape > ol > li::after { content: ''; grid-column: 3; grid-row: 1; height: var(--pitch); border-bottom: 0.3mm solid var(--rule); }
+
+/* rate: scales from 0 to 10 (or 1 to 5) with words at both ends */
+.sheet .scale { display: flex; flex-direction: column; gap: 5mm; }
+.sheet .scale > .rate { display: grid; grid-template-columns: 38mm 1fr; column-gap: 4mm; row-gap: 1mm; align-items: center; }
+.sheet .rate > .label { grid-column: 1; grid-row: 1 / span 2; font-weight: 700; }
+.sheet .rate > .points { grid-column: 2; grid-row: 1; display: flex; justify-content: space-between; }
+.sheet .rate > .points > span { width: 7mm; height: 7mm; border: 0.3mm solid var(--ink); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8.5pt; color: var(--ink-2); }
+.sheet .rate > .low, .sheet .rate > .high { grid-column: 2; grid-row: 2; font-size: 9pt; color: var(--ink-2); }
+.sheet .rate > .high { justify-self: end; text-align: right; }
+
+/* rate: a self-test with a box per answer column, and a sum */
+.sheet .selftest { --cols: 4; }
+.sheet .selftest.c-2 { --cols: 2; } .sheet .selftest.c-3 { --cols: 3; } .sheet .selftest.c-5 { --cols: 5; } .sheet .selftest.c-6 { --cols: 6; }
+.sheet .selftest > .head { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(var(--cols), 15mm); justify-content: end; font-size: 8.5pt; line-height: 1.15; text-align: center; color: var(--ink-2); margin-bottom: 1mm; }
+.sheet .selftest > .items { list-style: none; padding: 0; counter-reset: q; }
+.sheet .selftest > .items > li { counter-increment: q; display: grid; grid-template-columns: 6mm 1fr calc(var(--cols) * 15mm); column-gap: 2mm; align-items: center; padding: 1.6mm 0; border-bottom: 0.3mm solid var(--rule); font-size: 10.5pt; line-height: 1.3; }
+.sheet .selftest > .items > li::before { content: counter(q) "."; color: var(--mark); }
+.sheet .selftest > .items > li::after { content: ''; grid-column: 3; height: 5mm; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 5'%3E%3Crect x='5' y='0.15' width='4.7' height='4.7' fill='none' stroke='%2322272E' stroke-width='0.3'/%3E%3C/svg%3E") left top / 15mm 5mm repeat-x; }
+.sheet .selftest > .sum { margin-top: 3mm; text-align: right; font-weight: 700; }
+
+/* plan: if-then plans, each part continued on its line */
+.sheet .ifthen { display: flex; flex-direction: column; gap: 4mm; }
+.sheet .ifthen > .plan > :is(.if, .then) { display: grid; grid-template-columns: auto 1fr; column-gap: 2mm; align-items: end; font-weight: 700; }
+.sheet .ifthen > .plan > p::after { content: ''; height: var(--pitch); border-bottom: 0.3mm solid var(--rule); }
+.sheet .ifthen > .plan > .then { color: var(--mark); }
+
 /* ---------- what the host adds: the logo and the footer line ---------- */
 .sheet > .sheet-foot { position: absolute; left: 14mm; right: var(--m-right); bottom: 8mm; display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; font-size: 8pt; line-height: 1.2; color: var(--ink-3); }
 .sheet > .sheet-foot .page { margin-left: auto; margin-right: auto; }

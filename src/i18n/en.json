@@ -187,6 +187,9 @@
     "printed": "print"
   },
   "sheets": {
+    "factDuration": "Duration",
+    "factMethod": "Method",
+    "factMaterial": "Material",
     "blackWhite": "Black and white",
     "title": "Worksheets",
     "asOf": "As of {{date}}",
@@ -316,7 +319,16 @@
       "picture": "Picture",
       "pictures": "Pictures in a row",
       "pair": "Two columns",
-      "raw": "Source"
+      "raw": "Source",
+      "note": "Note",
+      "facts": "Facts",
+      "starters": "Sentence starters",
+      "matrix": "Matrix with axes",
+      "timeline": "Timeline",
+      "shape": "Shape to fill in",
+      "scale": "Scale",
+      "selftest": "Self-test",
+      "ifthen": "If-then plan"
     },
     "use": {
       "text": "paragraphs, headings, lists",
@@ -334,7 +346,16 @@
       "write": "room to write",
       "picture": "a picture with a caption",
       "pictures": "pictures in a row",
-      "pair": "two columns with blocks of their own"
+      "pair": "two columns with blocks of their own",
+      "note": "what matters most, set apart",
+      "facts": "duration, method, material from the step",
+      "starters": "sentence starters to continue",
+      "matrix": "2 × 2 with an axis up and one across",
+      "timeline": "a timeline with room above",
+      "shape": "pyramid, cycle, onion … empty to fill in",
+      "scale": "scales 0–10 with words at the ends",
+      "selftest": "statements with a box per answer and a sum",
+      "ifthen": "when …, then … to fill in"
     },
     "item": {
       "h2": "Heading",
@@ -393,7 +414,8 @@
       "bottom": "align at the bottom",
       "center": "centred",
       "big": "large",
-      "thick": "strong frame"
+      "thick": "strong frame",
+      "s5": "from 1 to 5"
     },
     "words": {
       "heading": "Heading",
@@ -409,7 +431,44 @@
       "rating": "Rating",
       "criterion": "Criterion",
       "note": "Notes …",
-      "caption": "Caption"
+      "caption": "Caption",
+      "noteTitle": "Remember",
+      "starter": "What matters to me is …",
+      "axisY": "Importance",
+      "axisX": "Urgency",
+      "low": "not at all",
+      "high": "completely",
+      "never": "never",
+      "sometimes": "rarely",
+      "often": "often",
+      "always": "always",
+      "statement": "A statement about me.",
+      "sum": "Total:",
+      "when": "When …",
+      "then": "then …"
+    },
+    "factsHint": "The app fills in duration, method and material from the step the sheet is on.",
+    "starters": "Sentence starters (one per line)",
+    "axisY": "Axis up",
+    "axisX": "Axis across",
+    "timelineMarks": "Marks (one per line)",
+    "form": "Shape",
+    "shapeEntries": "Entries below the shape (one per line, may stay empty)",
+    "addScale": "Add scale",
+    "scaleLabel": "What is rated",
+    "low": "Word at the start",
+    "high": "Word at the end",
+    "answers": "Answer columns (separate with |, 2 to 6)",
+    "statements": "Statements (one per line)",
+    "sum": "Total line",
+    "addPlan": "Add plan",
+    "if": "When",
+    "then": "then",
+    "quarter": {
+      "0": "top left",
+      "1": "top right",
+      "2": "bottom left",
+      "3": "bottom right"
     }
   },
   "printRule": {

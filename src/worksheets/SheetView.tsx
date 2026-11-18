@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { isLandscape, normalizeSheetHtml } from '@/domain/sheets'
+import { isLandscape, normalizeSheetHtml, stepFacts } from '@/domain/sheets'
+import { formatDuration } from '@/domain/time'
 import { esc, renderSlideHtml } from '@/domain/slides'
 import { type PaperLogo, workshopBrand } from '@/domain/theme'
 import type { Paper, Worksheet } from '@/domain/types'
@@ -32,6 +33,8 @@ export interface SheetChrome {
   n: number
   total: number
   logo: string | null
+  /** The facts of the step the sheet is on, for its facts block. */
+  facts?: string
 }
 
 /** How a theme prints (docs/worksheets.md, section 8): where its logo stands, its footer line, its ground, its accent on white. */
@@ -45,6 +48,8 @@ export const PLAIN_PAPER: PaperLook = { logo: 'foot', footer: '', dark: false, a
 
 export function hostSheetHtml(html: string, scope: AssetScope, chrome?: SheetChrome, paper: PaperLook = PLAIN_PAPER): string {
   let out = renderSlideHtml(normalizeSheetHtml(html), (hash) => assetUrl(scope, hash, 'light'))
+  // the facts block shows the step's facts; outside a step it stays empty
+  if (chrome?.facts) out = out.replace(/<p class="block facts([^"]*)"><\/p>/g, (_m, more: string) => `<p class="block facts${more}">${esc(chrome.facts!)}</p>`)
   if (chrome) {
     const logo = chrome.logo && paper.logo !== 'none' ? `<img src="${esc(chrome.logo)}" alt="">` : ''
     const footer = paper.footer.trim() ? ` · ${esc(paper.footer.trim())}` : ''
@@ -92,9 +97,15 @@ export function useSheetDate(): (iso: string) => string {
 }
 
 /** The chrome of each page of a sheet. */
-export function useSheetChrome(sheet: Worksheet, logo: string | null): (n: number) => SheetChrome {
+export function useSheetChrome(sheet: Worksheet, logo: string | null, facts?: string): (n: number) => SheetChrome {
   const date = useSheetDate()(sheet.updatedAt)
-  return (n: number) => ({ date, n, total: sheet.pages.length, logo })
+  return (n: number) => ({ date, n, total: sheet.pages.length, logo, facts })
+}
+
+/** The facts line of a step, for the facts block of its sheets. */
+export function useStepFacts(): (step: { duration: number; method: string; materials: { label: string; qty: number }[] } | undefined) => string | undefined {
+  const { t } = useTranslation()
+  return (step) => (step ? stepFacts(step, { duration: t('sheets.factDuration'), method: t('sheets.factMethod'), material: t('sheets.factMaterial') }, formatDuration) || undefined : undefined)
 }
 
 /**
@@ -108,7 +119,7 @@ export function SheetPage({ html, paper, theme, scope, chrome, className, onClic
   const scopeKey = scope === 'library' ? 'library' : scope.workshopId
   const look = usePaper(theme)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const rendered = useMemo(() => hostSheetHtml(html, scope, chrome, look), [html, scopeKey, chrome?.date, chrome?.n, chrome?.total, chrome?.logo, look])
+  const rendered = useMemo(() => hostSheetHtml(html, scope, chrome, look), [html, scopeKey, chrome?.date, chrome?.n, chrome?.total, chrome?.logo, chrome?.facts, look])
   const frame = paperFrame(paper, look)
   const size = pageSize(paper, isLandscape(normalizeSheetHtml(html)))
   useLayoutEffect(() => {

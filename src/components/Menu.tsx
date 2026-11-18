@@ -63,8 +63,9 @@ export default function Menu({
   useEffect(() => {
     if (open && !phone && !float) list.current?.scrollIntoView({ block: 'nearest' })
   }, [open, phone, float])
-  // Floating: below the button and in line with its edge, moved as far as the window asks; above when there is no room below.
-  const [spot, setSpot] = useState<{ left: number; top: number } | null>(null)
+  // Floating: below the button and in line with its edge, moved as far as the window asks; above when there is no room
+  // below; where it fits on neither side, on the side with more room, as high as that room, scrolling inside.
+  const [spot, setSpot] = useState<{ left: number; top: number; maxHeight?: number } | null>(null)
   useLayoutEffect(() => {
     if (!open || phone || !float) return setSpot(null)
     const button = ref.current?.getBoundingClientRect()
@@ -73,7 +74,12 @@ export default function Menu({
     const edge = 8
     const left = Math.max(edge, Math.min(align === 'left' ? button.left : button.right - panel.width, window.innerWidth - panel.width - edge))
     const below = button.bottom + 4
-    setSpot({ left, top: below + panel.height > window.innerHeight - edge ? Math.max(edge, button.top - panel.height - 4) : below })
+    const roomBelow = window.innerHeight - edge - below
+    const roomAbove = button.top - 4 - edge
+    if (panel.height <= roomBelow) setSpot({ left, top: below })
+    else if (panel.height <= roomAbove) setSpot({ left, top: button.top - panel.height - 4 })
+    else if (roomBelow >= roomAbove) setSpot({ left, top: below, maxHeight: roomBelow })
+    else setSpot({ left, top: edge, maxHeight: roomAbove })
   }, [open, phone, float, align])
   // The page moving under a floating dropdown would leave it behind.
   useEffect(() => {
@@ -127,7 +133,7 @@ export default function Menu({
             ref={list}
             role="menu"
             className={cx('card min-w-52 max-w-80 p-1 shadow-[var(--shadow)]', float ? 'fixed z-50' : 'absolute z-40 mt-1', !float && (align === 'left' ? 'left-0' : 'right-0'))}
-            style={float ? { left: spot?.left ?? 0, top: spot?.top ?? 0, visibility: spot ? undefined : 'hidden' } : undefined}
+            style={float ? { left: spot?.left ?? 0, top: spot?.top ?? 0, visibility: spot ? undefined : 'hidden', ...(spot?.maxHeight ? { maxHeight: spot.maxHeight, overflowY: 'auto', overscrollBehavior: 'contain' } : {}) } : undefined}
             onKeyDown={(e) => {
               // Up and down move through the items, as in any menu.
               if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return

@@ -1,4 +1,5 @@
 import { sanitizeSlide } from './slides.ts'
+import { diagramSvg, isDiagramShape } from './diagram.ts'
 import type { Worksheet } from './types.ts'
 
 /**
@@ -39,6 +40,16 @@ export const SHEET_BLOCKS: SheetBlockDoc[] = [
   { block: 'picture', group: 'picture', use: 'a picture with an optional caption', example: '<figure class="block picture right h-60"><img src="asset:…" alt=""><figcaption>…</figcaption></figure>', modifiers: ['left', 'right'] },
   { block: 'pictures', group: 'picture', use: 'pictures in a row, each with a caption', example: '<div class="block pictures h-45"><figure><img src="asset:…" alt=""><figcaption>…</figcaption></figure></div>', modifiers: ['contain'] },
   { block: 'pair', group: 'picture', use: 'two columns of blocks side by side', example: '<div class="block pair r-2-1"><div>…blocks…</div><div>…blocks…</div></div>', modifiers: ['r-2-1', 'r-1-2', 'r-3-2', 'bottom'] },
+  // stage 4b
+  { block: 'note', group: 'read', use: 'a note to remember: text set apart by a rule in the accent', example: '<div class="block note"><h3>Merke</h3><p>…</p></div>' },
+  { block: 'facts', group: 'instruct', use: "the step's facts – duration, method, material – filled in by the app from the step", example: '<p class="block facts"></p>' },
+  { block: 'starters', group: 'write', use: 'sentence starters, each continued on its line (lines-N adds lines below)', example: '<ul class="block starters lines-2"><li>Mir ist wichtig, dass …</li><li>Ich wünsche mir …</li></ul>' },
+  { block: 'matrix', group: 'order', use: 'a 2 × 2 with an axis up and an axis across, a field per quarter', example: '<div class="block matrix h-100"><p class="y">Wichtigkeit</p><p class="x">Dringlichkeit</p><div class="field"><p class="prompt">…</p></div><div class="field"></div><div class="field"></div><div class="field"></div></div>' },
+  { block: 'timeline', group: 'order', use: 'a timeline across the page: marks with labels, room to write above them', example: '<ol class="block timeline h-40"><li>Mo</li><li>Di</li><li>Mi</li></ol>' },
+  { block: 'shape', group: 'order', use: "a diagram shape of the slides, empty to fill in (pyramid, cycle, venn, onion, pillars, hub), its entries listed below; one per <li>", example: '<div class="block shape pyramid h-80"><ol><li></li><li></li><li></li></ol></div>', modifiers: ['pyramid', 'cycle', 'venn', 'onion', 'pillars', 'hub'] },
+  { block: 'scale', group: 'rate', use: 'scales from 0 to 10 (s5: 1 to 5) with words at both ends, one per row', example: '<div class="block scale"><div class="rate"><p class="label">Energie</p><p class="low">leer</p><p class="high">voll</p></div></div>', modifiers: ['s5'] },
+  { block: 'selftest', group: 'rate', use: 'a self-test: statements, a box per answer column, and a sum', example: '<div class="block selftest"><ul class="head"><li>nie</li><li>selten</li><li>oft</li><li>immer</li></ul><ol class="items"><li>Ich …</li></ol><p class="sum">Summe: ___</p></div>' },
+  { block: 'ifthen', group: 'plan', use: 'if-then plans: a situation and what I will do then, each on its line', example: '<div class="block ifthen"><div class="plan"><p class="if">Wenn …</p><p class="then">dann …</p></div></div>' },
 ]
 
 export const SHEET_BLOCK_NAMES: string[] = SHEET_BLOCKS.map((b) => b.block)
@@ -61,14 +72,21 @@ export function circleSvg(n: number): string {
   return `<svg class="drawn" viewBox="0 0 100 100" aria-hidden="true"><circle class="outer" cx="50" cy="50" r="${outer}"></circle>${spokes.join('')}<circle class="hub" cx="50" cy="50" r="${hub}"></circle></svg>`
 }
 
-/** Every circle block drawn from its entries (one segment per <li>; four without a list); a drawing already there is replaced. */
+/** The points of a scale: 0 to 10, or 1 to 5. */
+export const scalePoints = (five: boolean): string => `<div class="points drawn">${(five ? [1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).map((n) => `<span>${n}</span>`).join('')}</div>`
+
+/**
+ * What the app draws into a page from its entries, wherever the page came from: a circle's segments, an empty diagram
+ * shape (the slides' drawing, its numerals the entries' numbers) and the points of a scale. A drawing already there
+ * is replaced, so it always follows the entries.
+ */
 export function drawCircles(html: string): string {
   let out = ''
   let at = 0
   for (const m of html.matchAll(/<div class="([^"]*)">/g)) {
     if (m.index < at) continue
     const classes = m[1].split(/\s+/)
-    if (!classes.includes('circle')) continue
+    if (classes[0] !== 'block' || !['circle', 'shape', 'scale'].includes(classes[1])) continue
     // The sanitiser's output is well-formed: the block ends where its <div>s balance.
     const start = m.index + m[0].length
     let depth = 1
@@ -80,9 +98,17 @@ export function drawCircles(html: string): string {
         break
       }
     }
-    const inner = html.slice(start, end).replace(/<svg class="drawn"[\s\S]*?<\/svg>/g, '')
+    const inner = html.slice(start, end).replace(/<svg class="drawn"[\s\S]*?<\/svg>/g, '').replace(/<div class="points drawn">[\s\S]*?<\/div>/g, '')
     const entries = (inner.match(/<li\b/g) ?? []).length
-    out += html.slice(at, start) + circleSvg(entries || 4) + inner
+    if (classes[1] === 'circle') out += html.slice(at, start) + circleSvg(entries || 4) + inner
+    else if (classes[1] === 'shape') {
+      const form = classes.slice(2).find(isDiagramShape) ?? 'pyramid'
+      out += html.slice(at, start) + diagramSvg(form, entries || 3).replace('<svg ', '<svg class="drawn" ') + inner
+    } else {
+      // a scale: its points after each row's label
+      const points = scalePoints(classes.includes('s5'))
+      out += html.slice(at, start) + inner.replace(/(<div class="rate">(?:<p class="label">[\s\S]*?<\/p>)?)/g, `$1${points}`)
+    }
     at = end
   }
   return out + html.slice(at)
@@ -108,7 +134,7 @@ export const isLandscape = (html: string): boolean => /^<section class="sheet\b[
 
 /** The blocks of a page, in order: the second class of each top-level block. */
 export function sheetBlocks(html: string): string[] {
-  return [...html.matchAll(/<(?:div|ol|ul|dl|table|figure) class="block ([A-Za-z0-9_-]+)/g)].map((m) => m[1])
+  return [...html.matchAll(/<(?:div|ol|ul|dl|table|figure|p) class="block ([A-Za-z0-9_-]+)/g)].map((m) => m[1])
 }
 
 /** At most this many worksheets on a step, and pages on a sheet. */
@@ -146,3 +172,20 @@ export const SHEET_FORMAT = {
   forbidden: 'As on slides: no style, id, script, event attributes, external addresses. Pictures only as asset:<hash> the workshop or library already shows.',
   fit: 'Nothing flows to the next page: content that does not fit is cut. Keep a page to what fits on paper; split long material into pages yourself.',
 } as const
+
+/** The words of a step's facts line, in the app's language. */
+export interface FactWords {
+  duration: string
+  method: string
+  material: string
+}
+
+/** A step's facts for the facts block of its worksheets: "Dauer 45 Min. · Methode: Kartenabfrage · Material: Flipchart, Karten". */
+export function stepFacts(step: { duration: number; method: string; materials: { label: string; qty: number }[] }, w: FactWords, formatDuration: (min: number) => string): string {
+  const parts: string[] = []
+  if (step.duration > 0) parts.push(`${w.duration} ${formatDuration(step.duration)}`)
+  if (step.method.trim()) parts.push(`${w.method}: ${step.method.trim()}`)
+  const material = step.materials.map((m) => (m.qty > 1 ? `${m.qty} × ${m.label.trim()}` : m.label.trim())).filter(Boolean)
+  if (material.length) parts.push(`${w.material}: ${material.join(', ')}`)
+  return parts.join(' · ')
+}

@@ -7,7 +7,7 @@ import { jobTitle, printLines, printWords, sheetJobs } from '@/domain/printing'
 import type { Worksheet, WorkshopState } from '@/domain/types'
 import { Button } from '@/components/ui'
 import { useTheme } from '@/slides/SlideView'
-import { hostSheetHtml, paperFrame, type PaperLook, usePaper, useSheetBrand, useSheetChrome } from './SheetView'
+import { hostSheetHtml, paperFrame, type PaperLook, usePaper, useSheetBrand, useSheetChrome, useStepFacts } from './SheetView'
 import { Option } from '@/slides/Option'
 
 /**
@@ -33,6 +33,7 @@ export default function SheetsPrint({ data }: { data: WorkshopState }) {
   const brand = useSheetBrand(data.workshop.theme)
   useTheme(brand.theme)
   const look = usePaper(brand.theme)
+  const facts = useStepFacts()
   const [bw, setBw] = useState(() => {
     try {
       return localStorage.getItem('sp.sheets.bw') === '1'
@@ -83,7 +84,7 @@ export default function SheetsPrint({ data }: { data: WorkshopState }) {
       {!sheets.length && <p className="p-8 text-white/80">{t('sheets.printEmpty')}</p>}
       <div className="sheet-print flex flex-col items-center gap-6 py-6 print:block">
         {sheets.map((sheet, i) => (
-          <PrintedSheet key={sheet.id} sheet={sheet} theme={brand.theme} logo={brand.logo} workshopId={data.workshop.id} newLeaf={!!job?.duplex && i < sheets.length - 1} look={look} bw={bw} />
+          <PrintedSheet key={sheet.id} sheet={sheet} theme={brand.theme} logo={brand.logo} facts={facts(data.items.find((it) => (it.worksheets ?? []).some((w) => w.id === sheet.id)))} workshopId={data.workshop.id} newLeaf={!!job?.duplex && i < sheets.length - 1} look={look} bw={bw} />
         ))}
       </div>
     </div>
@@ -91,8 +92,8 @@ export default function SheetsPrint({ data }: { data: WorkshopState }) {
 }
 
 /** One sheet's pages; in a two-sided job an empty page after an odd number, so the next sheet starts on a new leaf (none after the last). */
-function PrintedSheet({ sheet, theme, logo, workshopId, newLeaf, look, bw }: { sheet: Worksheet; theme: string; logo: string | null; workshopId: string; newLeaf: boolean; look: PaperLook; bw: boolean }) {
-  const chrome = useSheetChrome(sheet, logo)
+function PrintedSheet({ sheet, theme, logo, facts, workshopId, newLeaf, look, bw }: { facts?: string; sheet: Worksheet; theme: string; logo: string | null; workshopId: string; newLeaf: boolean; look: PaperLook; bw: boolean }) {
+  const chrome = useSheetChrome(sheet, logo, facts)
   const blank = newLeaf && sheet.pages.length % 2 === 1 ? '<section class="sheet blank-leaf"></section>' : ''
   const html = sheet.pages.map((p, i) => hostSheetHtml(p.html, { workshopId }, chrome(i + 1), look)).join('') + blank
   const frame = paperFrame(sheet.paper, look, bw)

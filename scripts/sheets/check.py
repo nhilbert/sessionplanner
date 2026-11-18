@@ -123,18 +123,23 @@ def main():
     sources = [open(f, encoding='utf-8').read() for f, _, _ in jobs]
     stored, blocks = normalize_pages(sources, with_blocks=True)
     css_classes = known_classes() | set(blocks)
+    # the names of blocks proper (the bridge gives modifiers too, which are not blocks of their own)
+    from common import bridge as _b  # noqa: F401
+    modifier_only = set(blocks) - set(json.loads(subprocess.run(['node', '--no-warnings', '--input-type=module', '-e', "const m = await import('" + REPO + "/src/domain/sheets.ts'); process.stdout.write(JSON.stringify(m.SHEET_BLOCK_NAMES))"], capture_output=True, text=True).stdout))
     chrome_bin = os.environ.get('CHROME') or (sorted(glob.glob(os.path.expanduser('~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell'))) or [''])[-1]
     report, failed = {}, False
     for (f, root, meta), src, out in zip(jobs, sources, stored):
         errors, warnings = [], []
         if not re.match(r'\s*<section class="sheet(?: landscape)?">', src): errors.append('the root is not <section class="sheet"> or <section class="sheet landscape">')
-        before, after = parse(src), parse(out)
+        # what the app draws from the entries (a circle, a shape, a scale's points) is not the author's markup
+        drawn = re.sub(r'<svg class="drawn".*?</svg>|<div class="points drawn">.*?</div>', '', out, flags=re.S)
+        before, after = parse(src), parse(drawn)
         if before.tags != after.tags:
             gone = [t for t in before.tags if t not in after.tags] or ['the order or nesting of elements']
             errors.append(f'the sanitiser changes the page: {gone[:4]}')
         for tag, cls in after.top:
             if tag == 'header': continue
-            if 'block' not in cls or len(cls) < 2 or cls[1] not in blocks:
+            if 'block' not in cls or len(cls) < 2 or cls[1] not in blocks or cls[1] in modifier_only:
                 errors.append(f'not a block of the catalogue under the root: <{tag} class="{" ".join(cls)}">')
         unknown = sorted(c for c in after.classes if c not in css_classes and c not in ('sheet', 'todo'))
         if unknown: warnings.append(f'classes the stylesheet does not know: {", ".join(unknown)}')

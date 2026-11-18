@@ -109,6 +109,22 @@ A grid can be `ruled`: no frames, the fields divided by thin rules, for a page o
 
 The markup of each block, with its modifiers, is in `SHEET_BLOCKS` (`src/domain/sheets.ts`), which the check script and later the connector read.
 
+Stage 4b, built 2026-11-18, adds nine blocks, each with its fields in the editor and in the connector's catalogue:
+
+| Group | Block | What it is |
+|---|---|---|
+| read | `note` | a note to remember, set apart by a rule in the accent |
+| instruct | `facts` | the step's duration, method and material, filled in by the app from the step the sheet is on (empty in the library preview of an entry without them) |
+| write | `starters` | sentence starters, each continued on its line; `lines-N` adds lines below |
+| order | `matrix` | a 2 × 2 with an axis up and one across, a field per quarter |
+| order | `timeline` | marks across the page with room to write above them |
+| order | `shape` | a diagram shape of the slides (pyramid, cycle, venn, onion, pillars, hub) as an outline to fill in, drawn from its entries like the circle, the entries numbered below |
+| rate | `scale` | scales from 0 to 10 (`s5`: 1 to 5) with words at both ends; the points are drawn by the app |
+| rate | `selftest` | statements with a box per answer column (2 to 6) and a sum line |
+| plan | `ifthen` | if-then plans, each part continued on its line |
+
+Still open from section 5: checklists (ticks with text cover them), appointment fields (a grid of three covers them).
+
 ## 6. In the app (stage 2)
 
 Stage 2a, built 2026-11-18:

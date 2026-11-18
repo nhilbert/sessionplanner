@@ -187,6 +187,9 @@
     "printed": "Druck"
   },
   "sheets": {
+    "factDuration": "Dauer",
+    "factMethod": "Methode",
+    "factMaterial": "Material",
     "blackWhite": "Schwarz-weiß",
     "title": "Arbeitsblätter",
     "asOf": "Stand {{date}}",
@@ -316,7 +319,16 @@
       "picture": "Bild",
       "pictures": "Bilderreihe",
       "pair": "Zwei Spalten",
-      "raw": "Quelltext"
+      "raw": "Quelltext",
+      "note": "Merkkasten",
+      "facts": "Eckdaten",
+      "starters": "Satzanfänge",
+      "matrix": "Matrix mit Achsen",
+      "timeline": "Zeitstrahl",
+      "shape": "Form zum Ausfüllen",
+      "scale": "Skala",
+      "selftest": "Selbsttest",
+      "ifthen": "Wenn-dann-Plan"
     },
     "use": {
       "text": "Absätze, Überschriften, Listen",
@@ -334,7 +346,16 @@
       "write": "Platz zum Schreiben",
       "picture": "ein Bild mit Bildunterschrift",
       "pictures": "Bilder in einer Reihe",
-      "pair": "zwei Spalten mit eigenen Bausteinen"
+      "pair": "zwei Spalten mit eigenen Bausteinen",
+      "note": "das Wichtigste, abgesetzt",
+      "facts": "Dauer, Methode, Material aus dem Agendapunkt",
+      "starters": "Satzanfänge zum Weiterschreiben",
+      "matrix": "2 × 2 mit Achse nach oben und nach rechts",
+      "timeline": "Zeitstrahl mit Platz darüber",
+      "shape": "Pyramide, Kreislauf, Zwiebel … leer zum Ausfüllen",
+      "scale": "Skalen 0–10 mit Worten an den Enden",
+      "selftest": "Aussagen mit Kästchen je Antwort und Summe",
+      "ifthen": "Wenn …, dann … zum Ausfüllen"
     },
     "item": {
       "h2": "Überschrift",
@@ -393,7 +414,8 @@
       "bottom": "unten ausrichten",
       "center": "mittig",
       "big": "groß",
-      "thick": "kräftiger Rahmen"
+      "thick": "kräftiger Rahmen",
+      "s5": "von 1 bis 5"
     },
     "words": {
       "heading": "Überschrift",
@@ -409,7 +431,44 @@
       "rating": "Einschätzung",
       "criterion": "Kriterium",
       "note": "Notizen …",
-      "caption": "Bildunterschrift"
+      "caption": "Bildunterschrift",
+      "noteTitle": "Merke",
+      "starter": "Mir ist wichtig, dass …",
+      "axisY": "Wichtigkeit",
+      "axisX": "Dringlichkeit",
+      "low": "gar nicht",
+      "high": "voll und ganz",
+      "never": "nie",
+      "sometimes": "selten",
+      "often": "oft",
+      "always": "immer",
+      "statement": "Eine Aussage über mich.",
+      "sum": "Summe:",
+      "when": "Wenn …",
+      "then": "dann …"
+    },
+    "factsHint": "Dauer, Methode und Material füllt die App aus dem Agendapunkt ein, in dem das Blatt steht.",
+    "starters": "Satzanfänge (einer je Zeile)",
+    "axisY": "Achse nach oben",
+    "axisX": "Achse nach rechts",
+    "timelineMarks": "Marken (eine je Zeile)",
+    "form": "Form",
+    "shapeEntries": "Einträge unter der Form (einer je Zeile, dürfen leer bleiben)",
+    "addScale": "Skala hinzufügen",
+    "scaleLabel": "Was eingeschätzt wird",
+    "low": "Wort am Anfang",
+    "high": "Wort am Ende",
+    "answers": "Antwortspalten (mit | trennen, 2 bis 6)",
+    "statements": "Aussagen (eine je Zeile)",
+    "sum": "Summenzeile",
+    "addPlan": "Plan hinzufügen",
+    "if": "Wenn",
+    "then": "dann",
+    "quarter": {
+      "0": "oben links",
+      "1": "oben rechts",
+      "2": "unten links",
+      "3": "unten rechts"
     }
   },
   "printRule": {

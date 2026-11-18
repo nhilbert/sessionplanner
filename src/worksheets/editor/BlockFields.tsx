@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, Plus, Trash2, X } from 'lucide-react'
-import { LINES, newBlock, SPACES, blockSummary, type BlockKind, type BlockWords, type Room, type SheetBlock, type TextItem } from '@/domain/sheetDoc'
+import { LINES, newBlock, SHEET_SHAPES, SPACES, blockSummary, type BlockKind, type BlockWords, type Room, type SheetBlock, type TextItem } from '@/domain/sheetDoc'
 import { normalizeSheetHtml, SHEET_BLOCKS } from '@/domain/sheets'
 import type { AssetScope } from '@/api'
 import { cx, IconButton } from '@/components/ui'
@@ -27,8 +27,8 @@ const CHOICES: Partial<Record<BlockKind, string[][]>> = {
 }
 /** Kinds whose writing room is lines (and space); kinds with a height; kinds that can take the rest of the page. */
 const HAS_LINES: BlockKind[] = ['question', 'write']
-const HAS_SPACE: BlockKind[] = ['question', 'write', 'box', 'grid', 'circle', 'picture', 'pictures', 'table', 'rows', 'criteria']
-const NO_FILL: BlockKind[] = ['raw', 'picture', 'pictures', 'ticks', 'table']
+const HAS_SPACE: BlockKind[] = ['question', 'write', 'box', 'grid', 'circle', 'picture', 'pictures', 'table', 'rows', 'criteria', 'matrix', 'timeline', 'shape']
+const NO_FILL: BlockKind[] = ['raw', 'picture', 'pictures', 'ticks', 'table', 'facts', 'starters', 'scale', 'selftest', 'ifthen', 'note']
 
 const ADDABLE = SHEET_BLOCKS.map((b) => b.block) as Exclude<BlockKind, 'raw'>[]
 
@@ -173,7 +173,8 @@ function Shape({ b, change }: { b: SheetBlock; change: Change }) {
   const { t } = useTranslation()
   const choices = CHOICES[b.kind] ?? []
   const inChoice = new Set(choices.flat())
-  const switches = (SHEET_BLOCKS.find((x) => x.block === b.kind)?.modifiers ?? []).filter((m) => !inChoice.has(m))
+  // a shape's form is a field of its own
+  const switches = b.kind === 'shape' ? [] : (SHEET_BLOCKS.find((x) => x.block === b.kind)?.modifiers ?? []).filter((m) => !inChoice.has(m))
   return (
     <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
       {choices.map((set, k) => (
@@ -352,6 +353,85 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
       )
     case 'raw':
       return <RawField html={b.html} onApply={(html) => change((x) => void ((x as typeof b).html = html))} />
+    case 'note':
+      return <Items items={b.items} field={path} onChange={(items) => change((x) => void ((x as typeof b).items = items), `${path}.items`)} />
+    case 'facts':
+      return <p className="text-[12px] text-ink-3">{t('sheetEditor.factsHint')}</p>
+    case 'starters':
+      return (
+        <div className="space-y-2">
+          <Text label={t('sheetEditor.starters')} multiline value={b.items.join('\n')} onChange={(v) => change((x) => void ((x as typeof b).items = v.split('\n')), `${path}.items`)} />
+          <Select label={t('sheetEditor.roomLines')} value={String(b.lines || 1)} options={LINES.slice(0, 6).map((n) => ({ value: String(n), label: t('sheetEditor.lines', { count: n }) }))} onChange={(v) => change((x) => void (x.lines = Number(v) > 1 ? Number(v) : 0))} />
+        </div>
+      )
+    case 'matrix':
+      return (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Text label={t('sheetEditor.axisY')} value={b.y} onChange={(v) => change((x) => void ((x as typeof b).y = v), `${path}.y`)} />
+            <Text label={t('sheetEditor.axisX')} value={b.x} onChange={(v) => change((x) => void ((x as typeof b).x = v), `${path}.x`)} />
+          </div>
+          {b.fields.map((f, i) => (
+            <div key={i} className="rounded-md border border-line p-2">
+              <div className="mb-1 text-[11px] text-ink-3">{tt(t, `sheetEditor.quarter.${i}`)}</div>
+              <Items items={f} field={`${path}.fields.${i}`} onChange={(items) => change((x) => void ((x as typeof b).fields[i] = items), `${path}.fields.${i}`)} />
+            </div>
+          ))}
+        </div>
+      )
+    case 'timeline':
+      return <Text label={t('sheetEditor.timelineMarks')} multiline value={b.items.join('\n')} onChange={(v) => change((x) => void ((x as typeof b).items = v.split('\n')), `${path}.items`)} />
+    case 'shape':
+      return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-3">
+            <Select label={t('sheetEditor.form')} value={b.form} options={SHEET_SHAPES.map((f) => ({ value: f, label: tt(t, `slides.shape.${f}`) }))} onChange={(v) => change((x) => void ((x as typeof b).form = v as typeof b.form))} />
+            <Select label={t('sheetEditor.segments')} value={String(b.entries.length || 3)} options={Array.from({ length: 5 }, (_, k) => ({ value: String(k + 2), label: String(k + 2) }))} onChange={(v) => change((x) => void ((x as typeof b).entries = Array.from({ length: Number(v) }, (_, k) => (x as typeof b).entries[k] ?? '')))} />
+          </div>
+          <Text label={t('sheetEditor.shapeEntries')} multiline value={b.entries.join('\n')} onChange={(v) => change((x) => void ((x as typeof b).entries = v.split('\n')), `${path}.entries`)} />
+        </div>
+      )
+    case 'scale':
+      return (
+        <List
+          items={b.rows}
+          addLabel={t('sheetEditor.addScale')}
+          make={() => ({ label: '', low: words.low, high: words.high })}
+          onChange={(rows) => change((x) => void ((x as typeof b).rows = rows), `${path}.rows`)}
+          render={(r, _i, put) => (
+            <>
+              <Text label={t('sheetEditor.scaleLabel')} value={r.label} onChange={(v) => put({ ...r, label: v })} />
+              <div className="flex gap-2">
+                <Text label={t('sheetEditor.low')} value={r.low} onChange={(v) => put({ ...r, low: v })} />
+                <Text label={t('sheetEditor.high')} value={r.high} onChange={(v) => put({ ...r, high: v })} />
+              </div>
+            </>
+          )}
+        />
+      )
+    case 'selftest':
+      return (
+        <div className="space-y-2">
+          <Text label={t('sheetEditor.answers')} value={b.head.join(' | ')} onChange={(v) => change((x) => void ((x as typeof b).head = v.split('|').map((c) => c.trim()).slice(0, 6)), `${path}.head`)} />
+          <Text label={t('sheetEditor.statements')} multiline value={b.items.join('\n')} onChange={(v) => change((x) => void ((x as typeof b).items = v.split('\n')), `${path}.items`)} />
+          <Text label={t('sheetEditor.sum')} value={b.sum} onChange={(v) => change((x) => void ((x as typeof b).sum = v), `${path}.sum`)} />
+        </div>
+      )
+    case 'ifthen':
+      return (
+        <List
+          items={b.plans}
+          addLabel={t('sheetEditor.addPlan')}
+          make={() => ({ if: words.when, then: words.then })}
+          onChange={(plans) => change((x) => void ((x as typeof b).plans = plans), `${path}.plans`)}
+          render={(pl, _i, put) => (
+            <div className="flex gap-2">
+              <Text label={t('sheetEditor.if')} value={pl.if} onChange={(v) => put({ ...pl, if: v })} />
+              <Text label={t('sheetEditor.then')} value={pl.then} onChange={(v) => put({ ...pl, then: v })} />
+            </div>
+          )}
+        />
+      )
   }
 }
 
