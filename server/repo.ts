@@ -919,7 +919,12 @@ export class Repo {
         const sheets = (list: { pages?: unknown }[] | undefined) => (Array.isArray(list) ? list.map((w) => slides(w?.pages)).some(Boolean) : false)
         let any = slides(data.slides)
         any = sheets(data.worksheets) || any
-        for (const i of Array.isArray(data.items) ? data.items : []) any = sheets(i?.worksheets) || slides(i?.slides) || any
+        // both are rewritten in place: neither may be skipped because the other changed
+        for (const i of Array.isArray(data.items) ? data.items : []) {
+          const inSheets = sheets(i?.worksheets)
+          const inSlides = slides(i?.slides)
+          any = inSheets || inSlides || any
+        }
         if (any) this.db.prepare('UPDATE library SET data = ? WHERE id = ?').run(JSON.stringify(data), r.id as string)
       }
       for (const table of ['deck_slides', 'slide_templates']) {

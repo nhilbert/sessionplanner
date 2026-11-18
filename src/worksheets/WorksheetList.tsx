@@ -28,6 +28,7 @@ export interface SheetPrinting {
   rules: Record<string, PrintRule>
   groups: number
   participants: number | null
+  onParticipants?: (n: number) => void
   onRule: (sheetId: string, rule: PrintRule) => void
   onGroups: (groups: number) => void
 }
@@ -87,6 +88,7 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
                   rule={ruleOf({ printRules: printing.rules }, sheet.id)}
                   groups={printing.groups}
                   participants={printing.participants}
+                  onParticipants={printing.onParticipants}
                   paper={sheet.paper}
                   onRule={(rule) => printing.onRule(sheet.id, rule)}
                   onGroups={printing.onGroups}
@@ -314,7 +316,10 @@ function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetSc
         {starters.map((s) => (
           <li key={s.kind} className="min-w-0">
             <SheetPage html={s.pages[0]} paper={s.paper ?? 'A4'} theme={theme} scope={scope} chrome={{ date: '', n: 1, total: 1, logo }} onClick={() => onPick(s.title, s.pages, s.paper)} label={t(`sheets.starter.${s.kind}`)} />
-            <div className="mt-1 text-[13px]">{t(`sheets.starter.${s.kind}`)}</div>
+            {/* the name picks it too; the page above is the one stop for the keyboard */}
+            <button type="button" tabIndex={-1} className="mt-1 block w-full text-left text-[13px] hover:text-accent" onClick={() => onPick(s.title, s.pages, s.paper)}>
+              {t(`sheets.starter.${s.kind}`)}
+            </button>
           </li>
         ))}
       </ul>
@@ -336,7 +341,7 @@ function LibraryTargetPicker({ sheet, onClose, onCopied }: { sheet: Worksheet; o
   const [busy, setBusy] = useState(false)
   useEffect(() => void load(), [load])
   const targets = entries.flatMap((e) =>
-    entryItems(e).flatMap((c, n) => (c.kind === 'block' ? [{ entry: e, n, label: e.kind === 'group' ? `${e.title} › ${c.title || t('sheets.untitled')}` : e.title, count: (c.worksheets ?? []).length }] : [])),
+    entryItems(e).flatMap((c, n) => (c.kind === 'block' ? [{ entry: e, n, label: e.kind === 'group' ? `${e.title} › ${c.title || t('sheets.untitled')}` : e.title, count: (c.worksheets ?? []).length, same: (c.worksheets ?? []).some((w) => w.title === sheet.title) }] : [])),
   )
   const shown = targets.filter((x) => !query.trim() || matchesWords(x.label.toLowerCase(), query))
   const pick = async (x: (typeof targets)[number]) => {
@@ -372,7 +377,8 @@ function LibraryTargetPicker({ sheet, onClose, onCopied }: { sheet: Worksheet; o
               <li key={`${x.entry.id}:${x.n}`}>
                 <button type="button" disabled={busy || full} onClick={() => void pick(x)} className="flex w-full items-baseline gap-3 px-2 py-2 text-left text-[14px] hover:bg-surface-2 disabled:opacity-40">
                   <span className="min-w-0 flex-1 truncate">{x.label}</span>
-                  <span className="shrink-0 text-[12px] text-ink-3">{full ? t('sheets.toLibraryFull') : t('sheets.count', { count: x.count })}</span>
+                  {/* a second copy is allowed, but said: the entry holds a sheet of this title already */}
+                  <span className={cx('shrink-0 text-[12px]', x.same && !full ? 'text-amber' : 'text-ink-3')}>{full ? t('sheets.toLibraryFull') : x.same ? t('sheets.toLibrarySame') : t('sheets.count', { count: x.count })}</span>
                 </button>
               </li>
             )

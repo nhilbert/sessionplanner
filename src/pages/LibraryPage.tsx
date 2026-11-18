@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Coffee, Flag, FolderOpen, LayoutGrid, List, NotebookPen, Package, Paperclip, Pencil, Presentation, Square, StickyNote, Trash2 } from 'lucide-react'
+import { Coffee, FileText, Flag, FolderOpen, LayoutGrid, List, NotebookPen, Package, Paperclip, Pencil, Presentation, Square, StickyNote, Trash2 } from 'lucide-react'
 import { type Category, type ItemContent, type ItemKind, type LibraryEntry, type LibraryEntryInput, type PaletteKey, TRASH_DAYS } from '@/domain/types'
 import { durationOf, formatDuration } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
@@ -500,9 +500,15 @@ function EntryCard({ entry, theme, slides = true }: { entry: LibraryEntry; theme
             ))}
           </div>
         )}
-        {(i.materials.length > 0 || i.notes.trim() || i.slides.length > 3 || entry.attachments.length > 0) && (
+        {(i.materials.length > 0 || i.notes.trim() || i.slides.length > 3 || (i.worksheets ?? []).length > 0 || entry.attachments.length > 0) && (
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-3">
             {i.slides.length > 3 && <span>{t('slides.count', { count: i.slides.length })}</span>}
+            {(i.worksheets ?? []).length > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <FileText size={12} className="shrink-0" />
+                {t('sheets.count', { count: (i.worksheets ?? []).length })}
+              </span>
+            )}
             {i.materials.length > 0 && (
               <span className="inline-flex min-w-0 items-center gap-1">
                 <Package size={12} className="shrink-0" />
@@ -543,6 +549,7 @@ function ListRow({ entry, open, selection, onToggle, details }: RowProps) {
   const minutes = minutesOf(entry)
   const color = entry.kind === 'item' ? itemColor(entry.data, categories) : null
   const slides = items.reduce((n, i) => n + i.slides.length, 0)
+  const sheets = items.reduce((n, i) => n + (i.worksheets ?? []).length, 0)
   const picked = !!selection?.has(entry.id)
   return (
     <>
@@ -567,6 +574,12 @@ function ListRow({ entry, open, selection, onToggle, details }: RowProps) {
                 <span className="inline-flex items-center gap-1">
                   <Presentation size={12} />
                   {t('slides.count', { count: slides })}
+                </span>
+              )}
+              {sheets > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <FileText size={12} />
+                  {t('sheets.count', { count: sheets })}
                 </span>
               )}
               {entry.attachments.length > 0 && <FileCount entry={entry} />}

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isLandscape, normalizeSheetHtml, stepFacts } from '@/domain/sheets'
 import { formatDuration } from '@/domain/time'
@@ -109,19 +109,62 @@ export function useStepFacts(): (step: { duration: number; method: string; mater
 }
 
 /**
+ * How far the blocks of a rendered page run past its bottom margin, in mm, by their place among the page's blocks.
+ * Nothing flows to a next page: what runs over is cut in print, so wherever a page is shown this says so.
+ */
+export function sheetOverflow(section: HTMLElement): Record<number, number> {
+  const bottom = section.clientHeight - parseFloat(getComputedStyle(section).paddingBottom)
+  const found: Record<number, number> = {}
+  ;[...section.children]
+    .filter((c) => c.tagName !== 'HEADER' && !c.classList.contains('sheet-foot') && !c.classList.contains('sheet-head'))
+    .forEach((c, i) => {
+      const el = c as HTMLElement
+      const over = el.offsetTop + el.offsetHeight - bottom
+      if (over > 1) found[i] = over / MM
+    })
+  return found
+}
+
+/**
+ * Measures the pages rendered inside `root` whenever `key` changes, again when the fonts are there and a moment
+ * later (pictures): `measure` gets every page's section.
+ */
+export function useSheetMeasure(root: RefObject<HTMLElement | null>, key: unknown, measure: (sections: HTMLElement[]) => void) {
+  const fn = useRef(measure)
+  fn.current = measure
+  useLayoutEffect(() => {
+    let alive = true
+    const run = () => {
+      if (alive && root.current) fn.current([...root.current.querySelectorAll<HTMLElement>('section.sheet:not(.blank-leaf)')])
+    }
+    run()
+    void document.fonts?.ready.then(run)
+    const t = setTimeout(run, 300)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+}
+
+/**
  * One page in a frame that scales it to the frame's width: a thumbnail, a page in the viewer. The frame keeps the
  * page's proportions; nothing in the page knows about its size.
  */
 export function SheetPage({ html, paper, theme, scope, chrome, className, onClick, label }: { html: string; paper: Paper; theme: string; scope: AssetScope; chrome?: SheetChrome; className?: string; onClick?: () => void; label?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
+  const [over, setOver] = useState(false)
+  const { t } = useTranslation()
   useTheme(theme)
   const scopeKey = scope === 'library' ? 'library' : scope.workshopId
   const look = usePaper(theme)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rendered = useMemo(() => hostSheetHtml(html, scope, chrome, look), [html, scopeKey, chrome?.date, chrome?.n, chrome?.total, chrome?.logo, chrome?.facts, look])
   const frame = paperFrame(paper, look)
-  const size = pageSize(paper, isLandscape(normalizeSheetHtml(html)))
+  const landscape = useMemo(() => isLandscape(normalizeSheetHtml(html)), [html])
+  const size = pageSize(paper, landscape)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
@@ -131,6 +174,8 @@ export function SheetPage({ html, paper, theme, scope, chrome, className, onClic
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+  // a page whose content runs past its bottom margin shows it: a red lower edge
+  useSheetMeasure(ref, `${rendered}|${paper}|${look.logo}`, ([section]) => setOver(!!section && Object.keys(sheetOverflow(section)).length > 0))
   const scale = width / size.w
   const button = !!onClick
   return (
@@ -145,6 +190,7 @@ export function SheetPage({ html, paper, theme, scope, chrome, className, onClic
       aria-label={label}
     >
       <div className={cx('absolute left-0 top-0 origin-top-left', frame.className)} data-theme={theme} style={{ ...frame.style, transform: `scale(${scale || 0.0001})` }} dangerouslySetInnerHTML={{ __html: rendered }} />
+      {over && <span className="absolute inset-x-0 bottom-0 h-[3px] min-h-[2px] bg-rose" role="img" aria-label={t('sheets.overflow')} title={t('sheets.overflow')} />}
     </div>
   )
 }

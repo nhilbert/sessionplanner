@@ -192,6 +192,7 @@
     "toLibrarySearch": "Eintrag suchen",
     "toLibraryNone": "In der Bibliothek gibt es noch keine Einheit.",
     "toLibraryFull": "voll (10 Blätter)",
+    "toLibrarySame": "hat schon ein Blatt mit diesem Titel",
     "copiedToLibrary": "In „{{title}}“ kopiert.",
     "factDuration": "Dauer",
     "factMethod": "Methode",
@@ -228,6 +229,10 @@
     "printAll": "Arbeitsblätter drucken",
     "printHint": "jedes Blatt auf seinem Papier, über den Druckdialog als PDF",
     "printEmpty": "Dieser Workshop hat keine Arbeitsblätter.",
+    "printNoJob": "Diesen Druckauftrag gibt es so nicht mehr – die Druckregeln oder die Teilnehmerzahl haben sich geändert. Öffne ihn neu aus dem Druckpaket.",
+    "overflow": "Inhalt läuft über den unteren Rand und wird im Druck abgeschnitten",
+    "printOverflow_one": "Eine Seite läuft über den unteren Rand und wird dort abgeschnitten.",
+    "printOverflow_other": "{{count}} Seiten laufen über den unteren Rand und werden dort abgeschnitten.",
     "count_one": "{{count}} Blatt",
     "count_other": "{{count}} Blätter",
     "filter": "Mit Arbeitsblatt"
@@ -509,6 +514,7 @@
     "paper": "Papierformat",
     "oneSided": "einseitig",
     "twoSided": "doppelseitig",
+    "participants": "Teilnehmerzahl des Workshops",
     "noParticipants": "Teilnehmerzahl fehlt"
   },
   "printPackage": {

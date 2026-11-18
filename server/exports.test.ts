@@ -238,4 +238,13 @@ describe('safePart', () => {
     expect(safePart(' .. ', 'x')).toBe('x')
     expect(safePart('Ablauf.pdf', 'x')).toBe('Ablauf.pdf')
   })
+
+  it('cuts a long name before its ending, so the file still opens', () => {
+    const long = `30x A4 doppelseitig – ${'Handout zum Rückblick '.repeat(6)}.pdf`
+    const cut = safePart(long, 'x')
+    expect(cut.length).toBeLessThanOrEqual(100)
+    expect(cut.endsWith('.pdf')).toBe(true)
+    expect(cut.startsWith('30x A4 doppelseitig – Handout')).toBe(true)
+    expect(safePart('a'.repeat(140), 'x')).toBe('a'.repeat(100))
+  })
 })

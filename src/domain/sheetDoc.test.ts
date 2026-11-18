@@ -38,6 +38,26 @@ describe('a worksheet page as a document', () => {
     expect(canonicalSheet(serializeSheetPage(doc))).toBe(canonicalSheet(odd))
   })
 
+  it('hands out what it read as a copy: changing one reading never changes the next', () => {
+    const html = '<section class="sheet"><header><h1>Titel</h1></header><div class="block question lines-2"><h3>Frage</h3></div></section>'
+    const first = parseSheetPage(html)
+    const q = first.blocks[0]
+    if (q.kind !== 'question' || !first.header) throw new Error()
+    q.title = 'geändert'
+    first.header.title = 'geändert'
+    const second = parseSheetPage(html)
+    expect(second.header?.title).toBe('Titel')
+    expect(second.blocks[0].kind === 'question' && second.blocks[0].title).toBe('Frage')
+  })
+
+  it('a page read anew from its source carries nothing of the page before', () => {
+    const before = parseSheetPage('<section class="sheet"><header><h1>T</h1><div class="foo">x</div></header><div class="block text"><p>a</p></div></section>')
+    expect(before.headerRaw).toBeDefined()
+    const after = parseSheetPage('<section class="sheet"><div class="block text"><p>a</p></div></section>')
+    expect(after.headerRaw).toBeUndefined()
+    expect(serializeSheetPage(after)).not.toContain('<header>')
+  })
+
   it('keeps empty fields, rows and lines: on a sheet they are the point', () => {
     const empty = '<section class="sheet"><ul class="block ticks"><li></li><li></li><li></li></ul><div class="block grid g-2 h-30"><div class="field"></div><div class="field"></div></div></section>'
     const doc = parseSheetPage(empty)

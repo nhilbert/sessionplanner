@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Printer } from 'lucide-react'
@@ -7,7 +7,7 @@ import { jobTitle, printLines, printWords, sheetJobs } from '@/domain/printing'
 import type { Worksheet, WorkshopState } from '@/domain/types'
 import { Button } from '@/components/ui'
 import { useTheme } from '@/slides/SlideView'
-import { hostSheetHtml, paperFrame, type PaperLook, usePaper, useSheetBrand, useSheetChrome, useStepFacts } from './SheetView'
+import { hostSheetHtml, paperFrame, type PaperLook, sheetOverflow, usePaper, useSheetBrand, useSheetChrome, useSheetMeasure, useStepFacts } from './SheetView'
 import { Option } from '@/slides/Option'
 
 /**
@@ -54,10 +54,10 @@ export default function SheetsPrint({ data }: { data: WorkshopState }) {
     if (!jobKeyWanted) return null
     const number = (k: string) => (params.get(k) && Number.isInteger(Number(params.get(k))) ? Number(params.get(k)) : undefined)
     const found = sheetJobs(printLines(data, { participants: number('participants'), reserve: number('reserve') })).find((j) => j.key === jobKeyWanted)
-    if (!found) return { title: jobKeyWanted, sheets: [], duplex: false }
+    if (!found) return { title: `${data.workshop.title || t('workshops.untitled')} – ${t('sheets.title')}`, sheets: [], duplex: false }
     const all = data.items.flatMap((i) => i.worksheets ?? [])
     return { title: jobTitle(found.job, data.workshop.title, printWords(i18n.language)), sheets: found.lines.map((l) => all.find((w) => w.id === l.id)!).filter(Boolean), duplex: found.job.duplex }
-  }, [data, jobKeyWanted, params, i18n.language])
+  }, [data, jobKeyWanted, params, i18n.language, t])
   const sheets = useMemo(() => {
     if (job) return job.sheets
     const placed = agendaOrder(data.days, data).filter((i) => i.kind !== 'note').flatMap((i) => i.worksheets ?? [])
@@ -69,20 +69,33 @@ export default function SheetsPrint({ data }: { data: WorkshopState }) {
   useEffect(() => {
     document.title = title
   }, [title])
+  // pages whose content runs past the bottom margin are cut there in print: said above, and marked on screen
+  const pagesRef = useRef<HTMLDivElement>(null)
+  const [over, setOver] = useState(0)
+  useSheetMeasure(pagesRef, `${sheets.map((w) => `${w.id}:${w.updatedAt}`).join('|')}|${brand.theme}|${look.logo}`, (sections) => {
+    let n = 0
+    for (const section of sections) {
+      const runs = Object.keys(sheetOverflow(section)).length > 0
+      section.toggleAttribute('data-over', runs)
+      if (runs) n++
+    }
+    setOver(n)
+  })
   return (
     <div className="min-h-dvh bg-[#2a2a2a] print:bg-white">
-      <style>{`${PAGES} @media print { .sheet { break-after: page; } .sheet-print { gap: 0 !important; padding: 0 !important; } } @media screen { .blank-leaf { opacity: 0.35; } }`}</style>
+      <style>{`${PAGES} @media print { .sheet { break-after: page; } .sheet-print { gap: 0 !important; padding: 0 !important; } } @media screen { .blank-leaf { opacity: 0.35; } .sheet[data-over] { box-shadow: inset 0 -1.2mm 0 #a9513f; } }`}</style>
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-black/20 bg-[#f3f1ec] px-4 py-2 text-[13px] text-[#111]">
         <span className="font-medium">{title}</span>
         <span className="text-ink-3">{t('sheets.count', { count: sheets.length })}</span>
         <Option checked={bw} onChange={setBlackWhite}>{t('sheets.blackWhite')}</Option>
+        {over > 0 && <span className="font-medium text-[#a9513f]">{t('sheets.printOverflow', { count: over })}</span>}
         <Button size="sm" variant="primary" className="ml-auto" disabled={!sheets.length} onClick={() => window.print()}>
           <Printer size={13} />
           {t('print.print')}
         </Button>
       </div>
-      {!sheets.length && <p className="p-8 text-white/80">{t('sheets.printEmpty')}</p>}
-      <div className="sheet-print flex flex-col items-center gap-6 py-6 print:block">
+      {!sheets.length && <p className="p-8 text-white/80">{t(job ? 'sheets.printNoJob' : 'sheets.printEmpty')}</p>}
+      <div ref={pagesRef} className="sheet-print flex flex-col items-center gap-6 py-6 print:block">
         {sheets.map((sheet, i) => (
           <PrintedSheet key={sheet.id} sheet={sheet} theme={brand.theme} logo={brand.logo} facts={facts(data.items.find((it) => (it.worksheets ?? []).some((w) => w.id === sheet.id)))} workshopId={data.workshop.id} newLeaf={!!job?.duplex && i < sheets.length - 1} look={look} bw={bw} />
         ))}

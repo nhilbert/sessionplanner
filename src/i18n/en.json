@@ -192,6 +192,7 @@
     "toLibrarySearch": "Search entries",
     "toLibraryNone": "There is no unit in the library yet.",
     "toLibraryFull": "full (10 sheets)",
+    "toLibrarySame": "already holds a sheet of this title",
     "copiedToLibrary": "Copied into \"{{title}}\".",
     "factDuration": "Duration",
     "factMethod": "Method",
@@ -228,6 +229,10 @@
     "printAll": "Print worksheets",
     "printHint": "each sheet on its paper, as PDF through the print dialog",
     "printEmpty": "This workshop has no worksheets.",
+    "printNoJob": "This print job no longer exists as it was – the print rules or the number of participants have changed. Open it again from the print package.",
+    "overflow": "Content runs past the bottom margin and is cut there in print",
+    "printOverflow_one": "One page runs past its bottom margin and is cut there.",
+    "printOverflow_other": "{{count}} pages run past their bottom margin and are cut there.",
     "count_one": "{{count}} sheet",
     "count_other": "{{count}} sheets",
     "filter": "With worksheet"
@@ -509,6 +514,7 @@
     "paper": "Paper size",
     "oneSided": "single-sided",
     "twoSided": "double-sided",
+    "participants": "Number of participants of the workshop",
     "noParticipants": "number of participants missing"
   },
   "printPackage": {

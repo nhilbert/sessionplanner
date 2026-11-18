@@ -38,13 +38,22 @@ const tt = (t: (k: never) => unknown, key: string): string => String(t(key as ne
 const field = 'field h-8 w-full px-2 text-[13px]'
 const area = 'field w-full px-2 py-1.5 text-[13px] leading-snug'
 
-function Text({ label, value, onChange, multiline, placeholder, id }: { label: string; value: string; onChange: (v: string) => void; multiline?: boolean; placeholder?: string; id?: string }) {
+function Text({ label, value, onChange, onBlur, multiline, placeholder, id }: { label: string; value: string; onChange: (v: string) => void; onBlur?: () => void; multiline?: boolean; placeholder?: string; id?: string }) {
   return (
     <label className="block min-w-0 flex-1">
       <span className="mb-0.5 block text-[11px] text-ink-3">{label}</span>
-      {multiline ? <textarea id={id} rows={Math.min(8, Math.max(2, value.split('\n').length + 1))} className={area} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} /> : <input id={id} className={field} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />}
+      {multiline ? <textarea id={id} rows={Math.min(8, Math.max(2, value.split('\n').length + 1))} className={area} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} /> : <input id={id} className={field} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} />}
     </label>
   )
+}
+
+/**
+ * A field whose text is read into something else (cells, split at the bars and trimmed): while it is typed in it
+ * shows what was typed, so a space at the end of a cell or a bar just set stays; left, it shows what was stored.
+ */
+function Cells({ label, value, onChange, multiline }: { label: string; value: string; onChange: (v: string) => void; multiline?: boolean }) {
+  const [typed, setTyped] = useState<string | null>(null)
+  return <Text label={label} multiline={multiline} value={typed ?? value} onChange={(v) => (setTyped(v), onChange(v))} onBlur={() => setTyped(null)} />
 }
 
 function Select({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
@@ -213,8 +222,8 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
     case 'table':
       return (
         <div className="space-y-2">
-          <Text label={t('sheetEditor.tableHead')} value={b.head.join(' | ')} onChange={(v) => change((x) => void ((x as typeof b).head = v ? v.split('|').map((c) => c.trim()) : []), `${path}.head`)} />
-          <Text label={t('sheetEditor.tableRows')} multiline value={b.rows.map((r) => r.join(' | ')).join('\n')} onChange={(v) => change((x) => void ((x as typeof b).rows = v.split('\n').map((r) => r.split('|').map((c) => c.trim()))), `${path}.rows`)} />
+          <Cells label={t('sheetEditor.tableHead')} value={b.head.join(' | ')} onChange={(v) => change((x) => void ((x as typeof b).head = v ? v.split('|').map((c) => c.trim()) : []), `${path}.head`)} />
+          <Cells label={t('sheetEditor.tableRows')} multiline value={b.rows.map((r) => r.join(' | ')).join('\n')} onChange={(v) => change((x) => void ((x as typeof b).rows = v.split('\n').map((r) => r.split('|').map((c) => c.trim()))), `${path}.rows`)} />
           <p className="text-[11px] text-ink-3">{t('sheetEditor.tableHint')}</p>
         </div>
       )
@@ -349,7 +358,7 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
           {[0, 1].map((col) => (
             <div key={col} className="rounded-md border border-dashed border-line p-2">
               <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-3">{t(col === 0 ? 'sheetEditor.leftColumn' : 'sheetEditor.rightColumn')}</div>
-              <Blocks blocks={b.columns[col]} onChange={(next) => change((x) => void ((x as typeof b).columns[col] = next))} scope={scope} theme={theme} words={words} path={`${path}.col${col}`} nested />
+              <Blocks blocks={b.columns[col]} onChange={(next, f) => change((x) => void ((x as typeof b).columns[col] = next), f)} scope={scope} theme={theme} words={words} path={`${path}.col${col}`} nested />
             </div>
           ))}
         </div>
@@ -415,7 +424,7 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
     case 'selftest':
       return (
         <div className="space-y-2">
-          <Text label={t('sheetEditor.answers')} value={b.head.join(' | ')} onChange={(v) => change((x) => void ((x as typeof b).head = v.split('|').map((c) => c.trim()).slice(0, 6)), `${path}.head`)} />
+          <Cells label={t('sheetEditor.answers')} value={b.head.join(' | ')} onChange={(v) => change((x) => void ((x as typeof b).head = v.split('|').map((c) => c.trim()).slice(0, 6)), `${path}.head`)} />
           <Text label={t('sheetEditor.statements')} multiline value={b.items.join('\n')} onChange={(v) => change((x) => void ((x as typeof b).items = v.split('\n')), `${path}.items`)} />
           <Text label={t('sheetEditor.sum')} value={b.sum} onChange={(v) => change((x) => void ((x as typeof b).sum = v), `${path}.sum`)} />
         </div>
@@ -488,10 +497,18 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
   }
 }
 
-/** A block kept as source: its markup, applied when the field is left. */
+/**
+ * A block kept as source: its markup, applied when the field is left. The field follows its block: when the markup
+ * changes from outside (undo, a block removed or moved before it) the field shows that, never what it held before.
+ */
 function RawField({ html, onApply }: { html: string; onApply: (html: string) => void }) {
   const { t } = useTranslation()
   const [text, setText] = useState(html)
+  const [from, setFrom] = useState(html)
+  if (from !== html) {
+    setFrom(html)
+    setText(html)
+  }
   return (
     <div>
       <p className="mb-1 text-[12px] text-ink-3">{t('sheetEditor.rawHint')}</p>
@@ -547,6 +564,8 @@ export function Blocks({ blocks, onChange, scope, theme, words, path, nested, ov
   const [open, setOpen] = useState<Set<number>>(() => new Set())
   const shown = (i: number) => open.has(i) || focus === i
   const toggle = (i: number) => setOpen((s) => (s.has(i) ? new Set([...s].filter((x) => x !== i)) : new Set([...s, i])))
+  /** The open cards after blocks moved: `to` says where the card at an index is now (null: gone). */
+  const reopen = (to: (i: number) => number | null) => setOpen((s) => new Set([...s].map(to).filter((x): x is number => x !== null)))
   const addable = nested ? ADDABLE.filter((k) => k !== 'pair') : ADDABLE
   const groups = ['read', 'instruct', 'write', 'order', 'rate', 'plan', 'picture', 'page'] as const
   const addItems: MenuItem[] = groups.flatMap((g, gi) =>
@@ -584,9 +603,16 @@ export function Blocks({ blocks, onChange, scope, theme, words, path, nested, ov
             const next = [...blocks]
             ;[next[i], next[i + d]] = [next[i + d], next[i]]
             onChange(next)
+            reopen((k) => (k === i ? i + d : k === i + d ? i : k))
           }}
-          onDuplicate={() => onChange([...blocks.slice(0, i + 1), structuredClone(b), ...blocks.slice(i + 1)])}
-          onRemove={() => onChange(blocks.filter((_, k) => k !== i))}
+          onDuplicate={() => {
+            onChange([...blocks.slice(0, i + 1), structuredClone(b), ...blocks.slice(i + 1)])
+            reopen((k) => (k > i ? k + 1 : k))
+          }}
+          onRemove={() => {
+            onChange(blocks.filter((_, k) => k !== i))
+            reopen((k) => (k === i ? null : k > i ? k - 1 : k))
+          }}
         />
       ))}
       <Menu

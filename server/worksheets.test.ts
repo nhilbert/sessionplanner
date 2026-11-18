@@ -121,4 +121,16 @@ describe('worksheets of a step', () => {
     const entry = (await saved.json()) as LibraryEntry
     expect((entry.data as { worksheets: Worksheet[] }).worksheets[0].pages[0].html).toContain('<p>x</p>')
   })
+
+  it('are rewritten beside the slides of the same member of a library group, neither skipped for the other', async () => {
+    const { app, repo } = setup()
+    const member = { kind: 'block', title: 'Rückblick', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [{ id: 's1', html: '<section class="slide"><h1>alt</h1></section>' }], worksheets: [sheet('<section class="sheet"><div class="block text"><p>alt</p></div></section>')], categoryId: null, color: null }
+    const saved = await app.request(`${BASE}/api/library`, { method: 'POST', headers: H(), body: JSON.stringify({ kind: 'group', title: 'Abschluss', data: { items: [member] } }) })
+    expect(saved.status).toBe(201)
+    repo.rewriteSlides((h) => h.replace('alt', 'neu'))
+    const entry = repo.listLibrary().find((e) => e.title === 'Abschluss')!
+    const now = (entry.data as { items: { slides: { html: string }[]; worksheets: Worksheet[] }[] }).items[0]
+    expect(now.worksheets[0].pages[0].html).toContain('<p>neu</p>')
+    expect(now.slides[0].html).toContain('<h1>neu</h1>')
+  })
 })

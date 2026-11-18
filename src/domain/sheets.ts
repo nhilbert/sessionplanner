@@ -124,7 +124,11 @@ export function drawCircles(html: string): string {
  * is dropped; markup without one is wrapped in a portrait page.
  */
 export function normalizeSheetHtml(html: string): string {
-  const clean = drawCircles(sanitizeSlide(html))
+  // the root's classes in the order the format reads them: "landscape sheet" is a page too
+  const clean = drawCircles(sanitizeSlide(html)).replace(/^<section class="([^"]*)"/, (m, cls: string) => {
+    const names = cls.split(/\s+/).filter(Boolean)
+    return names.includes('sheet') && names[0] !== 'sheet' ? `<section class="${['sheet', ...names.filter((n) => n !== 'sheet')].join(' ')}"` : m
+  })
   if (!/^<section class="sheet[ "]/.test(clean)) return `<section class="sheet">${clean}</section>`
   let depth = 0
   for (const m of clean.matchAll(/<(\/?)section\b[^>]*>/g)) {
@@ -158,7 +162,7 @@ export const worksheetAssets = (sheets: Worksheet[]): string[] => [...new Set(sh
  */
 export function splitPages(source: string): string[] {
   const pages: string[] = []
-  const open = /<section\b[^>]*class="sheet\b[^"]*"[^>]*>/gi
+  const open = /<section\b[^>]*class="(?:[^"]*\s)?sheet(?:\s[^"]*)?"[^>]*>/gi
   const starts = [...source.matchAll(open)].map((m) => m.index)
   if (!starts.length) return source.trim() ? [source.trim()] : []
   starts.forEach((at, i) => pages.push(source.slice(at, starts[i + 1] ?? source.length).trim()))

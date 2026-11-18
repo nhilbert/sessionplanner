@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ArrowRight, Code, Copy, Pencil, Plus, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react'
@@ -8,8 +8,9 @@ import { MAX_SHEET_PAGES, normalizeSheetHtml } from '@/domain/sheets'
 import { PAPERS, type Paper, type Worksheet } from '@/domain/types'
 import type { AssetScope } from '@/api'
 import { Button, cx, IconButton, Modal, useIsPhone } from '@/components/ui'
+import { useOverlay } from '@/components/overlay'
 import Menu, { type MenuItem } from '@/components/Menu'
-import { pageSize, SheetPage, useSheetChrome } from '../SheetView'
+import { pageSize, SheetPage, sheetOverflow, useSheetChrome, useSheetMeasure } from '../SheetView'
 import { Blocks } from './BlockFields'
 import { useOnPage } from './onPage'
 import { SlideToolbar } from '@/slides/editor/SlideToolbar'
@@ -37,7 +38,6 @@ interface Hist {
 }
 
 const TYPING_PAUSE = 1500
-const MM = 96 / 25.4
 
 const toSheet = (sheet: Worksheet, d: Draft): Worksheet => ({ ...sheet, title: d.title.trim() || sheet.title, paper: d.paper, pages: d.pages.map((p) => ({ id: p.id, html: serializeSheetPage(p.doc) })) })
 
@@ -46,12 +46,14 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
   const phone = useIsPhone()
   const [draft, setDraft] = useState<Draft>(() => ({ title: sheet.title, paper: sheet.paper, pages: sheet.pages.map((p) => ({ id: p.id, doc: parseSheetPage(p.html) })) }))
   const [hist, setHist] = useState<Hist>({ past: [], future: [], field: null, at: 0 })
-  const [current, setCurrent] = useState(0)
+  const [at, setCurrent] = useState(0)
   const [editing, setEditing] = useState(canEdit && startEditing)
   const [source, setSource] = useState<string | null>(null)
   const [overflow, setOverflow] = useState<Record<number, number>>({})
   const [focus, setFocus] = useState<number | null>(null)
-  const page = draft.pages[Math.min(current, draft.pages.length - 1)]
+  // the page shown: never past the last one (undo and redo change the number of pages)
+  const current = Math.min(at, draft.pages.length - 1)
+  const page = draft.pages[current]
   const html = useMemo(() => serializeSheetPage(page.doc), [page.doc])
   const words = useBlockWords()
   // typing on the page: with a mouse on more than a phone's width (touch screens keep the fields)
@@ -97,6 +99,7 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
     if (!next) return
     setHist({ past: [...hist.past, draft], future: hist.future.slice(0, -1), field: null, at: 0 })
     setDraft(next)
+    setCurrent((c) => Math.min(c, next.pages.length - 1))
     schedule(next)
   }
   const close = () => {
@@ -104,19 +107,39 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
     flush()
     onClose()
   }
+  // Escape leaves a field first, then editing, then closes; a menu or dialog above the editor takes it before, and
+  // the agenda behind the editor hears no key while it is open (components/overlay.ts), as with the slide editor.
+  const root = useRef<HTMLDivElement>(null)
+  const onTop = useOverlay(
+    true,
+    () => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement && active.closest('input, textarea, select, [contenteditable="true"]')) {
+        active.blur()
+        root.current?.focus({ preventScroll: true })
+      } else if (editing) {
+        onPage.end()
+        setEditing(false)
+      } else close()
+    },
+    { root, focus: 'root' },
+  )
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (!onTop()) return
+      const mod = e.ctrlKey || e.metaKey
       const typing = (e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]')
       const onText = (e.target as HTMLElement | null)?.isContentEditable
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && (!typing || onText)) {
+      if (mod && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y') && (!typing || onText)) {
         e.preventDefault()
-        if (e.shiftKey) redo()
+        if (e.shiftKey || e.key.toLowerCase() === 'y') redo()
         else undo()
-      } else if (e.key === 'Escape' && !typing && !source) {
-        if (editing) setEditing(false)
-        else close()
-      } else if (!editing && !typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) setCurrent((c) => Math.max(0, Math.min(draft.pages.length - 1, c + (e.key === 'ArrowRight' ? 1 : -1))))
-      else if (!editing && !typing && canEdit && e.key.toLowerCase() === 'e') setEditing(true)
+      } else if (typing || mod || e.altKey) return
+      else if (!editing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) setCurrent(Math.max(0, Math.min(draft.pages.length - 1, current + (e.key === 'ArrowRight' ? 1 : -1))))
+      else if (!editing && canEdit && e.key.toLowerCase() === 'e') {
+        e.preventDefault()
+        setEditing(true)
+      }
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
@@ -124,28 +147,10 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
 
   // ---- the page's overflow: blocks whose bottom is below the bottom margin ------------------------------------------
   const frame = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    let alive = true
-    const measure = () => {
-      const s = frame.current?.querySelector<HTMLElement>('section.sheet')
-      if (!s || !alive) return
-      const bottom = s.clientHeight - parseFloat(getComputedStyle(s).paddingBottom)
-      const found: Record<number, number> = {}
-      ;[...s.children].filter((c) => c.tagName !== 'HEADER' && !c.classList.contains('sheet-foot') && !c.classList.contains('sheet-head')).forEach((c, i) => {
-        const el = c as HTMLElement
-        const over = el.offsetTop + el.offsetHeight - bottom
-        if (over > 1) found[i] = over / MM
-      })
-      setOverflow((o) => (JSON.stringify(o) === JSON.stringify(found) ? o : found))
-    }
-    measure()
-    void document.fonts?.ready.then(measure)
-    const t = setTimeout(measure, 300)
-    return () => {
-      alive = false
-      clearTimeout(t)
-    }
-  }, [html, draft.paper])
+  useSheetMeasure(frame, `${html}|${draft.paper}`, ([section]) => {
+    const found = section ? sheetOverflow(section) : {}
+    setOverflow((o) => (JSON.stringify(o) === JSON.stringify(found) ? o : found))
+  })
 
   // ---- pages -----------------------------------------------------------------------------------------------------------
   const chrome = useSheetChrome({ ...sheet, pages: draft.pages.map((p) => ({ id: p.id, html: '' })), updatedAt: sheet.updatedAt }, logo, facts)
@@ -187,9 +192,10 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
       </div>
       {editing && fine && <p className="text-[12px] text-ink-3">{t('sheetEditor.onPageHint')}</p>}
       {overCount > 0 && <p className="text-[13px] text-rose">{t('sheetEditor.overPage', { count: overCount })}</p>}
-      <div className="flex w-full max-w-[640px] flex-wrap items-start gap-2">
+      {/* on a phone the pages stand in one row to scroll, so the fields below stay near */}
+      <div className={cx('flex w-full max-w-[640px] items-start gap-2 p-0.5', phone ? 'overflow-x-auto' : 'flex-wrap')}>
         {draft.pages.map((p, i) => (
-          <div key={p.id} className="w-[72px]">
+          <div key={p.id} className="w-[72px] shrink-0">
             <div className={cx('rounded-sm ring-2', i === current ? 'ring-accent' : 'ring-transparent')}>
               <SheetPage html={serializeSheetPage(p.doc)} paper={draft.paper} theme={theme} scope={scope} chrome={chrome(i + 1)} onClick={() => (onPage.end(), setCurrent(i))} label={t('sheets.page', { n: i + 1 })} />
             </div>
@@ -200,7 +206,7 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
           </div>
         ))}
         {editing && draft.pages.length < MAX_SHEET_PAGES && (
-          <button type="button" onClick={addPage} className="flex h-[100px] w-[72px] items-center justify-center rounded-sm border border-dashed border-line text-ink-3 hover:text-ink" aria-label={t('sheetEditor.addPage')}>
+          <button type="button" onClick={addPage} className="flex h-[100px] w-[72px] shrink-0 items-center justify-center rounded-sm border border-dashed border-line text-ink-3 hover:text-ink" aria-label={t('sheetEditor.addPage')}>
             <Plus size={16} />
           </button>
         )}
@@ -278,7 +284,7 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
 
   // over the whole window, never inside the panel it was opened from
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-surface" role="dialog" aria-modal="true" aria-label={draft.title}>
+    <div ref={root} className="fixed inset-0 z-50 flex flex-col bg-surface outline-none" role="dialog" aria-modal="true" aria-label={draft.title}>
       <div className="flex items-center gap-2 border-b border-line px-3 py-2">
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-medium">{draft.title || t('sheets.untitled')}</div>
@@ -286,12 +292,16 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
         </div>
         {canEdit && (
           <>
-            <IconButton label={t('common.undo')} onClick={undo} disabled={!hist.past.length}>
-              <Undo2 size={15} />
-            </IconButton>
-            <IconButton label={t('common.redo')} onClick={redo} disabled={!hist.future.length}>
-              <Redo2 size={15} />
-            </IconButton>
+            {(editing || hist.past.length > 0 || hist.future.length > 0) && (
+              <>
+                <IconButton label={t('common.undo')} onClick={undo} disabled={!hist.past.length}>
+                  <Undo2 size={15} />
+                </IconButton>
+                <IconButton label={t('common.redo')} onClick={redo} disabled={!hist.future.length}>
+                  <Redo2 size={15} />
+                </IconButton>
+              </>
+            )}
             <Button size="sm" variant={editing ? 'primary' : 'ghost'} onClick={() => (onPage.end(), setEditing(!editing))}>
               {editing ? null : <Pencil size={13} />}
               {editing ? t('sheetEditor.done') : t('sheetEditor.edit')}
@@ -322,7 +332,8 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
           onClose={() => setSource(null)}
           onApply={(text) => {
             const clean = normalizeSheetHtml(text)
-            setPage((x) => Object.assign(x, parseSheetPage(clean)))
+            // the page read anew: nothing of the old one stays (a header kept as source would come back)
+            update((x) => void (x.pages[current].doc = parseSheetPage(clean)))
             setSource(null)
           }}
         />

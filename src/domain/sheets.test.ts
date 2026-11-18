@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { circleSvg, drawCircles, isLandscape, normalizeSheetHtml, SHEET_BLOCK_NAMES, sheetBlocks } from './sheets.ts'
+import { circleSvg, drawCircles, isLandscape, normalizeSheetHtml, SHEET_BLOCK_NAMES, sheetBlocks, splitPages } from './sheets.ts'
 
 describe('a worksheet page', () => {
   it('keeps the format and drops what could run', () => {
@@ -18,6 +18,16 @@ describe('a worksheet page', () => {
     expect(isLandscape(page)).toBe(true)
     expect(isLandscape('<section class="sheet">')).toBe(false)
     expect(sheetBlocks(page)).toEqual(['box', 'steps', 'pair', 'write'])
+  })
+
+  it('takes a page whose root names its classes in another order', () => {
+    const page = normalizeSheetHtml('<section class="landscape sheet"><div class="block write fill"></div></section>')
+    expect(page).toBe('<section class="sheet landscape"><div class="block write fill"></div></section>')
+    expect(isLandscape(page)).toBe(true)
+    expect(splitPages('<section class="landscape sheet"><p>a</p></section>\n<section class="sheet"><p>b</p></section>')).toHaveLength(2)
+    // a section that only sounds like one is content
+    expect(splitPages('<section class="worksheet"><p>a</p></section>')).toHaveLength(1)
+    expect(normalizeSheetHtml('<section class="sheets"><p>a</p></section>')).toBe('<section class="sheet"><section class="sheets"><p>a</p></section></section>')
   })
 
   it('every block of the catalogue has its own name', () => {

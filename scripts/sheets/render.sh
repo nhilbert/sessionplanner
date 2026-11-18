@@ -4,7 +4,7 @@
 # The PDF is the browser's print of ROOT/<sheet>.print.html: the test print of stage 1 (docs/worksheets.md).
 # Needs a headless Chromium ($CHROME; default: the one Playwright installs).
 set -euo pipefail
-CHROME="${CHROME:-$(ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>/dev/null | sort | tail -1)}"
+CHROME="${CHROME:-$(ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>/dev/null | sort | tail -1 || true)}"
 [[ -x $CHROME ]] || { echo "no headless Chromium found; set CHROME" >&2; exit 1; }
 run() { "$CHROME" --headless --no-sandbox --disable-gpu --hide-scrollbars --allow-file-access-from-files --virtual-time-budget=5000 "$@" >/dev/null 2>&1; }
 uri() { python3 -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).as_uri())' "$1"; }

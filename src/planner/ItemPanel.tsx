@@ -55,6 +55,8 @@ export default function ItemPanel({
   // who may change the library copies a sheet into an entry
   const libraryEdit = useLibraryEdit()
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
+  /** The workshop's number of participants, asked for where a print rule per person misses it. */
+  const setParticipants = (participants: number) => change([{ op: 'set', entity: 'workshop', id: data.workshop.id, fields: { participants } }])
   const timed = item.kind === 'block' || item.kind === 'break'
 
   const setKind = (kind: ItemKind) => {
@@ -139,7 +141,7 @@ export default function ItemPanel({
       )}
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
-      {item.kind !== 'note' && <Files item={item} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds, worksheets: item.worksheets })) })} onSet={set} onAttachment={onAttachment} />}
+      {item.kind !== 'note' && <Files item={item} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds, worksheets: item.worksheets })) })} onSet={set} onParticipants={setParticipants} onAttachment={onAttachment} />}
       {(item.kind === 'block' || item.kind === 'break') && (
         <SlideStrip
           slides={item.slides}
@@ -164,6 +166,7 @@ export default function ItemPanel({
             rules: item.printRules ?? {},
             groups: item.groups ?? 1,
             participants: data.workshop.participants ?? null,
+            onParticipants: setParticipants,
             onRule: (sheetId, rule) => set({ printRules: withRule(item.printRules ?? {}, sheetId, rule) }),
             onGroups: (groups) => set({ groups }),
           }}
@@ -276,7 +279,7 @@ function Materials({ materials, onChange }: { materials: Material[]; onChange: (
   )
 }
 
-function Files({ item, data, owner, onLink, onSet, onAttachment }: { item: Item; data: WorkshopState; owner: boolean; onLink: (ids: string[]) => void; onSet: (fields: Partial<ItemFields>) => void; onAttachment: (a: Attachment) => void }) {
+function Files({ item, data, owner, onLink, onSet, onParticipants: setParticipants, onAttachment }: { item: Item; data: WorkshopState; owner: boolean; onLink: (ids: string[]) => void; onSet: (fields: Partial<ItemFields>) => void; onParticipants: (n: number) => void; onAttachment: (a: Attachment) => void }) {
   const { t } = useTranslation()
   // Several files dropped at once arrive one after the other: each adds to the list as it stands by then.
   const links = useRef(item.attachmentIds)
@@ -309,6 +312,7 @@ function Files({ item, data, owner, onLink, onSet, onAttachment }: { item: Item;
               rule={ruleOf(item, f.id)}
               groups={item.groups ?? 1}
               participants={data.workshop.participants ?? null}
+              onParticipants={setParticipants}
               onRule={(rule) => onSet({ printRules: withRule(item.printRules ?? {}, f.id, rule) })}
               onGroups={(groups) => onSet({ groups })}
             />

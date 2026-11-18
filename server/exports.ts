@@ -26,7 +26,10 @@ const extension = (mime: string) => EXTENSIONS[mime] ?? 'bin'
 export function safePart(name: string, fallback: string): string {
   // eslint-disable-next-line no-control-regex
   const clean = name.replace(/[/\\:*?"<>|\u0000-\u001f\u007f]/g, '_').replace(/\s+/g, ' ').trim().replace(/^\.+/, '').replace(/[. ]+$/, '')
-  return clean.slice(0, 100) || fallback
+  if (clean.length <= 100) return clean || fallback
+  // cut the name, never its ending: a long "… .pdf" still opens as one
+  const ending = /\.[A-Za-z0-9]{1,8}$/.exec(clean)?.[0] ?? ''
+  return clean.slice(0, 100 - ending.length).replace(/[. ]+$/, '') + ending
 }
 
 /** The path, or with " (2)", " (3)" … before its extension when the archive has it already. */

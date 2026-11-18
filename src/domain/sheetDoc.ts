@@ -449,16 +449,35 @@ const readers: Record<string, Reader> = {
   },
 }
 
+/**
+ * What was read last, by its markup: a page is read anew on every keystroke typed on it, and all but one of its
+ * blocks are the same as before. Reading a block means comparing it with what its fields would write, sanitised
+ * twice; here that is done once per markup. What is handed out is a copy, so nobody changes what is kept.
+ */
+function remembered<T>(size: number, read: (markup: string, e: El) => T): (e: El) => T {
+  const known = new Map<string, T>()
+  return (e) => {
+    const markup = serializeNodes([e])
+    let doc = known.get(markup)
+    if (doc === undefined) {
+      doc = read(markup, e)
+      if (known.size >= size) known.delete(known.keys().next().value!)
+      known.set(markup, doc)
+    }
+    return structuredClone(doc)
+  }
+}
+
 /** A block element as a document block, or as source when its fields cannot hold it. */
-function readBlock(e: El): SheetBlock {
+const readBlock = remembered<SheetBlock>(400, (markup, e) => {
   const [first, name] = classes(e)
-  const raw: SheetBlock = { kind: 'raw', html: serializeNodes([e]), mods: [], space: 0, lines: 0, fill: false }
+  const raw: SheetBlock = { kind: 'raw', html: markup, mods: [], space: 0, lines: 0, fill: false }
   if (first !== 'block' || !name || !SHEET_BLOCK_NAMES.includes(name)) return raw
   const reader = readers[name]
   const doc = reader?.(e, common(e))
   if (!doc) return raw
   return canonFragment([e]) === canonFragment(writeBlock(doc)) ? doc : raw
-}
+})
 
 function readBlocks(nodes: Node[]): SheetBlock[] {
   const out: SheetBlock[] = []
@@ -469,7 +488,7 @@ function readBlocks(nodes: Node[]): SheetBlock[] {
   return out
 }
 
-function readHeader(h: El): SheetHeader | null {
+const readHeader = remembered<SheetHeader | null>(50, (_markup, h) => {
   const head: SheetHeader = { eyebrow: '', title: '', titleCls: '', leads: [], picture: null }
   for (const k of elements(h)) {
     if (k.tag === 'div' && clsOf(k) === 'eyebrow') head.eyebrow = inline(k)
@@ -481,7 +500,7 @@ function readHeader(h: El): SheetHeader | null {
     else return null
   }
   return canonFragment([h]) === canonFragment(writeHeader(head)) ? head : null
-}
+})
 
 /** A page's markup as a document: its header and its blocks, each block as fields or, where they cannot hold it, as source. */
 export function parseSheetPage(html: string): SheetPageDoc {
