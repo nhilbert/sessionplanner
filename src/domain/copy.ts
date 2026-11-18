@@ -1,4 +1,5 @@
 import { newId } from './ops.ts'
+import { mapRules, rulesOfLinked } from './printing.ts'
 import { newSlides } from './slides.ts'
 import type { Group, Item, ItemContent, LibraryEntry } from './types.ts'
 
@@ -15,6 +16,7 @@ export const contentOf = (item: Item): ItemContent => ({
   notes: item.notes,
   materials: item.materials,
   attachmentIds: item.attachmentIds,
+  printRules: item.printRules,
   slides: item.slides,
   categoryId: item.categoryId,
   color: item.color,
@@ -51,7 +53,9 @@ export function withFilesOf<E extends Pick<LibraryEntry, 'kind' | 'data'>>(entry
   const byTitle = same((n, c) => saved[n].title === c.title, rest)
   const byPlace = saved.length === held.length ? same((n, c) => n === held.indexOf(c), rest.filter((c) => !byTitle.has(c))) : new Map<ItemContent, number>()
   for (const [c, n] of [...byFile, ...byTitle, ...byPlace]) files[n].push(...c.attachmentIds.filter((id) => unclaimed.delete(id)))
-  const items = saved.map((c, n) => ({ ...c, attachmentIds: files[n] }))
+  // A file's print rule follows it, from the stored item when the file came from there.
+  const rules = Object.assign({}, ...held.map((c) => c.printRules ?? {}))
+  const items = saved.map((c, n) => ({ ...c, attachmentIds: files[n], printRules: rulesOfLinked({ ...rules, ...c.printRules }, files[n]) }))
   return { ...entry, data: entry.kind === 'group' ? { items } : items[0] }
 }
 
@@ -70,7 +74,9 @@ export function fromLibrary(entry: LibraryEntry, workshopId: string, dayId: stri
     position: pos,
     groupId: gid,
     fixedStart: null,
+    groups: 1,
     attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])),
+    printRules: mapRules(c.printRules, (id) => files[id]),
   })
   if (entry.kind === 'item') return { group: null, items: [item(entry.data, groupId, position)] }
   const group: Group = { id: newId(), workshopId, dayId, position, title: entry.title }

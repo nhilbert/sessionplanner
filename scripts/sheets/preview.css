@@ -1,0 +1,19 @@
+/* preview chrome: neutral, not part of the worksheet format */
+html, body { margin: 0; background: #2a2d31; color: #d6d9dd; font: 14px/1.4 system-ui, sans-serif; }
+.top { padding: 18px 28px; display: flex; gap: 18px; align-items: baseline; border-bottom: 1px solid #3a3e44; }
+.top h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.top a { color: #9fb3c8; }
+.top .print { margin-left: auto; }
+main { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 28px; padding: 28px; align-items: start; }
+.item { display: flex; flex-direction: column; gap: 6px; }
+.page-frame { position: relative; width: 100%; overflow: hidden; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+.page-frame .sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform: scale(var(--s, 0.5)); }
+.cap { color: #8a9099; font-size: 12px; display: flex; gap: 10px; }
+.cap b { color: #c3c8ce; font-weight: 500; }
+.cap em { color: #e0a84a; font-style: normal; }
+body.only { background: #fff; }
+body.only .top, body.only main { display: none; }
+ul.sheets { list-style: none; padding: 28px; margin: 0; display: grid; gap: 14px; max-width: 720px; }
+ul.sheets li { background: #33373d; border-radius: 8px; padding: 16px 20px; }
+ul.sheets a { color: #e8ecf0; font-size: 16px; font-weight: 600; text-decoration: none; }
+ul.sheets .meta { color: #8a9099; margin-top: 4px; }

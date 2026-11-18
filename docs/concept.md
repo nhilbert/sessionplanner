@@ -73,7 +73,8 @@ Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 por
 - **Planning overview** (`overview`): one table per day with the columns switched on (time, duration, content with description, goal, method, lead, category, material, files, notes); landscape as an option. The head repeats on every page, a row never splits. For planning and for a co-facilitator who wants everything on a few pages.
 - **Moderation plan** (`plan`): built to be worked through during the workshop. Per day first the day at a glance (times, numbered steps, length, lead), then one card per step: the clock time large in the margin with end time and length, a box to tick, the step's number and title, lead and category, description, goal, method, material as a checklist, files, and the facilitation notes in full (Markdown). Breaks hatched with a box, markers as a time line, cue notes shaded, groups as section headings with their time range. Slack before a fixed start and overlaps are printed, so the facilitator sees the buffers. A card never splits across a page. Options: packing list appended, each day on a new page.
 - **Client agenda** (`agenda`): clock times, titles, short descriptions and the workshop's goal; groups as sections, breaks and markers quiet; no methods, notes, slack or warnings. Goal per step, lead and durations can be switched on; the steps inside groups can be switched off, so that each group prints as one row with its time range. Days follow each other (one page for most workshops); a page per day as an option.
-- **Packing list** (`packing`): a box per line, quantity, which steps need it, link, "at the venue".
+- **Packing list** (`packing`): a box per line, quantity, which steps need it, link, "at the venue". Files the workshop prints show as lines of their own.
+- **Print package** (Output menu, a ZIP): one file per PDF a placed step prints, named after its print job ("30x A4 einseitig – Handout.pdf"), and the print list as Markdown; see [worksheets.md](worksheets.md).
 
 ## 7. Working together
 
@@ -120,6 +121,7 @@ On the owner's retired instance there was no public access, so no share links: e
 6. **Slides** – done (2026-11-01): slides as text in a small HTML subset on items and in the library, a slide pool of translated decks, themes as data, a deck per workshop with generated title, agenda and break slides, presenting from the app, a standalone HTML file and 16:9 print; see [slides.md](slides.md).
 7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7. Since 2026-11-17 with a mouse on the slide itself, with formatting by hand that follows the theme (section 10).
 8. **Preparing for several workspaces** – in preparation: section 10, 2026-11-05. No change for users.
+9. **Worksheets** – stage 0 in work (2026-11-18): print rules for attached PDFs and a print package; see [worksheets.md](worksheets.md).
 
 **Backlog** (no order):
 
@@ -146,6 +148,10 @@ On the owner's retired instance there was no public access, so no share links: e
 - The trash removes files before their records, so a file that cannot go is tried again. A workshop in the trash stays as it went in. The exports of all data and media hold it too, apart and marked.
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
+
+**2026-11-18, worksheets** (revises "the printouts stay black on white" of 2026-11-04 for worksheets only)
+
+Printed material for steps: worksheets and handouts, with a print rule per sheet (off, per person, per group, once, a count) and one print package per workshop with a file per print job. Sheets belong to steps and are copies like slides and files; no central collection. They are written in the app as building blocks in the slide format's HTML subset; PDFs made elsewhere stay and take the same rule, unread and unmerged. Stage 0 (the rule and the package for attached PDFs) comes first. Decisions, format, blocks and stages: [worksheets.md](worksheets.md).
 
 **2026-11-18, one place per kind of thing** (revises the planner header of "phones", 2026-10-29, and the theme in the Slides tab of 2026-11-04)
 

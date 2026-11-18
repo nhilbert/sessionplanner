@@ -21,6 +21,8 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
   notes: '',
   materials: [],
   attachmentIds: [],
+  printRules: {},
+  groups: 1,
   slides: [],
   categoryId: null,
   color: null,
@@ -70,7 +72,7 @@ describe('packingList', () => {
 
 describe('ops', () => {
   const state: WorkshopState = {
-    workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, materials: [], archived: false, createdAt: '', updatedAt: '' },
+    workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, materials: [], participants: null, archived: false, createdAt: '', updatedAt: '' },
     days: [{ id: 'd1', workshopId: 'w', position: 1, date: '2026-11-10', startMin: 540, endMin: 1020 }],
     groups: [],
     items: [item('a'), item('b', { position: 2 })],

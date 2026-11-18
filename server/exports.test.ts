@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { openDb } from './db.ts'
 import { Repo } from './repo.ts'
 import { filePaths } from './storage.ts'
-import { dataZip, mediaZip, safePart, workshopZip } from './exports.ts'
+import { dataZip, mediaZip, printPackageName, printPackageZip, safePart, workshopZip } from './exports.ts'
 import { zipStream } from './zipStream.ts'
 import { readZip } from '../src/slides/unzip.ts'
 import { DEFAULT_TOKENS } from '../src/domain/theme.ts'
@@ -107,6 +107,44 @@ describe('the export of a workshop', () => {
   it('is null for a workshop that does not exist', () => {
     const { repo, filesDir } = setup()
     expect(workshopZip(repo, filesDir, 'nope')).toBeNull()
+  })
+})
+
+describe('the print package', () => {
+  const ruled = (repo: Repo, id: string) => {
+    repo.applyOps(id, [{ op: 'set', entity: 'item', id: 'i1', fields: { groups: 3, printRules: { f1: { mode: 'person', paper: 'A4', duplex: false }, f2: { mode: 'group', paper: 'A3', duplex: true }, f3: { mode: 'once', paper: 'A4', duplex: false } } } }])
+    return repo.loadWorkshop(id)!
+  }
+
+  it('has a file per printed PDF named after its job, and the print list', async () => {
+    const { repo, filesDir, id } = setup()
+    const state = ruled(repo, id)
+    const files = await unpack(printPackageZip(filesDir, state, { participants: 14, reserve: 1, locale: 'de' })!)
+    // f3 is missing on disk: left out of the files, still on the list.
+    expect([...files.keys()]).toEqual(['15x A4 einseitig – Ablauf.pdf', '4x A3 doppelseitig – Ablauf.pdf', 'Druckliste.md'])
+    expect(files.get('15x A4 einseitig – Ablauf.pdf')).toBe('f1-bytes')
+    expect(files.get('Druckliste.md')).toContain('| Ablauf.pdf | Einstieg | pro Gruppe (3) | 3 | 4x A3 doppelseitig |')
+    expect(printPackageName(state, 'en')).toBe('Print package – Teamtag_ Planung_2027.zip')
+  })
+
+  it('is null while a rule per person has no participants to count', () => {
+    const { repo, filesDir, id } = setup()
+    expect(printPackageZip(filesDir, ruled(repo, id), {})).toBeNull()
+  })
+
+  it('prints nothing of parked steps', async () => {
+    const { repo, filesDir, id } = setup()
+    ruled(repo, id)
+    repo.applyOps(id, [{ op: 'set', entity: 'item', id: 'i1', fields: { dayId: null } }])
+    expect([...(await unpack(printPackageZip(filesDir, repo.loadWorkshop(id)!, { locale: 'en' })!)).keys()]).toEqual(['Print list.md'])
+  })
+
+  it('travels with a duplicated workshop', () => {
+    const { repo, id } = setup()
+    ruled(repo, id)
+    const { state, files } = repo.duplicateWorkshop(id, { title: 'Kopie' })!
+    expect(Object.keys(state.items[0].printRules).sort()).toEqual([files.f1, files.f2, files.f3].sort())
+    expect(state.items[0].groups).toBe(3)
   })
 })
 

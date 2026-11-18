@@ -16,6 +16,8 @@ import type { MenuItem } from '@/components/Menu'
 import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
 import { FileManager } from './FileManager'
+import { PrintRuleField } from './PrintRuleField'
+import { isPrintable, ruleOf, rulesOfLinked, withRule } from '@/domain/printing'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
 import { usePlanner } from '@/store/usePlanner'
@@ -130,7 +132,7 @@ export default function ItemPanel({
       )}
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
-      {item.kind !== 'note' && <Files item={item} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds })} onAttachment={onAttachment} />}
+      {item.kind !== 'note' && <Files item={item} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds, printRules: rulesOfLinked(item.printRules ?? {}, attachmentIds) })} onSet={set} onAttachment={onAttachment} />}
       {(item.kind === 'block' || item.kind === 'break') && (
         <SlideStrip
           slides={item.slides}
@@ -247,7 +249,7 @@ function Materials({ materials, onChange }: { materials: Material[]; onChange: (
   )
 }
 
-function Files({ item, data, owner, onLink, onAttachment }: { item: Item; data: WorkshopState; owner: boolean; onLink: (ids: string[]) => void; onAttachment: (a: Attachment) => void }) {
+function Files({ item, data, owner, onLink, onSet, onAttachment }: { item: Item; data: WorkshopState; owner: boolean; onLink: (ids: string[]) => void; onSet: (fields: Partial<ItemFields>) => void; onAttachment: (a: Attachment) => void }) {
   const { t } = useTranslation()
   // Several files dropped at once arrive one after the other: each adds to the list as it stands by then.
   const links = useRef(item.attachmentIds)
@@ -273,6 +275,18 @@ function Files({ item, data, owner, onLink, onAttachment }: { item: Item; data: 
         onRename={async (id, name) => onAttachment(await api.renameAttachment(id, name))}
         onReplace={owner ? async (id, file) => onAttachment(await api.replaceAttachment(id, file)) : undefined}
         remove={{ label: t('item.unlink'), run: (a) => link(links.current.filter((x) => x !== a.id)) }}
+        extra={(f) =>
+          isPrintable(f.name) && (
+            <PrintRuleField
+              name={f.name}
+              rule={ruleOf(item, f.id)}
+              groups={item.groups ?? 1}
+              participants={data.workshop.participants ?? null}
+              onRule={(rule) => onSet({ printRules: withRule(item.printRules ?? {}, f.id, rule) })}
+              onGroups={(groups) => onSet({ groups })}
+            />
+          )
+        }
       >
         {others.length > 0 && (
           <select className="field mt-2 h-8 w-full text-[13px]" aria-label={t('item.linkFile')} value="" onChange={(e) => e.target.value && link([...links.current, e.target.value])}>

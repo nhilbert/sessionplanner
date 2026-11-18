@@ -12,7 +12,8 @@ import { changeTags } from '../src/domain/tags.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, placeIn, sortedDays } from '../src/domain/order.ts'
 import { clockIn, formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
-import { packingKey, packingList } from '../src/domain/packing.ts'
+import { packingKey, workshopPacking } from '../src/domain/packing.ts'
+import { mapRules } from '../src/domain/printing.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
@@ -315,7 +316,7 @@ export class Ops {
 
   /** Fresh content with the defaults for the kind (itemFields lays the agent's fields over it, a duration included). */
   private blankContent(kind: ItemKind = 'block'): ItemContent {
-    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], slides: [], categoryId: null, color: null }
+    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [], categoryId: null, color: null }
   }
 
   /** The content fields an input carries, title aside: whether the agent meant to change an item's content. */
@@ -329,7 +330,7 @@ export class Ops {
   }
 
   private newItem(workshopId: string, dayId: string | null, groupId: string | null, position: number, input: ItemInput): Item {
-    return { id: newId(), workshopId, dayId, position, groupId, fixedStart: null, ...this.blankContent(input.kind), ...this.itemFields(input) }
+    return { id: newId(), workshopId, dayId, position, groupId, fixedStart: null, groups: 1, ...this.blankContent(input.kind), ...this.itemFields(input) }
   }
 
   // ---------- views ----------
@@ -415,7 +416,7 @@ export class Ops {
 
   private packingView(s: WorkshopState) {
     // As in the app: placed items only, in agenda order; parked items pack nothing.
-    return packingList(agendaOrder(s.days, s), s.workshop.packing, s.workshop.materials).map((l) =>
+    return workshopPacking(s).map((l) =>
       compact({
         label: l.label,
         qty: l.qty,
@@ -726,7 +727,7 @@ export class Ops {
     const packing: Record<string, PackingState> = { ...s.workshop.packing }
     // The lines are the ones packing_list shows: placed steps and the workshop's own material (parked steps pack nothing).
     const placed = agendaOrder(s.days, s)
-    const known = new Set(packingList(placed, s.workshop.packing, s.workshop.materials).map((l) => l.key))
+    const known = new Set(workshopPacking(s).map((l) => l.key))
     let materials = s.workshop.materials
     if (input.add?.length) materials = [...materials, ...this.materials(input.add)!]
     for (const label of input.remove ?? []) {
@@ -1062,7 +1063,7 @@ export class Ops {
   }
 
   private content(i: Item | ItemContent): ItemContent {
-    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
+    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, printRules: i.printRules ?? {}, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
   }
 
   /** Saves an item, or a group with its items, of a workshop to the library: a copy, its files too. */
@@ -1087,7 +1088,7 @@ export class Ops {
     const s = this.state(ref)
     const day = this.day(s, dayRef)
     const dayId = day?.id ?? null
-    const copyOf = (c: ItemContent, files: Record<string, string>) => ({ ...this.content(c), attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])) })
+    const copyOf = (c: ItemContent, files: Record<string, string>) => ({ ...this.content(c), attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])), printRules: mapRules(c.printRules, (id) => files[id]) })
     if (entry.kind === 'item') {
       const { position, ops } = this.place(s, dayId, null, 'new', where)
       const record: Item = { ...this.newItem(s.workshop.id, dayId, null, position, {}), ...copyOf(entry.data, this.copyFiles(entry, s.workshop.id)) }

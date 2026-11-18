@@ -191,6 +191,9 @@ export const api = {
   downloadUrl: (attachmentId: string) => apiUrl(`/attachments/${attachmentId}`),
   /** ZIP archives (server/exports.ts), the owner's: one workshop with its files and pictures; all data; all media. */
   workshopExportUrl: (id: string) => apiUrl(`/workshops/${id}/export`),
+  /** The print package (docs/worksheets.md): whoever sees the workshop. */
+  printPackageUrl: (id: string, q: { participants?: number; reserve: number; lang: 'de' | 'en' }) =>
+    apiUrl(`/workshops/${id}/print-package?${new URLSearchParams({ ...(q.participants ? { participants: String(q.participants) } : {}), ...(q.reserve ? { reserve: String(q.reserve) } : {}), lang: q.lang })}`),
   storage: () => call<{ used: number; limit: number | null }>('/storage'),
   dataExportUrl: () => apiUrl('/export/data'),
   mediaExportUrl: () => apiUrl('/export/media'),

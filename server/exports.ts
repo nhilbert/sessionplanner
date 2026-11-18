@@ -5,6 +5,7 @@ import { filePaths, themeFolderFile } from './storage.ts'
 import { folderThemes } from './themes.ts'
 import { type ZipPart, zipStream } from './zipStream.ts'
 import { clockIn } from '../src/domain/time.ts'
+import { packageFileName, printLines, printListMarkdown, printWords } from '../src/domain/printing.ts'
 import { DEFAULT_TIMEZONE, type Asset, type Attachment, type Member, type WorkshopState } from '../src/domain/types.ts'
 
 /**
@@ -94,6 +95,31 @@ export function workshopZip(repo: Repo, filesDir: string, id: string, options?: 
     yield json('workshop.json', { format: 'session-planner/workshop', version: EXPORT_VERSION, exportedAt: new Date().toISOString(), ...record, attachments, pictures })
   }
   return zipStream(parts(), options)
+}
+
+/** The file name of a workshop's print package. */
+export const printPackageName = (state: WorkshopState, locale: string | undefined) => `${locale === 'de' ? 'Druckpaket' : 'Print package'} – ${safePart(state.workshop.title, 'Workshop')}.zip`
+
+/**
+ * The print package of a workshop (docs/worksheets.md, section 3): one file per printed PDF, named after its job
+ * ("30x A4 einseitig – Handout.pdf"), in agenda order, and the print list as Markdown. The files are copied as they
+ * are, never read or merged. `state` is the workshop as the caller sees it, so a guest gets only what they could
+ * download one by one. A file missing on disk is left out. Null when a rule needs the participants and none are known.
+ */
+export function printPackageZip(filesDir: string, state: WorkshopState, options: { participants?: number; reserve?: number; locale?: string }): ReadableStream<Uint8Array> | null {
+  const lines = printLines(state, options)
+  if (lines.some((l) => l.copies === null)) return null
+  const w = printWords(options.locale)
+  const { file } = filePaths(filesDir)
+  async function* parts(): AsyncGenerator<ZipPart> {
+    const taken = new Set<string>()
+    for (const l of lines) {
+      const data = await read(file(l.attachmentId))
+      if (data) yield { path: unique(taken, safePart(packageFileName(l, w), l.attachmentId)), data: bytes(data) }
+    }
+    yield { path: unique(taken, `${w.printList}.md`), data: printListMarkdown(state, lines, w, options.reserve ?? 0), compress: true }
+  }
+  return zipStream(parts())
 }
 
 /**

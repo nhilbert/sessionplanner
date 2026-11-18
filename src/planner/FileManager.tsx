@@ -41,6 +41,7 @@ export function FileManager({
   onRename,
   onReplace,
   remove,
+  extra,
   children,
 }: {
   files: ManagedFile[]
@@ -54,6 +55,8 @@ export function FileManager({
   onReplace?: (id: string, file: File) => Promise<unknown>
   /** Taking a file off the list: deleting it, or unlinking it from a step. */
   remove?: { label: string; danger?: boolean; run: (file: ManagedFile) => Promise<unknown> | void }
+  /** A line more under a file (a step's print rule). */
+  extra?: (file: ManagedFile) => ReactNode
   /** More ways to add a file, under the drop area. */
   children?: ReactNode
 }) {
@@ -156,6 +159,7 @@ export function FileManager({
                       {formatSize(f.size)}
                       {f.note && <> · {f.note}</>}
                     </div>
+                    {extra?.(f)}
                   </div>
                 )}
                 <Menu items={menu(f)} label={t('files.actions', { name: f.name })} title={f.name} />

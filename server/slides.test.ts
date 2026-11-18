@@ -114,7 +114,7 @@ describe('slide assets', () => {
     expect(res.status).toBe(200)
     const state = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { headers: H() })).json()) as WorkshopState
     expect(state.items[0].slides).toEqual([{ id: 's1', html: '<section class="slide list"><h2>T</h2><p>ok</p></section>' }])
-    const entry = { kind: 'item', title: 'T', data: { ...state.items[0], workshopId: undefined, id: undefined, dayId: undefined, position: undefined, groupId: undefined, fixedStart: undefined, attachmentIds: undefined } }
+    const entry = { kind: 'item', title: 'T', data: { ...state.items[0], workshopId: undefined, id: undefined, dayId: undefined, position: undefined, groupId: undefined, fixedStart: undefined, groups: undefined, attachmentIds: undefined } }
     const saved = await app.request(`${BASE}/api/library`, { method: 'POST', headers: H(), body: JSON.stringify(entry) })
     expect(saved.status).toBe(201)
     expect(((await saved.json()) as { data: Item }).data.slides).toHaveLength(1)
