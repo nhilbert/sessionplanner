@@ -120,6 +120,17 @@ export function validateOps(body: unknown): { clientId: string; ops: Op[] } {
   return parsed.data as { clientId: string; ops: Op[] }
 }
 
+// The print package's query (docs/worksheets.md, section 3): participants stand in for a missing number, the reserve is added to every job.
+const count = (min: number, max: number) => z.string().regex(/^\d{1,5}$/).transform(Number).pipe(z.number().int().min(min).max(max))
+const printPackageQuery = z.object({ participants: count(1, 10_000).optional(), reserve: count(0, 100).optional(), lang: z.enum(['de', 'en']).optional() })
+
+export function validatePrintPackage(query: unknown): { participants?: number; reserve?: number; locale?: 'de' | 'en' } {
+  const parsed = printPackageQuery.safeParse(query)
+  if (!parsed.success) throw new BadRequest(`invalid print package: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`)
+  const { lang, ...rest } = parsed.data
+  return { ...rest, locale: lang }
+}
+
 const newWorkshop = z.strictObject({
   title: text(300).optional(),
   client: text(300).optional(),

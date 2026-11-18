@@ -13,7 +13,7 @@ import { eventFor, forGuest, libraryAccess, libraryForGuest, libraryPictures, ma
 import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryBatch, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
+import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryBatch, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validatePrintPackage, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
 import { StorageBudget, StorageFull } from './budget.ts'
@@ -24,7 +24,7 @@ import { fileKind, MAX_ATTACHMENT } from '../src/domain/attachments.ts'
 import { withFilesOf } from '../src/domain/copy.ts'
 import { inOrder } from '../src/domain/inOrder.ts'
 import { withCutouts } from '../src/domain/cutouts.ts'
-import { dataZip, exportDate, mediaZip, workshopZip, workshopZipName } from './exports.ts'
+import { dataZip, exportDate, mediaZip, printPackageName, printPackageZip, workshopZip, workshopZipName } from './exports.ts'
 
 export const MAX_LOGO = 2 * 1024 * 1024
 /** A theme's own file: a font or a picture its rules use. */
@@ -243,6 +243,16 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const state = repo.loadWorkshop(c.req.param('id')!)
     const stream = state && workshopZip(repo, filesDir, state.workshop.id)
     return stream ? sendZip(c, stream, workshopZipName(state)) : c.json({ error: 'not_found' }, 404)
+  })
+  // The print package: whoever sees the workshop, built from what they see (docs/worksheets.md, section 3).
+  app.get('/api/workshops/:id/print-package', allow('workshop-view'), (c) => {
+    const id = c.req.param('id')!
+    const access = c.get('access')
+    const state = repo.loadWorkshop(id)
+    if (!state) return c.json({ error: 'not_found' }, 404)
+    const options = validatePrintPackage(c.req.query())
+    const stream = printPackageZip(filesDir, access === 'owner' ? state : forGuest(state, access), options)
+    return stream ? sendZip(c, stream, printPackageName(state, options.locale)) : c.json({ error: 'participants' }, 400)
   })
   app.get('/api/storage', allow('owner'), (c) => c.json({ used: budget.used(), limit: budget.allowed() }))
   app.get('/api/export/data', allow('owner'), (c) => sendZip(c, dataZip(repo), `session-planner-data-${exportDate()}.zip`))

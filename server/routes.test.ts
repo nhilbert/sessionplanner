@@ -156,6 +156,7 @@ const ROUTES: Route[] = [
   { route: 'GET /api/workshops/:id/assets/:hash', access: 'workshop-view' },
   { route: 'GET /api/workshops/:id/assets/:hash/info', access: 'workshop-view' },
   { route: 'GET /api/attachments/:id', access: 'workshop-view' },
+  { route: 'GET /api/workshops/:id/print-package', access: 'workshop-view' },
   { route: 'POST /api/workshops/:id/ops', access: 'workshop-edit', body: (r) => ({ clientId: 'c', ops: [{ op: 'set', entity: 'workshop', id: r.workshop, fields: { title: 'Renamed' } }] }) },
   { route: 'POST /api/workshops/:id/present', access: 'workshop-edit', body: () => ({ key: 'title:d1', n: 1, tag: 'w1.1' }) },
   { route: 'POST /api/workshops/:id/attachments', access: 'workshop-edit', body: fileForm },

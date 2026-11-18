@@ -998,6 +998,15 @@ describe('library attachments', () => {
     expect(await (await app.request(`${BASE}/api/attachments/${copy.id}`)).text()).toBe('version 1')
   })
 
+  it('a file saved to the library takes its print rule along, under the copy\'s id', async () => {
+    const { app } = setup()
+    const ws = await create(app)
+    const att = await attach(app, `/api/workshops/${ws.workshop.id}/attachments`, 'Blatt.pdf', 'original')
+    const rule = { mode: 'person', paper: 'A4', duplex: true }
+    const e = await entry(app, { kind: 'item', title: 'Fishbowl', data: { ...content('Fishbowl', [att.id]), printRules: { [att.id]: rule, other: rule } } })
+    expect((e.data as ItemContent).printRules).toEqual({ [e.attachments[0].id]: rule })
+  })
+
   it('refuses copies that would not fit the workshop, leaving nothing behind', async () => {
     const { app } = setup({ quotas: { workshopFiles: 8 } })
     const ws = await create(app)
