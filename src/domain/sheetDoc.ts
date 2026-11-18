@@ -70,6 +70,10 @@ export type SheetBlock = Common &
     | { kind: 'scale'; rows: { label: string; low: string; high: string }[] }
     | { kind: 'selftest'; head: string[]; items: string[]; sum: string }
     | { kind: 'ifthen'; plans: { if: string; then: string }[] }
+    | { kind: 'cards'; cards: TextItem[][] }
+    | { kind: 'certificate'; items: TextItem[]; room: Room | null; stamp: string }
+    | { kind: 'figure'; image: string; alt: string; caption: string; fields: TextItem[][] }
+    | { kind: 'placemat'; middle: TextItem[]; seats: TextItem[][] }
     | { kind: 'raw'; html: string }
   )
 
@@ -397,6 +401,47 @@ const readers: Record<string, Reader> = {
     }
     return { ...c, kind: 'ifthen', plans }
   },
+  cards: (e, c) => {
+    const cards = []
+    for (const k of elements(e)) {
+      if (k.tag !== 'div' || clsOf(k) !== 'card') return null
+      const items = readItems(elements(k))
+      if (!items) return null
+      cards.push(items)
+    }
+    return { ...c, kind: 'cards', cards }
+  },
+  certificate: (e, c) => {
+    let kids = elements(e)
+    const stamp = kids.length && kids[kids.length - 1].tag === 'img' && clsOf(kids[kids.length - 1]) === 'stamp' ? kids[kids.length - 1] : undefined
+    if (stamp) kids = kids.slice(0, -1)
+    const write = kids.length && isWrite(kids[kids.length - 1]) ? kids[kids.length - 1] : undefined
+    if (write) kids = kids.slice(0, -1)
+    const items = readItems(kids)
+    return items && { ...c, kind: 'certificate', items, room: readRoom(write), stamp: stamp?.attrs.src ?? '' }
+  },
+  figure: (e, c) => {
+    const [fig, ...rest] = elements(e)
+    if (!fig || fig.tag !== 'figure' || classes(fig).length) return null
+    const img = only(elements(fig), 'img')
+    const cap = only(elements(fig), 'figcaption')
+    if (elements(fig).some((k) => k !== img && k !== cap)) return null
+    const fields = []
+    for (const f of rest) {
+      if (f.tag !== 'div' || clsOf(f) !== 'field') return null
+      const items = readItems(elements(f))
+      if (!items) return null
+      fields.push(items)
+    }
+    return { ...c, kind: 'figure', image: img?.attrs.src ?? '', alt: img?.attrs.alt ?? '', caption: inline(cap), fields }
+  },
+  placemat: (e, c) => {
+    const [middle, ...seats] = elements(e)
+    if (!middle || middle.tag !== 'div' || clsOf(middle) !== 'middle' || seats.length !== 4 || seats.some((x) => x.tag !== 'div' || clsOf(x) !== 'seat')) return null
+    const m = readItems(elements(middle))
+    const all = seats.map((x) => readItems(elements(x)))
+    return m && all.every(Boolean) ? { ...c, kind: 'placemat', middle: m, seats: all as TextItem[][] } : null
+  },
   pair: (e, c) => {
     const cols = elements(e)
     if (cols.length !== 2 || cols.some((col) => col.tag !== 'div' || classes(col).length)) return null
@@ -529,6 +574,14 @@ export function writeBlock(b: SheetBlock): Node[] {
         return [el('ul', { class: 'head' }, b.head.map((x) => el('li', {}, textInline(x)))), el('ol', { class: 'items' }, b.items.map((x) => el('li', {}, textInline(x)))), ...(b.sum.trim() ? [textEl('p', 'sum', b.sum)] : [])]
       case 'ifthen':
         return b.plans.map((x) => el('div', { class: 'plan' }, [textEl('p', 'if', x.if), textEl('p', 'then', x.then)]))
+      case 'cards':
+        return b.cards.map((x) => el('div', { class: 'card' }, writeItems(x)))
+      case 'certificate':
+        return [...writeItems(b.items), ...writeRoom(b.room), ...(b.stamp ? [el('img', { class: 'stamp', src: b.stamp, alt: '' })] : [])]
+      case 'figure':
+        return [el('figure', {}, [...(b.image ? [el('img', { src: b.image, alt: b.alt })] : []), ...(b.caption.trim() ? [el('figcaption', {}, textInline(b.caption))] : [])]), ...b.fields.map((f) => el('div', { class: 'field' }, writeItems(f)))]
+      case 'placemat':
+        return [el('div', { class: 'middle' }, writeItems(b.middle)), ...b.seats.map((x) => el('div', { class: 'seat' }, writeItems(x)))]
     }
   })()
   return [el(TAG[b.kind] ?? 'div', { class: blockClass(b) }, kids)]
@@ -556,6 +609,10 @@ const none = (): Common => ({ mods: [], space: 0, lines: 0, fill: false })
 
 /** Words of a new block, in the app's language. */
 export interface BlockWords {
+  /** stage 4c */
+  certFor: string
+  certTitle: string
+  together: string
   /** stage 4b */
   noteTitle: string
   starter: string
@@ -640,6 +697,14 @@ export function newBlock(kind: Exclude<BlockKind, 'raw'>, w: BlockWords): SheetB
       return { ...none(), kind, head: [w.never, w.sometimes, w.often, w.always], items: [w.statement, w.statement, w.statement], sum: `${w.sum} ___` }
     case 'ifthen':
       return { ...none(), kind, plans: [{ if: w.when, then: w.then }, { if: w.when, then: w.then }] }
+    case 'cards':
+      return { ...none(), kind, fill: true, cards: Array.from({ length: 6 }, () => [item('p', 'big', w.heading), item('p', '', w.text)]) }
+    case 'certificate':
+      return { ...none(), kind, space: 90, items: [item('p', 'small', w.certFor), item('p', 'line', ''), item('p', 'big', w.certTitle)], room: { lines: 2, space: 0 }, stamp: '' }
+    case 'figure':
+      return { ...none(), kind, space: 140, image: '', alt: '', caption: w.caption, fields: [[item('p', 'prompt', w.prompt)], [item('p', 'prompt', w.prompt)]] }
+    case 'placemat':
+      return { ...none(), kind, middle: [item('p', 'prompt', w.together)], seats: [[], [], [], []] }
   }
 }
 
@@ -692,6 +757,14 @@ export function blockSummary(b: SheetBlock): string {
       return t(b.items[0] ?? '')
     case 'ifthen':
       return t(b.plans.map((x) => x.if).join(', '))
+    case 'cards':
+      return `${b.cards.length}`
+    case 'certificate':
+      return t(b.items.map((i) => i.text).filter(Boolean).join(' '))
+    case 'figure':
+      return t(b.caption)
+    case 'placemat':
+      return t(b.middle[0]?.text ?? '')
     default:
       return ''
   }

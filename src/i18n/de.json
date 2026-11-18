@@ -194,7 +194,7 @@
     "title": "Arbeitsblätter",
     "asOf": "Stand {{date}}",
     "newTitle": "Neues Arbeitsblatt",
-    "starter": {"reflection": "Reflexion", "exercise": "Anleitung einer Übung", "handout": "Handout", "fields": "Felder zum Ausfüllen", "rating": "Selbsteinschätzung", "transfer": "Transfer", "blank": "Leeres Blatt"},
+    "starter": {"reflection": "Reflexion", "exercise": "Anleitung einer Übung", "handout": "Handout", "fields": "Felder zum Ausfüllen", "rating": "Selbsteinschätzung", "transfer": "Transfer", "blank": "Leeres Blatt", "poster": "Plakat (quer)", "cards": "Karten zum Ausschneiden", "certificate": "Erlaubnisschein", "placemat": "Placemat (A3)"},
     "addNew": "Neues Arbeitsblatt …",
     "shuffle": "Mischen",
     "view": "Ansehen",
@@ -328,7 +328,11 @@
       "shape": "Form zum Ausfüllen",
       "scale": "Skala",
       "selftest": "Selbsttest",
-      "ifthen": "Wenn-dann-Plan"
+      "ifthen": "Wenn-dann-Plan",
+      "cards": "Karten zum Ausschneiden",
+      "certificate": "Urkunde",
+      "figure": "Bild mit Feldern",
+      "placemat": "Placemat"
     },
     "use": {
       "text": "Absätze, Überschriften, Listen",
@@ -355,7 +359,11 @@
       "shape": "Pyramide, Kreislauf, Zwiebel … leer zum Ausfüllen",
       "scale": "Skalen 0–10 mit Worten an den Enden",
       "selftest": "Aussagen mit Kästchen je Antwort und Summe",
-      "ifthen": "Wenn …, dann … zum Ausfüllen"
+      "ifthen": "Wenn …, dann … zum Ausfüllen",
+      "cards": "Karten mit Schnittlinien, zwei oder drei Spalten",
+      "certificate": "Urkunde oder Erlaubnisschein im Doppelrahmen",
+      "figure": "ein Bild mit Schreibfeldern darum",
+      "placemat": "Gruppenblatt: Mitte und vier Plätze (am besten A3)"
     },
     "item": {
       "h2": "Überschrift",
@@ -367,7 +375,10 @@
       "quiet": "leise",
       "fillIn": "Ausfüllzeile (mit ___)",
       "ul": "Aufzählung",
-      "ol": "Nummerierte Liste"
+      "ol": "Nummerierte Liste",
+      "small": "kleine Zeile",
+      "big": "große Zeile",
+      "line": "Linie für einen Namen"
     },
     "choice": {
       "grid": "Form",
@@ -391,7 +402,7 @@
       "left": "links",
       "right": "rechts",
       "columnsDefault": "zwei",
-      "cols-3": "drei",
+      "cols-3": "drei Spalten",
       "questionDefault": "normal (9 mm)",
       "ticksDefault": "normal (9 mm)",
       "pitch-l": "weit (12 mm)",
@@ -445,7 +456,10 @@
       "statement": "Eine Aussage über mich.",
       "sum": "Summe:",
       "when": "Wenn …",
-      "then": "dann …"
+      "then": "dann …",
+      "certFor": "Hiermit erhält",
+      "certTitle": "Erlaubnis",
+      "together": "Was wir gemeinsam festhalten"
     },
     "factsHint": "Dauer, Methode und Material füllt die App aus dem Agendapunkt ein, in dem das Blatt steht.",
     "starters": "Satzanfänge (einer je Zeile)",
@@ -469,7 +483,14 @@
       "1": "oben rechts",
       "2": "unten links",
       "3": "unten rechts"
-    }
+    },
+    "cardsList": "Karten",
+    "addCard": "Karte hinzufügen",
+    "stamp": "Stempel oder Bild schräg oben rechts",
+    "certItems": "Zeilen",
+    "fieldsAround": "Felder (das erste oben, das zweite neben dem Bild, weitere darunter)",
+    "middleField": "Mitte",
+    "seat": "Platz {{n}}"
   },
   "printRule": {
     "label": "Druck von {{name}}",

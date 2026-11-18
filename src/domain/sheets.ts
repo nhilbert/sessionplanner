@@ -9,7 +9,7 @@ import type { Worksheet } from './types.ts'
  * of its entries, as slide diagrams are (diagram.ts), so the drawing is right whoever wrote the page.
  */
 
-export type SheetBlockGroup = 'read' | 'instruct' | 'write' | 'order' | 'rate' | 'plan' | 'picture'
+export type SheetBlockGroup = 'read' | 'instruct' | 'write' | 'order' | 'rate' | 'plan' | 'picture' | 'page'
 
 export interface SheetBlockDoc {
   block: string
@@ -50,6 +50,11 @@ export const SHEET_BLOCKS: SheetBlockDoc[] = [
   { block: 'scale', group: 'rate', use: 'scales from 0 to 10 (s5: 1 to 5) with words at both ends, one per row', example: '<div class="block scale"><div class="rate"><p class="label">Energie</p><p class="low">leer</p><p class="high">voll</p></div></div>', modifiers: ['s5'] },
   { block: 'selftest', group: 'rate', use: 'a self-test: statements, a box per answer column, and a sum', example: '<div class="block selftest"><ul class="head"><li>nie</li><li>selten</li><li>oft</li><li>immer</li></ul><ol class="items"><li>Ich …</li></ol><p class="sum">Summe: ___</p></div>' },
   { block: 'ifthen', group: 'plan', use: 'if-then plans: a situation and what I will do then, each on its line', example: '<div class="block ifthen"><div class="plan"><p class="if">Wenn …</p><p class="then">dann …</p></div></div>' },
+  // stage 4c: page kinds, as blocks
+  { block: 'cards', group: 'page', use: 'cards to cut out: a grid with dashed cut lines, two columns (cols-3: three)', example: '<div class="block cards fill"><div class="card"><p class="big">Frage 1</p><p>…</p></div><div class="card"></div></div>', modifiers: ['cols-3'] },
+  { block: 'certificate', group: 'page', use: 'a certificate in a double frame: small and large lines, a line for a name, lines to write, a stamp picture', example: '<div class="block certificate h-90"><p class="small">Hiermit erhält</p><p class="line"></p><p class="small">die</p><p class="big">Erlaubnis</p><div class="write lines-2"></div><img class="stamp" src="asset:…" alt=""></div>' },
+  { block: 'figure', group: 'page', use: 'a picture in a frame with fields to write around it: the first above, the second beside it, more below', example: '<div class="block figure h-140"><figure><img src="asset:…" alt=""><figcaption>…</figcaption></figure><div class="field"><p class="prompt">…</p></div><div class="field"><p class="prompt">…</p></div></div>' },
+  { block: 'placemat', group: 'page', use: 'a placemat for a group (best on A3): a field in the middle, four seats around it, each written towards its side', example: '<div class="block placemat"><div class="middle"><p class="prompt">Gemeinsam</p></div><div class="seat"></div><div class="seat"></div><div class="seat"></div><div class="seat"></div></div>' },
 ]
 
 export const SHEET_BLOCK_NAMES: string[] = SHEET_BLOCKS.map((b) => b.block)

@@ -27,8 +27,8 @@ const CHOICES: Partial<Record<BlockKind, string[][]>> = {
 }
 /** Kinds whose writing room is lines (and space); kinds with a height; kinds that can take the rest of the page. */
 const HAS_LINES: BlockKind[] = ['question', 'write']
-const HAS_SPACE: BlockKind[] = ['question', 'write', 'box', 'grid', 'circle', 'picture', 'pictures', 'table', 'rows', 'criteria', 'matrix', 'timeline', 'shape']
-const NO_FILL: BlockKind[] = ['raw', 'picture', 'pictures', 'ticks', 'table', 'facts', 'starters', 'scale', 'selftest', 'ifthen', 'note']
+const HAS_SPACE: BlockKind[] = ['question', 'write', 'box', 'grid', 'circle', 'picture', 'pictures', 'table', 'rows', 'criteria', 'matrix', 'timeline', 'shape', 'cards', 'certificate', 'figure', 'placemat']
+const NO_FILL: BlockKind[] = ['raw', 'picture', 'pictures', 'ticks', 'table', 'facts', 'starters', 'scale', 'selftest', 'ifthen', 'note', 'certificate', 'placemat']
 
 const ADDABLE = SHEET_BLOCKS.map((b) => b.block) as Exclude<BlockKind, 'raw'>[]
 
@@ -117,6 +117,9 @@ const ITEM_KINDS: { key: string; tag: TextItem['tag']; cls: string }[] = [
   { key: 'promptQuiet', tag: 'p', cls: 'prompt quiet' },
   { key: 'quiet', tag: 'p', cls: 'quiet' },
   { key: 'fillIn', tag: 'p', cls: 'fill-in' },
+  { key: 'small', tag: 'p', cls: 'small' },
+  { key: 'big', tag: 'p', cls: 'big' },
+  { key: 'line', tag: 'p', cls: 'line' },
   { key: 'ul', tag: 'ul', cls: '' },
   { key: 'ol', tag: 'ol', cls: '' },
 ]
@@ -417,6 +420,56 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
           <Text label={t('sheetEditor.sum')} value={b.sum} onChange={(v) => change((x) => void ((x as typeof b).sum = v), `${path}.sum`)} />
         </div>
       )
+    case 'cards':
+      return (
+        <List
+          items={b.cards}
+          addLabel={t('sheetEditor.addCard')}
+          make={(): TextItem[] => [{ tag: 'p', cls: 'big', text: '', points: [] }]}
+          onChange={(cards) => change((x) => void ((x as typeof b).cards = cards), `${path}.cards`)}
+          render={(card, i, put) => <Items items={card} field={`${path}.cards.${i}`} onChange={put} />}
+        />
+      )
+    case 'certificate':
+      return (
+        <div className="space-y-2">
+          <div className="text-[11px] text-ink-3">{t('sheetEditor.certItems')}</div>
+          <Items items={b.items} field={`${path}.items`} onChange={(items) => change((x) => void ((x as typeof b).items = items), `${path}.items`)} />
+          <RoomFields room={b.room} onChange={(room) => change((x) => void ((x as typeof b).room = room))} />
+          <div className="text-[11px] text-ink-3">{t('sheetEditor.stamp')}</div>
+          <PictureField path={`${path}.stamp`} value={b.stamp.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).stamp = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} />
+        </div>
+      )
+    case 'figure':
+      return (
+        <div className="space-y-2">
+          <PictureField path={`${path}.image`} value={b.image.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).image = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} />
+          <Text label={t('sheetEditor.caption')} multiline value={b.caption} onChange={(v) => change((x) => void ((x as typeof b).caption = v), `${path}.caption`)} />
+          <div className="text-[11px] text-ink-3">{t('sheetEditor.fieldsAround')}</div>
+          <List
+            items={b.fields}
+            addLabel={t('sheetEditor.addField')}
+            make={(): TextItem[] => [{ tag: 'p', cls: 'prompt', text: '', points: [] }]}
+            onChange={(fields) => change((x) => void ((x as typeof b).fields = fields), `${path}.fields`)}
+            render={(f, i, put) => <Items items={f} field={`${path}.fields.${i}`} onChange={put} />}
+          />
+        </div>
+      )
+    case 'placemat':
+      return (
+        <div className="space-y-2">
+          <div className="rounded-md border border-line p-2">
+            <div className="mb-1 text-[11px] text-ink-3">{t('sheetEditor.middleField')}</div>
+            <Items items={b.middle} field={`${path}.middle`} onChange={(items) => change((x) => void ((x as typeof b).middle = items), `${path}.middle`)} />
+          </div>
+          {b.seats.map((seat, i) => (
+            <div key={i} className="rounded-md border border-line p-2">
+              <div className="mb-1 text-[11px] text-ink-3">{t('sheetEditor.seat', { n: i + 1 })}</div>
+              <Items items={seat} field={`${path}.seats.${i}`} onChange={(items) => change((x) => void ((x as typeof b).seats[i] = items), `${path}.seats.${i}`)} />
+            </div>
+          ))}
+        </div>
+      )
     case 'ifthen':
       return (
         <List
@@ -495,7 +548,7 @@ export function Blocks({ blocks, onChange, scope, theme, words, path, nested, ov
   const shown = (i: number) => open.has(i) || focus === i
   const toggle = (i: number) => setOpen((s) => (s.has(i) ? new Set([...s].filter((x) => x !== i)) : new Set([...s, i])))
   const addable = nested ? ADDABLE.filter((k) => k !== 'pair') : ADDABLE
-  const groups = ['read', 'instruct', 'write', 'order', 'rate', 'plan', 'picture'] as const
+  const groups = ['read', 'instruct', 'write', 'order', 'rate', 'plan', 'picture', 'page'] as const
   const addItems: MenuItem[] = groups.flatMap((g, gi) =>
     SHEET_BLOCKS.filter((d) => d.group === g && addable.includes(d.block as Exclude<BlockKind, 'raw'>)).map((d, k) => ({
       label: tt(t, `sheetEditor.kind.${d.block}`),

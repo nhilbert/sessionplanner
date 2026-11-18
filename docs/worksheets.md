@@ -2,7 +2,7 @@
 
 Printed material for the steps of a workshop: worksheets for exercises and handouts for methods. A step says how many copies of each sheet the workshop needs; the workshop exports one print package with a file per print job. Sheets are written in the app as content in a small HTML subset, like slides, and laid out by one stylesheet; files made elsewhere (a PDF from a layout program) stay possible and follow the same print rule.
 
-Stage 0 (print rules and the print package), stage 1 (the format, outside the app), stage 2 (sheets in the app, with the print package) and stage 3 (the editor, with fields and typing on the page) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
+Stage 0 (print rules and the print package), stage 1 (the format, outside the app), stage 2 (sheets in the app, with the print package) stage 3 (the editor, with fields and typing on the page) and stage 4 (a theme on paper, more blocks, the page kinds) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
 
 No client, partner or brand names in this file. The owner's sample worksheets are private material and stay outside this repository.
 
@@ -124,6 +124,19 @@ Stage 4b, built 2026-11-18, adds nine blocks, each with its fields in the editor
 | plan | `ifthen` | if-then plans, each part continued on its line |
 
 Still open from section 5: checklists (ticks with text cover them), appointment fields (a grid of three covers them).
+
+Stage 4c, built 2026-11-18: the page kinds, as blocks so they combine with the others (group `page`):
+
+| Block | What it is |
+|---|---|
+| `cards` | cards to cut out: a grid with dashed cut lines, two columns (`cols-3`: three) |
+| `certificate` | a certificate or permission slip in a double frame: small and large lines, a line for a name, lines to write, a stamp picture tilted over its top right |
+| `figure` | a picture in a frame with fields to write around it: the first above, the second beside it, more below |
+| `placemat` | a placemat for a group, best on A3: a field in the middle and four seats, each written towards its side |
+
+The poster is a starter sheet (landscape, a large accented title, lines 24 mm apart), as are cards, a permission slip and a placemat on A3; starter sheets carry their paper. The owner's two sample pages that stayed files in stage 1 are rebuilt in the private design repository; the barrel picture of one is still to be chosen.
+
+A step of the size scale on a heading itself (`h1.fs-xl`) now scales the heading's own size; before, it took the size of the text around it, and the poster of the samples came out smaller instead of larger. Writing room inside a block with a height (`h-N`) no longer inherits that height.
 
 ## 6. In the app (stage 2)
 

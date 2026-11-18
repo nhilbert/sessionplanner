@@ -117,8 +117,8 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
           theme={theme}
           logo={logo}
           onClose={() => setStarting(false)}
-          onPick={(title, pages) => {
-            const sheet: Worksheet = { id: newId(), title, paper: 'A4', updatedAt: now(), pages: pages.map((html) => ({ id: newId(), html })) }
+          onPick={(title, pages, paper) => {
+            const sheet: Worksheet = { id: newId(), title, paper: paper ?? 'A4', updatedAt: now(), pages: pages.map((html) => ({ id: newId(), html })) }
             onChange?.([...sheets, sheet])
             setStarting(false)
             open(sheet.id, true)
@@ -277,7 +277,7 @@ function PickThumb({ sheet, scope, theme, logo, onPick }: { sheet: Worksheet; sc
 }
 
 /** "New worksheet": the starter sheets, filled with a made-up subject drawn at random (Shuffle draws again). */
-function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetScope; theme: string; logo: string | null; onClose: () => void; onPick: (title: string, pages: string[]) => void }) {
+function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetScope; theme: string; logo: string | null; onClose: () => void; onPick: (title: string, pages: string[], paper?: Paper) => void }) {
   const { t, i18n } = useTranslation()
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9))
   const starters = useMemo(() => {
@@ -298,7 +298,7 @@ function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetSc
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4">
         {starters.map((s) => (
           <li key={s.kind} className="min-w-0">
-            <SheetPage html={s.pages[0]} paper="A4" theme={theme} scope={scope} chrome={{ date: '', n: 1, total: 1, logo }} onClick={() => onPick(s.title, s.pages)} label={t(`sheets.starter.${s.kind}`)} />
+            <SheetPage html={s.pages[0]} paper={s.paper ?? 'A4'} theme={theme} scope={scope} chrome={{ date: '', n: 1, total: 1, logo }} onClick={() => onPick(s.title, s.pages, s.paper)} label={t(`sheets.starter.${s.kind}`)} />
             <div className="mt-1 text-[13px]">{t(`sheets.starter.${s.kind}`)}</div>
           </li>
         ))}

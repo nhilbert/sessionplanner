@@ -194,7 +194,7 @@
     "title": "Worksheets",
     "asOf": "As of {{date}}",
     "newTitle": "New worksheet",
-    "starter": {"reflection": "Reflection", "exercise": "Exercise instructions", "handout": "Handout", "fields": "Fields to fill", "rating": "Self-rating", "transfer": "Transfer", "blank": "Blank sheet"},
+    "starter": {"reflection": "Reflection", "exercise": "Exercise instructions", "handout": "Handout", "fields": "Fields to fill", "rating": "Self-rating", "transfer": "Transfer", "blank": "Blank sheet", "poster": "Poster (landscape)", "cards": "Cards to cut out", "certificate": "Permission slip", "placemat": "Placemat (A3)"},
     "addNew": "New worksheet …",
     "shuffle": "Shuffle",
     "view": "View",
@@ -328,7 +328,11 @@
       "shape": "Shape to fill in",
       "scale": "Scale",
       "selftest": "Self-test",
-      "ifthen": "If-then plan"
+      "ifthen": "If-then plan",
+      "cards": "Cards to cut out",
+      "certificate": "Certificate",
+      "figure": "Picture with fields",
+      "placemat": "Placemat"
     },
     "use": {
       "text": "paragraphs, headings, lists",
@@ -355,7 +359,11 @@
       "shape": "pyramid, cycle, onion … empty to fill in",
       "scale": "scales 0–10 with words at the ends",
       "selftest": "statements with a box per answer and a sum",
-      "ifthen": "when …, then … to fill in"
+      "ifthen": "when …, then … to fill in",
+      "cards": "cards with cut lines, two or three columns",
+      "certificate": "a certificate or permission in a double frame",
+      "figure": "a picture with fields to write around it",
+      "placemat": "group sheet: a middle and four seats (best on A3)"
     },
     "item": {
       "h2": "Heading",
@@ -367,7 +375,10 @@
       "quiet": "quiet",
       "fillIn": "Fill-in line (with ___)",
       "ul": "Bullet list",
-      "ol": "Numbered list"
+      "ol": "Numbered list",
+      "small": "small line",
+      "big": "large line",
+      "line": "line for a name"
     },
     "choice": {
       "grid": "Shape",
@@ -391,7 +402,7 @@
       "left": "left",
       "right": "right",
       "columnsDefault": "two",
-      "cols-3": "three",
+      "cols-3": "three columns",
       "questionDefault": "normal (9 mm)",
       "ticksDefault": "normal (9 mm)",
       "pitch-l": "wide (12 mm)",
@@ -445,7 +456,10 @@
       "statement": "A statement about me.",
       "sum": "Total:",
       "when": "When …",
-      "then": "then …"
+      "then": "then …",
+      "certFor": "This is to certify that",
+      "certTitle": "Permission",
+      "together": "What we agree on together"
     },
     "factsHint": "The app fills in duration, method and material from the step the sheet is on.",
     "starters": "Sentence starters (one per line)",
@@ -469,7 +483,14 @@
       "1": "top right",
       "2": "bottom left",
       "3": "bottom right"
-    }
+    },
+    "cardsList": "Cards",
+    "addCard": "Add card",
+    "stamp": "Stamp or picture at the top right, tilted",
+    "certItems": "Lines",
+    "fieldsAround": "Fields (the first above, the second beside the picture, more below)",
+    "middleField": "Middle",
+    "seat": "Seat {{n}}"
   },
   "printRule": {
     "label": "Printing {{name}}",

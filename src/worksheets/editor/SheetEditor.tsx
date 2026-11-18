@@ -386,6 +386,9 @@ function useBlockWords(): BlockWords {
       sum: t('sheetEditor.words.sum'),
       when: t('sheetEditor.words.when'),
       then: t('sheetEditor.words.then'),
+      certFor: t('sheetEditor.words.certFor'),
+      certTitle: t('sheetEditor.words.certTitle'),
+      together: t('sheetEditor.words.together'),
     }),
     [t],
   )

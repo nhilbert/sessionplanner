@@ -92,6 +92,9 @@
 .sheet .write.block::after { flex: none; }
 .sheet .write.block.fill::after, .sheet .question.fill::after { flex: 1 1 auto; height: auto; background-size: 100% var(--pitch); background-repeat: repeat-y; min-height: var(--pitch); }
 
+/* writing room inside another block takes only its own lines and space, never its block's (a certificate's h-80) */
+:where(.sheet .write:not(.block)) { --space: 0mm; --lines: 0; }
+
 /* a blank to write on inside a sentence: "Unsere Gruppe heißt: ____" */
 .sheet .blank { display: inline-block; width: 55mm; height: 1em; border-bottom: 0.3mm solid var(--rule); vertical-align: baseline; margin: 0 1mm; position: relative; top: 1mm; }
 .sheet .blank.short { width: 22mm; }
@@ -243,8 +246,8 @@
 /* ---------- stage 4b ---------- */
 
 /* read: a note to remember, set apart by a rule in the accent */
-.sheet .note { border-left: 1.2mm solid var(--mark); padding: 0.5mm 0 0.5mm 4mm; }
-.sheet .note > * + * { margin-top: 1.6mm; }
+.sheet .block.note { border-left: 1.2mm solid var(--mark); padding: 0.5mm 0 0.5mm 4mm; }
+.sheet .block.note > * + * { margin-top: 1.6mm; }
 
 /* instruct: the step's facts, filled in by the app */
 .sheet .facts { font-size: 10pt; line-height: 1.35; color: var(--ink-2); }
@@ -309,6 +312,41 @@
 .sheet .ifthen > .plan > p::after { content: ''; height: var(--pitch); border-bottom: 0.3mm solid var(--rule); }
 .sheet .ifthen > .plan > .then { color: var(--mark); }
 
+/* ---------- stage 4c: page kinds ---------- */
+
+/* cards to cut out: a grid with dashed cut lines */
+.sheet .cards { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; height: var(--space, auto); border-top: 0.3mm dashed var(--rule); border-left: 0.3mm dashed var(--rule); }
+.sheet .cards.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.sheet .cards > .card { border-right: 0.3mm dashed var(--rule); border-bottom: 0.3mm dashed var(--rule); padding: 5mm; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 2mm; min-height: 25mm; min-width: 0; }
+.sheet .card > .big, .sheet .certificate > .big { font: 700 16pt/1.2 var(--font-display, var(--font-body, system-ui)), sans-serif; color: var(--title, var(--ink)); }
+.sheet .card > .small, .sheet .certificate > .small { font-size: 10pt; color: var(--ink-2); }
+
+/* a certificate in a double frame */
+.sheet .certificate { position: relative; border: 1mm double var(--frame); padding: 6mm 10mm; min-height: var(--space, 80mm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2mm; text-align: center; }
+.sheet .certificate > .big { font-size: 26pt; font-weight: 400; letter-spacing: 0.02em; }
+.sheet .certificate > .line { width: 60%; height: calc(var(--pitch) * 1.2); border-bottom: 0.3mm solid var(--ink); }
+.sheet .certificate > .write { align-self: stretch; }
+.sheet .certificate > img.stamp { position: absolute; right: 2mm; top: -10mm; width: 48mm; height: auto; transform: rotate(9deg); }
+
+/* a picture in a frame with fields around it */
+.sheet .figure { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; grid-auto-rows: minmax(22mm, auto); gap: 4mm; height: var(--space, 140mm); }
+.sheet .figure.fill { height: auto; }
+.sheet .figure > figure { grid-column: 1; grid-row: 2; border: 0.35mm solid var(--frame); padding: 3mm; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2mm; min-height: 0; }
+.sheet .figure > figure > img { max-width: 100%; max-height: 100%; min-height: 0; object-fit: contain; }
+.sheet .figure > figure > figcaption { text-align: left; align-self: stretch; font-size: 10pt; color: var(--ink); }
+.sheet .figure > .field:nth-of-type(1) { grid-column: 1 / -1; grid-row: 1; }
+.sheet .figure > .field:nth-of-type(2) { grid-column: 2; grid-row: 2; }
+.sheet .figure > .field:nth-of-type(n+3) { grid-column: 1 / -1; }
+
+/* a placemat: a field in the middle, four seats around it, each written towards its side */
+.sheet .placemat { position: relative; aspect-ratio: 1; width: 100%; max-width: var(--space, 100%); align-self: center; border: 0.4mm solid var(--frame);
+  background: linear-gradient(to top right, transparent calc(50% - 0.2mm), var(--frame) calc(50% - 0.2mm), var(--frame) calc(50% + 0.2mm), transparent calc(50% + 0.2mm)), linear-gradient(to bottom right, transparent calc(50% - 0.2mm), var(--frame) calc(50% - 0.2mm), var(--frame) calc(50% + 0.2mm), transparent calc(50% + 0.2mm)); }
+.sheet .placemat > .middle { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; background: #fff; border: 0.4mm solid var(--frame); padding: 4mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2mm; }
+.sheet .placemat > .seat { position: absolute; left: 25%; width: 50%; height: 9%; top: 89%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-size: 10pt; transform-origin: 50% -433.33%; }
+.sheet .placemat > .seat:nth-of-type(2) { transform: rotate(90deg); }
+.sheet .placemat > .seat:nth-of-type(3) { transform: rotate(180deg); }
+.sheet .placemat > .seat:nth-of-type(4) { transform: rotate(-90deg); }
+
 /* ---------- what the host adds: the logo and the footer line ---------- */
 .sheet > .sheet-foot { position: absolute; left: 14mm; right: var(--m-right); bottom: 8mm; display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; font-size: 8pt; line-height: 1.2; color: var(--ink-3); }
 .sheet > .sheet-foot .page { margin-left: auto; margin-right: auto; }
@@ -319,7 +357,11 @@
 .sheet.landscape > .sheet-head img { height: 12mm; }
 
 /* ---------- formatting by hand, as on slides (docs/slides.md, section 2): steps of size and places of the palette ---------- */
-.sheet .fs-xs { font-size: 0.72em; } .sheet .fs-s { font-size: 0.86em; } .sheet .fs-l { font-size: 1.2em; } .sheet .fs-xl { font-size: 1.45em; }
+.sheet .fs-xs { font-size: 0.72em; }
+/* on a heading itself the steps scale the heading's own size, not its parent's */
+.sheet h1.fs-xs { font-size: 13.7pt; } .sheet h1.fs-s { font-size: 16.3pt; } .sheet h1.fs-l { font-size: 22.8pt; } .sheet h1.fs-xl { font-size: 27.5pt; }
+.sheet h2.fs-xs { font-size: 9pt; } .sheet h2.fs-s { font-size: 10.75pt; } .sheet h2.fs-l { font-size: 15pt; } .sheet h2.fs-xl { font-size: 18.1pt; }
+.sheet h3.fs-xs { font-size: 8pt; } .sheet h3.fs-s { font-size: 9.5pt; } .sheet h3.fs-l { font-size: 13.2pt; } .sheet h3.fs-xl { font-size: 16pt; } .sheet .fs-s { font-size: 0.86em; } .sheet .fs-l { font-size: 1.2em; } .sheet .fs-xl { font-size: 1.45em; }
 .sheet .accent { color: var(--mark); }
 .sheet .c-accent-2 { color: var(--accent-2, var(--mark)); } .sheet .c-accent-3 { color: var(--accent-3, var(--mark)); } .sheet .c-accent-4 { color: var(--accent-4, var(--mark)); }
 .sheet .c-title { color: var(--title, var(--ink)); } .sheet .c-text { color: var(--ink); }

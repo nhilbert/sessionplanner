@@ -11,7 +11,9 @@ uri() { python3 -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).as_uri(
 for page in "$@"; do
   # the print pages and the index are not sheets of their own
   case "$page" in
-    */all.print.html|all.print.html) run --no-pdf-header-footer --print-to-pdf="${PDF:-$(dirname "$(realpath "$page")")/print}/alle-blaetter.pdf" "$(uri "$(realpath "$page")")"; echo "all sheets -> alle-blaetter.pdf"; continue ;;
+    */all.print.html|all.print.html)
+      dest="${PDF:-$(dirname "$(realpath "$page")")/print}"; mkdir -p "$dest"
+      run --no-pdf-header-footer --print-to-pdf="$dest/alle-blaetter.pdf" "$(uri "$(realpath "$page")")"; echo "all sheets -> $dest/alle-blaetter.pdf"; continue ;;
     *.print.html|*/index.html|index.html) continue ;;
   esac
   page=$(realpath "$page"); dir=$(dirname "$page"); sheet=$(basename "${page%.html}")
