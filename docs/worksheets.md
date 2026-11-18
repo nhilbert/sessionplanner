@@ -138,9 +138,16 @@ What the block groups and the frame lean on. Effect sizes come from school and l
 3. **The editor.** Section 7.
 4. **More.** The print profile's choices per theme, the page kinds, the remaining blocks, a vector PDF if the test print asked for one.
 
-## 11. Open points
+## 11. Decided in stage 0 (2026-11-18)
 
-- What a view guest sees of a step's sheets, and who may write the print package (as the slide exports, or the owner only).
+- **Who writes the print package:** whoever sees the workshop, as with the slide exports (`GET /api/workshops/:id/print-package`, access `workshop-view`). It is built from the workshop as the caller sees it, so a guest gets only files they could download one by one, and a list of the steps they see. In the second instance this is like a single workshop's export, which members may take: nothing to close for them, the route only joins `core-routes.json` when the pin moves.
+- **Where the rule of a library file lives:** in the item's content, keyed by the file's id, as in a workshop (`ItemContent.printRules`), and mapped with the ids wherever files are copied. One shape in both places; the file's record stays as it is. A file can be linked to several steps of a workshop, each with a rule of its own, which a rule on the record could not hold.
+- **The number of groups stays with the workshop:** `Item.groups` is not part of an item's content, like a fixed start: a library entry inserted starts at 1, a duplicated step or workshop keeps it.
+- **Only PDFs take a rule** in stage 0; other files show no choice. A file deleted or unlinked takes its rule along.
+- **The words of the package** (job names, the print list) live in `src/domain/printing.ts` in German and English, as the server writes the package and the container holds no translations; the language comes with the request.
+
+## 12. Open points
+
+- What a view guest sees of a step's sheets (stage 2).
 - The second instance: every new route of the core is a decision there (`core-routes.json`), and migrations run per workspace; sample sheets for the starter pack.
 - The pitch of writing lines; raster against vector after the first test print; A3 pages at 300 dpi exceed the canvas size of iOS Safari.
-- Print rules of files in library entries: mapped with the attachment ids, or kept on the file's record.
