@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 """Builds the static preview and the print pages of a folder of worksheets (docs/worksheets.md, stage 1):
 
-    build.py ROOT
+    build.py ROOT [--theme NAME]
 
-ROOT/sheets/<sheet>/sheet.json  title, version ("v1.0 · Nov 2026"), theme, paper (A4, A3, A5), duplex
+ROOT/preview.json               {"theme": NAME}: the one theme of the folder, as a workshop has one (--theme wins)
+ROOT/sheets/<sheet>/sheet.json  title, paper (A4, A3, A5), duplex
 ROOT/sheets/<sheet>/NN-*.html   one page per file: <section class="sheet"> or <section class="sheet landscape">
 ROOT/themes/<theme>.css         the installation's themes; the neutral default comes from the repository
 ROOT/themes/<theme>/paper.json  optional: {"logo": "logo.png", "logoAt": "foot" | "head" | "head-right" | "none"}
 ROOT/assets/<file>              pictures, written as src="assets/<file>" (the app stores them as asset:<hash>)
 
 Every page is stored as the app would store it (src/domain/sheets.ts: sanitised, circles drawn), then the host's
-chrome is added: the logo where the theme puts it, the footer with the version and, on sheets of several pages, the
-page number. Writes ROOT/format/ (stylesheets and fonts), ROOT/<sheet>.html (the pages scaled to the window,
+chrome is added: the logo where the theme puts it, the footer with the date of the sheet's last change (its newest
+file) and, on sheets of several pages, the page number. Writes ROOT/format/ (stylesheets and fonts), ROOT/<sheet>.html (the pages scaled to the window,
 ?only=N for page N at its real size), ROOT/<sheet>.print.html (the pages at paper size, for print to PDF) and
 ROOT/all.print.html (every A4 sheet, for one test print) and ROOT/index.html. Needs node (the domain module runs as TypeScript)."""
 import html, json, os, re, shutil, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import LATO_CSS, REPO, copy_fonts, font_links, normalize_pages, sheet_meta, sheet_pages, theme_paper  # noqa: E402
+from common import REPO, copy_fonts, folder_theme, font_links, footer_date, normalize_pages, sheet_meta, sheet_pages, theme_paper  # noqa: E402
 
-root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else '.')
+args = sys.argv[1:]
+theme_arg = args[args.index('--theme') + 1] if '--theme' in args else None
+root = os.path.abspath(next((a for i, a in enumerate(args) if not a.startswith('--') and (i == 0 or args[i - 1] != '--theme')), '.'))
+theme = folder_theme(root, theme_arg)
+paper = theme_paper(root, theme)
 sheets_dir = os.path.join(root, 'sheets')
 fmt = os.path.join(root, 'format'); os.makedirs(os.path.join(fmt, 'themes'), exist_ok=True)
 here = os.path.dirname(os.path.abspath(__file__))
@@ -56,7 +61,7 @@ def chrome(page, n, total, meta, paper):
     at = paper.get('logoAt', 'foot') if logo else 'none'
     img = f'<img src="{html.escape(logo)}" alt="">' if logo else ''
     num = f'<span class="page">{n}/{total}</span>' if total > 1 else ''
-    foot = f'<div class="sheet-foot"><span class="version">{html.escape(meta.get("version", ""))}</span>{num}{img if at == "foot" else "<span></span>"}</div>'
+    foot = f'<div class="sheet-foot"><span class="date">{footer_date(meta["changed"])}</span>{num}{img if at == "foot" else "<span></span>"}</div>'
     head = f'<div class="sheet-head{" right" if at == "head-right" else ""}">{img}</div>' if at in ('head', 'head-right') else ''
     if head: page = re.sub(r'^<section class="sheet', '<section class="sheet logo-head', page, count=1)
     at_end = page.rfind('</section>')
@@ -69,8 +74,6 @@ for name in sorted(os.listdir(sheets_dir)) if os.path.isdir(sheets_dir) else []:
     d = os.path.join(sheets_dir, name)
     if not os.path.isdir(d) or not os.path.exists(os.path.join(d, 'sheet.json')): continue
     meta = sheet_meta(d)
-    theme = meta['theme']
-    paper = theme_paper(root, theme)
     files = sheet_pages(d)
     pages = normalize_pages([open(os.path.join(d, f), encoding='utf-8').read() for f in files])
     total = len(pages)
@@ -99,19 +102,17 @@ html, body {{ margin: 0; background: #fff; }}
 .sheet {{ break-after: page; }}
 .sheet.landscape {{ page: landscape; }}
 </style></head><body class="{cls}">{"".join(prints)}</body></html>''')
-    if size == 'A4': all_prints.append(f'<div data-theme="{html.escape(theme)}" class="paper-a4">{"".join(prints)}</div>')
-    index.append(f'<li><a href="{html.escape(name)}.html">{html.escape(meta["title"])}</a><div class="meta">{total} {"Seite" if total == 1 else "Seiten"} · {html.escape(meta.get("version", ""))} · Theme {html.escape(theme)}</div></li>')
+    if size == 'A4': all_prints.append(''.join(prints))
+    index.append(f'<li><a href="{html.escape(name)}.html">{html.escape(meta["title"])}</a><div class="meta">{total} {"Seite" if total == 1 else "Seiten"} · {footer_date(meta["changed"])} · Theme {html.escape(theme)}</div></li>')
     print(f'{name}.html: {total} pages ({theme}, {size})')
-themes = sorted({t for t in re.findall(r'data-theme="([^"]+)"', ''.join(all_prints))})
-links = ''.join(f'<link rel="stylesheet" href="{html.escape(theme_href(t))}">' for t in themes)
 open(os.path.join(root, 'all.print.html'), 'w', encoding='utf-8').write(f'''<!doctype html>
-<html lang="de"><head><meta charset="utf-8"><title>Alle Blätter</title>{font_links()}<link rel="stylesheet" href="format/sheets.css">{links}<style>
+<html lang="de" data-theme="{html.escape(theme)}"><head><meta charset="utf-8"><title>Alle Blätter</title>{font_links()}<link rel="stylesheet" href="format/sheets.css"><link rel="stylesheet" href="{html.escape(theme_href(theme))}"><style>
 @page {{ size: 210mm 297mm; margin: 0; }}
 @page landscape {{ size: 297mm 210mm; margin: 0; }}
 html, body {{ margin: 0; background: #fff; }}
 .sheet {{ break-after: page; }}
 .sheet.landscape {{ page: landscape; }}
-</style></head><body>{"".join(all_prints)}</body></html>''')
+</style></head><body class="paper-a4">{"".join(all_prints)}</body></html>''')
 open(os.path.join(root, 'index.html'), 'w', encoding='utf-8').write(f'''<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><title>Arbeitsblätter</title><link rel="stylesheet" href="format/preview.css"></head>
 <body><div class="top"><h1>Arbeitsblätter</h1></div><ul class="sheets">{"".join(index)}</ul></body></html>''')

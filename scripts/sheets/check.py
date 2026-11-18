@@ -20,7 +20,7 @@ import argparse, glob, json, os, re, subprocess, sys, tempfile
 from html.parser import HTMLParser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import LATO_CSS, REPO, normalize_pages, sheet_meta  # noqa: E402
+from common import LATO_CSS, REPO, folder_theme, normalize_pages, sheet_meta  # noqa: E402
 
 CSS = os.path.join(REPO, 'src', 'worksheets', 'sheets.css')
 DEFAULT_THEME = os.path.join(REPO, 'src', 'slides', 'themes', 'default.css')
@@ -116,8 +116,9 @@ def main():
         p = os.path.abspath(p)
         folder = p if os.path.isdir(p) else os.path.dirname(p)
         files = sorted(glob.glob(os.path.join(p, '*.html'))) if os.path.isdir(p) else [p]
-        meta = sheet_meta(folder) if os.path.exists(os.path.join(folder, 'sheet.json')) else {'theme': 'default', 'paper': 'A4'}
+        meta = sheet_meta(folder) if os.path.exists(os.path.join(folder, 'sheet.json')) else {'paper': 'A4'}
         root = a.root or (os.path.dirname(os.path.dirname(folder)) if os.path.basename(os.path.dirname(folder)) == 'sheets' else folder)
+        meta = {**meta, 'theme': folder_theme(root, a.theme)}
         for f in files: jobs.append((f, root, meta))
     sources = [open(f, encoding='utf-8').read() for f, _, _ in jobs]
     stored, blocks = normalize_pages(sources, with_blocks=True)
@@ -144,7 +145,7 @@ def main():
         if not a.no_render and not errors:
             if not chrome_bin: warnings.append('no headless Chromium: not rendered')
             else:
-                theme = a.theme or meta['theme']
+                theme = meta['theme']
                 tc = os.path.join(root, 'themes', theme + '.css')
                 errors += render(out, root, tc if os.path.exists(tc) else DEFAULT_THEME, theme, chrome_bin, meta['paper'])
         report[os.path.relpath(f)] = {'errors': errors, 'warnings': warnings}

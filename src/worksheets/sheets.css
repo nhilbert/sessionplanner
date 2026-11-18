@@ -71,22 +71,26 @@
 .lines-1 { --lines: 1; } .lines-2 { --lines: 2; } .lines-3 { --lines: 3; } .lines-4 { --lines: 4; } .lines-5 { --lines: 5; } .lines-6 { --lines: 6; }
 .lines-7 { --lines: 7; } .lines-8 { --lines: 8; } .lines-9 { --lines: 9; } .lines-10 { --lines: 10; } .lines-12 { --lines: 12; } .lines-15 { --lines: 15; }
 .sheet .pitch-l { --pitch: 12mm; }
-.sheet .pitch-xl { --pitch: 20mm; }
+.sheet .pitch-xl { --pitch: 24mm; }
 .sheet .w-20 { width: 20mm; } .sheet .w-30 { width: 30mm; } .sheet .w-40 { width: 40mm; } .sheet .w-50 { width: 50mm; } .sheet .w-60 { width: 60mm; }
 .sheet .w-70 { width: 70mm; } .sheet .w-80 { width: 80mm; } .sheet .w-100 { width: 100mm; } .sheet .w-120 { width: 120mm; }
 
-/* writing room: lines (lines-N), free space (h-N) or both; .write stands alone or inside a step, field or row */
+/* writing room: lines (lines-N), free space (h-N) or both; .write stands alone or inside a step, field or row.
+   The first line keeps some air below the text above it (--air, set where the pitch is known), or handwriting on it
+   runs into the question. */
 .sheet :is(.question, .write.block)::after, .sheet .write:not(.block) {
+  --air: calc(var(--pitch) * 0.6);
   content: ''; display: block;
-  height: calc(var(--lines, 0) * var(--pitch) + var(--space, 0mm));
-  background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--pitch) - 0.3mm), var(--rule) calc(var(--pitch) - 0.3mm) var(--pitch)) top left / 100% calc(var(--lines, 0) * var(--pitch)) no-repeat;
+  height: calc(var(--air) + var(--lines, 0) * var(--pitch) + var(--space, 0mm));
+  padding-top: var(--air);
+  background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--pitch) - 0.3mm), var(--rule) calc(var(--pitch) - 0.3mm) var(--pitch)) top left / 100% calc(var(--lines, 0) * var(--pitch)) no-repeat content-box;
 }
 .sheet .write.block { display: flex; flex-direction: column; }
 .sheet .write.block::after { flex: none; }
 .sheet .write.block.fill::after, .sheet .question.fill::after { flex: 1 1 auto; height: auto; background-size: 100% var(--pitch); background-repeat: repeat-y; min-height: var(--pitch); }
 
 /* a blank to write on inside a sentence: "Unsere Gruppe heißt: ____" */
-.sheet .blank { display: inline-block; width: 55mm; height: 1em; border-bottom: 0.3mm solid var(--rule); vertical-align: baseline; margin: 0 1mm; }
+.sheet .blank { display: inline-block; width: 55mm; height: 1em; border-bottom: 0.3mm solid var(--rule); vertical-align: baseline; margin: 0 1mm; position: relative; top: 1mm; }
 .sheet .blank.short { width: 22mm; }
 .sheet .blank.long { width: 105mm; }
 .sheet .blank.rest { width: auto; flex: 1; }
@@ -141,7 +145,6 @@
 
 /* ---------- write: a question with lines or free space ---------- */
 .question { display: flex; flex-direction: column; }
-.question::after { margin-top: 1mm; }
 .question.numbered > h3::before { counter-increment: n; content: counter(n) ". "; color: var(--mark); }
 .question > h3.plain { font-weight: 400; }
 
@@ -160,6 +163,13 @@
 .grid.g-wide { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(26mm, 0.55fr) 1fr 1fr; }
 .grid.g-wide > :first-child { grid-column: 1 / -1; }
 .grid.narrow { width: 82%; }
+/* ruled: no frames, the fields divided by thin rules between them (a cross on 2 × 2) */
+.grid.ruled { gap: 0.3mm; background: var(--rule); }
+.grid.ruled > .field { border: 0; background: #fff; padding: 3mm 5mm 4mm; }
+.grid.ruled > .field:nth-child(odd) { padding-left: 0; }
+.grid.ruled > .field:nth-child(even) { padding-right: 0; }
+/* a field may hold blocks of its own */
+.field > .block + .block, .field > :not(.block) + .block, .field > .block + :not(.block) { margin-top: 3mm; }
 .field { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: 20mm; min-width: 0; display: flex; flex-direction: column; }
 .field.center { align-items: center; justify-content: center; text-align: center; }
 .field.big .prompt, .field.big p { font-size: 15pt; letter-spacing: 0.02em; }

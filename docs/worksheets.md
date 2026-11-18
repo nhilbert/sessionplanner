@@ -66,18 +66,18 @@ The workshop's Output menu gets "Print package (ZIP)".
 </section>
 ```
 
-- A sheet has a title, a version label and date for the footer ("v1.0 · Nov 2026"), a paper size, one- or two-sided, and its pages. A page is one `section.sheet`, or `section.sheet.landscape`, with its blocks.
+- A sheet has a title, a paper size, one- or two-sided, and its pages. Its footer shows the date of its last change ("Stand 18.11.2026"), set by the app, never typed (decided 2026-11-18 on the first test print: a typed version label goes stale). The theme is the workshop's, as for slides: a sheet carries none, and every sheet of a workshop is branded alike. A page is one `section.sheet`, or `section.sheet.landscape`, with its blocks.
 - The header holds an eyebrow, the title (`h1`), one or two leads and optionally a small picture (`figure`) at its right.
 - Under the root stand only blocks: `class="block NAME"` with a name of the catalogue (section 5) and modifiers. The blocks stack from the top; one block with `fill` takes the rest of the page.
-- Heights and writing room are classes, never values: `h-N` (N millimetres: 10 … 140), `lines-N` (N writing lines), `fill`; the line pitch is 9 mm, `pitch-l` 12 mm, `pitch-xl` 20 mm (for posters). A picture's width is `w-N`. A blank inside a sentence is `span.blank` (`short`, `long`), a line of its own `p.fill-in`.
+- Heights and writing room are classes, never values: `h-N` (N millimetres: 10 … 140), `lines-N` (N writing lines), `fill`; the line pitch is 9 mm, `pitch-l` 12 mm, `pitch-xl` 24 mm (for posters). The first line keeps 0.6 of a pitch of air below the text above it, so handwriting on it does not run into the question (the first test print). A picture's width is `w-N`. A blank inside a sentence is `span.blank` (`short`, `long`), a line of its own `p.fill-in`.
 - Formatting by hand as on slides: `fs-xs fs-s fs-l fs-xl`, `accent`, `muted`, `fw-normal`, `strong`, `em`.
-- The host adds what the page must not contain: the logo where the theme puts it (`.sheet-head` at the top, centred or right, with `logo-head` on the root for the room; or in `.sheet-foot`), the footer line with the version and, on sheets of several pages, the page number. The paper size is a class of a wrapper: `paper-a3`, `paper-a5`, A4 without one.
+- The host adds what the page must not contain: the logo where the theme puts it (`.sheet-head` at the top, centred or right, with `logo-head` on the root for the room; or in `.sheet-foot`), the footer line with the date of the last change and, on sheets of several pages, the page number. The paper size is a class of a wrapper: `paper-a3`, `paper-a5`, A4 without one.
 - Sizes are millimetres and points of the paper; the host scales a page for thumbnails and the editor.
 - Elements, attributes and what is forbidden: as for slides (docs/slides.md, section 2), with the slides' sanitiser (`src/domain/sheets.ts`); the root is `section.sheet` instead of `section.slide`. A circle is drawn from its entries, as slide diagrams are.
 - Type and margins: body 11 pt, lead 11.5 pt, title 19 pt, hints 9.5 pt; margins 16 mm at the top, 17 mm right, 24 mm at the bottom (the footer) and 22 mm at the left for punching. The pitch of writing lines (9 mm) is decided on the test print.
 - On paper the theme gives the fonts, the text colour, the title colour and the deeper accent (numbers, the eyebrow's place, `accent`); the ground is white, frames are thin and black, writing lines thin and grey, nothing is filled. A dark theme is not yet turned into a print profile (stage 4).
 
-**Tools** (`scripts/sheets/`, as `scripts/slides/` for slides): `build.py ROOT` writes a preview per sheet, a print page per sheet and one for all A4 sheets; `check.py` checks pages against the format (sanitiser, blocks, classes, pictures, and rendered: overflow at the bottom margin, text leaving its frame); `render.sh` takes screenshots and prints PDFs with the browser, which is the test print of stage 1. A sheet is a folder `ROOT/sheets/<name>/` with `sheet.json` (title, version, theme, paper) and one `NN.html` per page; `scripts/sheets/examples/` holds a fictional catalogue sheet with every block. The stylesheet is `src/worksheets/sheets.css`.
+**Tools** (`scripts/sheets/`, as `scripts/slides/` for slides): `build.py ROOT` writes a preview per sheet, a print page per sheet and one for all A4 sheets; `check.py` checks pages against the format (sanitiser, blocks, classes, pictures, and rendered: overflow at the bottom margin, text leaving its frame); `render.sh` takes screenshots and prints PDFs with the browser, which is the test print of stage 1. A sheet is a folder `ROOT/sheets/<name>/` with `sheet.json` (title, paper) and one `NN.html` per page; the folder has one theme (`ROOT/preview.json` or `--theme`), as a workshop has, and the footer date is the newest file of the sheet; `scripts/sheets/examples/` holds a fictional catalogue sheet with every block. The stylesheet is `src/worksheets/sheets.css`.
 
 ## 5. Building blocks
 
@@ -105,7 +105,7 @@ Grouped by what participants do with the sheet. **v1** is what stage 1 builds; t
 | plan | if-then plan, appointment fields | | |
 | page kinds | poster (landscape, large type), cards to cut out, certificate, placemat on A3 for groups, picture with fields | | |
 
-Built in stage 1, besides the twelve: `write` (writing room on its own, or inside a step, field or row), `picture`, `pictures` (a row with captions) and `pair` (two columns of blocks; `r-2-1`, `r-1-2`, `r-3-2`). A picture can so stand beside or below any block (an illustration from the theme's pool or an upload). The circle shows its segments, not yet words in them.
+A grid can be `ruled`: no frames, the fields divided by thin rules, for a page of several topics side by side, each a field holding blocks of its own. Built in stage 1, besides the twelve: `write` (writing room on its own, or inside a step, field or row), `picture`, `pictures` (a row with captions) and `pair` (two columns of blocks; `r-2-1`, `r-1-2`, `r-3-2`). A picture can so stand beside or below any block (an illustration from the theme's pool or an upload). The circle shows its segments, not yet words in them.
 
 The markup of each block, with its modifiers, is in `SHEET_BLOCKS` (`src/domain/sheets.ts`), which the check script and later the connector read.
 

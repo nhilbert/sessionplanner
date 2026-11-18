@@ -1,5 +1,5 @@
 """Shared by build.py and check.py: the domain module run by node, the fonts, a sheet's files and its theme."""
-import hashlib, json, os, re, shutil, subprocess, sys
+import datetime, hashlib, json, os, re, shutil, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -57,11 +57,24 @@ def font_links(prefix='format/'):
 
 
 def sheet_meta(folder):
+    """title, paper, duplex; and the date of the last change (the newest of its files), which the footer shows."""
     meta = json.load(open(os.path.join(folder, 'sheet.json'), encoding='utf-8'))
-    meta['theme'] = str(meta.get('theme') or 'default').strip().lower()
     meta['paper'] = str(meta.get('paper') or 'A4').upper()
     meta['duplex'] = bool(meta.get('duplex'))
+    newest = max(os.path.getmtime(os.path.join(folder, f)) for f in os.listdir(folder) if f.endswith(('.html', '.json')))
+    meta['changed'] = datetime.date.fromtimestamp(newest)
     return meta
+
+
+def folder_theme(root, override=None):
+    """The one theme of a folder, as a workshop has one: --theme, else ROOT/preview.json, else the default."""
+    if override: return override.strip().lower()
+    p = os.path.join(root, 'preview.json')
+    return str((json.load(open(p, encoding='utf-8')) if os.path.exists(p) else {}).get('theme') or 'default').strip().lower()
+
+
+def footer_date(d):
+    return f'Stand {d.day:02d}.{d.month:02d}.{d.year}'
 
 
 def sheet_pages(folder):
