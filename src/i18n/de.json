@@ -187,6 +187,12 @@
     "printed": "Druck"
   },
   "sheets": {
+    "toLibrary": "In Bibliothekseintrag kopieren …",
+    "toLibraryHint": "„{{title}}“ wird als Kopie an den gewählten Eintrag angehängt. Die Druckregel bleibt beim Workshop.",
+    "toLibrarySearch": "Eintrag suchen",
+    "toLibraryNone": "In der Bibliothek gibt es noch keine Einheit.",
+    "toLibraryFull": "voll (10 Blätter)",
+    "copiedToLibrary": "In „{{title}}“ kopiert.",
     "factDuration": "Dauer",
     "factMethod": "Methode",
     "factMaterial": "Material",

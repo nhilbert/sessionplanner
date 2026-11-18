@@ -6,7 +6,7 @@ import { newId, type ItemFields, type Op } from '@/domain/ops'
 import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
 import { contentOf } from '@/domain/copy'
 import { newSlides } from '@/domain/slides'
-import { categoryName, useSettings } from '@/store/useSettings'
+import { categoryName, useLibraryEdit, useSettings } from '@/store/useSettings'
 import Swatches from '@/components/Swatches'
 import { MAX_DURATION, SNAP } from '@/domain/time'
 import { api, reportFailure } from '@/api'
@@ -52,6 +52,8 @@ export default function ItemPanel({
   const settings = useSettings((s) => s.settings)
   const brand = useSheetBrand(data.workshop.theme)
   const stepFacts = useStepFacts()
+  // who may change the library copies a sheet into an entry
+  const libraryEdit = useLibraryEdit()
   const set = (fields: Partial<ItemFields>) => change([{ op: 'set', entity: 'item', id: item.id, fields }])
   const timed = item.kind === 'block' || item.kind === 'break'
 
@@ -154,6 +156,7 @@ export default function ItemPanel({
       {item.kind === 'block' && (
         <WorksheetList
           facts={stepFacts(item)}
+          onCopiedToLibrary={libraryEdit ? (title) => onNotice(t('sheets.copiedToLibrary', { title })) : undefined}
           sheets={item.worksheets ?? []}
           // a removed sheet takes its print rule along
           onChange={(worksheets) => set({ worksheets, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds: item.attachmentIds, worksheets })) })}

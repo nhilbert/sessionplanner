@@ -1,13 +1,15 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Code, Copy, Eye, FilePlus, Pencil, Plus, Printer, Shuffle, Trash2 } from 'lucide-react'
+import { BookOpen, BookmarkPlus, Code, Copy, Eye, FilePlus, Pencil, Plus, Printer, Search, Shuffle, Trash2 } from 'lucide-react'
+import { matchesWords } from '@/store/useLibrary'
+import { reportFailure } from '@/api'
 import { sampleSets, seeded, variant } from '@/domain/sampleSets'
 import { SHEET_STARTERS, starterSheet, starterWords } from '@/domain/sheetStarters'
 import { SheetEditor } from './editor/SheetEditor'
 import { entryItems } from '@/domain/copy'
 import { newId } from '@/domain/ops'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, newWorksheets, normalizeSheetHtml, splitPages } from '@/domain/sheets'
-import { PAPERS, type Paper, type PrintRule, type Worksheet } from '@/domain/types'
+import { type ItemContent, PAPERS, type Paper, type PrintRule, type Worksheet } from '@/domain/types'
 import { ruleOf } from '@/domain/printing'
 import { PrintRuleField } from '@/planner/PrintRuleField'
 import type { AssetScope } from '@/api'
@@ -30,12 +32,14 @@ export interface SheetPrinting {
   onGroups: (groups: number) => void
 }
 
-export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing, facts }: { /** The step's facts, for the facts block of its sheets. */ facts?: string; sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
+export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing, facts, onCopiedToLibrary }: { /** Who may change the library copies a step's sheet into an entry; called with the entry's title. */ onCopiedToLibrary?: (title: string) => void; /** The step's facts, for the facts block of its sheets. */ facts?: string; sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
   const { t } = useTranslation()
   /** The sheet open in the editor, and whether it opened for editing. */
   const [viewing, setViewing] = useState<string | null>(null)
   const [startEditing, setStartEditing] = useState(false)
   const [starting, setStarting] = useState(false)
+  /** The sheet being copied into a library entry. */
+  const [copying, setCopying] = useState<Worksheet | null>(null)
   const open = (id: string, edit = false) => (setStartEditing(edit), setViewing(id))
   const [editing, setEditing] = useState<{ sheet: Worksheet; isNew: boolean } | null>(null)
   const [picking, setPicking] = useState(false)
@@ -53,6 +57,7 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
     ...(canEdit
       ? [
           { label: t('sheets.source'), icon: <Code size={14} />, onSelect: () => setEditing({ sheet, isNew: false }) },
+          ...(onCopiedToLibrary ? [{ label: t('sheets.toLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => setCopying(sheet) }] : []),
           { label: t('sheets.duplicate'), icon: <Copy size={14} />, disabled: full, onSelect: () => onChange?.([...sheets, { ...newWorksheets([sheet], newId)[0], title: t('sheets.copyTitle', { title: sheet.title }), updatedAt: now() }]) },
           { label: t('sheets.remove'), icon: <Trash2 size={14} />, danger: true, separated: true, onSelect: () => onChange?.(sheets.filter((s) => s.id !== sheet.id)) },
         ]
@@ -111,6 +116,16 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
         />
       )}
       {viewed && <SheetEditor key={viewed.id} sheet={viewed} scope={scope} theme={theme} logo={logo} facts={facts} canEdit={canEdit} startEditing={startEditing} onSave={(sheet) => replace({ ...sheet, updatedAt: now() })} onClose={() => setViewing(null)} onPrint={onPrint && (() => onPrint(viewed.id))} />}
+      {copying && (
+        <LibraryTargetPicker
+          sheet={copying}
+          onClose={() => setCopying(null)}
+          onCopied={(title) => {
+            setCopying(null)
+            onCopiedToLibrary?.(title)
+          }}
+        />
+      )}
       {starting && (
         <StarterPicker
           scope={scope}
@@ -303,6 +318,67 @@ function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetSc
           </li>
         ))}
       </ul>
+    </Modal>
+  )
+}
+
+/**
+ * A step's sheet copied into an existing library entry (a unit, or a unit inside a group): the entries to choose
+ * from, searchable; the copy gets ids of its own and joins the entry's sheets at the end. Its print rule stays with
+ * the workshop.
+ */
+function LibraryTargetPicker({ sheet, onClose, onCopied }: { sheet: Worksheet; onClose: () => void; onCopied: (title: string) => void }) {
+  const { t } = useTranslation()
+  const entries = useLibrary((st) => st.entries)
+  const load = useLibrary((st) => st.load)
+  const save = useLibrary((st) => st.save)
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => void load(), [load])
+  const targets = entries.flatMap((e) =>
+    entryItems(e).flatMap((c, n) => (c.kind === 'block' ? [{ entry: e, n, label: e.kind === 'group' ? `${e.title} › ${c.title || t('sheets.untitled')}` : e.title, count: (c.worksheets ?? []).length }] : [])),
+  )
+  const shown = targets.filter((x) => !query.trim() || matchesWords(x.label.toLowerCase(), query))
+  const pick = async (x: (typeof targets)[number]) => {
+    const copy = { ...newWorksheets([sheet], newId)[0], updatedAt: new Date().toISOString() }
+    const add = (c: ItemContent): ItemContent => ({ ...c, worksheets: [...(c.worksheets ?? []), copy] })
+    const e = x.entry
+    setBusy(true)
+    try {
+      if (e.kind === 'group') await save({ kind: 'group', title: e.title, data: { items: e.data.items.map((c, n) => (n === x.n ? add(c) : c)) } }, e.id)
+      else await save({ kind: 'item', title: e.title, data: add(e.data) }, e.id)
+      onCopied(x.label)
+    } catch (err) {
+      reportFailure(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal open onClose={onClose} width="max-w-lg">
+      <h2 className="mb-1 text-lg font-medium">{t('sheets.toLibrary')}</h2>
+      <p className="mb-3 text-[13px] text-ink-3">{t('sheets.toLibraryHint', { title: sheet.title })}</p>
+      <label className="relative mb-3 block">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3" />
+        <Input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('sheets.toLibrarySearch')} className="pl-8" />
+      </label>
+      {!targets.length ? (
+        <p className="text-[14px] text-ink-2">{t('sheets.toLibraryNone')}</p>
+      ) : (
+        <ul className="max-h-[50vh] divide-y divide-line overflow-y-auto">
+          {shown.map((x) => {
+            const full = x.count >= MAX_WORKSHEETS
+            return (
+              <li key={`${x.entry.id}:${x.n}`}>
+                <button type="button" disabled={busy || full} onClick={() => void pick(x)} className="flex w-full items-baseline gap-3 px-2 py-2 text-left text-[14px] hover:bg-surface-2 disabled:opacity-40">
+                  <span className="min-w-0 flex-1 truncate">{x.label}</span>
+                  <span className="shrink-0 text-[12px] text-ink-3">{full ? t('sheets.toLibraryFull') : t('sheets.count', { count: x.count })}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </Modal>
   )
 }

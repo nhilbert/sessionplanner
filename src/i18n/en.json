@@ -187,6 +187,12 @@
     "printed": "print"
   },
   "sheets": {
+    "toLibrary": "Copy into library entry …",
+    "toLibraryHint": "\"{{title}}\" is added to the chosen entry as a copy. The print rule stays with the workshop.",
+    "toLibrarySearch": "Search entries",
+    "toLibraryNone": "There is no unit in the library yet.",
+    "toLibraryFull": "full (10 sheets)",
+    "copiedToLibrary": "Copied into \"{{title}}\".",
     "factDuration": "Duration",
     "factMethod": "Method",
     "factMaterial": "Material",
