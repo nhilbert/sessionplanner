@@ -1,4 +1,5 @@
 import { sanitizeSlide } from './slides.ts'
+import type { Worksheet } from './types.ts'
 
 /**
  * Worksheets (docs/worksheets.md, sections 4 and 5): a page is one <section class="sheet"> (or "sheet landscape") in
@@ -108,4 +109,27 @@ export const isLandscape = (html: string): boolean => /^<section class="sheet\b[
 /** The blocks of a page, in order: the second class of each top-level block. */
 export function sheetBlocks(html: string): string[] {
   return [...html.matchAll(/<(?:div|ol|ul|dl|table|figure) class="block ([A-Za-z0-9_-]+)/g)].map((m) => m[1])
+}
+
+/** At most this many worksheets on a step, and pages on a sheet. */
+export const MAX_WORKSHEETS = 10
+export const MAX_SHEET_PAGES = 8
+
+/** Copies of worksheets with ids of their own (a duplicate, an inserted library entry); the content stays as it is. */
+export const newWorksheets = (sheets: Worksheet[], newId: () => string): Worksheet[] => sheets.map((w) => ({ ...w, id: newId(), pages: w.pages.map((p) => ({ ...p, id: newId() })) }))
+
+/** The pictures the pages of worksheets show (content hashes). */
+export const worksheetAssets = (sheets: Worksheet[]): string[] => [...new Set(sheets.flatMap((w) => w.pages.flatMap((p) => [...p.html.matchAll(/asset:([0-9a-f]{16,64})/g)].map((m) => m[1]))))]
+
+/**
+ * The pages of a source text: every <section class="sheet…"> … </section> is a page, in order; text without one is
+ * one page. Used where a sheet is written as one text (the source field, the connector).
+ */
+export function splitPages(source: string): string[] {
+  const pages: string[] = []
+  const open = /<section\b[^>]*class="sheet\b[^"]*"[^>]*>/gi
+  const starts = [...source.matchAll(open)].map((m) => m.index)
+  if (!starts.length) return source.trim() ? [source.trim()] : []
+  starts.forEach((at, i) => pages.push(source.slice(at, starts[i + 1] ?? source.length).trim()))
+  return pages
 }

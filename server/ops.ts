@@ -14,6 +14,7 @@ import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, placeI
 import { clockIn, formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
 import { packingKey, workshopPacking } from '../src/domain/packing.ts'
 import { mapRules } from '../src/domain/printing.ts'
+import { newWorksheets } from '../src/domain/sheets.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
@@ -316,7 +317,7 @@ export class Ops {
 
   /** Fresh content with the defaults for the kind (itemFields lays the agent's fields over it, a duration included). */
   private blankContent(kind: ItemKind = 'block'): ItemContent {
-    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [], categoryId: null, color: null }
+    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [], worksheets: [], categoryId: null, color: null }
   }
 
   /** The content fields an input carries, title aside: whether the agent meant to change an item's content. */
@@ -1063,7 +1064,7 @@ export class Ops {
   }
 
   private content(i: Item | ItemContent): ItemContent {
-    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, printRules: i.printRules ?? {}, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
+    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, printRules: i.printRules ?? {}, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), worksheets: newWorksheets(i.worksheets ?? [], newId), categoryId: i.categoryId, color: i.color }
   }
 
   /** Saves an item, or a group with its items, of a workshop to the library: a copy, its files too. */

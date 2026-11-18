@@ -4,6 +4,7 @@ import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLo
 import { newId, type Op, picturesIn } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
 import { mapRules, rulesOfLinked } from '../src/domain/printing.ts'
+import { newWorksheets } from '../src/domain/sheets.ts'
 import { changeTags, normalizeTags } from '../src/domain/tags.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
@@ -57,6 +58,7 @@ const ITEM_COLS: Columns = {
   printRules: ['print_rules', 'json'],
   groups: ['groups', 'num'],
   slides: ['slides', 'json'],
+  worksheets: ['worksheets', 'json'],
   categoryId: ['category_id', 'text'],
   color: ['color', 'text'],
 }
@@ -125,6 +127,7 @@ const toItem = (r: Row): Item => ({
   printRules: JSON.parse((r.print_rules as string | null) ?? '{}'),
   groups: (r.groups as number | null) ?? 1,
   slides: JSON.parse((r.slides as string | null) ?? '[]'),
+  worksheets: JSON.parse((r.worksheets as string | null) ?? '[]'),
   categoryId: (r.category_id as string | null) ?? null,
   color: (r.color as Item['color']) ?? null,
 })
@@ -173,8 +176,8 @@ const toLibraryEntry = (r: Row, attachments: LibraryAttachment[]): LibraryEntry 
 
 /** Entries saved before slides, files and print rules existed get empty ones. */
 function entryDefaults(data: { items?: Record<string, unknown>[] } & Record<string, unknown>) {
-  if (Array.isArray(data.items)) return { ...data, items: data.items.map((i) => ({ slides: [], attachmentIds: [], printRules: {}, ...i })) }
-  return { slides: [], attachmentIds: [], printRules: {}, ...data }
+  if (Array.isArray(data.items)) return { ...data, items: data.items.map((i) => ({ slides: [], worksheets: [], attachmentIds: [], printRules: {}, ...i })) }
+  return { slides: [], worksheets: [], attachmentIds: [], printRules: {}, ...data }
 }
 
 const toMember = (r: Row): Member => ({
@@ -517,6 +520,7 @@ export class Repo {
           groupId: i.groupId ? (groupIds.get(i.groupId) ?? null) : null,
           materials: i.materials.map((m) => ({ ...m, id: newId() })),
           slides: i.slides.map((s) => ({ ...s, id: newId() })),
+          worksheets: newWorksheets(i.worksheets ?? [], newId),
           attachmentIds: i.attachmentIds.filter((x) => files[x]).map((x) => files[x]),
           printRules: mapRules(i.printRules, (x) => files[x]),
         })
@@ -841,7 +845,7 @@ export class Repo {
   assetInWorkshop(workshopId: string, hash: string): boolean {
     const pair = this.assetPair(hash)
     const hashes = pair ? [pair.original, ...(pair.cutout ? [pair.cutout] : [])] : [hash]
-    return hashes.some((h) => !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND slides LIKE ? LIMIT 1').get(workshopId, `%asset:${h}%`) || !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ? AND pictures LIKE ? LIMIT 1').get(workshopId, `%${h}%`) || this.assetInPool(h))
+    return hashes.some((h) => !!this.db.prepare('SELECT 1 FROM items WHERE workshop_id = ? AND (slides LIKE ? OR worksheets LIKE ?) LIMIT 1').get(workshopId, `%asset:${h}%`, `%asset:${h}%`) || !!this.db.prepare('SELECT 1 FROM workshops WHERE id = ? AND pictures LIKE ? LIMIT 1').get(workshopId, `%${h}%`) || this.assetInPool(h))
   }
 
   /** Notes the pictures as held by the workshop. */
@@ -869,7 +873,7 @@ export class Repo {
   sweepAssets(): string[] {
     const used = (hash: string): boolean => {
       const like = `%asset:${hash}%`
-      return !!(this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM slide_templates WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM workshops WHERE pictures LIKE ? LIMIT 1').get(`%${hash}%`) || this.assetInPool(hash))
+      return !!(this.db.prepare('SELECT 1 FROM items WHERE slides LIKE ? OR worksheets LIKE ? LIMIT 1').get(like, like) || this.db.prepare('SELECT 1 FROM library WHERE data LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM deck_slides WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM slide_templates WHERE html LIKE ? LIMIT 1').get(like) || this.db.prepare('SELECT 1 FROM workshops WHERE pictures LIKE ? LIMIT 1').get(`%${hash}%`) || this.assetInPool(hash))
     }
     const gone: string[] = []
     for (const r of this.db.prepare('SELECT hash FROM assets').all() as Row[]) {
@@ -883,7 +887,7 @@ export class Repo {
   }
 
   /**
-   * Passes the markup of every stored slide – the steps of all workshops, the library, the pool, the templates –
+   * Passes the markup of every stored slide and worksheet page – the steps of all workshops, the library, the pool, the templates –
    * through `change` and keeps what it changed, in one transaction. Returns how many slides changed. The stamps
    * of workshops and library entries are left alone: the content is the same, only its pictures moved.
    */
@@ -905,14 +909,19 @@ export class Repo {
     }
     return this.tx(() => {
       // Not a workshop in the trash: it comes back as it went in.
-      for (const r of this.db.prepare('SELECT id, slides FROM items WHERE workshop_id NOT IN (SELECT id FROM workshops WHERE deleted_at IS NOT NULL)').all() as Row[]) {
+      for (const r of this.db.prepare('SELECT id, slides, worksheets FROM items WHERE workshop_id NOT IN (SELECT id FROM workshops WHERE deleted_at IS NOT NULL)').all() as Row[]) {
         const list = JSON.parse((r.slides as string | null) ?? '[]')
         if (slides(list)) this.db.prepare('UPDATE items SET slides = ? WHERE id = ?').run(JSON.stringify(list), r.id as string)
+        // the pages of its worksheets show pictures the same way
+        const sheets = JSON.parse((r.worksheets as string | null) ?? '[]') as { pages?: unknown }[]
+        if (sheets.map((w) => slides(w?.pages)).some(Boolean)) this.db.prepare('UPDATE items SET worksheets = ? WHERE id = ?').run(JSON.stringify(sheets), r.id as string)
       }
       for (const r of this.db.prepare('SELECT id, data FROM library').all() as Row[]) {
-        const data = JSON.parse(r.data as string) as { slides?: unknown; items?: { slides?: unknown }[] }
+        const data = JSON.parse(r.data as string) as { slides?: unknown; worksheets?: { pages?: unknown }[]; items?: { slides?: unknown; worksheets?: { pages?: unknown }[] }[] }
+        const sheets = (list: { pages?: unknown }[] | undefined) => (Array.isArray(list) ? list.map((w) => slides(w?.pages)).some(Boolean) : false)
         let any = slides(data.slides)
-        for (const i of Array.isArray(data.items) ? data.items : []) any = slides(i?.slides) || any
+        any = sheets(data.worksheets) || any
+        for (const i of Array.isArray(data.items) ? data.items : []) any = sheets(i?.worksheets) || slides(i?.slides) || any
         if (any) this.db.prepare('UPDATE library SET data = ? WHERE id = ?').run(JSON.stringify(data), r.id as string)
       }
       for (const table of ['deck_slides', 'slide_templates']) {

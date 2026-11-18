@@ -1,5 +1,6 @@
 import { newId } from './ops.ts'
 import { mapRules, rulesOfLinked } from './printing.ts'
+import { newWorksheets } from './sheets.ts'
 import { newSlides } from './slides.ts'
 import type { Group, Item, ItemContent, LibraryEntry } from './types.ts'
 
@@ -18,6 +19,7 @@ export const contentOf = (item: Item): ItemContent => ({
   attachmentIds: item.attachmentIds,
   printRules: item.printRules,
   slides: item.slides,
+  worksheets: item.worksheets,
   categoryId: item.categoryId,
   color: item.color,
 })
@@ -68,6 +70,7 @@ export function fromLibrary(entry: LibraryEntry, workshopId: string, dayId: stri
     ...c,
     materials: c.materials.map((m) => ({ ...m, id: newId() })),
     slides: newSlides(c.slides ?? [], newId),
+    worksheets: newWorksheets(c.worksheets ?? [], newId),
     id: newId(),
     workshopId,
     dayId,

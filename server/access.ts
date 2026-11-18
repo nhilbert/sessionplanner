@@ -150,9 +150,9 @@ export function libraryForGuest(entries: LibraryEntry[], access: LibraryAccess):
   })
 }
 
-/** The pictures the slides of these entries show. */
+/** The pictures the slides and worksheets of these entries show. */
 export const libraryPictures = (entries: LibraryEntry[]): Set<string> =>
-  new Set(entries.flatMap((e) => (e.kind === 'group' ? e.data.items : [e.data]).flatMap((i) => i.slides.flatMap((s) => [...s.html.matchAll(/asset:([0-9a-f]{64})/g)].map((m) => m[1])))))
+  new Set(entries.flatMap((e) => (e.kind === 'group' ? e.data.items : [e.data]).flatMap((i) => [...i.slides, ...(i.worksheets ?? []).flatMap((w) => w.pages)].flatMap((s) => [...s.html.matchAll(/asset:([0-9a-f]{64})/g)].map((m) => m[1])))))
 
 /** What a guest without the notes may not see: facilitation notes, note items and the files only note items link to. */
 export function forGuest(state: WorkshopState, access: Access): WorkshopState {

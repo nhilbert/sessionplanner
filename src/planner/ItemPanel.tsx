@@ -6,6 +6,7 @@ import { newId, type ItemFields, type Op } from '@/domain/ops'
 import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
 import { contentOf } from '@/domain/copy'
 import { newSlides } from '@/domain/slides'
+import { newWorksheets } from '@/domain/sheets'
 import { categoryName, useSettings } from '@/store/useSettings'
 import Swatches from '@/components/Swatches'
 import { MAX_DURATION, SNAP } from '@/domain/time'
@@ -181,7 +182,7 @@ export function itemActions({
     const grouped = item.groupId !== null && data.groups.some((g) => g.id === item.groupId)
     const siblings = grouped ? membersOf(data.items, item.groupId!) : entriesIn(data, item.dayId)
     const index = siblings.findIndex((s) => s.id === item.id) + 1
-    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })), slides: newSlides(item.slides, newId) }
+    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })), slides: newSlides(item.slides, newId), worksheets: newWorksheets(item.worksheets ?? [], newId) }
     const { position, ops } = placeIn(data, siblings.map((s) => s.id), copy.id, index)
     ops.push({ op: 'create', entity: 'item', record: { ...copy, position } })
     change(ops)

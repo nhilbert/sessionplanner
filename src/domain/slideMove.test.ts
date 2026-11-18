@@ -26,6 +26,7 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
   printRules: {},
   groups: 1,
   slides: [],
+  worksheets: [],
   categoryId: null,
   color: null,
   ...over,

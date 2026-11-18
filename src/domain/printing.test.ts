@@ -26,6 +26,7 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
   printRules: {},
   groups: 1,
   slides: [],
+  worksheets: [],
   categoryId: null,
   color: null,
   ...over,
@@ -121,7 +122,7 @@ describe('print lines', () => {
 })
 
 describe('rules travel with copies', () => {
-  const content = (over: Partial<ItemContent> = {}): ItemContent => ({ kind: 'block', title: 'A', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [], categoryId: null, color: null, ...over })
+  const content = (over: Partial<ItemContent> = {}): ItemContent => ({ kind: 'block', title: 'A', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [], worksheets: [], categoryId: null, color: null, ...over })
   const entry = (data: ItemContent): LibraryEntry => ({ id: 'e', kind: 'item', title: 'A', data, tags: [], attachments: [], createdAt: '', updatedAt: '' })
 
   it('inserting a library entry maps the rules to the workshop copies, groups start at 1', () => {
