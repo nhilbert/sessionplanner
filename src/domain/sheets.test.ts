@@ -35,6 +35,20 @@ describe('a worksheet page', () => {
   })
 })
 
+describe('the class of a page', () => {
+  // ".sheet" is one page high and cut at its edge. The print views once shared the name for their paper, and the
+  // planning overview printed its first page only.
+  it('is the worksheets\' alone: nothing else in the app is styled or named .sheet', () => {
+    const src = path.join(import.meta.dirname, '..')
+    const files = (readdirSync(src, { recursive: true }) as string[]).filter((f) => /\.(tsx|css)$/.test(f) && !f.split(path.sep).includes('worksheets'))
+    const named = files.filter((f) => {
+      const text = readFileSync(path.join(src, f), 'utf8')
+      return f.endsWith('.css') ? /(^|[\s,>+~(])\.sheet(?![\w-])/m.test(text) : /className=(?:"|\{cx\(')(?:[^"']*\s)?sheet(?:\s|"|')/.test(text)
+    })
+    expect(named).toEqual([])
+  })
+})
+
 describe('the circle', () => {
   it('draws one spoke per entry, four without a list', () => {
     expect((circleSvg(6).match(/class="spoke"/g) ?? []).length).toBe(6)

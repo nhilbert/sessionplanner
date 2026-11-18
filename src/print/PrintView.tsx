@@ -54,7 +54,7 @@ export default function PrintView({ data, variant, logo, logoSource, themeName, 
     <div className="print-root">
       <style>{pageCss(landscape, [title, dateRange(days, formatDate)].filter(Boolean).join(' · '), t('print.pageLabel'), t('print.pageOf'))}</style>
       <Toolbar variant={variant} onVariant={onVariant} options={options} update={update} reset={reset} changed={changed} onPrint={() => window.print()} onCopy={() => void copy()} onDownload={() => downloadText(fileName, markdown())} copied={copied} logoSource={logoSource} themeName={themeName} />
-      <main className={cx('sheet mx-auto my-6 px-[12mm] py-[14mm] text-[12.5px] leading-[1.4] print:m-0 print:w-auto print:max-w-none print:p-0', landscape ? 'max-w-[297mm]' : 'max-w-[210mm]')}>
+      <main className={cx('print-sheet mx-auto my-6 px-[12mm] py-[14mm] text-[12.5px] leading-[1.4] print:m-0 print:w-auto print:max-w-none print:p-0', landscape ? 'max-w-[297mm]' : 'max-w-[210mm]')}>
         <Head data={data} variant={variant} options={options} logo={options.logo ? logo : null} />
         {options.colorBars && options.legend && variant !== 'packing' && <Legend categories={legendCategories(perDay.flatMap((d) => d.rows), categories)} />}
         {variant === 'packing' ? (

@@ -184,6 +184,7 @@ Review of 2026-11-18 (code, functions and surface of the whole feature), what it
 - **Reading a page** remembers the blocks it read by their markup, so typing on the page reads only the block typed in.
 - **Server**: a picture rewritten in a library group reaches the slides and the worksheets of the same member; a long file name in the print package keeps its ending.
 - **Smaller**: a rule per person asks for the missing number of participants where it is missed; library rows and cards show the number of worksheets; copying into an entry says when it holds a sheet of the same title; a print job that no longer exists says so; a starter's name picks it; on a phone the editor's pages stand in one row.
+- **The class `.sheet` is the worksheets' alone** (found 2026-11-18): the print views (planning overview, moderation plan, client agenda, packing list) named their paper `.sheet` too, so since stage 2 the worksheet page's rules – one page high, cut at its edge – cut them to their first page. Their paper is `.print-sheet` now, and a test keeps the name from being shared again.
 - Left as it is: the format bar above the first text of a page covers the line above it, as on slides (it is the slide editor's bar).
 
 ## 8. Themes on paper
