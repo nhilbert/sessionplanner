@@ -123,6 +123,8 @@ export interface Item {
   groups: number
   /** Slides shown for this step, in order (docs/slides.md). */
   slides: Slide[]
+  /** Worksheets and handouts of this step, in order (docs/worksheets.md). */
+  worksheets: Worksheet[]
   categoryId: string | null
   /** Overrides the category's colour. */
   color: PaletteKey | null
@@ -140,6 +142,22 @@ export interface PrintRule {
   count?: number
   paper: Paper
   duplex: boolean
+}
+
+/** One page of a worksheet: markup in the worksheet format, sanitised on write and on render (src/domain/sheets.ts). */
+export interface WorksheetPage {
+  id: string
+  html: string
+}
+
+/** A worksheet or handout of a step: its pages on one paper size; the footer shows when it was last changed. */
+export interface Worksheet {
+  id: string
+  title: string
+  paper: Paper
+  pages: WorksheetPage[]
+  /** ISO time of the last change, set by whoever changes it. */
+  updatedAt: string
 }
 
 /** One slide: markup in the slide format, sanitised on write and on render (src/domain/slides.ts). */
@@ -247,7 +265,7 @@ export interface TrashedWorkshop {
 
 /** The content of an item without its place in a workshop (library entries, copies). */
 /** attachmentIds (and the keys of printRules) name the files of the place the content is in: a workshop's attachments, or the library entry's. */
-export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'attachmentIds' | 'printRules' | 'slides' | 'categoryId' | 'color'>
+export type ItemContent = Pick<Item, 'kind' | 'title' | 'description' | 'duration' | 'goal' | 'method' | 'lead' | 'notes' | 'materials' | 'attachmentIds' | 'printRules' | 'slides' | 'worksheets' | 'categoryId' | 'color'>
 
 /** A file of a library entry; inserting the entry gives the workshop a copy of it. */
 export type LibraryAttachment = Omit<Attachment, 'workshopId'> & { entryId: string }

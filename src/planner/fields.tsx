@@ -195,6 +195,7 @@ export function newItem(t: TFunction, workshopId: string, dayId: string | null, 
     printRules: {},
     groups: 1,
     slides: [],
+    worksheets: [],
     categoryId: null,
     color: null,
   }

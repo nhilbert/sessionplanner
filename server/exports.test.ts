@@ -123,7 +123,7 @@ describe('the print package', () => {
     // f3 is missing on disk: left out of the files, still on the list.
     expect([...files.keys()]).toEqual(['15x A4 einseitig – Ablauf.pdf', '4x A3 doppelseitig – Ablauf.pdf', 'Druckliste.md'])
     expect(files.get('15x A4 einseitig – Ablauf.pdf')).toBe('f1-bytes')
-    expect(files.get('Druckliste.md')).toContain('| Ablauf.pdf | Einstieg | pro Gruppe (3) | 3 | 4x A3 doppelseitig |')
+    expect(files.get('Druckliste.md')).toContain('| Ablauf.pdf | Datei | Einstieg | pro Gruppe (3) | 3 | 4x A3 doppelseitig |')
     expect(printPackageName(state, 'en')).toBe('Print package – Teamtag_ Planung_2027.zip')
   })
 

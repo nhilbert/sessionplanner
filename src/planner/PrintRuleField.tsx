@@ -7,7 +7,7 @@ import { QtyField } from './fields'
  * the choice needs one – the step's groups beside "per group", the count beside "count" – and paper size and one- or
  * two-sided sit behind a disclosure.
  */
-export function PrintRuleField({ name, rule, groups, participants, onRule, onGroups }: { name: string; rule: PrintRule; groups: number; participants: number | null; onRule: (rule: PrintRule) => void; onGroups: (groups: number) => void }) {
+export function PrintRuleField({ name, rule, groups, participants, paper, onRule, onGroups }: { name: string; rule: PrintRule; groups: number; participants: number | null; /** A worksheet's own paper: then only one- or two-sided can be chosen. */ paper?: Paper; onRule: (rule: PrintRule) => void; onGroups: (groups: number) => void }) {
   const { t } = useTranslation()
   const set = (patch: Partial<PrintRule>) => onRule({ ...rule, ...patch })
   return (
@@ -30,16 +30,18 @@ export function PrintRuleField({ name, rule, groups, participants, onRule, onGro
       {rule.mode !== 'off' && (
         <details className="group">
           <summary className="cursor-pointer list-none text-ink-3 hover:text-ink">
-            {rule.paper} · {rule.duplex ? t('printRule.twoSided') : t('printRule.oneSided')}
+            {paper ?? rule.paper} · {rule.duplex ? t('printRule.twoSided') : t('printRule.oneSided')}
           </summary>
           <div className="mt-1 flex items-center gap-3">
-            <select className="field h-7 w-auto py-0 pr-7 text-[12px]" aria-label={t('printRule.paper')} value={rule.paper} onChange={(e) => set({ paper: e.target.value as Paper })}>
-              {PAPERS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+            {!paper && (
+              <select className="field h-7 w-auto py-0 pr-7 text-[12px]" aria-label={t('printRule.paper')} value={rule.paper} onChange={(e) => set({ paper: e.target.value as Paper })}>
+                {PAPERS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            )}
             <label className="inline-flex items-center gap-1 text-ink-2">
               <input type="checkbox" checked={rule.duplex} onChange={(e) => set({ duplex: e.target.checked })} />
               {t('printRule.twoSided')}

@@ -62,14 +62,16 @@
 .sheet .quiet { color: var(--ink-3); font-style: italic; }
 /* plain lists, kept weak so every block's own rules win */
 .sheet :where(ul:not([class]), ol:not([class])) { padding-left: 5.5mm; }
+.sheet :where(ul:not([class])) { list-style: disc; }
+.sheet :where(ol:not([class])) { list-style: decimal; }
 .sheet :where(ul:not([class]), ol:not([class])) > :where(li + li) { margin-top: 0.8mm; }
 
 /* heights and lines, for any block that takes them: h-N is N millimetres, lines-N is N writing lines */
-.h-10 { --space: 10mm; } .h-15 { --space: 15mm; } .h-20 { --space: 20mm; } .h-25 { --space: 25mm; } .h-30 { --space: 30mm; }
-.h-35 { --space: 35mm; } .h-40 { --space: 40mm; } .h-45 { --space: 45mm; } .h-50 { --space: 50mm; } .h-60 { --space: 60mm; }
-.h-70 { --space: 70mm; } .h-80 { --space: 80mm; } .h-90 { --space: 90mm; } .h-100 { --space: 100mm; } .h-120 { --space: 120mm; } .h-140 { --space: 140mm; }
-.lines-1 { --lines: 1; } .lines-2 { --lines: 2; } .lines-3 { --lines: 3; } .lines-4 { --lines: 4; } .lines-5 { --lines: 5; } .lines-6 { --lines: 6; }
-.lines-7 { --lines: 7; } .lines-8 { --lines: 8; } .lines-9 { --lines: 9; } .lines-10 { --lines: 10; } .lines-12 { --lines: 12; } .lines-15 { --lines: 15; }
+:where(.sheet) .h-10 { --space: 10mm; } :where(.sheet) .h-15 { --space: 15mm; } :where(.sheet) .h-20 { --space: 20mm; } :where(.sheet) .h-25 { --space: 25mm; } :where(.sheet) .h-30 { --space: 30mm; }
+:where(.sheet) .h-35 { --space: 35mm; } :where(.sheet) .h-40 { --space: 40mm; } :where(.sheet) .h-45 { --space: 45mm; } :where(.sheet) .h-50 { --space: 50mm; } :where(.sheet) .h-60 { --space: 60mm; }
+:where(.sheet) .h-70 { --space: 70mm; } :where(.sheet) .h-80 { --space: 80mm; } :where(.sheet) .h-90 { --space: 90mm; } :where(.sheet) .h-100 { --space: 100mm; } :where(.sheet) .h-120 { --space: 120mm; } :where(.sheet) .h-140 { --space: 140mm; }
+:where(.sheet) .lines-1 { --lines: 1; } :where(.sheet) .lines-2 { --lines: 2; } :where(.sheet) .lines-3 { --lines: 3; } :where(.sheet) .lines-4 { --lines: 4; } :where(.sheet) .lines-5 { --lines: 5; } :where(.sheet) .lines-6 { --lines: 6; }
+:where(.sheet) .lines-7 { --lines: 7; } :where(.sheet) .lines-8 { --lines: 8; } :where(.sheet) .lines-9 { --lines: 9; } :where(.sheet) .lines-10 { --lines: 10; } :where(.sheet) .lines-12 { --lines: 12; } :where(.sheet) .lines-15 { --lines: 15; }
 .sheet .pitch-l { --pitch: 12mm; }
 .sheet .pitch-xl { --pitch: 24mm; }
 .sheet .w-20 { width: 20mm; } .sheet .w-30 { width: 30mm; } .sheet .w-40 { width: 40mm; } .sheet .w-50 { width: 50mm; } .sheet .w-60 { width: 60mm; }
@@ -98,144 +100,144 @@
 .sheet .fill-in > .blank { flex: 1; width: auto; }
 
 /* ---------- read: text ---------- */
-.text > * + * { margin-top: 2.4mm; }
-.text > h2 + *, .text > h3 + * { margin-top: 1mm; }
-.text > * + h2, .text > * + h3 { margin-top: 5mm; }
-.text.loose > * + * { margin-top: 4mm; }
+:where(.sheet) .text > * + * { margin-top: 2.4mm; }
+:where(.sheet) .text > h2 + *, :where(.sheet) .text > h3 + * { margin-top: 1mm; }
+:where(.sheet) .text > * + h2, :where(.sheet) .text > * + h3 { margin-top: 5mm; }
+:where(.sheet) .text.loose > * + * { margin-top: 4mm; }
 
 /* ---------- read: terms (a definition list) ---------- */
-.terms { display: grid; grid-template-columns: fit-content(36mm) 1fr; column-gap: 6mm; row-gap: 5mm; align-items: baseline; align-content: start; }
-.terms.fill { align-content: space-evenly; }
-.terms > dt { font-weight: 700; font-size: 11.5pt; line-height: 1.3; }
-.terms > dd { margin: 0; }
-.terms.wide { grid-template-columns: fit-content(50mm) 1fr; }
+:where(.sheet) .terms { display: grid; grid-template-columns: fit-content(36mm) 1fr; column-gap: 6mm; row-gap: 5mm; align-items: baseline; align-content: start; }
+:where(.sheet) .terms.fill { align-content: space-evenly; }
+:where(.sheet) .terms > dt { font-weight: 700; font-size: 11.5pt; line-height: 1.3; }
+:where(.sheet) .terms > dd { margin: 0; }
+:where(.sheet) .terms.wide { grid-template-columns: fit-content(50mm) 1fr; }
 
 /* ---------- read: a list in columns, with optional section headings and running numbers ---------- */
-.columns { column-count: 2; column-gap: 10mm; line-height: 1.3; }
-.columns.cols-3 { column-count: 3; column-gap: 7mm; }
-.columns.fill { column-fill: auto; }
+:where(.sheet) .columns { column-count: 2; column-gap: 10mm; line-height: 1.3; }
+:where(.sheet) .columns.cols-3 { column-count: 3; column-gap: 7mm; }
+:where(.sheet) .columns.fill { column-fill: auto; }
 .sheet .columns > ul, .sheet .columns > ol { list-style: none; padding: 0; }
 .sheet .columns li { break-inside: avoid; margin: 0; }
-.columns > h3 { break-after: avoid; margin: 4mm 0 0.8mm; }
-.columns > h3:first-child { margin-top: 0; }
-.columns.numbered { counter-reset: item; }
-.columns.numbered li::before { counter-increment: item; content: counter(item) ". "; color: var(--ink-2); }
-.columns.small { font-size: 9.5pt; line-height: 1.15; }
-.columns.small > h3 { font-size: 10pt; margin: 2.6mm 0 0.5mm; }
+:where(.sheet) .columns > h3 { break-after: avoid; margin: 4mm 0 0.8mm; }
+:where(.sheet) .columns > h3:first-child { margin-top: 0; }
+:where(.sheet) .columns.numbered { counter-reset: item; }
+:where(.sheet) .columns.numbered li::before { counter-increment: item; content: counter(item) ". "; color: var(--ink-2); }
+:where(.sheet) .columns.small { font-size: 9.5pt; line-height: 1.15; }
+:where(.sheet) .columns.small > h3 { font-size: 10pt; margin: 2.6mm 0 0.5mm; }
 
 /* ---------- read: a table, also with empty rows to fill in ---------- */
 .sheet table.table { width: 100%; border-collapse: collapse; font-size: 10.5pt; line-height: 1.3; }
-.table th { text-align: left; font-weight: 700; padding: 1.6mm 2mm; border-bottom: 0.35mm solid var(--frame); vertical-align: bottom; }
-.table td { padding: 1.6mm 2mm; border-bottom: 0.3mm solid var(--rule); vertical-align: top; }
-.table.boxed th, .table.boxed td { border: 0.3mm solid var(--frame); }
-.table.tall td { height: var(--space, 11mm); }
+:where(.sheet) .table th { text-align: left; font-weight: 700; padding: 1.6mm 2mm; border-bottom: 0.35mm solid var(--frame); vertical-align: bottom; }
+:where(.sheet) .table td { padding: 1.6mm 2mm; border-bottom: 0.3mm solid var(--rule); vertical-align: top; }
+:where(.sheet) .table.boxed th, :where(.sheet) .table.boxed td { border: 0.3mm solid var(--frame); }
+:where(.sheet) .table.tall td { height: var(--space, 11mm); }
 
 /* ---------- instruct: the steps of an exercise (title, hint, optional time), numbered across the page ---------- */
-.steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 5mm; }
-.steps.fill { justify-content: space-between; }
-.steps.tight { gap: 3mm; }
-.steps > li > h3 { display: flex; align-items: baseline; gap: 2mm; }
-.steps > li > h3::before { counter-increment: n; content: counter(n) "."; color: var(--mark); }
-.steps.plain > li > h3::before { content: none; counter-increment: none; }
-.steps > li > h3 > .time { margin-left: auto; font-weight: 400; font-size: 9.5pt; color: var(--ink-2); white-space: nowrap; }
-.steps > li > :not(h3) { margin-top: 1.4mm; }
-.steps:not(.plain) > li > :not(h3) { margin-left: 5mm; }
-.steps > li ul { list-style: disc; padding-left: 5mm; }
-.steps > li ul > li + li { margin-top: 0.6mm; }
+:where(.sheet) .steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 5mm; }
+:where(.sheet) .steps.fill { justify-content: space-between; }
+:where(.sheet) .steps.tight { gap: 3mm; }
+:where(.sheet) .steps > li > h3 { display: flex; align-items: baseline; gap: 2mm; }
+:where(.sheet) .steps > li > h3::before { counter-increment: n; content: counter(n) "."; color: var(--mark); }
+:where(.sheet) .steps.plain > li > h3::before { content: none; counter-increment: none; }
+:where(.sheet) .steps > li > h3 > .time { margin-left: auto; font-weight: 400; font-size: 9.5pt; color: var(--ink-2); white-space: nowrap; }
+:where(.sheet) .steps > li > :not(h3) { margin-top: 1.4mm; }
+:where(.sheet) .steps:not(.plain) > li > :not(h3) { margin-left: 5mm; }
+:where(.sheet) .steps > li ul { list-style: disc; padding-left: 5mm; }
+:where(.sheet) .steps > li ul > li + li { margin-top: 0.6mm; }
 
 /* ---------- write: a question with lines or free space ---------- */
-.question { display: flex; flex-direction: column; }
-.question.numbered > h3::before { counter-increment: n; content: counter(n) ". "; color: var(--mark); }
-.question > h3.plain { font-weight: 400; }
+:where(.sheet) .question { display: flex; flex-direction: column; }
+:where(.sheet) .question.numbered > h3::before { counter-increment: n; content: counter(n) ". "; color: var(--mark); }
+:where(.sheet) .question > h3.plain { font-weight: 400; }
 
 /* ---------- write: a box with a prompt ---------- */
-.box { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: var(--space, 25mm); display: flex; flex-direction: column; }
-.box.round { border-radius: 3mm; }
-.box.fill { min-height: 0; }
-.box > .write { flex: 1 1 auto; }
+:where(.sheet) .box { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: var(--space, 25mm); display: flex; flex-direction: column; }
+:where(.sheet) .box.round { border-radius: 3mm; }
+:where(.sheet) .box.fill { min-height: 0; }
+:where(.sheet) .box > .write { flex: 1 1 auto; }
 
 /* ---------- order: a grid of fields ---------- */
-.grid { display: grid; gap: 4mm; height: var(--space, auto); grid-auto-rows: 1fr; }
-.grid.fill { height: auto; }
-.grid.g-2 { grid-template-columns: 1fr 1fr; }
-.grid.g-3 { grid-template-columns: repeat(3, 1fr); }
-.grid.g-2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.grid.g-wide { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(26mm, 0.55fr) 1fr 1fr; }
-.grid.g-wide > :first-child { grid-column: 1 / -1; }
-.grid.narrow { width: 82%; }
+:where(.sheet) .grid { display: grid; gap: 4mm; height: var(--space, auto); grid-auto-rows: 1fr; }
+:where(.sheet) .grid.fill { height: auto; }
+:where(.sheet) .grid.g-2 { grid-template-columns: 1fr 1fr; }
+:where(.sheet) .grid.g-3 { grid-template-columns: repeat(3, 1fr); }
+:where(.sheet) .grid.g-2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+:where(.sheet) .grid.g-wide { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(26mm, 0.55fr) 1fr 1fr; }
+:where(.sheet) .grid.g-wide > :first-child { grid-column: 1 / -1; }
+:where(.sheet) .grid.narrow { width: 82%; }
 /* ruled: no frames, the fields divided by thin rules between them (a cross on 2 × 2) */
-.grid.ruled { gap: 0.3mm; background: var(--rule); }
-.grid.ruled > .field { border: 0; background: #fff; padding: 3mm 5mm 4mm; }
-.grid.ruled > .field:nth-child(odd) { padding-left: 0; }
-.grid.ruled > .field:nth-child(even) { padding-right: 0; }
+:where(.sheet) .grid.ruled { gap: 0.3mm; background: var(--rule); }
+:where(.sheet) .grid.ruled > .field { border: 0; background: #fff; padding: 3mm 5mm 4mm; }
+:where(.sheet) .grid.ruled > .field:nth-child(odd) { padding-left: 0; }
+:where(.sheet) .grid.ruled > .field:nth-child(even) { padding-right: 0; }
 /* a field may hold blocks of its own */
-.field > .block + .block, .field > :not(.block) + .block, .field > .block + :not(.block) { margin-top: 3mm; }
-.field { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: 20mm; min-width: 0; display: flex; flex-direction: column; }
-.field.center { align-items: center; justify-content: center; text-align: center; }
-.field.big .prompt, .field.big p { font-size: 15pt; letter-spacing: 0.02em; }
-.field.thick { border-width: 0.6mm; }
+:where(.sheet) .field > .block + .block, :where(.sheet) .field > :not(.block) + .block, :where(.sheet) .field > .block + :not(.block) { margin-top: 3mm; }
+:where(.sheet) .field { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: 20mm; min-width: 0; display: flex; flex-direction: column; }
+:where(.sheet) .field.center { align-items: center; justify-content: center; text-align: center; }
+:where(.sheet) .field.big .prompt, :where(.sheet) .field.big p { font-size: 15pt; letter-spacing: 0.02em; }
+:where(.sheet) .field.thick { border-width: 0.6mm; }
 
 /* ---------- order: rows with a label and a field ---------- */
-.rows { display: flex; flex-direction: column; gap: 3.5mm; }
-.rows > .row { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: var(--space, 32mm); display: grid; grid-template-columns: 32mm 1fr; column-gap: 4mm; align-content: start; }
-.rows.fill > .row { flex: 1 1 0; min-height: 0; }
-.rows > .row > h3 { grid-column: 1; grid-row: 1 / span 4; font-weight: 400; font-size: 11.5pt; line-height: 1.3; }
-.rows > .row > :not(h3) { grid-column: 2; }
+:where(.sheet) .rows { display: flex; flex-direction: column; gap: 3.5mm; }
+:where(.sheet) .rows > .row { border: 0.35mm solid var(--frame); padding: 2.5mm 3mm; min-height: var(--space, 32mm); display: grid; grid-template-columns: 32mm 1fr; column-gap: 4mm; align-content: start; }
+:where(.sheet) .rows.fill > .row { flex: 1 1 0; min-height: 0; }
+:where(.sheet) .rows > .row > h3 { grid-column: 1; grid-row: 1 / span 4; font-weight: 400; font-size: 11.5pt; line-height: 1.3; }
+:where(.sheet) .rows > .row > :not(h3) { grid-column: 2; }
 
 /* ---------- order: a circle with segments and an open middle (drawn from the number of entries) ---------- */
-.circle { position: relative; display: flex; justify-content: center; align-items: center; height: var(--space, 120mm); container-type: size; }
-.circle.fill { height: auto; min-height: 0; }
-.circle > svg.drawn { height: 100%; width: auto; max-width: 100%; aspect-ratio: 1; overflow: visible; }
-.circle .drawn .outer, .circle .drawn .spoke { fill: none; stroke: var(--rule); stroke-width: 0.3mm; vector-effect: non-scaling-stroke; }
-.circle .drawn .outer { stroke: var(--frame); }
-.circle .drawn .hub { fill: none; stroke: var(--frame); stroke-width: 1.8mm; vector-effect: non-scaling-stroke; }
-.circle > ol { display: none; }
+:where(.sheet) .circle { position: relative; display: flex; justify-content: center; align-items: center; height: var(--space, 120mm); container-type: size; }
+:where(.sheet) .circle.fill { height: auto; min-height: 0; }
+:where(.sheet) .circle > svg.drawn { height: 100%; width: auto; max-width: 100%; aspect-ratio: 1; overflow: visible; }
+:where(.sheet) .circle .drawn .outer, :where(.sheet) .circle .drawn .spoke { fill: none; stroke: var(--rule); stroke-width: 0.3mm; vector-effect: non-scaling-stroke; }
+:where(.sheet) .circle .drawn .outer { stroke: var(--frame); }
+:where(.sheet) .circle .drawn .hub { fill: none; stroke: var(--frame); stroke-width: 1.8mm; vector-effect: non-scaling-stroke; }
+:where(.sheet) .circle > ol { display: none; }
 /* the middle scales with the circle: the open middle is 30 % of its diameter */
-.circle > .middle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: clamp(8pt, 4.2cqmin, 14pt); white-space: nowrap; }
-.circle > .middle .blank { width: 13cqmin; margin: 0 0.5mm; }
+:where(.sheet) .circle > .middle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: clamp(8pt, 4.2cqmin, 14pt); white-space: nowrap; }
+:where(.sheet) .circle > .middle .blank { width: 13cqmin; margin: 0 0.5mm; }
 
 /* ---------- rate: criteria rows with a value and notes ---------- */
-.criteria { display: flex; flex-direction: column; gap: 2.5mm; }
-.criteria > .crit { border: 0.35mm solid var(--frame); padding: 2mm 3mm 2.5mm; min-height: var(--space, 30mm); display: grid; grid-template-columns: 36mm; grid-template-rows: auto 1fr auto; grid-auto-columns: 1fr; grid-auto-flow: column; column-gap: 4mm; }
-.criteria.fill > .crit { flex: 1 1 0; min-height: 0; }
-.crit > .label { grid-column: 1; grid-row: 1; font-size: 9.5pt; }
-.crit > .score { grid-column: 1; grid-row: 2; align-self: center; display: flex; align-items: flex-end; gap: 1.2mm; font-size: 10pt; color: var(--ink-3); padding: 1.5mm 0; }
-.crit > .score::before { content: ''; width: 11mm; height: 11mm; border: 0.3mm solid var(--rule); }
-.crit > h3 { grid-column: 1; grid-row: 3; font-size: 12pt; color: var(--mark); white-space: nowrap; }
-.crit > .note { grid-row: 1 / span 2; font-size: 9.5pt; }
+:where(.sheet) .criteria { display: flex; flex-direction: column; gap: 2.5mm; }
+:where(.sheet) .criteria > .crit { border: 0.35mm solid var(--frame); padding: 2mm 3mm 2.5mm; min-height: var(--space, 30mm); display: grid; grid-template-columns: 36mm; grid-template-rows: auto 1fr auto; grid-auto-columns: 1fr; grid-auto-flow: column; column-gap: 4mm; }
+:where(.sheet) .criteria.fill > .crit { flex: 1 1 0; min-height: 0; }
+:where(.sheet) .crit > .label { grid-column: 1; grid-row: 1; font-size: 9.5pt; }
+:where(.sheet) .crit > .score { grid-column: 1; grid-row: 2; align-self: center; display: flex; align-items: flex-end; gap: 1.2mm; font-size: 10pt; color: var(--ink-3); padding: 1.5mm 0; }
+:where(.sheet) .crit > .score::before { content: ''; width: 11mm; height: 11mm; border: 0.3mm solid var(--rule); }
+:where(.sheet) .crit > h3 { grid-column: 1; grid-row: 3; font-size: 12pt; color: var(--mark); white-space: nowrap; }
+:where(.sheet) .crit > .note { grid-row: 1 / span 2; font-size: 9.5pt; }
 
 /* ---------- plan: lines with a box to tick ---------- */
-.ticks { list-style: none; padding: 0; }
-.ticks > li { position: relative; min-height: var(--pitch); padding: 0 0 1.2mm 9mm; display: flex; align-items: flex-end; }
-.ticks > li::before { content: ''; position: absolute; left: 0; bottom: 1mm; width: 5mm; height: 5mm; border: 0.3mm solid var(--ink); }
-.ticks > li::after { content: ''; position: absolute; left: 9mm; right: 0; bottom: 0; border-bottom: 0.3mm solid var(--rule); }
-.ticks.no-lines > li::after { display: none; }
-.ticks.no-boxes > li { padding-left: 0; }
-.ticks.no-boxes > li::before { display: none; }
-.ticks.no-boxes > li::after { left: 16mm; }
-.ticks.pitch-l > li::before { width: 6mm; height: 6mm; }
-.ticks.cols-2 { column-count: 2; column-gap: 10mm; }
-.ticks.cols-2 > li { break-inside: avoid; }
+:where(.sheet) .ticks { list-style: none; padding: 0; }
+:where(.sheet) .ticks > li { position: relative; min-height: var(--pitch); padding: 0 0 1.2mm 9mm; display: flex; align-items: flex-end; }
+:where(.sheet) .ticks > li::before { content: ''; position: absolute; left: 0; bottom: 1mm; width: 5mm; height: 5mm; border: 0.3mm solid var(--ink); }
+:where(.sheet) .ticks > li::after { content: ''; position: absolute; left: 9mm; right: 0; bottom: 0; border-bottom: 0.3mm solid var(--rule); }
+:where(.sheet) .ticks.no-lines > li::after { display: none; }
+:where(.sheet) .ticks.no-boxes > li { padding-left: 0; }
+:where(.sheet) .ticks.no-boxes > li::before { display: none; }
+:where(.sheet) .ticks.no-boxes > li::after { left: 16mm; }
+:where(.sheet) .ticks.pitch-l > li::before { width: 6mm; height: 6mm; }
+:where(.sheet) .ticks.cols-2 { column-count: 2; column-gap: 10mm; }
+:where(.sheet) .ticks.cols-2 > li { break-inside: avoid; }
 
 /* ---------- a picture, pictures in a row, two blocks side by side ---------- */
-figure.picture { display: flex; flex-direction: column; align-items: center; gap: 1.5mm; }
-figure.picture.left { align-items: flex-start; }
-figure.picture.right { align-items: flex-end; }
-figure.picture > img { max-width: 100%; max-height: var(--space, 60mm); width: auto; height: auto; object-fit: contain; }
-figure.picture.fill > img { max-height: 100%; }
+:where(.sheet) figure.picture { display: flex; flex-direction: column; align-items: center; gap: 1.5mm; }
+:where(.sheet) figure.picture.left { align-items: flex-start; }
+:where(.sheet) figure.picture.right { align-items: flex-end; }
+:where(.sheet) figure.picture > img { max-width: 100%; max-height: var(--space, 60mm); width: auto; height: auto; object-fit: contain; }
+:where(.sheet) figure.picture.fill > img { max-height: 100%; }
 .sheet figcaption { font-size: 9pt; line-height: 1.25; color: var(--ink-2); text-align: center; }
-.pictures { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3mm; }
-.pictures > figure { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
-.pictures > figure > img { width: 100%; height: var(--space, 45mm); object-fit: cover; }
-.pictures.contain > figure > img { object-fit: contain; }
-.pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm; align-items: start; }
-.pair.r-2-1 { grid-template-columns: 2fr 1fr; }
-.pair.r-1-2 { grid-template-columns: 1fr 2fr; }
-.pair.r-3-2 { grid-template-columns: 3fr 2fr; }
-.pair.fill { align-items: stretch; grid-template-rows: minmax(0, 1fr); }
-.pair > div { display: flex; flex-direction: column; gap: 4mm; min-width: 0; min-height: 0; }
-.pair > div > .fill { flex: 1 1 0; min-height: 0; }
-.pair.bottom { align-items: end; }
+:where(.sheet) .pictures { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3mm; }
+:where(.sheet) .pictures > figure { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+:where(.sheet) .pictures > figure > img { width: 100%; height: var(--space, 45mm); object-fit: cover; }
+:where(.sheet) .pictures.contain > figure > img { object-fit: contain; }
+:where(.sheet) .pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm; align-items: start; }
+:where(.sheet) .pair.r-2-1 { grid-template-columns: 2fr 1fr; }
+:where(.sheet) .pair.r-1-2 { grid-template-columns: 1fr 2fr; }
+:where(.sheet) .pair.r-3-2 { grid-template-columns: 3fr 2fr; }
+:where(.sheet) .pair.fill { align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+:where(.sheet) .pair > div { display: flex; flex-direction: column; gap: 4mm; min-width: 0; min-height: 0; }
+:where(.sheet) .pair > div > .fill { flex: 1 1 0; min-height: 0; }
+:where(.sheet) .pair.bottom { align-items: end; }
 
 /* ---------- what the host adds: the logo and the footer line ---------- */
 .sheet > .sheet-foot { position: absolute; left: 14mm; right: var(--m-right); bottom: 8mm; display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; font-size: 8pt; line-height: 1.2; color: var(--ink-3); }

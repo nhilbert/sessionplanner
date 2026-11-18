@@ -27,6 +27,7 @@ export const ITEM_FIELDS = [
   'printRules',
   'groups',
   'slides',
+  'worksheets',
   'categoryId',
   'color',
 ] as const

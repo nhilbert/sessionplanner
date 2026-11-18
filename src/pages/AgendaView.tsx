@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Eye, Flag, Package, Paperclip, Printer, StickyNote } from 'lucide-react'
+import { Eye, FileText, Flag, Package, Paperclip, Printer, StickyNote } from 'lucide-react'
 import { api } from '@/api'
-import type { Item, WorkshopState } from '@/domain/types'
+import type { Item, Worksheet, WorkshopState } from '@/domain/types'
+import { SheetViewer } from '@/worksheets/WorksheetList'
+import { useSheetBrand } from '@/worksheets/SheetView'
 import { entriesIn, itemsIn, sortedDays } from '@/domain/order'
 import { durationOf, formatDuration, formatTime, scheduleDay, type DaySchedule } from '@/domain/time'
 import { formatDate } from '@/i18n'
@@ -115,7 +118,7 @@ function Row({ item, schedule, data, color }: { item: Item; schedule: DaySchedul
           </div>
           {item.description && <p className="mt-0.5 whitespace-pre-line text-[13px] text-ink-2">{item.description}</p>}
           {item.notes && <Markdown text={item.notes} className="mt-1 rounded bg-surface-2 px-2 py-1 text-[12px] text-ink-2" />}
-          {(item.materials.length > 0 || files.length > 0) && (
+          {(item.materials.length > 0 || files.length > 0 || (item.worksheets ?? []).length > 0) && (
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-ink-3">
               {item.materials.map((m) => (
                 <span key={m.id} className="inline-flex items-center gap-1">
@@ -130,10 +133,28 @@ function Row({ item, schedule, data, color }: { item: Item; schedule: DaySchedul
                   {a.name}
                 </a>
               ))}
+              {(item.worksheets ?? []).map((w) => (
+                <SheetLink key={w.id} sheet={w} data={data} />
+              ))}
             </div>
           )}
         </div>
       </div>
     </li>
+  )
+}
+
+/** A worksheet of a step: its title, a click shows its pages (docs/worksheets.md; guests see sheets as they see slides). */
+function SheetLink({ sheet, data }: { sheet: Worksheet; data: WorkshopState }) {
+  const [open, setOpen] = useState(false)
+  const brand = useSheetBrand(data.workshop.theme)
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1 hover:text-ink hover:underline">
+        <FileText size={11} />
+        {sheet.title}
+      </button>
+      {open && <SheetViewer sheet={sheet} scope={{ workshopId: data.workshop.id }} theme={brand.theme} logo={brand.logo} onClose={() => setOpen(false)} />}
+    </>
   )
 }

@@ -551,3 +551,62 @@ describe('slides', () => {
     expect(() => themed.workshopCreate({ title: 'Verwaist', theme: 'Bad Name!' })).toThrow(/no theme/)
   })
 })
+
+describe('worksheets and print rules (docs/worksheets.md)', () => {
+  const page = (title: string) => `<section class="sheet"><header><h1>${title}</h1></header><div class="block question lines-2"><h3>Frage</h3></div></section>`
+
+  it('adds, reads, changes and removes worksheets of a unit, sanitised, with a new date on each change', () => {
+    const { ops } = setup()
+    const id = teamDay(ops)
+    const step = { workshop: id, item: 'Begrüßung' }
+    expect(ops.worksheetList(step)).toEqual({ item: 'Begrüßung', count: 0, worksheets: [] })
+    const added = ops.worksheetAdd({ ...step, title: 'Mein Tag', source: `${page('Eins')}<script>x()</script>\n${page('Zwei')}` })
+    expect(added.added).toBe(1)
+    expect(added.worksheets[0]).toMatchObject({ n: 1, title: 'Mein Tag', paper: 'A4' })
+    expect(added.worksheets[0].pages.map((p) => p.blocks)).toEqual(['question', 'question'])
+    const got = ops.worksheetGet({ ...step, sheet: 'Mein Tag' })
+    expect(got.pages.every((p) => !p.html!.includes('script'))).toBe(true)
+    const before = got.updatedAt!
+    const changed = ops.worksheetUpdate({ ...step, sheet: 1, replace: [{ find: 'Frage', with: 'Was nehme ich mit?' }], paper: 'A5' })
+    expect(changed.updated.paper).toBe('A5')
+    expect(changed.updated.pages[1].html).toContain('Was nehme ich mit?')
+    expect(changed.updated.updatedAt! >= before).toBe(true)
+    // one page more, after the last
+    expect(ops.worksheetUpdate({ ...step, sheet: 1, page: 3, html: page('Drei') }).updated.pages).toHaveLength(3)
+    expect(() => ops.worksheetUpdate({ ...step, sheet: 1, page: 9, html: page('x') })).toThrow(/no page 9/)
+    expect(ops.worksheetRemove({ ...step, sheet: 1 })).toMatchObject({ removed: 1, count: 0 })
+    // only units have worksheets
+    expect(() => ops.worksheetAdd({ workshop: id, item: 'Pause', title: 'x', source: page('x') })).toThrow(/only units/)
+    expect(() => ops.worksheetAdd({ ...step, title: 'leer', source: '' })).toThrow(/at least one page/)
+  })
+
+  it('reads its format and one block', () => {
+    const { ops } = setup()
+    expect(ops.worksheetFormat()).toHaveProperty('catalogue')
+    expect(ops.worksheetFormat({ block: 'grid' })).toMatchObject({ block: 'grid', group: 'order' })
+    expect(() => ops.worksheetFormat({ block: 'nope' })).toThrow(/no block/)
+  })
+
+  it('sets participants, groups and the print rule of a step\'s PDF', () => {
+    const { ops, repo } = setup()
+    const id = teamDay(ops)
+    const s = repo.loadWorkshop(id)!
+    const item = s.items.find((i) => i.title === 'Erwartungen')!
+    repo.addAttachment(id, { id: 'f1', name: 'Handout.pdf', mime: 'application/pdf', size: 3 })
+    repo.addAttachment(id, { id: 'f2', name: 'Bild.png', mime: 'image/png', size: 3 })
+    repo.applyOps(id, [{ op: 'set', entity: 'item', id: item.id, fields: { attachmentIds: ['f1', 'f2'] } }])
+    expect(ops.workshopUpdate(id, { participants: 14 })).toMatchObject({ participants: 14 })
+    expect(ops.printRuleSet(id, 'Erwartungen', { file: 'handout.pdf', mode: 'group', groups: 3, duplex: true })).toEqual({ item: 'Erwartungen', printing: ['Handout.pdf: per group (3), A4 double-sided'], participants: 14 })
+    expect(() => ops.printRuleSet(id, 'Erwartungen', { file: 'Bild.png', mode: 'once' })).toThrow(/only PDFs and worksheets/)
+    expect(() => ops.printRuleSet(id, 'Erwartungen', { file: 'fehlt.pdf', mode: 'once' })).toThrow(/neither a file nor a worksheet/)
+    // a worksheet takes a rule too, on its own paper
+    ops.worksheetAdd({ workshop: id, item: 'Erwartungen', title: 'Mein Tag', paper: 'A5', source: '<section class="sheet"></section>' })
+    expect(ops.printRuleSet(id, 'Erwartungen', { file: 'Mein Tag', mode: 'once', paper: 'A3' }).printing).toContain('Mein Tag (worksheet): once, A5 single-sided')
+    const after = repo.loadWorkshop(id)!.items.find((i) => i.title === 'Erwartungen')!
+    expect(after.groups).toBe(3)
+    expect(after.printRules.f1).toEqual({ mode: 'group', paper: 'A4', duplex: true })
+    // groups are a step's, not content: a library item from the agent refuses them quietly by leaving them out
+    expect(ops.itemUpdate(id, 'Rollen', { groups: 4 })).toBeTruthy()
+    expect(repo.loadWorkshop(id)!.items.find((i) => i.title === 'Rollen')!.groups).toBe(4)
+  })
+})

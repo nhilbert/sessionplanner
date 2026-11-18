@@ -4,6 +4,7 @@ import { PALETTE, PAPERS, PRINT_MODES, type ItemContent, type LibraryBatch, type
 import { normalizeTags } from '../src/domain/tags.ts'
 import { extensionOf } from '../src/domain/attachments.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
+import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml } from '../src/domain/sheets.ts'
 import { DERIVED_COLOR_KEYS, FAMILY_KEYS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_FILE_PATH, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
 export class BadRequest extends Error {}
@@ -23,6 +24,10 @@ const material = z.strictObject({ id, label: text(200), qty: z.number().int().mi
 // A slide is stored sanitised (src/domain/slides.ts): only the format's elements and attributes survive the write.
 const slide = z.strictObject({ id, html: text(200_000).transform(normalizeSlideHtml) })
 const slides = z.array(slide).max(60)
+// A worksheet's pages are stored sanitised too (src/domain/sheets.ts), in the slides' allowlist with a section.sheet root.
+const sheetPage = z.strictObject({ id, html: text(200_000).transform(normalizeSheetHtml) })
+const worksheet = z.strictObject({ id, title: text(200), paper: z.enum(PAPERS), pages: z.array(sheetPage).min(1).max(MAX_SHEET_PAGES), updatedAt: z.iso.datetime() })
+const worksheets = z.array(worksheet).max(MAX_WORKSHEETS)
 // A theme is a folder under data/themes; '' = the default.
 const theme = text(60).regex(/^[a-z0-9-]*$/)
 const color = z.enum(PALETTE)
@@ -73,6 +78,7 @@ const itemContent = z.strictObject({
   attachmentIds: z.array(id).max(200).default([]),
   printRules: printRules.default({}),
   slides: slides.default([]),
+  worksheets: worksheets.default([]),
   categoryId: id.nullable(),
   color: color.nullable(),
 })
@@ -95,6 +101,7 @@ const itemFields = z.strictObject({
   printRules,
   groups: groupCount,
   slides,
+  worksheets,
   categoryId: id.nullable(),
   color: color.nullable(),
 })
@@ -106,7 +113,7 @@ const op = z.union([
   z.strictObject({ op: z.literal('set'), entity: z.literal('item'), id, fields: itemFields.partial() }),
   z.strictObject({ op: z.literal('create'), entity: z.literal('day'), record: dayFields.extend({ id, workshopId: id }) }),
   z.strictObject({ op: z.literal('create'), entity: z.literal('group'), record: groupFields.extend({ id, workshopId: id }) }),
-  z.strictObject({ op: z.literal('create'), entity: z.literal('item'), record: itemFields.extend({ id, workshopId: id, slides: slides.default([]), printRules: printRules.default({}), groups: groupCount.default(1) }) }),
+  z.strictObject({ op: z.literal('create'), entity: z.literal('item'), record: itemFields.extend({ id, workshopId: id, slides: slides.default([]), worksheets: worksheets.default([]), printRules: printRules.default({}), groups: groupCount.default(1) }) }),
   z.strictObject({ op: z.literal('delete'), entity: z.enum(['day', 'group', 'item']), id }),
 ])
 

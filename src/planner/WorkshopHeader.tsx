@@ -100,6 +100,7 @@ export default function WorkshopHeader(p: Props) {
   const output: MenuItem[] = [
     ...PRINT_VARIANTS.map((v) => ({ label: t(VARIANT_LABEL[v]), icon: <Printer size={14} />, onSelect: () => open(`print/${v}`) })),
     { label: t('slides.printSlides'), icon: <Printer size={14} />, onSelect: () => open('print/slides') },
+    { label: t('sheets.printAll'), hint: t('sheets.printHint'), icon: <Printer size={14} />, onSelect: () => open('print/sheets') },
     { label: t('output.printPackage'), hint: t('output.printPackageHint'), icon: <FileStack size={14} />, onSelect: () => setPrinting(true) },
     { label: t('output.pptx'), hint: t('output.pptxHint'), icon: <Presentation size={14} />, separated: true, disabled: !!progress, onSelect: () => void save('pptx') },
     { label: t('output.pdf'), hint: t('output.pdfHint'), icon: <FileText size={14} />, disabled: !!progress, onSelect: () => void save('pdf') },

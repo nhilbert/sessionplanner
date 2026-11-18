@@ -6,14 +6,16 @@ import { copyEntryFiles, copyToLibrary, removeFiles } from './files.ts'
 import { BadRequest, isCalendarDate, MAX_OPS, validateLibraryEntry, validateNewWorkshop, validateOps } from './validate.ts'
 import { listThemes, THEME_NAME } from './themes.ts'
 import { filePaths } from './storage.ts'
-import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, LibraryEntryInput, Material, PackingState, PaletteKey, Slide, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
+import type { Category, Day, Group, Item, ItemContent, ItemKind, LibraryEntry, LibraryEntryInput, Material, PackingState, PaletteKey, Paper, PrintMode, Slide, Worksheet, WorkshopState, WorkshopSummary } from '../src/domain/types.ts'
 import { DEFAULT_TIMEZONE, TRASH_DAYS, ZERO_KINDS } from '../src/domain/types.ts'
 import { changeTags } from '../src/domain/tags.ts'
 import { newId, type Op } from '../src/domain/ops.ts'
 import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, placeIn, sortedDays } from '../src/domain/order.ts'
 import { clockIn, formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
 import { packingKey, workshopPacking } from '../src/domain/packing.ts'
-import { mapRules } from '../src/domain/printing.ts'
+import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, printWords, withRule } from '../src/domain/printing.ts'
+import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
+import { slideText as pageText } from '../src/domain/slides.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
@@ -75,6 +77,8 @@ export interface ItemInput {
   color?: PaletteKey | null
   /** Replaces the slides of the item: markup or pool copies (docs/slides.md). */
   slides?: SlideGiven[]
+  /** The number of groups working on the step, for the print rule "per group" (a step in a workshop only). */
+  groups?: number
 }
 
 /** An item of a library entry as an agent gives it: the content fields with a title; no fixed start, which belongs to a place in an agenda. */
@@ -92,6 +96,8 @@ export interface WorkshopInput {
   archived?: boolean
   /** Slide theme: null or '' follows the settings, 'default' is the built-in one, else a theme the server has. */
   theme?: string | null
+  /** How many take part, for the print rule "per person"; null: not known. */
+  participants?: number | null
 }
 
 export interface PackingLineInput {
@@ -301,6 +307,7 @@ export class Ops {
     if (input.materials !== undefined) f.materials = this.materials(input.materials)
     if (input.category !== undefined) f.categoryId = this.category(input.category) ?? null
     if (input.color !== undefined) f.color = input.color
+    if (input.groups !== undefined) f.groups = Math.min(500, Math.max(1, Math.round(input.groups)))
     if (input.slides !== undefined) {
       if (ZERO_KINDS.includes(kind)) throw new BadRequest('markers and notes have no slides')
       if (input.slides.length > MAX_SLIDES) throw new BadRequest(`at most ${MAX_SLIDES} slides`)
@@ -311,12 +318,13 @@ export class Ops {
 
   /** The content fields for a library entry: as itemFields, without the fixed start (which belongs to a place in an agenda). */
   private contentFields(input: ItemInput, current?: ItemContent): Partial<ItemContent> {
-    return this.itemFields({ ...input, fixedStart: undefined }, current)
+    // the number of groups belongs to a step in a workshop, as a fixed start does, not to its content
+    return this.itemFields({ ...input, fixedStart: undefined, groups: undefined }, current)
   }
 
   /** Fresh content with the defaults for the kind (itemFields lays the agent's fields over it, a duration included). */
   private blankContent(kind: ItemKind = 'block'): ItemContent {
-    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [], categoryId: null, color: null }
+    return { kind, title: '', description: '', duration: ZERO_KINDS.includes(kind) ? 0 : kind === 'break' ? 15 : 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, slides: [], worksheets: [], categoryId: null, color: null }
   }
 
   /** The content fields an input carries, title aside: whether the agent meant to change an item's content. */
@@ -357,7 +365,11 @@ export class Ops {
       category: category ? category.name.trim() || category.id : undefined,
       color: i.color,
       attachments: i.attachmentIds.map((id) => s.attachments.find((a) => a.id === id)?.name).filter(Boolean),
+      // what the step prints (docs/worksheets.md): per file its rule, and the number of groups when it is more than one
+      printing: this.printingView(s, i),
+      groups: (i.groups ?? 1) > 1 ? i.groups : undefined,
       slides: i.slides.length || undefined,
+      worksheets: (i.worksheets ?? []).length ? i.worksheets.map((w) => `${w.title} (${w.pages.length} ${w.pages.length === 1 ? 'page' : 'pages'}, ${w.paper})`) : undefined,
     })
   }
 
@@ -406,6 +418,7 @@ export class Ops {
       goal: w.goal,
       notes: w.notes,
       theme: w.theme || undefined,
+      participants: w.participants ?? undefined,
       archived: w.archived || undefined,
       days: sortedDays(s.days).map((d, n) => this.dayView(s, d, n + 1, categories)),
       parkingLot: this.entriesView(s, null, {}, categories),
@@ -502,9 +515,10 @@ export class Ops {
     if (input.notes !== undefined) fields.notes = input.notes ?? ''
     if (input.appendNotes) fields.notes = [(fields.notes as string | undefined) ?? s.workshop.notes, input.appendNotes].filter(Boolean).join('\n\n')
     if (input.theme !== undefined) fields.theme = this.theme(input.theme)
+    if (input.participants !== undefined) fields.participants = input.participants === null ? null : Math.min(10_000, Math.max(1, Math.round(input.participants)))
     this.apply(s.workshop.id, Object.keys(fields).length ? [{ op: 'set', entity: 'workshop', id: s.workshop.id, fields }] : [])
     const w = this.repo.loadWorkshop(s.workshop.id)!.workshop
-    return compact({ id: w.id, title: w.title, client: w.client, location: w.location, goal: w.goal, notes: w.notes, theme: w.theme || undefined, archived: w.archived || undefined })
+    return compact({ id: w.id, title: w.title, client: w.client, location: w.location, goal: w.goal, notes: w.notes, theme: w.theme || undefined, participants: w.participants ?? undefined, archived: w.archived || undefined })
   }
 
   async workshopDuplicate(ref: string, input: { title: string; firstDate?: string }) {
@@ -916,6 +930,173 @@ export class Ops {
     return { ...this.slideList(targetOf(input)), removed: gone.size }
   }
 
+  // ---------- print rules (docs/worksheets.md, stage 0) ----------
+
+  private printingView(s: WorkshopState, i: Item) {
+    const w = printWords('en')
+    const line = (name: string, id: string, paper?: Paper) => {
+      const rule = ruleOf(i, id)
+      return rule.mode === 'off' ? [] : [`${name}: ${ruleLabel({ rule, groups: i.groups ?? 1 }, w)}, ${paper ?? rule.paper} ${rule.duplex ? w.twoSided : w.oneSided}`]
+    }
+    const lines = [
+      ...i.attachmentIds.flatMap((id) => {
+        const file = s.attachments.find((a) => a.id === id)
+        return file && isPrintable(file.name) ? line(file.name, id) : []
+      }),
+      ...(i.worksheets ?? []).flatMap((ws) => line(`${ws.title} (worksheet)`, ws.id, ws.paper)),
+    ]
+    return lines.length ? lines : undefined
+  }
+
+  /** How many copies of a PDF or worksheet of a step the workshop prints: the rule, and for "group" the step's number of groups. */
+  printRuleSet(ref: string, itemRef: string, input: { file: string; mode: PrintMode; count?: number; paper?: Paper; duplex?: boolean; groups?: number }) {
+    const s = this.state(ref)
+    const item = this.item(s, itemRef)
+    const files = item.attachmentIds.map((id) => s.attachments.find((a) => a.id === id)).filter((a) => !!a)
+    const wanted = input.file.trim().toLowerCase()
+    const sheet = (item.worksheets ?? []).find((w) => w.id === input.file || w.title.toLowerCase() === wanted)
+    const file = files.find((a) => a.id === input.file) ?? files.find((a) => a.name.toLowerCase() === wanted)
+    if (!file && !sheet) throw new BadRequest(`"${input.file}" is neither a file nor a worksheet of this step (${[...files.map((a) => a.name), ...(item.worksheets ?? []).map((w) => w.title)].join(', ') || 'it has none'})`)
+    if (file && !sheet && !isPrintable(file.name)) throw new BadRequest(`only PDFs and worksheets take a print rule ("${file.name}" is not one)`)
+    const key = sheet && !file ? sheet.id : file!.id
+    const before = ruleOf(item, key)
+    const rule = { mode: input.mode, count: input.count ?? before.count, paper: input.paper ?? before.paper, duplex: input.duplex ?? before.duplex }
+    // a worksheet's paper is its own
+    if (sheet && !file) rule.paper = sheet.paper
+    const fields: Partial<Item> = { printRules: withRule(item.printRules ?? {}, key, rule) }
+    if (input.groups !== undefined) fields.groups = Math.min(500, Math.max(1, Math.round(input.groups)))
+    this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields }])
+    const after = this.repo.loadWorkshop(s.workshop.id)!
+    return { item: item.title, printing: this.printingView(after, after.items.find((x) => x.id === item.id)!) ?? [], participants: after.workshop.participants ?? undefined }
+  }
+
+  // ---------- worksheets (docs/worksheets.md, stage 2) ----------
+
+  /** Where worksheets live: a unit of a workshop (workshop + item) or of a library entry; only units have them. */
+  private sheetTarget(input: SlideTargetInput, write = false): { where: Record<string, string>; sheets: Worksheet[]; save: (sheets: Worksheet[]) => void } {
+    const check = (kind: ItemKind) => {
+      if (write && kind !== 'block') throw new BadRequest('only units (kind block) have worksheets')
+    }
+    if (input.workshop !== undefined && input.entry !== undefined) throw new BadRequest('give either workshop and item or entry, not both')
+    if (input.workshop !== undefined) {
+      if (input.item === undefined) throw new BadRequest('give the item of the workshop')
+      const s = this.state(input.workshop)
+      const item = this.item(s, input.item)
+      check(item.kind)
+      return { where: { item: item.title || item.id }, sheets: item.worksheets ?? [], save: (worksheets) => this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields: { worksheets } }]) }
+    }
+    if (input.entry === undefined) throw new BadRequest('give a workshop and its item, or a library entry')
+    const entry = this.entry(input.entry)
+    if (entry.kind === 'item') {
+      check(entry.data.kind)
+      return { where: { entry: entry.title }, sheets: entry.data.worksheets ?? [], save: (worksheets) => void this.saveEntry(entry.id, { kind: 'item', title: entry.title, data: { ...entry.data, worksheets } }) }
+    }
+    if (input.item === undefined) throw new BadRequest(`"${entry.title}" is a group: give the item inside it, by title or number (${this.memberNames(entry)})`)
+    const index = this.member(entry, input.item)
+    const content = entry.data.items[index]
+    check(content.kind)
+    return {
+      where: { entry: entry.title, item: content.title || String(index + 1) },
+      sheets: content.worksheets ?? [],
+      save: (worksheets) => void this.saveEntry(entry.id, { kind: 'group', title: entry.title, data: { items: entry.data.items.map((c, n) => (n === index ? { ...c, worksheets } : c)) } }),
+    }
+  }
+
+  private sheetIndex(t: { where: Record<string, string>; sheets: Worksheet[] }, ref: string | number): number {
+    const n = typeof ref === 'number' ? ref : /^\d+$/.test(ref) ? Number(ref) : null
+    const index = n !== null ? n - 1 : t.sheets.findIndex((x) => x.id === ref || x.title.toLowerCase() === String(ref).trim().toLowerCase())
+    if (index < 0 || index >= t.sheets.length) throw new BadRequest(`no worksheet "${ref}" (${t.where.entry ? 'the entry' : 'the item'} has ${t.sheets.length})`)
+    return index
+  }
+
+  /** The pages of a sheet from what the agent gave: a list of pages, or one source with a section.sheet per page. */
+  private sheetPages(input: { pages?: string[]; source?: string }, keep: { id: string }[] = []) {
+    if (input.pages !== undefined && input.source !== undefined) throw new BadRequest('give pages or source, not both')
+    const raw = input.pages ?? splitPages(input.source ?? '')
+    if (!raw.length) throw new BadRequest('a worksheet needs at least one page')
+    if (raw.length > MAX_SHEET_PAGES) throw new BadRequest(`at most ${MAX_SHEET_PAGES} pages per worksheet`)
+    return raw.map((html, i) => ({ id: keep[i]?.id ?? newId(), html: normalizeSheetHtml(html) }))
+  }
+
+  private sheetView(w: Worksheet, n: number, html: boolean) {
+    return compact({
+      n,
+      id: w.id,
+      title: w.title,
+      paper: w.paper,
+      updatedAt: w.updatedAt,
+      pages: w.pages.map((p, i) => compact({ n: i + 1, blocks: sheetBlocks(p.html).join(', '), text: html ? undefined : pageText(p.html).slice(0, 300), html: html ? p.html : undefined })),
+    })
+  }
+
+  /** The worksheet format: its rules and the block catalogue with examples; block narrows it to one block. */
+  worksheetFormat(input: { block?: string } = {}) {
+    if (input.block) {
+      const b = SHEET_BLOCKS.find((x) => x.block === input.block!.trim().toLowerCase())
+      if (!b) throw new BadRequest(`no block "${input.block}" (${SHEET_BLOCKS.map((x) => x.block).join(', ')})`)
+      return b
+    }
+    return { ...SHEET_FORMAT, catalogue: SHEET_BLOCKS }
+  }
+
+  worksheetList(input: SlideTargetInput & { html?: boolean }) {
+    const t = this.sheetTarget(input)
+    return { ...t.where, count: t.sheets.length, worksheets: t.sheets.map((w, i) => this.sheetView(w, i + 1, !!input.html)) }
+  }
+
+  worksheetGet(input: SlideTargetInput & { sheet: string | number }) {
+    const t = this.sheetTarget(input)
+    const index = this.sheetIndex(t, input.sheet)
+    return { ...t.where, ...this.sheetView(t.sheets[index], index + 1, true), assets: worksheetAssets([t.sheets[index]]) }
+  }
+
+  worksheetAdd(input: SlideTargetInput & { title: string; paper?: Paper; pages?: string[]; source?: string; at?: number }) {
+    const t = this.sheetTarget(input, true)
+    if (t.sheets.length >= MAX_WORKSHEETS) throw new BadRequest(`at most ${MAX_WORKSHEETS} worksheets on a step`)
+    const sheet: Worksheet = { id: newId(), title: input.title.trim(), paper: input.paper ?? 'A4', pages: this.sheetPages(input), updatedAt: new Date().toISOString() }
+    const at = input.at === undefined ? t.sheets.length : Math.min(Math.max(input.at, 0), t.sheets.length)
+    t.save([...t.sheets.slice(0, at), sheet, ...t.sheets.slice(at)])
+    return { ...this.worksheetList(targetOf(input)), added: at + 1 }
+  }
+
+  /** Changes one sheet: title, paper, all pages (pages or source), one page (page + html), exact replacements in its pages, or its position. */
+  worksheetUpdate(input: SlideTargetInput & { sheet: string | number; title?: string; paper?: Paper; pages?: string[]; source?: string; page?: number; html?: string; replace?: { find: string; with: string }[]; at?: number }) {
+    const t = this.sheetTarget(input, true)
+    const index = this.sheetIndex(t, input.sheet)
+    const before = t.sheets[index]
+    let pages = before.pages
+    const whole = input.pages !== undefined || input.source !== undefined
+    if (whole && (input.html !== undefined || input.replace !== undefined)) throw new BadRequest('give pages/source, or page + html, or replace – one of them')
+    if (whole) pages = this.sheetPages(input, before.pages)
+    if (input.html !== undefined) {
+      if (input.page === undefined) throw new BadRequest('give the page (1 = first) the html replaces, or pages/source for all of them')
+      if (input.page < 1 || input.page > pages.length + 1 || input.page > MAX_SHEET_PAGES) throw new BadRequest(`no page ${input.page} (the sheet has ${pages.length}; ${pages.length + 1} adds one)`)
+      const html = normalizeSheetHtml(input.html)
+      pages = input.page === pages.length + 1 ? [...pages, { id: newId(), html }] : pages.map((p, i) => (i === input.page! - 1 ? { ...p, html } : p))
+    }
+    for (const r of input.replace ?? []) {
+      if (!r.find) throw new BadRequest('find must not be empty')
+      if (!pages.some((p) => p.html.includes(r.find))) throw new BadRequest(`"${r.find}" does not occur in the sheet (worksheet_get shows the markup as stored)`)
+      pages = pages.map((p) => ({ ...p, html: normalizeSheetHtml(p.html.split(r.find).join(r.with)) }))
+    }
+    const changed = whole || input.html !== undefined || !!input.replace?.length || input.title !== undefined || input.paper !== undefined
+    if (!changed && input.at === undefined) throw new BadRequest('nothing to change: give title, paper, pages, source, page + html, replace or at')
+    const sheet: Worksheet = { ...before, title: input.title?.trim() || before.title, paper: input.paper ?? before.paper, pages, updatedAt: changed ? new Date().toISOString() : before.updatedAt }
+    const rest = t.sheets.filter((_, i) => i !== index)
+    const at = input.at === undefined ? index : Math.min(Math.max(input.at, 0), rest.length)
+    t.save([...rest.slice(0, at), sheet, ...rest.slice(at)])
+    return { ...this.worksheetList(targetOf(input)), updated: this.sheetView(sheet, at + 1, true) }
+  }
+
+  worksheetRemove(input: SlideTargetInput & { sheet?: string | number; sheets?: (string | number)[] }) {
+    const t = this.sheetTarget(input, true)
+    const refs = [...(input.sheets ?? []), ...(input.sheet !== undefined ? [input.sheet] : [])]
+    if (!refs.length) throw new BadRequest('give the worksheet (id, title or number) or worksheets to remove')
+    const gone = new Set(refs.map((r) => t.sheets[this.sheetIndex(t, r)].id))
+    t.save(t.sheets.filter((x) => !gone.has(x.id)))
+    return { ...this.worksheetList(targetOf(input)), removed: gone.size }
+  }
+
   /** The decks of the pool, and the slides whose deck, caption or text match every word of the query (all of them without one), at most 60. */
   poolSearch(input: { query?: string; deck?: string; layout?: string } = {}) {
     const words = (input.query ?? '').toLowerCase().split(/\s+/).filter(Boolean)
@@ -1063,7 +1244,7 @@ export class Ops {
   }
 
   private content(i: Item | ItemContent): ItemContent {
-    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, printRules: i.printRules ?? {}, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), categoryId: i.categoryId, color: i.color }
+    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), ...copyPrinted(i, (id) => id, newId), categoryId: i.categoryId, color: i.color }
   }
 
   /** Saves an item, or a group with its items, of a workshop to the library: a copy, its files too. */
@@ -1088,7 +1269,12 @@ export class Ops {
     const s = this.state(ref)
     const day = this.day(s, dayRef)
     const dayId = day?.id ?? null
-    const copyOf = (c: ItemContent, files: Record<string, string>) => ({ ...this.content(c), attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])), printRules: mapRules(c.printRules, (id) => files[id]) })
+    const copyOf = (c: ItemContent, files: Record<string, string>) => {
+      const content = this.content(c)
+      // the sheets' rules are keyed by their new ids already; the files' follow their copies
+      const sheets = new Set(content.worksheets.map((w) => w.id))
+      return { ...content, attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])), printRules: mapRules(content.printRules, (id) => files[id] ?? (sheets.has(id) ? id : undefined)) }
+    }
     if (entry.kind === 'item') {
       const { position, ops } = this.place(s, dayId, null, 'new', where)
       const record: Item = { ...this.newItem(s.workshop.id, dayId, null, position, {}), ...copyOf(entry.data, this.copyFiles(entry, s.workshop.id)) }

@@ -14,12 +14,14 @@ import { FileManager } from '@/planner/FileManager'
 import Swatches from '@/components/Swatches'
 import { DurationField, TextField } from '@/planner/fields'
 import { SlideStrip } from '@/slides/SlideStrip'
+import { WorksheetList } from '@/worksheets/WorksheetList'
+import { useSheetBrand } from '@/worksheets/SheetView'
 import { SlideView } from '@/slides/SlideView'
 import { SlideEditor } from '@/slides/editor/SlideEditor'
 import { listSource } from '@/slides/editor/source'
 import { slideAssets } from '@/domain/slides'
 import { useViewTheme, ViewThemeSelect } from '@/slides/ThemeSelect'
-import type { Slide } from '@/domain/types'
+import type { Slide, Worksheet } from '@/domain/types'
 
 const KIND_ICON: Record<ItemKind, ReactNode> = {
   block: <Square size={12} />,
@@ -46,6 +48,8 @@ export default function LibraryPage() {
   const owner = useLibraryEdit()
   const [query, setQuery] = useState('')
   const [tags, setTags] = useState<string[]>([])
+  /** Only entries that hold a worksheet. */
+  const [withSheets, setWithSheets] = useState(false)
   const [layout, setLayout] = useLocalState('sp.library.view', 'list')
   const [open, setOpen] = useState<string | null>(null)
   const [bulkEdit, setBulkEdit] = useState(false)
@@ -90,7 +94,7 @@ export default function LibraryPage() {
   const { sort, setSort, toggle, sorted } = useSort('sp.library.sort', options, { key: 'title', dir: 'asc' })
   const searching = query.trim() !== ''
   const found = entries.filter((e) => !searching || matchesWords(libraryText(e, categories, t), query))
-  const shown = sorted(found.filter((e) => tags.every((tag) => hasTag(e.tags, tag))))
+  const shown = sorted(found.filter((e) => tags.every((tag) => hasTag(e.tags, tag)) && (!withSheets || hasWorksheet(e))))
   const selection = useSelection(shown.map((e) => e.id))
   const known = tagCounts(entries.map((e) => e.tags)).map((c) => c.tag)
   const picked = shown.filter((e) => selection.has(e.id))
@@ -121,6 +125,12 @@ export default function LibraryPage() {
           <div className="mb-4 space-y-3">
             <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} shortcut />
             <TagFilter rows={found.map((e) => e.tags)} active={tags} onChange={setTags} />
+            {entries.some(hasWorksheet) && (
+              <label className="inline-flex items-center gap-2 text-[13px] text-ink-2">
+                <input type="checkbox" checked={withSheets} onChange={(e) => setWithSheets(e.target.checked)} />
+                {t('sheets.filter')}
+              </label>
+            )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               {owner ? <SelectAll selection={selection} count={shown.length} /> : <span className="text-[13px] text-ink-3">{t('library.readOnly')}</span>}
               <span className="ml-auto" />
@@ -664,6 +674,7 @@ function EntryView({ entry, theme, onOpenSlide }: { entry: LibraryEntry; theme: 
                 ))}
               </div>
             )}
+            {entry.kind === 'item' && (i.worksheets ?? []).length > 0 && <LibrarySheets sheets={i.worksheets} />}
           </div>
         )
       })}
@@ -745,6 +756,7 @@ function EntryDetails({ entry, theme, known, onSave, onDelete, onOpenSlide, list
                 </div>
               )}
               <SlideStrip slides={entry.data.slides} list={list} onOpen={onOpenSlide} scope="library" theme={theme} canEdit owner />
+              {entry.data.kind === 'block' && <LibrarySheets sheets={entry.data.worksheets ?? []} onChange={(worksheets) => setItem({ worksheets })} />}
             </>
           )}
           <div className="flex flex-wrap items-center justify-end gap-3">
@@ -758,4 +770,13 @@ function EntryDetails({ entry, theme, known, onSave, onDelete, onOpenSlide, list
           </div>
         </div>
   )
+}
+
+/** Whether an entry holds a worksheet, on its item or on one of its group's. */
+const hasWorksheet = (e: LibraryEntry): boolean => entryItems(e).some((c) => (c.worksheets ?? []).length > 0)
+
+/** An entry's worksheets in the theme and with the logo of the settings, as a new workshop would print them. */
+function LibrarySheets({ sheets, onChange }: { sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void }) {
+  const brand = useSheetBrand('')
+  return <WorksheetList sheets={sheets} onChange={onChange} scope="library" theme={brand.theme} logo={brand.logo} />
 }
