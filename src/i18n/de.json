@@ -279,6 +279,10 @@
   "settings": {
     "language": "Sprache",
     "languageHint": "auf diesem Gerät",
+    "appearance": "Darstellung",
+    "appearanceLight": "Hell",
+    "appearanceDark": "Dunkel",
+    "appearanceSystem": "System",
     "days": "Neue Tage",
     "daysHint": "Beginn und Ziel-Ende neuer Workshops und hinzugefügter Tage.",
     "categories": "Kategorien",

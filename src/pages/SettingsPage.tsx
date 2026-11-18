@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Plus, Trash2, Upload } from 'lucide-react'
+import { Download, Monitor, Moon, Plus, Sun, Trash2, Upload } from 'lucide-react'
 import { api } from '@/api'
 import { ownerOnlyPart, settingsSectionOf } from '@/features'
 import { newId } from '@/domain/ops'
 import { categoryName, useSettings } from '@/store/useSettings'
 import { changeLocale } from '@/i18n'
+import { type Appearance, changeAppearance, initialAppearance } from '@/appearance'
 import { Button, DownloadButton, IconButton, PageHeader, SectionLabel, Segmented } from '@/components/ui'
 import Swatches from '@/components/Swatches'
 import AgentConnections from '@/components/AgentConnections'
@@ -21,6 +22,7 @@ export default function SettingsPage() {
   const input = useRef<HTMLInputElement>(null)
   const [logoError, setLogoError] = useState('')
   const [swept, setSwept] = useState<number | null>(null)
+  const [appearance, setAppearance] = useState<Appearance>(initialAppearance)
   const logoUrl = api.logoUrl(settings)
 
   const setCategory = (id: string, patch: { name?: string; color?: (typeof settings.categories)[number]['color'] }) =>
@@ -41,6 +43,33 @@ export default function SettingsPage() {
                 { value: 'de', label: 'Deutsch' },
                 { value: 'en', label: 'English' },
               ]}
+            />
+            <span className="text-[13px] text-ink-3">{t('settings.languageHint')}</span>
+          </div>
+        </section>
+
+        <section className="card mb-6 p-5">
+          <SectionLabel>{t('settings.appearance')}</SectionLabel>
+          <div className="flex flex-wrap items-center gap-3">
+            <Segmented
+              value={appearance}
+              onChange={(v) => {
+                setAppearance(v)
+                changeAppearance(v)
+              }}
+              options={([
+                ['light', Sun, t('settings.appearanceLight')],
+                ['dark', Moon, t('settings.appearanceDark')],
+                ['system', Monitor, t('settings.appearanceSystem')],
+              ] as const).map(([value, Icon, label]) => ({
+                value,
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon size={13} aria-hidden />
+                    {label}
+                  </span>
+                ),
+              }))}
             />
             <span className="text-[13px] text-ink-3">{t('settings.languageHint')}</span>
           </div>

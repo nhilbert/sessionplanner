@@ -5,6 +5,7 @@ import App, { type Extensions } from './App'
 import { cleanBasePath, setBasePath } from './domain/addresses'
 import { setOwnerOnly, setProduct, setSettingsSection, setWorkshopSharing, setWorkshopTool } from './features'
 import { initialLocale, setupI18n } from './i18n'
+import { applyAppearance, initialAppearance } from './appearance'
 
 /** Starts the app in the page. Called with nothing here (main.tsx); a build that adds to the app passes its extensions. */
 export function startApp(extensions: Extensions = {}): void {
@@ -16,6 +17,7 @@ export function startApp(extensions: Extensions = {}): void {
   setSettingsSection(extensions.settingsSection)
   setOwnerOnly(extensions.ownerOnly)
   setupI18n(initialLocale())
+  applyAppearance(initialAppearance())
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App extensions={{ ...extensions, basePath }} />

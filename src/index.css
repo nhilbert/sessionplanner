@@ -36,8 +36,10 @@
   --shadow: 0 1px 2px rgba(30, 28, 20, 0.04), 0 12px 32px -16px rgba(30, 28, 20, 0.18);
 }
 
+/* Dark: from the system unless light is chosen on this device, or when dark is chosen (data-appearance,
+   src/appearance.ts). Both blocks hold the same values; change them together (src/appearance.test.ts). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-appearance="light"]) {
     color-scheme: dark;
     --paper: #171716;
     --surface: #1e1e1c;
@@ -66,6 +68,36 @@
     --c-neutral: #7a786f;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
   }
+}
+
+:root[data-appearance="dark"] {
+  color-scheme: dark;
+  --paper: #171716;
+  --surface: #1e1e1c;
+  --surface-2: #262624;
+  --surface-3: #2f2f2c;
+  --ink: #eae8e2;
+  --ink-2: #a5a29b;
+  --ink-3: #6f6d67;
+  --line: #2c2c29;
+  --line-2: #3b3a36;
+  --accent: #8db49f;
+  --accent-ink: #171716;
+  --accent-soft: #233029;
+  --amber: #d3a05a;
+  --amber-soft: #332a1c;
+  --rose: #d0756a;
+  --rose-soft: #35221f;
+  --c-sage: #86b09a;
+  --c-clay: #d0876a;
+  --c-slate: #86a4c2;
+  --c-plum: #b08aac;
+  --c-ochre: #d0ac58;
+  --c-moss: #9db56a;
+  --c-dusk: #9a9ac8;
+  --c-sand: #bba488;
+  --c-neutral: #7a786f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
 }
 
 @theme inline {

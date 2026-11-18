@@ -279,6 +279,10 @@
   "settings": {
     "language": "Language",
     "languageHint": "on this device",
+    "appearance": "Appearance",
+    "appearanceLight": "Light",
+    "appearanceDark": "Dark",
+    "appearanceSystem": "System",
     "days": "New days",
     "daysHint": "Start and target end of new workshops and added days.",
     "categories": "Categories",
