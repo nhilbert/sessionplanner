@@ -13,8 +13,8 @@ import { newId, type Op } from '../src/domain/ops.ts'
 import { agendaOrder, entriesIn, type Entry, itemsIn, membersOf, placeAt, placeIn, sortedDays } from '../src/domain/order.ts'
 import { clockIn, formatTime, LONG_STRETCH, parseTime, scheduleDay } from '../src/domain/time.ts'
 import { packingKey, workshopPacking } from '../src/domain/packing.ts'
-import { isPrintable, mapRules, ruleLabel, ruleOf, printWords, withRule } from '../src/domain/printing.ts'
-import { MAX_SHEET_PAGES, MAX_WORKSHEETS, newWorksheets, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
+import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, printWords, withRule } from '../src/domain/printing.ts'
+import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
 import { slideText as pageText } from '../src/domain/slides.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
@@ -934,26 +934,36 @@ export class Ops {
 
   private printingView(s: WorkshopState, i: Item) {
     const w = printWords('en')
-    const lines = i.attachmentIds.flatMap((id) => {
-      const file = s.attachments.find((a) => a.id === id)
+    const line = (name: string, id: string, paper?: Paper) => {
       const rule = ruleOf(i, id)
-      if (!file || !isPrintable(file.name) || rule.mode === 'off') return []
-      return [`${file.name}: ${ruleLabel({ rule, groups: i.groups ?? 1 }, w)}, ${rule.paper} ${rule.duplex ? w.twoSided : w.oneSided}`]
-    })
+      return rule.mode === 'off' ? [] : [`${name}: ${ruleLabel({ rule, groups: i.groups ?? 1 }, w)}, ${paper ?? rule.paper} ${rule.duplex ? w.twoSided : w.oneSided}`]
+    }
+    const lines = [
+      ...i.attachmentIds.flatMap((id) => {
+        const file = s.attachments.find((a) => a.id === id)
+        return file && isPrintable(file.name) ? line(file.name, id) : []
+      }),
+      ...(i.worksheets ?? []).flatMap((ws) => line(`${ws.title} (worksheet)`, ws.id, ws.paper)),
+    ]
     return lines.length ? lines : undefined
   }
 
-  /** How many copies of a PDF of a step the workshop prints: the rule, and for "group" the step's number of groups. */
+  /** How many copies of a PDF or worksheet of a step the workshop prints: the rule, and for "group" the step's number of groups. */
   printRuleSet(ref: string, itemRef: string, input: { file: string; mode: PrintMode; count?: number; paper?: Paper; duplex?: boolean; groups?: number }) {
     const s = this.state(ref)
     const item = this.item(s, itemRef)
     const files = item.attachmentIds.map((id) => s.attachments.find((a) => a.id === id)).filter((a) => !!a)
-    const file = files.find((a) => a.id === input.file) ?? files.find((a) => a.name.toLowerCase() === input.file.trim().toLowerCase())
-    if (!file) throw new BadRequest(`"${input.file}" is not a file of this step (${files.map((a) => a.name).join(', ') || 'it has none'})`)
-    if (!isPrintable(file.name)) throw new BadRequest(`only PDFs take a print rule ("${file.name}" is not one)`)
-    const before = ruleOf(item, file.id)
+    const wanted = input.file.trim().toLowerCase()
+    const sheet = (item.worksheets ?? []).find((w) => w.id === input.file || w.title.toLowerCase() === wanted)
+    const file = files.find((a) => a.id === input.file) ?? files.find((a) => a.name.toLowerCase() === wanted)
+    if (!file && !sheet) throw new BadRequest(`"${input.file}" is neither a file nor a worksheet of this step (${[...files.map((a) => a.name), ...(item.worksheets ?? []).map((w) => w.title)].join(', ') || 'it has none'})`)
+    if (file && !sheet && !isPrintable(file.name)) throw new BadRequest(`only PDFs and worksheets take a print rule ("${file.name}" is not one)`)
+    const key = sheet && !file ? sheet.id : file!.id
+    const before = ruleOf(item, key)
     const rule = { mode: input.mode, count: input.count ?? before.count, paper: input.paper ?? before.paper, duplex: input.duplex ?? before.duplex }
-    const fields: Partial<Item> = { printRules: withRule(item.printRules ?? {}, file.id, rule) }
+    // a worksheet's paper is its own
+    if (sheet && !file) rule.paper = sheet.paper
+    const fields: Partial<Item> = { printRules: withRule(item.printRules ?? {}, key, rule) }
     if (input.groups !== undefined) fields.groups = Math.min(500, Math.max(1, Math.round(input.groups)))
     this.apply(s.workshop.id, [{ op: 'set', entity: 'item', id: item.id, fields }])
     const after = this.repo.loadWorkshop(s.workshop.id)!
@@ -1234,7 +1244,7 @@ export class Ops {
   }
 
   private content(i: Item | ItemContent): ItemContent {
-    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, printRules: i.printRules ?? {}, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), worksheets: newWorksheets(i.worksheets ?? [], newId), categoryId: i.categoryId, color: i.color }
+    return { kind: i.kind, title: i.title, description: i.description, duration: i.duration, goal: i.goal, method: i.method, lead: i.lead, notes: i.notes, materials: i.materials.map((m) => ({ ...m, id: newId() })), attachmentIds: i.attachmentIds, slides: (i.slides ?? []).map((s) => ({ ...s, id: newId() })), ...copyPrinted(i, (id) => id, newId), categoryId: i.categoryId, color: i.color }
   }
 
   /** Saves an item, or a group with its items, of a workshop to the library: a copy, its files too. */
@@ -1259,7 +1269,12 @@ export class Ops {
     const s = this.state(ref)
     const day = this.day(s, dayRef)
     const dayId = day?.id ?? null
-    const copyOf = (c: ItemContent, files: Record<string, string>) => ({ ...this.content(c), attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])), printRules: mapRules(c.printRules, (id) => files[id]) })
+    const copyOf = (c: ItemContent, files: Record<string, string>) => {
+      const content = this.content(c)
+      // the sheets' rules are keyed by their new ids already; the files' follow their copies
+      const sheets = new Set(content.worksheets.map((w) => w.id))
+      return { ...content, attachmentIds: c.attachmentIds.flatMap((id) => (files[id] ? [files[id]] : [])), printRules: mapRules(content.printRules, (id) => files[id] ?? (sheets.has(id) ? id : undefined)) }
+    }
     if (entry.kind === 'item') {
       const { position, ops } = this.place(s, dayId, null, 'new', where)
       const record: Item = { ...this.newItem(s.workshop.id, dayId, null, position, {}), ...copyOf(entry.data, this.copyFiles(entry, s.workshop.id)) }

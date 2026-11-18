@@ -327,11 +327,11 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
   // ---------- print rules and worksheets (docs/worksheets.md) ----------
   tool(
     'print_rule',
-    'How many copies of a PDF attached to a step the workshop prints: mode off, person (the workshop\'s participants), group (the step\'s groups), once or count; paper A4/A3/A5 and duplex. groups sets the step\'s number of groups. The print package in the app turns the rules into print jobs.',
+    'How many copies of a PDF attached to a step, or of one of its worksheets, the workshop prints: mode off, person (the workshop\'s participants), group (the step\'s groups), once or count; paper A4/A3/A5 (a worksheet keeps its own) and duplex. groups sets the step\'s number of groups. The print package in the app turns the rules into print jobs.',
     {
       workshop: workshopRef,
       item: itemRef,
-      file: z.string().describe('The PDF, by name or id, as the item lists it'),
+      file: z.string().describe('The PDF (name or id) or worksheet (title or id), as the item lists it'),
       mode: z.enum(['off', 'person', 'group', 'once', 'count']),
       count: z.number().int().min(0).max(10_000).optional().describe('For mode count'),
       paper: z.enum(['A4', 'A3', 'A5']).optional(),

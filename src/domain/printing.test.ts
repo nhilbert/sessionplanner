@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { fromLibrary, withFilesOf } from './copy.ts'
 import { workshopPacking } from './packing.ts'
-import { copiesOf, jobLabel, mapRules, needsParticipants, packageFileName, printLines, printListMarkdown, printWords, rulesOfLinked, withRule } from './printing.ts'
-import type { Item, ItemContent, LibraryEntry, PrintRule, WorkshopState } from './types.ts'
+import { copiesOf, copyPrinted, jobLabel, jobTitle, mapRules, needsParticipants, packageFileName, printKeys, printLines, printListMarkdown, printWords, rulesOfLinked, sheetJobs, withRule } from './printing.ts'
+import type { Item, ItemContent, LibraryEntry, PrintRule, Worksheet, WorkshopState } from './types.ts'
 
 const rule = (mode: PrintRule['mode'], over: Partial<PrintRule> = {}): PrintRule => ({ mode, paper: 'A4', duplex: false, ...over })
 
@@ -106,8 +106,9 @@ describe('print lines', () => {
     const md = printListMarkdown(state(items), printLines(state(items), { reserve: 1 }), printWords('de'), 1)
     expect(md).toContain('# Druckliste – Teamtag')
     expect(md).toContain('Jeder Auftrag mit 1 Reserve.')
-    expect(md).toContain('| Handout.pdf | Einstieg | pro Person | 12 | 13x A4 einseitig |')
-    expect(md).toContain('| Reflexion.pdf | Gruppenarbeit | pro Gruppe (3) | 3 | 4x A3 doppelseitig |')
+    expect(md).toContain('| Handout.pdf | Datei | Einstieg | pro Person | 12 | 13x A4 einseitig |')
+    expect(md).toContain('| Reflexion.pdf | Datei | Gruppenarbeit | pro Gruppe (3) | 3 | 4x A3 doppelseitig |')
+    expect(md).not.toContain('nicht im Paket')
   })
 
   it('puts the sheets into the packing list, the same file once with its larger count', () => {
@@ -136,5 +137,52 @@ describe('rules travel with copies', () => {
     const stored = entry(content({ attachmentIds: ['l1', 'l2'], printRules: { l2: rule('once') } }))
     const saved = withFilesOf({ kind: 'item', data: content({ attachmentIds: ['l1'], printRules: { l1: rule('person') } }) }, stored)
     expect((saved.data as ItemContent).printRules).toEqual({ l1: rule('person'), l2: rule('once') })
+  })
+})
+
+describe('worksheets in print', () => {
+  const ws = (id: string, title: string, paper: Worksheet['paper'] = 'A4', pages = 1): Worksheet => ({ id, title, paper, updatedAt: '2026-11-18T10:00:00.000Z', pages: Array.from({ length: pages }, (_, i) => ({ id: `${id}p${i}`, html: '<section class="sheet"></section>' })) })
+  const items = [
+    item('Einstieg', { position: 1, attachmentIds: ['f1'], printRules: { f1: rule('person'), s1: rule('person', { paper: 'A3', duplex: true }) }, worksheets: [ws('s1', 'Mein Tag', 'A4', 3)] }),
+    item('Rückblick', { position: 2, groups: 4, printRules: { s2: rule('person', { duplex: true }), s3: rule('group') }, worksheets: [ws('s2', 'Transfer'), ws('s3', 'Plakat', 'A3')] }),
+    item('Geparkt', { dayId: null, printRules: { s4: rule('once') }, worksheets: [ws('s4', 'Nie')] }),
+  ]
+
+  it('prints sheets with their own paper after the step\'s files, parked steps not', () => {
+    const lines = printLines(state(items), { reserve: 1 })
+    expect(lines.map((l) => [l.kind, l.name, l.job])).toEqual([
+      ['file', 'Handout.pdf', { copies: 13, paper: 'A4', duplex: false }],
+      // the rule says A3, the sheet is A4: the sheet's paper wins
+      ['sheet', 'Mein Tag', { copies: 13, paper: 'A4', duplex: true }],
+      ['sheet', 'Transfer', { copies: 13, paper: 'A4', duplex: true }],
+      ['sheet', 'Plakat', { copies: 5, paper: 'A3', duplex: false }],
+    ])
+  })
+
+  it('groups the sheets by job, in agenda order, with the job as the print view\'s title', () => {
+    const jobs = sheetJobs(printLines(state(items)))
+    expect(jobs.map((j) => [j.key, j.lines.map((l) => l.name)])).toEqual([
+      ['12-A4-2', ['Mein Tag', 'Transfer']],
+      ['4-A3-1', ['Plakat']],
+    ])
+    expect(jobTitle(jobs[0].job, 'Teamtag', printWords('de'))).toBe('12x A4 doppelseitig – Teamtag')
+  })
+
+  it('lists sheets in the print list as not in the package', () => {
+    const md = printListMarkdown(state(items), printLines(state(items)), printWords('de'))
+    expect(md).toContain('nicht im Paket')
+    expect(md).toContain('| Mein Tag | Arbeitsblatt | Einstieg | pro Person | 12 | 12x A4 doppelseitig |')
+  })
+
+  it('copies sheets with new ids and keys their rules anew; files follow the map', () => {
+    let n = 0
+    const copied = copyPrinted({ worksheets: [ws('s1', 'A')], printRules: { s1: rule('once'), f1: rule('person'), gone: rule('once') } }, (id) => ({ f1: 'g1' })[id], () => `new${++n}`)
+    expect(copied.worksheets[0].id).toBe('new1')
+    expect(copied.worksheets[0].pages[0].id).toBe('new2')
+    expect(copied.printRules).toEqual({ new1: rule('once'), g1: rule('person') })
+  })
+
+  it('keeps a sheet\'s rule when a file is unlinked', () => {
+    expect(rulesOfLinked({ s1: rule('once'), f1: rule('once') }, printKeys({ attachmentIds: [], worksheets: [ws('s1', 'A')] }))).toEqual({ s1: rule('once') })
   })
 })

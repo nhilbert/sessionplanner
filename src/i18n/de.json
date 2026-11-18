@@ -235,13 +235,17 @@
   },
   "printPackage": {
     "title": "Druckpaket",
-    "empty": "Nichts zu drucken. Wähle an einer PDF in einem Agendapunkt, wie oft sie gedruckt wird.",
+    "empty": "Nichts zu drucken. Wähle an einer PDF oder einem Arbeitsblatt in einem Agendapunkt, wie oft es gedruckt wird.",
     "participants": "Wie viele nehmen teil?",
     "participantsKept": "Der Workshop merkt sich die Zahl.",
     "reserve": "Reserve je Auftrag",
     "reserveHint": "Wird auf diesem Gerät gemerkt.",
-    "hint": "Eine Datei je PDF, der Auftrag steht im Namen; dazu die Druckliste. Geparkte Punkte drucken nichts.",
-    "download": "Herunterladen"
+    "download": "ZIP herunterladen",
+    "files": "PDFs – im ZIP, je Auftrag eine Datei, mit der Druckliste",
+    "sheets": "Arbeitsblätter – je Auftrag drucken",
+    "sheetsHint": "Öffnet den Auftrag in der Druckansicht. Im Druckdialog „Als PDF speichern“ wählen: Der Dateiname ist schon der Auftrag.",
+    "needParticipants": "Zuerst die Zahl der Teilnehmenden eintragen.",
+    "print": "Drucken"
   },
   "files": {
     "empty": "Noch keine Dateien.",

@@ -6,7 +6,6 @@ import { newId, type ItemFields, type Op } from '@/domain/ops'
 import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
 import { contentOf } from '@/domain/copy'
 import { newSlides } from '@/domain/slides'
-import { newWorksheets } from '@/domain/sheets'
 import { categoryName, useSettings } from '@/store/useSettings'
 import Swatches from '@/components/Swatches'
 import { MAX_DURATION, SNAP } from '@/domain/time'
@@ -21,7 +20,7 @@ import { WorksheetList } from '@/worksheets/WorksheetList'
 import { useSheetBrand } from '@/worksheets/SheetView'
 import { pageUrl } from '@/domain/addresses'
 import { PrintRuleField } from './PrintRuleField'
-import { isPrintable, ruleOf, rulesOfLinked, withRule } from '@/domain/printing'
+import { copyPrinted, isPrintable, printKeys, ruleOf, rulesOfLinked, withRule } from '@/domain/printing'
 import { SlideStrip } from '@/slides/SlideStrip'
 import { themeOf } from '@/slides/SlideView'
 import { usePlanner } from '@/store/usePlanner'
@@ -137,7 +136,7 @@ export default function ItemPanel({
       )}
 
       {item.kind !== 'note' && <Materials materials={item.materials} onChange={(materials) => set({ materials })} />}
-      {item.kind !== 'note' && <Files item={item} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds, printRules: rulesOfLinked(item.printRules ?? {}, attachmentIds) })} onSet={set} onAttachment={onAttachment} />}
+      {item.kind !== 'note' && <Files item={item} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds, worksheets: item.worksheets })) })} onSet={set} onAttachment={onAttachment} />}
       {(item.kind === 'block' || item.kind === 'break') && (
         <SlideStrip
           slides={item.slides}
@@ -154,7 +153,15 @@ export default function ItemPanel({
       {item.kind === 'block' && (
         <WorksheetList
           sheets={item.worksheets ?? []}
-          onChange={(worksheets) => set({ worksheets })}
+          // a removed sheet takes its print rule along
+          onChange={(worksheets) => set({ worksheets, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds: item.attachmentIds, worksheets })) })}
+          printing={{
+            rules: item.printRules ?? {},
+            groups: item.groups ?? 1,
+            participants: data.workshop.participants ?? null,
+            onRule: (sheetId, rule) => set({ printRules: withRule(item.printRules ?? {}, sheetId, rule) }),
+            onGroups: (groups) => set({ groups }),
+          }}
           scope={{ workshopId: data.workshop.id }}
           theme={brand.theme}
           logo={brand.logo}
@@ -196,7 +203,7 @@ export function itemActions({
     const grouped = item.groupId !== null && data.groups.some((g) => g.id === item.groupId)
     const siblings = grouped ? membersOf(data.items, item.groupId!) : entriesIn(data, item.dayId)
     const index = siblings.findIndex((s) => s.id === item.id) + 1
-    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })), slides: newSlides(item.slides, newId), worksheets: newWorksheets(item.worksheets ?? [], newId) }
+    const copy: Item = { ...item, id: newId(), fixedStart: null, materials: item.materials.map((m) => ({ ...m, id: newId() })), slides: newSlides(item.slides, newId), ...copyPrinted(item, (id) => id, newId) }
     const { position, ops } = placeIn(data, siblings.map((s) => s.id), copy.id, index)
     ops.push({ op: 'create', entity: 'item', record: { ...copy, position } })
     change(ops)

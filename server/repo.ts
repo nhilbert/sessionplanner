@@ -3,8 +3,7 @@ import { type Asset, type Attachment, type Day, type Deck, type DeckSlide, DEFAU
 import { type PoolAsset, type PoolKind, type Theme, type ThemeFile, type ThemeLogo, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 import { newId, type Op, picturesIn } from '../src/domain/ops.ts'
 import { entryItems } from '../src/domain/copy.ts'
-import { mapRules, rulesOfLinked } from '../src/domain/printing.ts'
-import { newWorksheets } from '../src/domain/sheets.ts'
+import { copyPrinted, printKeys, rulesOfLinked } from '../src/domain/printing.ts'
 import { changeTags, normalizeTags } from '../src/domain/tags.ts'
 import { itemsIn } from '../src/domain/order.ts'
 import { clockIn, scheduleDay } from '../src/domain/time.ts'
@@ -520,9 +519,8 @@ export class Repo {
           groupId: i.groupId ? (groupIds.get(i.groupId) ?? null) : null,
           materials: i.materials.map((m) => ({ ...m, id: newId() })),
           slides: i.slides.map((s) => ({ ...s, id: newId() })),
-          worksheets: newWorksheets(i.worksheets ?? [], newId),
           attachmentIds: i.attachmentIds.filter((x) => files[x]).map((x) => files[x]),
-          printRules: mapRules(i.printRules, (x) => files[x]),
+          ...copyPrinted(i, (x) => files[x], newId),
         })
     })
     return { state: this.loadWorkshop(newWs)!, files }
@@ -575,11 +573,11 @@ export class Repo {
     if (!att) return null
     return this.tx(() => {
       const ops: Op[] = []
-      const linked = this.db.prepare(`SELECT id, attachment_ids, print_rules FROM items WHERE workshop_id = ? AND attachment_ids LIKE ?`).all(att.workshopId, `%${id}%`) as Row[]
+      const linked = this.db.prepare(`SELECT id, attachment_ids, print_rules, worksheets FROM items WHERE workshop_id = ? AND attachment_ids LIKE ?`).all(att.workshopId, `%${id}%`) as Row[]
       for (const r of linked) {
         const attachmentIds = (JSON.parse(r.attachment_ids as string) as string[]).filter((x) => x !== id)
         // The file's print rule goes with it.
-        const printRules = rulesOfLinked(JSON.parse((r.print_rules as string | null) ?? '{}'), attachmentIds)
+        const printRules = rulesOfLinked(JSON.parse((r.print_rules as string | null) ?? '{}'), printKeys({ attachmentIds, worksheets: JSON.parse((r.worksheets as string | null) ?? '[]') }))
         this.update('items', ITEM_COLS, r.id as string, { attachmentIds, printRules })
         ops.push({ op: 'set', entity: 'item', id: r.id as string, fields: { attachmentIds, printRules } })
       }
@@ -781,7 +779,7 @@ export class Repo {
     this.tx(() => {
       this.setEntryItems(entry, (c) => {
         const attachmentIds = c.attachmentIds.filter((x) => x !== id)
-        return { ...c, attachmentIds, printRules: rulesOfLinked(c.printRules ?? {}, attachmentIds) }
+        return { ...c, attachmentIds, printRules: rulesOfLinked(c.printRules ?? {}, printKeys({ attachmentIds, worksheets: c.worksheets })) }
       })
       this.db.prepare('DELETE FROM library_attachments WHERE id = ?').run(id)
     })

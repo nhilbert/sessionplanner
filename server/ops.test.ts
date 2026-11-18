@@ -597,8 +597,11 @@ describe('worksheets and print rules (docs/worksheets.md)', () => {
     repo.applyOps(id, [{ op: 'set', entity: 'item', id: item.id, fields: { attachmentIds: ['f1', 'f2'] } }])
     expect(ops.workshopUpdate(id, { participants: 14 })).toMatchObject({ participants: 14 })
     expect(ops.printRuleSet(id, 'Erwartungen', { file: 'handout.pdf', mode: 'group', groups: 3, duplex: true })).toEqual({ item: 'Erwartungen', printing: ['Handout.pdf: per group (3), A4 double-sided'], participants: 14 })
-    expect(() => ops.printRuleSet(id, 'Erwartungen', { file: 'Bild.png', mode: 'once' })).toThrow(/only PDFs/)
-    expect(() => ops.printRuleSet(id, 'Erwartungen', { file: 'fehlt.pdf', mode: 'once' })).toThrow(/not a file of this step/)
+    expect(() => ops.printRuleSet(id, 'Erwartungen', { file: 'Bild.png', mode: 'once' })).toThrow(/only PDFs and worksheets/)
+    expect(() => ops.printRuleSet(id, 'Erwartungen', { file: 'fehlt.pdf', mode: 'once' })).toThrow(/neither a file nor a worksheet/)
+    // a worksheet takes a rule too, on its own paper
+    ops.worksheetAdd({ workshop: id, item: 'Erwartungen', title: 'Mein Tag', paper: 'A5', source: '<section class="sheet"></section>' })
+    expect(ops.printRuleSet(id, 'Erwartungen', { file: 'Mein Tag', mode: 'once', paper: 'A3' }).printing).toContain('Mein Tag (worksheet): once, A5 single-sided')
     const after = repo.loadWorkshop(id)!.items.find((i) => i.title === 'Erwartungen')!
     expect(after.groups).toBe(3)
     expect(after.printRules.f1).toEqual({ mode: 'group', paper: 'A4', duplex: true })

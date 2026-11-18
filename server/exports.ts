@@ -109,13 +109,14 @@ export const printPackageName = (state: WorkshopState, locale: string | undefine
 export function printPackageZip(filesDir: string, state: WorkshopState, options: { participants?: number; reserve?: number; locale?: string }): ReadableStream<Uint8Array> | null {
   const lines = printLines(state, options)
   if (lines.some((l) => l.copies === null)) return null
+  // worksheets written in the app are printed by the browser, job by job; the package holds the files and lists all
   const w = printWords(options.locale)
   const { file } = filePaths(filesDir)
   async function* parts(): AsyncGenerator<ZipPart> {
     const taken = new Set<string>()
-    for (const l of lines) {
-      const data = await read(file(l.attachmentId))
-      if (data) yield { path: unique(taken, safePart(packageFileName(l, w), l.attachmentId)), data: bytes(data) }
+    for (const l of lines.filter((x) => x.kind === 'file')) {
+      const data = await read(file(l.id))
+      if (data) yield { path: unique(taken, safePart(packageFileName(l, w), l.id)), data: bytes(data) }
     }
     yield { path: unique(taken, `${w.printList}.md`), data: printListMarkdown(state, lines, w, options.reserve ?? 0), compress: true }
   }

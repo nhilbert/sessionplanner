@@ -235,13 +235,17 @@
   },
   "printPackage": {
     "title": "Print package",
-    "empty": "Nothing to print. On a PDF in a step, choose how many copies to print.",
+    "empty": "Nothing to print. On a PDF or a worksheet in a step, choose how many copies to print.",
     "participants": "How many take part?",
     "participantsKept": "The workshop keeps the number.",
     "reserve": "Spare copies per job",
     "reserveHint": "Remembered on this device.",
-    "hint": "A file per PDF, the job in its name, and the print list. Parked steps print nothing.",
-    "download": "Download"
+    "download": "Download ZIP",
+    "files": "PDFs – in the ZIP, a file per job, with the print list",
+    "sheets": "Worksheets – print job by job",
+    "sheetsHint": "Opens the job in the print view. Choose \"Save as PDF\" in the print dialog: the file name is the job already.",
+    "needParticipants": "Enter the number of participants first.",
+    "print": "Print"
   },
   "files": {
     "empty": "No files yet.",

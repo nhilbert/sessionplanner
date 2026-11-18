@@ -99,6 +99,18 @@ describe('worksheets of a step', () => {
     expect(w.pages[0].id).not.toBe('p1')
   })
 
+  it('keep their print rule: saved to the library under the same id, duplicated under the new one', async () => {
+    const { app, repo } = setup()
+    const ws = await workshop(app)
+    const rule = { mode: 'person', paper: 'A4', duplex: true }
+    await ops(app, ws.workshop.id, [{ op: 'create', entity: 'item', record: { ...item(ws.workshop.id, ws.days[0].id, [sheet('<section class="sheet"></section>')]), printRules: { w1: rule } } }])
+    const copy = repo.duplicateWorkshop(ws.workshop.id, { title: 'Kopie' })!.state.items[0]
+    expect(copy.printRules).toEqual({ [copy.worksheets[0].id]: rule })
+    const content = { kind: 'block', title: 'Rückblick', description: '', duration: 30, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: { w1: rule }, slides: [], worksheets: [sheet('<section class="sheet"></section>')], categoryId: null, color: null }
+    const entry = (await (await app.request(`${BASE}/api/library`, { method: 'POST', headers: H(), body: JSON.stringify({ kind: 'item', title: 'Rückblick', data: content }) })).json()) as LibraryEntry
+    expect((entry.data as { printRules: object }).printRules).toEqual({ w1: rule })
+  })
+
   it('travel into the library and back into a workshop as copies', async () => {
     const { app } = setup()
     const ws = await workshop(app)

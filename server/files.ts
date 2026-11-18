@@ -111,7 +111,8 @@ export function copyToLibrary<E extends Pick<LibraryEntry, 'kind' | 'title' | 'd
     }),
   })
   // Each print rule follows its file to the copy (docs/worksheets.md).
-  const withRules = (c: ItemContent): ItemContent => ({ ...withCopies(c), printRules: mapRules(c.printRules, (source) => copies.get(source)?.id) })
+  // a worksheet's rule stays with it (its id does not change here); a file's follows its copy
+  const withRules = (c: ItemContent): ItemContent => ({ ...withCopies(c), printRules: mapRules(c.printRules, (source) => copies.get(source)?.id ?? ((c.worksheets ?? []).some((w) => w.id === source) ? source : undefined)) })
   const data = draft.kind === 'group' ? { items: entryItems(draft).map(withRules) } : withRules(draft.data as ItemContent)
   return { entry: { ...draft, data }, files: [...copies.values()] }
 }

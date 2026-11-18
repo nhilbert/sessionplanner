@@ -4,7 +4,9 @@ import { BookOpen, Code, Copy, Eye, FilePlus, Plus, Printer, Trash2 } from 'luci
 import { entryItems } from '@/domain/copy'
 import { newId } from '@/domain/ops'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, newWorksheets, normalizeSheetHtml, splitPages } from '@/domain/sheets'
-import { PAPERS, type Paper, type Worksheet } from '@/domain/types'
+import { PAPERS, type Paper, type PrintRule, type Worksheet } from '@/domain/types'
+import { ruleOf } from '@/domain/printing'
+import { PrintRuleField } from '@/planner/PrintRuleField'
 import type { AssetScope } from '@/api'
 import { Button, cx, Field, Input, Modal, SectionLabel } from '@/components/ui'
 import Menu, { type MenuItem } from '@/components/Menu'
@@ -16,7 +18,16 @@ import { SheetPage, useSheetChrome } from './SheetView'
  * viewer; each sheet's ⋯ views, edits its source, duplicates and removes it. A new sheet starts empty from its source
  * or as a copy of a sheet in the library. The editor proper is stage 3.
  */
-export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint }: { sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void }) {
+/** How a step prints its sheets (docs/worksheets.md): shown under each sheet in a workshop, not in the library. */
+export interface SheetPrinting {
+  rules: Record<string, PrintRule>
+  groups: number
+  participants: number | null
+  onRule: (sheetId: string, rule: PrintRule) => void
+  onGroups: (groups: number) => void
+}
+
+export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing }: { sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
   const { t } = useTranslation()
   const [viewing, setViewing] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ sheet: Worksheet; isNew: boolean } | null>(null)
@@ -58,6 +69,17 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint }:
                 </div>
                 <Menu items={menu(sheet)} label={t('sheets.actions', { title: sheet.title })} float />
               </div>
+              {printing && (
+                <PrintRuleField
+                  name={sheet.title}
+                  rule={ruleOf({ printRules: printing.rules }, sheet.id)}
+                  groups={printing.groups}
+                  participants={printing.participants}
+                  paper={sheet.paper}
+                  onRule={(rule) => printing.onRule(sheet.id, rule)}
+                  onGroups={printing.onGroups}
+                />
+              )}
             </li>
           ))}
         </ul>
