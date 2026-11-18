@@ -1,12 +1,14 @@
 import { compress } from '../pptx/zip.ts'
 
 /**
- * A PDF writer for the deck export, without a dependency: one 16:9 page per slide, the slide as a JPEG picture drawn
- * over the whole page, and the slide's words as invisible text at their places, so the file can be searched and its
+ * A PDF writer for the deck export and worksheets, without a dependency: one page per slide or sheet page, its picture
+ * drawn over the whole page, and its words as invisible text at their places, so the file can be searched and its
  * text selected and copied. Fonts are not embedded: the invisible text uses Helvetica, one of the fonts every reader
  * has, scaled to each word's width.
  *
- * Coordinates are pixels of the 1280 × 720 design size; one pixel is 0.75 pt, the page 960 × 540 pt.
+ * A slide's picture is a JPEG on a 960 × 540 pt page; a worksheet page's is lossless (raw RGB, Flate with the PNG
+ * predictor, so thin lines and small type stay sharp) on its paper size. Coordinates of words are CSS pixels (96 per
+ * inch) from the page's top left; one pixel is 0.75 pt.
  */
 
 export const PT_PER_PX = 0.75
@@ -25,12 +27,29 @@ export interface PdfWord {
 }
 
 export interface PdfPage {
-  /** JPEG bytes of the slide */
-  jpeg: Uint8Array
+  /** JPEG bytes of the picture (a slide) */
+  jpeg?: Uint8Array
+  /** or its pixels as RGB, three bytes each, row by row: stored lossless (a worksheet page) */
+  rgb?: Uint8Array
   /** the picture's size in pixels */
   width: number
   height: number
   words: PdfWord[]
+  /** the page's size in pt; a slide's 960 × 540 when not given */
+  pt?: { w: number; h: number }
+}
+
+/** The pixels with the PNG "Up" filter before each row, which Flate then packs far better than raw rows. */
+export function upFiltered(rgb: Uint8Array, width: number, height: number): Uint8Array {
+  const row = width * 3
+  const out = new Uint8Array((row + 1) * height)
+  for (let y = 0; y < height; y++) {
+    const at = y * (row + 1)
+    out[at] = 2
+    const cur = y * row
+    for (let x = 0; x < row; x++) out[at + 1 + x] = (rgb[cur + x] - (y ? rgb[cur - row + x] : 0)) & 0xff
+  }
+  return out
 }
 
 /** Helvetica's advance widths (per 1000 units of the font size) for the printable ASCII characters. */
@@ -66,8 +85,8 @@ function textString(s: string): string {
   return `<${out}>`
 }
 
-/** The invisible text of a page: every word as wide and as high as on the slide. */
-export function textLayer(words: PdfWord[]): string {
+/** The invisible text of a page: every word as wide and as high as on the slide or sheet; pageH is the page's height in pt. */
+export function textLayer(words: PdfWord[], pageH = PAGE_H): string {
   const ops: string[] = []
   for (const w of words) {
     const bytes = winAnsi(w.text)
@@ -76,7 +95,7 @@ export function textLayer(words: PdfWord[]): string {
     const size = w.size * PT_PER_PX
     const scale = ((w.w * PT_PER_PX) / ((width / 1000) * size)) * 100
     // the baseline: the middle of the word's box, lowered by a third of the font size
-    const baseline = PAGE_H - (w.y + w.h / 2 + w.size * 0.33) * PT_PER_PX
+    const baseline = pageH - (w.y + w.h / 2 + w.size * 0.33) * PT_PER_PX
     ops.push(`/F1 ${num(size)} Tf ${num(Math.min(Math.max(scale, 1), 1000))} Tz 1 0 0 1 ${num(w.x * PT_PER_PX)} ${num(baseline)} Tm <${hex(bytes)}> Tj`)
   }
   return ops.length ? `BT 3 Tr\n${ops.join('\n')}\nET\n` : ''
@@ -115,11 +134,20 @@ export async function writePdf(pages: PdfPage[], meta: { title: string; lang: st
   object(4, `<< /Title ${textString(meta.title)} /Producer ${textString('Session Planner')} /CreationDate (D:${d}Z) >>`)
   for (const [i, page] of pages.entries()) {
     const id = pageId(i)
-    const content = enc.encode(`q ${num(PAGE_W)} 0 0 ${num(PAGE_H)} 0 0 cm /Im0 Do Q\n${textLayer(page.words)}`)
+    const w = page.pt?.w ?? PAGE_W
+    const h = page.pt?.h ?? PAGE_H
+    const content = enc.encode(`q ${num(w)} 0 0 ${num(h)} 0 0 cm /Im0 Do Q\n${textLayer(page.words, h)}`)
     const packed = await compress(content, 'deflate')
-    object(id, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(PAGE_W)} ${num(PAGE_H)}] /Resources << /Font << /F1 3 0 R >> /XObject << /Im0 ${id + 2} 0 R >> >> /Contents ${id + 1} 0 R >>`)
+    object(id, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(w)} ${num(h)}] /Resources << /Font << /F1 3 0 R >> /XObject << /Im0 ${id + 2} 0 R >> >> /Contents ${id + 1} 0 R >>`)
     object(id + 1, `<< /Length ${(packed ?? content).length}${packed ? ' /Filter /FlateDecode' : ''} >>`, packed ?? content)
-    object(id + 2, `<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.jpeg.length} >>`, page.jpeg)
+    const image = `/Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8`
+    if (page.jpeg) object(id + 2, `<< ${image} /Filter /DCTDecode /Length ${page.jpeg.length} >>`, page.jpeg)
+    else if (page.rgb) {
+      const pixels = await compress(upFiltered(page.rgb, page.width, page.height), 'deflate')
+      // without CompressionStream the pixels go in as they are
+      if (pixels) object(id + 2, `<< ${image} /Filter /FlateDecode /DecodeParms << /Predictor 15 /Colors 3 /Columns ${page.width} >> /Length ${pixels.length} >>`, pixels)
+      else object(id + 2, `<< ${image} /Length ${page.rgb.length} >>`, page.rgb)
+    } else throw new Error('a page needs its picture')
   }
   const count = 5 + pages.length * 3
   const xref = length
