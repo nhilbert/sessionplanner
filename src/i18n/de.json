@@ -169,7 +169,9 @@
     "duplicateHint": "Kopiert Tage, Gruppen, Punkte, Material und Dateien. Die Packliste beginnt unabgehakt.",
     "days": "Tage",
     "branding": "Branding (Theme)",
-    "brandingHint": "Bestimmt die Folien und das Logo auf den Ausdrucken dieses Workshops. Hat das Theme kein Logo für Papier, steht dort das Ausdruck-Logo aus den Einstellungen."
+    "brandingHint": "Bestimmt die Folien und das Logo auf den Ausdrucken dieses Workshops. Hat das Theme kein Logo für Papier, steht dort das Ausdruck-Logo aus den Einstellungen.",
+    "participants": "Teilnehmende",
+    "participantsHint": "Für Blätter, die pro Person gedruckt werden."
   },
   "packing": {
     "empty": "Noch kein Material. Ergänze Material an den Agendapunkten.",
@@ -180,7 +182,32 @@
     "general": "Workshop allgemein",
     "addPlaceholder": "Material hinzufügen …",
     "for": "Für",
-    "add": "Hinzufügen"
+    "add": "Hinzufügen",
+    "noParticipants": "Teilnehmerzahl fehlt",
+    "printed": "Druck"
+  },
+  "printRule": {
+    "label": "Druck von {{name}}",
+    "off": "Nicht drucken",
+    "person": "pro Person",
+    "group": "pro Gruppe",
+    "once": "einmal",
+    "count": "Anzahl",
+    "groups": "Anzahl der Gruppen",
+    "paper": "Papierformat",
+    "oneSided": "einseitig",
+    "twoSided": "doppelseitig",
+    "noParticipants": "Teilnehmerzahl fehlt"
+  },
+  "printPackage": {
+    "title": "Druckpaket",
+    "empty": "Nichts zu drucken. Wähle an einer PDF in einem Agendapunkt, wie oft sie gedruckt wird.",
+    "participants": "Wie viele nehmen teil?",
+    "participantsKept": "Der Workshop merkt sich die Zahl.",
+    "reserve": "Reserve je Auftrag",
+    "reserveHint": "Wird auf diesem Gerät gemerkt.",
+    "hint": "Eine Datei je PDF, der Auftrag steht im Namen; dazu die Druckliste. Geparkte Punkte drucken nichts.",
+    "download": "Herunterladen"
   },
   "files": {
     "empty": "Noch keine Dateien.",
@@ -474,7 +501,9 @@
     "presentMenu": "Weitere Arten zu präsentieren",
     "presentFull": "Präsentation",
     "presentFullHint": "für den Beamer, im neuen Fenster",
-    "presenterHint": "aktuelle und nächste Folie, Zeit und Notizen; auch als Fernbedienung am Handy"
+    "presenterHint": "aktuelle und nächste Folie, Zeit und Notizen; auch als Fernbedienung am Handy",
+    "printPackage": "Druckpaket (ZIP)",
+    "printPackageHint": "eine Datei je Druckauftrag und die Druckliste"
   },
   "slides": {
     "keys": "Tastatur",

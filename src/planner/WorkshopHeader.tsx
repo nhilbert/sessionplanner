@@ -14,6 +14,7 @@ import {
   FileArchive,
   FileText,
   FileCode,
+  FileStack,
   MonitorSpeaker,
   PanelRight,
   Play,
@@ -40,6 +41,7 @@ import Menu, { type MenuItem } from '@/components/Menu'
 import { useDeckExport } from '@/slides/useDeckExport'
 import { TextField } from './fields'
 import { AccessPanel, deleteWorkshop, DuplicateDialog } from './panels'
+import { PrintPackageDialog } from './PrintPackageDialog'
 
 /** The trigger of a labelled menu or button in the header: quiet, with its label where the header has room. */
 const headerButton = 'tap inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-2 pointer-coarse:h-9'
@@ -75,6 +77,7 @@ export default function WorkshopHeader(p: Props) {
   const w = p.data.workshop
   const [sharing, setSharing] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
+  const [printing, setPrinting] = useState(false)
   const { save, progress } = useDeckExport(p.data)
   const days = [...p.data.days].sort((a, b) => a.date.localeCompare(b.date))
   const dates = days.length ? (days.length === 1 ? formatDate(days[0].date) : `${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`) : ''
@@ -97,6 +100,7 @@ export default function WorkshopHeader(p: Props) {
   const output: MenuItem[] = [
     ...PRINT_VARIANTS.map((v) => ({ label: t(VARIANT_LABEL[v]), icon: <Printer size={14} />, onSelect: () => open(`print/${v}`) })),
     { label: t('slides.printSlides'), icon: <Printer size={14} />, onSelect: () => open('print/slides') },
+    { label: t('output.printPackage'), hint: t('output.printPackageHint'), icon: <FileStack size={14} />, onSelect: () => setPrinting(true) },
     { label: t('output.pptx'), hint: t('output.pptxHint'), icon: <Presentation size={14} />, separated: true, disabled: !!progress, onSelect: () => void save('pptx') },
     { label: t('output.pdf'), hint: t('output.pdfHint'), icon: <FileText size={14} />, disabled: !!progress, onSelect: () => void save('pdf') },
     { label: t('output.html'), hint: t('output.htmlHint'), icon: <FileCode size={14} />, disabled: !!progress, onSelect: () => void save('html') },
@@ -142,6 +146,7 @@ export default function WorkshopHeader(p: Props) {
   const dialogs: ReactNode = (
     <>
       {p.owner && <DuplicateDialog data={p.data} open={duplicating} onClose={() => setDuplicating(false)} />}
+      <PrintPackageDialog data={p.data} open={printing} change={p.change} onClose={() => setPrinting(false)} />
       {share && (
         <Modal open={sharing} onClose={() => setSharing(false)}>
           <h2 className="mb-3 text-lg font-medium">{t('access.share', { title: w.title || t('workshops.untitled') })}</h2>

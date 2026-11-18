@@ -169,7 +169,9 @@
     "duplicateHint": "Copies days, groups, items, material and files. The packing list starts unticked.",
     "days": "Days",
     "branding": "Branding (theme)",
-    "brandingHint": "Sets the slides and the logo on the printouts of this workshop. If the theme has no logo for paper, the printout logo from the settings is used."
+    "brandingHint": "Sets the slides and the logo on the printouts of this workshop. If the theme has no logo for paper, the printout logo from the settings is used.",
+    "participants": "Participants",
+    "participantsHint": "For sheets printed per person."
   },
   "packing": {
     "empty": "No material yet. Add material to the agenda items.",
@@ -180,7 +182,32 @@
     "general": "Workshop in general",
     "addPlaceholder": "Add material …",
     "for": "For",
-    "add": "Add"
+    "add": "Add",
+    "noParticipants": "number of participants missing",
+    "printed": "print"
+  },
+  "printRule": {
+    "label": "Printing {{name}}",
+    "off": "Don’t print",
+    "person": "per person",
+    "group": "per group",
+    "once": "once",
+    "count": "count",
+    "groups": "Number of groups",
+    "paper": "Paper size",
+    "oneSided": "single-sided",
+    "twoSided": "double-sided",
+    "noParticipants": "number of participants missing"
+  },
+  "printPackage": {
+    "title": "Print package",
+    "empty": "Nothing to print. On a PDF in a step, choose how many copies to print.",
+    "participants": "How many take part?",
+    "participantsKept": "The workshop keeps the number.",
+    "reserve": "Spare copies per job",
+    "reserveHint": "Remembered on this device.",
+    "hint": "A file per PDF, the job in its name, and the print list. Parked steps print nothing.",
+    "download": "Download"
   },
   "files": {
     "empty": "No files yet.",
@@ -474,7 +501,9 @@
     "presentMenu": "Other ways to present",
     "presentFull": "Presentation",
     "presentFullHint": "for the projector, in a new window",
-    "presenterHint": "current and next slide, time and notes; also a remote on the phone"
+    "presenterHint": "current and next slide, time and notes; also a remote on the phone",
+    "printPackage": "Print package (ZIP)",
+    "printPackageHint": "a file per print job and the print list"
   },
   "slides": {
     "keys": "Keyboard",

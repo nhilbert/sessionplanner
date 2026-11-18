@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Plus, UserMinus, UserPlus, X } from 'lucide-react'
@@ -41,6 +41,9 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
       </Field>
       <Field label={t('workshop.location')}>
         <TextField value={w.location} onCommit={(location) => set({ location })} />
+      </Field>
+      <Field label={t('workshop.participants')} hint={t('workshop.participantsHint')}>
+        <ParticipantsField value={w.participants ?? null} onCommit={(participants) => set({ participants })} />
       </Field>
       <Field label={t('workshop.goal')}>
         <TextField multiline value={w.goal} onCommit={(goal) => set({ goal })} className="min-h-[64px]" />
@@ -112,6 +115,8 @@ export function PackingPanel({ data, change }: { data: WorkshopState; change: (o
               <div className="flex flex-wrap items-center gap-x-2 text-[12px] text-ink-3">
                 {l.itemIds.length > 0 && <span>{t('packing.usedIn', { count: l.itemIds.length })}</span>}
                 {l.workshopMaterialIds.length > 0 && <span>{t('packing.general')}</span>}
+                {l.sheet && <span>· {t('packing.printed')}</span>}
+                {l.unknown && l.state.qty === undefined && <span className="text-amber">· {t('packing.noParticipants')}</span>}
                 {l.state.qty !== undefined && l.state.qty !== l.suggested && <span>· {t('packing.suggested', { n: l.suggested })}</span>}
                 <label className="inline-flex items-center gap-1">
                   <input type="checkbox" checked={!!l.state.venue} onChange={(e) => update(l.key, { venue: e.target.checked })} />
@@ -417,5 +422,35 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+/** The number of participants: empty while not known; committed on leaving the field or Enter. */
+function ParticipantsField({ value, onCommit }: { value: number | null; onCommit: (n: number | null) => void }) {
+  const [local, setLocal] = useState(value === null ? '' : String(value))
+  const focused = useRef(false)
+  useEffect(() => {
+    if (!focused.current) setLocal(value === null ? '' : String(value))
+  }, [value])
+  const commit = () => {
+    focused.current = false
+    const n = Number(local)
+    const next = local.trim() === '' ? null : Number.isInteger(n) && n >= 1 && n <= 10_000 ? n : value
+    if (next !== value) onCommit(next)
+    else setLocal(value === null ? '' : String(value))
+  }
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={1}
+      max={10_000}
+      value={local}
+      onFocus={() => void (focused.current = true)}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      className="field h-8 w-24 px-2 text-[13px] tnum"
+    />
   )
 }
