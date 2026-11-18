@@ -1,6 +1,9 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Code, Copy, Eye, FilePlus, Plus, Printer, Trash2 } from 'lucide-react'
+import { BookOpen, Code, Copy, Eye, FilePlus, Pencil, Plus, Printer, Shuffle, Trash2 } from 'lucide-react'
+import { sampleSets, seeded, variant } from '@/domain/sampleSets'
+import { SHEET_STARTERS, starterSheet, starterWords } from '@/domain/sheetStarters'
+import { SheetEditor } from './editor/SheetEditor'
 import { entryItems } from '@/domain/copy'
 import { newId } from '@/domain/ops'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, newWorksheets, normalizeSheetHtml, splitPages } from '@/domain/sheets'
@@ -29,7 +32,11 @@ export interface SheetPrinting {
 
 export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing }: { sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
   const { t } = useTranslation()
+  /** The sheet open in the editor, and whether it opened for editing. */
   const [viewing, setViewing] = useState<string | null>(null)
+  const [startEditing, setStartEditing] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const open = (id: string, edit = false) => (setStartEditing(edit), setViewing(id))
   const [editing, setEditing] = useState<{ sheet: Worksheet; isNew: boolean } | null>(null)
   const [picking, setPicking] = useState(false)
   const canEdit = !!onChange
@@ -37,11 +44,11 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
   if (!sheets.length && !canEdit) return null
   const now = () => new Date().toISOString()
   const replace = (sheet: Worksheet) => onChange?.(sheets.some((s) => s.id === sheet.id) ? sheets.map((s) => (s.id === sheet.id ? sheet : s)) : [...sheets, sheet])
-  const blank = (): Worksheet => ({ id: newId(), title: t('sheets.newTitle'), paper: 'A4', updatedAt: now(), pages: [{ id: newId(), html: t('sheets.starter') }] })
   const viewed = sheets.find((s) => s.id === viewing)
 
   const menu = (sheet: Worksheet): MenuItem[] => [
-    { label: t('sheets.view'), icon: <Eye size={14} />, onSelect: () => setViewing(sheet.id) },
+    { label: t('sheets.view'), icon: <Eye size={14} />, onSelect: () => open(sheet.id) },
+    ...(canEdit ? [{ label: t('sheetEditor.edit'), icon: <Pencil size={14} />, onSelect: () => open(sheet.id, true) }] : []),
     ...(onPrint ? [{ label: t('sheets.print'), icon: <Printer size={14} />, onSelect: () => onPrint(sheet.id) }] : []),
     ...(canEdit
       ? [
@@ -59,7 +66,7 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-3">
           {sheets.map((sheet) => (
             <li key={sheet.id} className="min-w-0">
-              <Thumb sheet={sheet} scope={scope} theme={theme} logo={logo} onOpen={() => setViewing(sheet.id)} />
+              <Thumb sheet={sheet} scope={scope} theme={theme} logo={logo} onOpen={() => open(sheet.id)} />
               <div className="mt-1 flex items-start gap-1">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px]" title={sheet.title}>
@@ -98,12 +105,26 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
             </>
           }
           items={[
-            { label: t('sheets.addBlank'), icon: <FilePlus size={14} />, onSelect: () => setEditing({ sheet: blank(), isNew: true }) },
+            { label: t('sheets.addNew'), icon: <FilePlus size={14} />, onSelect: () => setStarting(true) },
             { label: t('sheets.addFromLibrary'), icon: <BookOpen size={14} />, onSelect: () => setPicking(true) },
           ]}
         />
       )}
-      {viewed && <SheetViewer sheet={viewed} scope={scope} theme={theme} logo={logo} onClose={() => setViewing(null)} onSource={canEdit ? () => (setViewing(null), setEditing({ sheet: viewed, isNew: false })) : undefined} onPrint={onPrint && (() => onPrint(viewed.id))} />}
+      {viewed && <SheetEditor key={viewed.id} sheet={viewed} scope={scope} theme={theme} logo={logo} canEdit={canEdit} startEditing={startEditing} onSave={(sheet) => replace({ ...sheet, updatedAt: now() })} onClose={() => setViewing(null)} onPrint={onPrint && (() => onPrint(viewed.id))} />}
+      {starting && (
+        <StarterPicker
+          scope={scope}
+          theme={theme}
+          logo={logo}
+          onClose={() => setStarting(false)}
+          onPick={(title, pages) => {
+            const sheet: Worksheet = { id: newId(), title, paper: 'A4', updatedAt: now(), pages: pages.map((html) => ({ id: newId(), html })) }
+            onChange?.([...sheets, sheet])
+            setStarting(false)
+            open(sheet.id, true)
+          }}
+        />
+      )}
       {editing && <SheetSource key={editing.sheet.id} sheet={editing.sheet} isNew={editing.isNew} scope={scope} theme={theme} logo={logo} onClose={() => setEditing(null)} onSave={(sheet) => (replace({ ...sheet, updatedAt: now() }), setEditing(null))} />}
       {picking && <LibrarySheetPicker theme={theme} logo={logo} onClose={() => setPicking(false)} onPick={(sheet) => (onChange?.([...sheets, { ...newWorksheets([sheet], newId)[0], updatedAt: now() }]), setPicking(false))} />}
     </div>
@@ -253,4 +274,35 @@ function LibrarySheetPicker({ theme, logo, onClose, onPick }: { theme: string; l
 function PickThumb({ sheet, scope, theme, logo, onPick }: { sheet: Worksheet; scope: AssetScope; theme: string; logo: string | null; onPick: () => void }) {
   const chrome = useSheetChrome(sheet, logo)
   return <SheetPage html={sheet.pages[0]?.html ?? ''} paper={sheet.paper} theme={theme} scope={scope} chrome={chrome(1)} onClick={onPick} label={sheet.title} />
+}
+
+/** "New worksheet": the starter sheets, filled with a made-up subject drawn at random (Shuffle draws again). */
+function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetScope; theme: string; logo: string | null; onClose: () => void; onPick: (title: string, pages: string[]) => void }) {
+  const { t, i18n } = useTranslation()
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9))
+  const starters = useMemo(() => {
+    const random = seeded(seed)
+    const sets = sampleSets(i18n.language)
+    const words = starterWords(i18n.language)
+    return SHEET_STARTERS.map((kind) => ({ kind, ...starterSheet(kind, variant(sets[Math.floor(random() * sets.length)], random), words) }))
+  }, [seed, i18n.language])
+  return (
+    <Modal open onClose={onClose} width="max-w-4xl" top="pt-[max(1rem,env(safe-area-inset-top))] md:pt-[6vh]">
+      <div className="mb-4 flex items-center gap-3">
+        <h2 className="flex-1 text-lg font-medium">{t('sheets.addNew')}</h2>
+        <Button size="sm" variant="ghost" onClick={() => setSeed((x) => x + 1)}>
+          <Shuffle size={14} />
+          {t('sheets.shuffle')}
+        </Button>
+      </div>
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4">
+        {starters.map((s) => (
+          <li key={s.kind} className="min-w-0">
+            <SheetPage html={s.pages[0]} paper="A4" theme={theme} scope={scope} chrome={{ date: '', n: 1, total: 1, logo }} onClick={() => onPick(s.title, s.pages)} label={t(`sheets.starter.${s.kind}`)} />
+            <div className="mt-1 text-[13px]">{t(`sheets.starter.${s.kind}`)}</div>
+          </li>
+        ))}
+      </ul>
+    </Modal>
+  )
 }

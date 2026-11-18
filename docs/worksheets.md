@@ -2,7 +2,7 @@
 
 Printed material for the steps of a workshop: worksheets for exercises and handouts for methods. A step says how many copies of each sheet the workshop needs; the workshop exports one print package with a file per print job. Sheets are written in the app as content in a small HTML subset, like slides, and laid out by one stylesheet; files made elsewhere (a PDF from a layout program) stay possible and follow the same print rule.
 
-Stage 0 (print rules and the print package), stage 1 (the format, outside the app) and stage 2 (sheets in the app, with the print package) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
+Stage 0 (print rules and the print package), stage 1 (the format, outside the app), stage 2 (sheets in the app, with the print package) and stage 3a (the editor with fields) are built. The format (sections 4 and 5) is settled: the owner accepted the test print of the rebuilt sample sheets on 2026-11-18.
 
 No client, partner or brand names in this file. The owner's sample worksheets are private material and stay outside this repository.
 
@@ -129,7 +129,19 @@ Stage 2b, built 2026-11-18: sheets in the print package (section 3).
 
 ## 7. Editing (stage 3)
 
-The slide editor's shell: looking first, fields beside the live page, with a mouse on the page itself, its own history, the source behind a menu. New here: blocks are added, moved and removed; pages are added and reordered; a page reports its overflow. Starter sheets are code, like starter slides.
+The slide editor's shell: looking first, fields beside the live page, its own history, the source behind a menu. New here: blocks are added, moved and removed; pages are added and reordered; a page reports its overflow. Starter sheets are code, like starter slides.
+
+Stage 3a, built 2026-11-18:
+
+- **The page document** (`src/domain/sheetDoc.ts`): a page is read into its orientation, header and blocks, each block with the fields of its kind, and written back in the catalogue's markup. A block is offered as fields only when writing it back shows the same block; otherwise it stays as source, untouched, and so does a header the fields cannot hold. Empty elements count in the comparison: on a sheet an empty field, row or line is the point. In text fields, blanks are underscores (`___`, `__` short, `____` long) beside the slides' inline markup. The pages of the stage 1 samples and the catalogue read back unchanged; two blocks of the samples (a heading of the poster's size in a question, a grid whose fields hold blocks) stay source.
+- **The editor** (`src/worksheets/editor`) replaces the viewer: it opens for looking (arrows page, E edits), "Edit" brings the fields beside the page – the sheet (title, paper), the page (orientation), the header, the blocks as cards with ⋯ (up, down, duplicate, remove) and their fields: the block's shape (modifiers as a choice or switches, height, writing lines, "fills the rest"), and its content. Blocks are added from a menu grouped as the catalogue is; a pair holds two lists of blocks. Pages are added, duplicated, moved and removed below the page; the source of a page is in the ⋯ menu. A click on a block of the page opens its card.
+- **Overflow**: the page names how many blocks run past its bottom margin, and each such card says by how many millimetres.
+- **History and saving**: undo and redo cover every change in the editor; typing in one field is one step while it goes on. Changes are saved a moment after they are made and when the editor closes; the sheet's date follows.
+- **New sheets** start from the starter sheets (`src/domain/sheetStarters.ts`): a reflection, the instructions of an exercise, a handout, fields to fill, a self-rating, a transfer plan and a blank sheet, filled with the made-up subjects of the starter slides; "Shuffle" draws again. A new sheet opens in the editor.
+- Guests who may edit a workshop edit its sheets as the owner does (decided 2026-11-18).
+- On a phone the page stands above the fields.
+
+Stage 3b: typing on the page itself, as on slides, is left for later (decided 2026-11-18).
 
 ## 8. Themes on paper
 
