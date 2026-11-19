@@ -264,6 +264,10 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   const pause = item.kind === 'break'
   const height = ppm ? Math.max(pause ? MIN_BREAK : MIN_CARD, minutes * ppm) : undefined
   const roomy = !height || height >= 60
+  // The line of signs (notes, material, slides, lead) needs a third line's room where a description stands above it;
+  // a row that is too low for it shows the description alone instead of a line cut in half.
+  const describes = roomy && showDescription && !!item.description
+  const signs = roomy && (!height || !describes || height >= 76)
   // Off the timeline (parking lot, the card under the pointer while dragging) an entry is a small card of its own.
   const alone = !ppm
   return (
@@ -307,8 +311,8 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
                 />
               )}
             </div>
-            {roomy && showDescription && item.description && <div className={cx('mt-0.5 line-clamp-3 whitespace-pre-line text-[13px] leading-snug text-ink-2', start && 'pl-[56px]')}>{item.description}</div>}
-            {roomy && (
+            {describes && <div className={cx('mt-0.5 whitespace-pre-line', height && height < 100 ? 'line-clamp-1' : 'line-clamp-3', 'text-[13px] leading-snug text-ink-2', start && 'pl-[56px]')}>{item.description}</div>}
+            {signs && (
               <div className={cx('mt-1 flex items-center gap-2 text-ink-3', start && 'pl-[56px]')}>
                 {item.notes && <NotebookPen size={12} />}
                 {item.materials.length > 0 && (
