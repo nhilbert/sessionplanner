@@ -89,8 +89,15 @@ Opened from the agenda, an entry's details stand in the sidebar; from there they
 - **Large, the same parts stand in two columns** in place of the agenda: what is written on the left (title, goal,
   notes, slides), the facts on the right (time, category, material, files, worksheets). The agenda stays beside it as
   a slim list of the days' entries with their starts, and the head leads to the entry before and after. "To the
-  agenda" and Escape make the details small again; an entry opened anew starts small. Where the room is too narrow
-  for two columns they stand one below the other, and the slim list shows only where both columns fit beside it.
+  agenda" and Escape make the details small again (Escape leaves a field first); an entry opened anew starts small.
+  Back in the agenda, the entry that is open is shown: out of a folded group, on its day, in view. Where the room is
+  too narrow for two columns they stand one below the other, and the slim list shows only where both columns fit
+  beside it.
+- **Large, the head stands in for the workshop's header**, which is out of sight with the agenda: undo and redo,
+  the sign of a lost connection, and above the details the notice of a save that failed.
+- **Nothing moves under the pointer.** A line left empty (a goal, a material's link) goes only when the press that
+  left it is over, so the click lands where it was aimed. One button makes the details large and small, so it keeps
+  the focus through both.
 - On a phone the details fill the screen anyway: one column, and no large form.
 
 ## Inserting

@@ -5,9 +5,6 @@ import type { Item, ItemKind } from '@/domain/types'
 import { formatDuration, formatTime, parseClock, parseDuration } from '@/domain/time'
 import { cx } from '@/components/ui'
 
-/** A value that reads as text until it is edited: no frame and no ground, both come with the pointer and the focus. */
-export const BARE = 'border-transparent bg-transparent hover:bg-surface-2 focus:border-line-2 focus:bg-surface'
-
 /**
  * A text field bound to a stored value. It saves after a short pause and on leaving the field, and while
  * you type it is not overwritten by changes from other windows; once you leave it, it shows theirs again.
@@ -31,7 +28,7 @@ export function TextField({
    * it has no line breaks of its own, and Enter leaves the field. Always without a frame.
    */
   wrap?: boolean
-  /** Without a frame until it is edited (a title, a line of the details); a bare text of several lines is as high as its text. */
+  /** Without a frame until it is edited (a title, a line of the details: the class `field-bare`); a bare text of several lines is as high as its text. */
   bare?: boolean
   /** Called with the field's text when it is left. */
   onLeave?: (value: string) => void
@@ -50,20 +47,28 @@ export function TextField({
     if (!focused.current) setLocal(value)
   }, [value])
   useEffect(() => () => clearTimeout(timer.current), [])
-  // As high as its text, also after the place it stands in got wider or narrower.
+  // As high as its text: fitted with every change of it, and when the place it stands in gets wider or narrower.
   const grow = !!wrap || (!!multiline && !!bare)
-  useLayoutEffect(() => {
+  const fit = () => {
     const el = area.current
     if (!grow || !el) return
-    const fit = () => {
-      el.style.height = 'auto'
-      el.style.height = `${el.scrollHeight + 2}px`
-    }
-    fit()
-    const watch = new ResizeObserver(fit)
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight + 2}px`
+  }
+  useLayoutEffect(fit, [grow, local])
+  useEffect(() => {
+    const el = area.current
+    if (!grow || !el) return
+    let width = el.clientWidth
+    const watch = new ResizeObserver(() => {
+      if (el.clientWidth === width) return
+      width = el.clientWidth
+      fit()
+    })
     watch.observe(el)
     return () => watch.disconnect()
-  }, [grow, local])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grow])
 
   const commit = (v: string) => {
     clearTimeout(timer.current)
@@ -113,7 +118,7 @@ export function TextField({
         className={cx(grow ? 'field-bare block w-full resize-none overflow-hidden px-2 py-1.5 leading-snug placeholder:text-ink-3' : 'field min-h-[84px] resize-y py-2 leading-relaxed', className)}
       />
     )
-  return <input {...props} {...common} className={cx('field', bare && BARE, className)} />
+  return <input {...props} {...common} className={cx('field', bare && 'field-bare', className)} />
 }
 
 /**

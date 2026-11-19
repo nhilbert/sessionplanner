@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Archive, BookmarkPlus, CalendarPlus, ChevronDown, ChevronRight, Copy, Link2, Minus, Pin, Plus, Trash2, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, Material, PaletteKey, WorkshopState } from '@/domain/types'
@@ -14,7 +14,7 @@ import type { TFunction } from 'i18next'
 import { formatDate } from '@/i18n'
 import { cx, IconButton, SectionLabel, useLocalState } from '@/components/ui'
 import Menu, { type MenuItem } from '@/components/Menu'
-import { BARE, DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
+import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
 import { FileManager } from './FileManager'
 import { WorksheetList } from '@/worksheets/WorksheetList'
@@ -38,6 +38,30 @@ export const kindFields = (item: Item, kind: ItemKind): Partial<ItemFields> => {
 
 /** The lines of a unit that show only once they say something; until then each is a small "+ …" below the others. */
 type Optional = 'goal' | 'method' | 'lead'
+
+// Whether a pointer is pressed right now, known before anything on the page reacts to the press.
+let pressed = false
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointerdown', () => void (pressed = true), true)
+  for (const end of ['pointerup', 'pointercancel']) window.addEventListener(end, () => void (pressed = false), true)
+}
+
+/**
+ * Runs what takes a line away once the press that led to it is over. A field is left when the pointer goes down
+ * elsewhere; were its line taken away at once, what lies below would move up under the pointer and the click would
+ * land on nothing. Left with the keyboard, there is nothing to wait for.
+ */
+function afterPress(run: () => void): void {
+  if (!pressed) return run()
+  const done = () => {
+    window.removeEventListener('pointerup', done, true)
+    window.removeEventListener('pointercancel', done, true)
+    // after the click that follows the release
+    setTimeout(run, 0)
+  }
+  window.addEventListener('pointerup', done, true)
+  window.addEventListener('pointercancel', done, true)
+}
 
 /** Something to add, as a quiet pill: an optional line, a fixed start. */
 const CHIP = 'tap inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-line-2 px-2.5 text-[12px] text-ink-2 transition-colors hover:border-ink-3 hover:text-ink pointer-coarse:h-9'
@@ -97,18 +121,22 @@ export default function ItemPanel({
   const open = (k: Optional) => setOpened((now) => (now.has(k) ? now : new Set(now).add(k)))
   const leave = (k: Optional, text: string) => {
     if (text.trim()) return
-    setOpened((now) => {
-      const next = new Set(now)
-      next.delete(k)
-      return next
-    })
+    afterPress(() =>
+      setOpened((now) => {
+        const next = new Set(now)
+        next.delete(k)
+        return next
+      }),
+    )
   }
   const shown = (k: Optional) => !!item[k] || opened.has(k)
   // Shown large, the goal stands with the text, not among the facts.
   const optional: Optional[] = unit ? (wide ? ['method', 'lead'] : ['goal', 'method', 'lead']) : []
-  /** The material just added: its name takes the focus. */
+  /** The material just added: its name takes the focus, once. */
   const [freshMaterial, setFreshMaterial] = useState<string | null>(null)
   const linkedFiles = item.attachmentIds.map((id) => data.attachments.find((a) => a.id === id)).filter((a): a is Attachment => !!a)
+  /** The entry as the store has it now: for what arrives later than this view of it (a file that was on its way). */
+  const current = (): Item => usePlanner.getState().data?.items.find((i) => i.id === item.id) ?? item
 
   const title = (
     <div className="-mx-2">
@@ -128,7 +156,7 @@ export default function ItemPanel({
         <IconButton label="−5" className="border border-line-2 text-brand-ink" onClick={() => set({ duration: Math.max(SNAP, item.duration - SNAP) })}>
           <Minus size={13} />
         </IconButton>
-        <DurationField value={item.duration} onChange={(duration) => set({ duration })} className={cx(BARE, 'w-[88px] font-bold text-brand-ink')} aria-label={t('item.duration')} />
+        <DurationField value={item.duration} onChange={(duration) => set({ duration })} className="field-bare w-[88px] font-bold text-brand-ink" aria-label={t('item.duration')} />
         <IconButton label="+5" className="border border-line-2 text-brand-ink" onClick={() => set({ duration: Math.min(MAX_DURATION, item.duration + SNAP) })}>
           <Plus size={13} />
         </IconButton>
@@ -215,12 +243,22 @@ export default function ItemPanel({
         </IconButton>
       }
     >
-      <Materials materials={item.materials} fresh={freshMaterial} onChange={(materials) => set({ materials })} />
+      <Materials materials={item.materials} fresh={freshMaterial} onFresh={() => setFreshMaterial(null)} onChange={(materials) => set({ materials })} />
     </Section>
   )
   const filesSection = more && (
-    <Section state={files} title={t('item.files')} count={linkedFiles.length} summary={linkedFiles.map((f) => f.name).join(', ')}>
-      <Files item={item} linked={linkedFiles} data={data} owner={owner} onLink={(attachmentIds) => set({ attachmentIds, printRules: rulesOfLinked(item.printRules ?? {}, printKeys({ attachmentIds, worksheets: item.worksheets })) })} onSet={set} onParticipants={setParticipants} onAttachment={onAttachment} />
+    <Section keep state={files} title={t('item.files')} count={linkedFiles.length} summary={linkedFiles.map((f) => f.name).join(', ')}>
+      <Files
+        item={item}
+        current={current}
+        linked={linkedFiles}
+        data={data}
+        owner={owner}
+        onLink={(attachmentIds) => {
+          const now = current()
+          set({ attachmentIds, printRules: rulesOfLinked(now.printRules ?? {}, printKeys({ attachmentIds, worksheets: now.worksheets })) })
+        }}
+        onSet={set} onParticipants={setParticipants} onAttachment={onAttachment} />
     </Section>
   )
   const slideStrip = (heading: boolean) => (
@@ -356,7 +394,7 @@ function useSection(id: string): { open: boolean; set: (open: boolean) => void }
  * A part of the details that folds: its name, how much it holds and, folded, a line of what that is. A part that
  * holds nothing yet is its head alone, with the way to add to it.
  */
-function Section({ state, title, hint, count, summary, action, empty, children }: { state: { open: boolean; set: (open: boolean) => void }; title: string; hint?: string; count?: number; summary?: string; action?: ReactNode; empty?: boolean; children: ReactNode }) {
+function Section({ state, title, hint, count, summary, action, empty, keep, children }: { state: { open: boolean; set: (open: boolean) => void }; title: string; hint?: string; count?: number; summary?: string; action?: ReactNode; empty?: boolean; /** Folded, its content stays where it is, only out of sight: for what is under way there (a file being sent). */ keep?: boolean; children: ReactNode }) {
   const open = state.open && !empty
   return (
     <section className="border-t border-line">
@@ -369,7 +407,11 @@ function Section({ state, title, hint, count, summary, action, empty, children }
         </button>
         {action}
       </div>
-      {open && <div className="pb-3">{children}</div>}
+      {(open || keep) && (
+        <div hidden={!open} className="pb-3">
+          {children}
+        </div>
+      )}
     </section>
   )
 }
@@ -497,7 +539,7 @@ export function itemActions({
 }
 
 /** The material of an entry: how many, what, and a link where one helps (it shows once it is asked for or set). */
-export function Materials({ materials, fresh, onChange }: { materials: Material[]; /** The row just added. */ fresh: string | null; onChange: (m: Material[]) => void }) {
+export function Materials({ materials, fresh, onFresh, onChange }: { materials: Material[]; /** The row just added. */ fresh: string | null; /** It has taken the focus: it is new no longer (shown again, it would take the focus again). */ onFresh: () => void; onChange: (m: Material[]) => void }) {
   const { t } = useTranslation()
   const [links, setLinks] = useState<ReadonlySet<string>>(new Set())
   const update = (id: string, fields: Partial<Material>) => onChange(materials.map((m) => (m.id === id ? { ...m, ...fields } : m)))
@@ -516,11 +558,11 @@ export function Materials({ materials, fresh, onChange }: { materials: Material[
           <li key={m.id}>
             <div className="flex items-start">
               {/* Without the browser's own arrows: in a field this narrow they would cut a number of two digits. */}
-              <QtyField value={m.qty} aria-label={t('item.qty')} onChange={(qty) => update(m.id, { qty })} style={{ width: 42 }} className={cx(BARE, 'shrink-0 font-bold text-brand-ink [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none')} />
+              <QtyField value={m.qty} aria-label={t('item.qty')} onChange={(qty) => update(m.id, { qty })} style={{ width: 42 }} className={cx('field-bare shrink-0 font-bold text-brand-ink [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none')} />
               <span aria-hidden className="mt-[7px] w-3 shrink-0 text-center text-[12px] text-ink-3">
                 ×
               </span>
-              <TextField wrap value={m.label} onCommit={(label) => update(m.id, { label })} placeholder={t('item.materialLabel')} aria-label={t('item.materialLabel')} autoFocus={m.id === fresh} className="min-w-0 flex-1 text-[14px]" />
+              <TextField wrap value={m.label} onCommit={(label) => update(m.id, { label })} placeholder={t('item.materialLabel')} aria-label={t('item.materialLabel')} autoFocus={m.id === fresh} onFocus={() => m.id === fresh && onFresh()} className="min-w-0 flex-1 text-[14px]" />
               {!linked && (
                 <IconButton label={t('item.link')} className="mt-0.5 shrink-0" onClick={() => showLink(m.id, true)}>
                   <Link2 size={13} />
@@ -539,7 +581,7 @@ export function Materials({ materials, fresh, onChange }: { materials: Material[
                     // Only web and mail links are stored (server/validate.ts); anything else gets https:// in front.
                     update(m.id, { link: v && !/^(https?:\/\/|mailto:)/i.test(v) ? `https://${v}` : v })
                   }}
-                  onLeave={(text) => !text.trim() && showLink(m.id, false)}
+                  onLeave={(text) => !text.trim() && afterPress(() => showLink(m.id, false))}
                   autoFocus={links.has(m.id) && !m.link}
                   placeholder={t('item.link')}
                   aria-label={t('item.link')}
@@ -554,15 +596,13 @@ export function Materials({ materials, fresh, onChange }: { materials: Material[
   )
 }
 
-function Files({ item, linked, data, owner, onLink, onSet, onParticipants: setParticipants, onAttachment }: { item: Item; /** The files linked to the entry, in its order. */ linked: Attachment[]; data: WorkshopState; owner: boolean; onLink: (ids: string[]) => void; onSet: (fields: Partial<ItemFields>) => void; onParticipants: (n: number) => void; onAttachment: (a: Attachment) => void }) {
+function Files({ item, current, linked, data, owner, onLink, onSet, onParticipants: setParticipants, onAttachment }: { item: Item; /** The entry as the store has it now. */ current: () => Item; /** The files linked to the entry, in its order. */ linked: Attachment[]; data: WorkshopState; owner: boolean; onLink: (ids: string[]) => void; onSet: (fields: Partial<ItemFields>) => void; onParticipants: (n: number) => void; onAttachment: (a: Attachment) => void }) {
   const { t } = useTranslation()
-  // Several files dropped at once arrive one after the other: each adds to the list as it stands by then.
-  const links = useRef(item.attachmentIds)
-  links.current = item.attachmentIds
-  const link = (ids: string[]) => {
-    links.current = ids
-    onLink(ids)
-  }
+  // Several files dropped at once arrive one after the other, and one may arrive after this list was taken down and
+  // put up again (the details made large while it was on its way): each adds to the entry's list as the store has it
+  // by then, not as this list saw it when the file was sent.
+  const links = () => current().attachmentIds
+  const link = onLink
   const others = data.attachments.filter((a) => !item.attachmentIds.includes(a.id))
 
   return (
@@ -572,11 +612,11 @@ function Files({ item, linked, data, owner, onLink, onSet, onParticipants: setPa
       onUpload={async (file) => {
         const a = await api.upload(data.workshop.id, file)
         onAttachment(a)
-        link([...links.current, a.id])
+        link([...links(), a.id])
       }}
       onRename={async (id, name) => onAttachment(await api.renameAttachment(id, name))}
       onReplace={owner ? async (id, file) => onAttachment(await api.replaceAttachment(id, file)) : undefined}
-      remove={{ label: t('item.unlink'), run: (a) => link(links.current.filter((x) => x !== a.id)) }}
+      remove={{ label: t('item.unlink'), run: (a) => link(links().filter((x) => x !== a.id)) }}
       extra={(f) =>
         isPrintable(f.name) && (
           <PrintRuleField
@@ -592,7 +632,7 @@ function Files({ item, linked, data, owner, onLink, onSet, onParticipants: setPa
       }
     >
       {others.length > 0 && (
-        <select className="field mt-2 h-8 w-full text-[13px]" aria-label={t('item.linkFile')} value="" onChange={(e) => e.target.value && link([...links.current, e.target.value])}>
+        <select className="field mt-2 h-8 w-full text-[13px]" aria-label={t('item.linkFile')} value="" onChange={(e) => e.target.value && link([...links(), e.target.value])}>
           <option value="">{t('item.linkFile')}</option>
           {others.map((a) => (
             <option key={a.id} value={a.id}>

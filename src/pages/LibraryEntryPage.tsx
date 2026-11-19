@@ -460,7 +460,7 @@ function ItemBody({ entry, owner, theme, categories, known, onSave, onTags, onSl
                 <MaterialList materials={i.materials} />
               ) : i.materials.length > 0 ? (
                 <div className="-mx-2">
-                  <Materials materials={i.materials} fresh={freshMaterial} onChange={(materials) => set({ materials })} />
+                  <Materials materials={i.materials} fresh={freshMaterial} onFresh={() => setFreshMaterial(null)} onChange={(materials) => set({ materials })} />
                 </div>
               ) : (
                 <p className="text-[13.5px] text-ink-3">{t('library.noMaterial')}</p>

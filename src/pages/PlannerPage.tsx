@@ -246,18 +246,31 @@ export default function PlannerPage() {
       setMobileToolbox(false)
     }
   }
-  /** From a list beside the agenda (the packing list) to the entry itself: its details open and the agenda shows it. */
-  const jumpTo = (itemId: string) => {
+  /** The agenda shows an entry's row: out of a folded group, onto the day that is shown, and into view. */
+  const reveal = (itemId: string) => {
     const item = items[itemId]
     if (!item) return
     // Out of a folded group and onto the day that is shown, or there is no row to go to.
     if (item.groupId && collapsed.has(item.groupId)) setCollapsedRaw(JSON.stringify([...collapsed].filter((x) => x !== item.groupId)))
-    if (focusDay && item.dayId !== focusDay) setFocusDay(null)
-    openDetails(itemId)
+    if (focusDay && item.dayId && item.dayId !== focusDay) setFocusDay(null)
     window.setTimeout(() => {
       const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       document.querySelector(`[data-entry="${CSS.escape(itemId)}"]`)?.scrollIntoView({ block: 'center', behavior: calm ? 'auto' : 'smooth' })
     }, 60)
+  }
+  /** From a list beside the agenda (the packing list) to the entry itself: its details open and the agenda shows it. */
+  const jumpTo = (itemId: string) => {
+    if (!items[itemId]) return
+    reveal(itemId)
+    openDetails(itemId)
+  }
+  /**
+   * From the large details back to the agenda with the details beside it. Large, one entry after the other may have
+   * been opened, on any day and in folded groups: the agenda shows the one that is open now.
+   */
+  const shrink = () => {
+    setWide(false)
+    if (detailsId) reveal(detailsId)
   }
 
   const closeMobileToolbox = () => {
@@ -326,6 +339,12 @@ export default function PlannerPage() {
   const single = selected.size === 1 ? [...selected][0] : null
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // In the large details the focus is in a field most of the time: Escape leaves the field first, as it does where the
+      // details fill a phone's screen, and the next one makes them small.
+      if (e.key === 'Escape' && wide && detailsId && !phone && isTyping(e.target) && !overlayOpen() && !e.defaultPrevented) {
+        ;(e.target as HTMLElement).blur()
+        return
+      }
       // A dialog, menu or the slide editor above the agenda takes the keys; the agenda behind it stays as it is.
       if (isTyping(e.target) || overlayOpen() || e.defaultPrevented) return
       const mod = e.ctrlKey || e.metaKey
@@ -338,7 +357,7 @@ export default function PlannerPage() {
         redo()
       } else if (e.key === 'Escape') {
         // One step back at a time: from the large details to the agenda with the details beside it, then out of them.
-        if (wide && detailsId) setWide(false)
+        if (wide && detailsId) shrink()
         else clearSelection()
       }
       else if (!mod && single && items[single] && (e.key === '+' || e.key === '=' || e.key === '-')) {
@@ -438,10 +457,24 @@ export default function PlannerPage() {
   const detailsItem = detailsId ? items[detailsId] : null
   const computedStart = detailsItem?.dayId ? (schedules[detailsItem.dayId]?.slots[detailsItem.id]?.start ?? null) : null
   const showWide = wide && !!detailsItem && !phone
-  // The entries in the agenda's order, for the way to the one before and after: all days, or the parking lot for an entry that waits there.
-  const sequence = !detailsItem ? [] : detailsItem.dayId ? days.flatMap((d) => flatIds(board.order, d.id, board.groupIds)) : flatIds(board.order, PARKING, board.groupIds)
-  const at = detailsItem ? sequence.indexOf(detailsItem.id) : -1
-  const nav: ItemNav | undefined = at === -1 ? undefined : { index: at + 1, count: sequence.length, onPrev: at > 0 ? () => openDetails(sequence[at - 1]) : undefined, onNext: at < sequence.length - 1 ? () => openDetails(sequence[at + 1]) : undefined }
+  // The entries in the agenda's order, for the way to the one before and after (only the large details show it):
+  // all days, or the parking lot for an entry that waits there.
+  const nav = ((): ItemNav | undefined => {
+    if (!showWide || !detailsItem) return undefined
+    const sequence = detailsItem.dayId ? days.flatMap((d) => flatIds(board.order, d.id, board.groupIds)) : flatIds(board.order, PARKING, board.groupIds)
+    const at = sequence.indexOf(detailsItem.id)
+    if (at === -1) return undefined
+    return { index: at + 1, count: sequence.length, onPrev: at > 0 ? () => openDetails(sequence[at - 1]) : undefined, onNext: at < sequence.length - 1 ? () => openDetails(sequence[at + 1]) : undefined }
+  })()
+  // A save that failed: said above the agenda, and above the large details, which stand in the agenda's place.
+  const syncNotice = syncError && (
+    <div className="no-print flex items-center justify-between gap-3 bg-rose-soft px-5 py-2 text-[13px] text-rose">
+      {t('planner.syncError')}
+      <IconButton label={t('common.close')} onClick={dismissSyncError}>
+        <X size={14} />
+      </IconButton>
+    </div>
+  )
   const active = board.activeId
   const activeItem = active ? items[active] : undefined
   const activeGroup = active ? groups[active] : undefined
@@ -479,7 +512,7 @@ export default function PlannerPage() {
       <DndContext sensors={touch && inserting ? noSensors : sensors} accessibility={{ announcements, screenReaderInstructions: { draggable: t('planner.dragHelp') } }} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
         <div className={cx('flex h-full min-h-0', touch && inserting && 'inserting')}>
           {/* Behind the large details the agenda stays as it is (its scroll position too); a slim list stands in for it. */}
-          {showWide && detailsItem && <DayList title={data.workshop.title} days={days} lists={board.order} items={items} groups={groups} schedules={schedules} categories={settings.categories} currentId={detailsItem.id} onSelect={openDetails} />}
+          {showWide && detailsItem && <DayList title={data.workshop.title || t('workshops.untitled')} days={days} lists={board.order} items={items} groups={groups} schedules={schedules} categories={settings.categories} currentId={detailsItem.id} onSelect={openDetails} />}
           <div className={cx('relative min-w-0 flex-1 flex-col', showWide ? 'hidden' : 'flex')}>
             <WorkshopHeader
               data={data}
@@ -499,14 +532,7 @@ export default function PlannerPage() {
               onOpenSidebar={() => setMobileToolbox(true)}
             />
 
-            {syncError && (
-              <div className="no-print flex items-center justify-between gap-3 bg-rose-soft px-5 py-2 text-[13px] text-rose">
-                {t('planner.syncError')}
-                <IconButton label={t('common.close')} onClick={dismissSyncError}>
-                  <X size={14} />
-                </IconButton>
-              </div>
-            )}
+            {syncNotice}
 
             {days.length > 1 && (
               <nav className="no-print flex gap-1 overflow-x-auto border-b border-line px-4 py-1.5 md:px-6" aria-label={t('planner.days')}>
@@ -610,8 +636,10 @@ export default function PlannerPage() {
             onNotice={setNotice}
             onJump={jumpTo}
             wide={showWide}
-            onWide={setWide}
+            onWide={(large) => (large ? setWide(true) : shrink())}
             nav={nav}
+            status={{ live, canUndo: past.length > 0, canRedo: future.length > 0, undo, redo }}
+            notice={syncNotice}
           />
         </div>
         <DragOverlay dropAnimation={null}>

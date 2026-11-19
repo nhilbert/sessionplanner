@@ -2,13 +2,13 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Archive, BookMarked, ChevronDown, ChevronUp, FolderOpen, Info, Maximize2, Minimize2, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, X } from 'lucide-react'
+import { Archive, BookMarked, ChevronDown, ChevronUp, FolderOpen, Info, Maximize2, Minimize2, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, Redo2, Undo2, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
-import { Button, cx, IconButton, isTyping, SearchField, useLocalState } from '@/components/ui'
+import { cx, IconButton, isTyping, SearchField, useLocalState } from '@/components/ui'
 import { useOverlay } from '@/components/overlay'
 import { AddBar, Entries, List } from './DayColumn'
 import Menu from '@/components/Menu'
@@ -69,6 +69,19 @@ interface Props {
   onWide: (wide: boolean) => void
   /** Where the open entry stands among the others, and the way to its neighbours (shown with the large details). */
   nav?: ItemNav
+  /** What the workshop's header says and does, which the large details hide with the agenda: shown in their head instead. */
+  status?: WorkshopStatus
+  /** Shown above the large details: what the agenda would have said above itself (a save that failed). */
+  notice?: ReactNode
+}
+
+export interface WorkshopStatus {
+  /** Changes reach the server and arrive from it. */
+  live: boolean
+  canUndo: boolean
+  canRedo: boolean
+  undo: () => void
+  redo: () => void
 }
 
 export interface ItemNav {
@@ -91,7 +104,8 @@ export default function Toolbox(p: Props) {
   const [widthRaw, setWidthRaw] = useLocalState('sp.toolboxWidth', String(DEFAULT_WIDTH))
   const width = clampWidth(Number(widthRaw) || DEFAULT_WIDTH)
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
-  const wide = p.wide && !!item && !p.mobile
+  // Whether the details are large is the page's to say (it hides the agenda for them); without an entry there is nothing to enlarge.
+  const wide = p.wide && !!item
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, material: p.data.attachments.length }
   const tabs = TABS.filter((x) => x.id !== 'library' || p.owner || !!p.data.access?.library)
   const tab = shownTab(p.tab, p.owner, p.data)
@@ -194,7 +208,8 @@ export default function Toolbox(p: Props) {
           )}
         </div>
       )}
-      {item && <InspectorHeader item={item} start={p.computedStart} data={p.data} change={p.change} owner={p.owner} onSelect={p.onSelect} onClose={p.onCloseItem} onNotice={p.onNotice} wide={wide} onWide={p.mobile ? undefined : p.onWide} nav={p.nav} />}
+      {item && <InspectorHeader item={item} start={p.computedStart} data={p.data} change={p.change} owner={p.owner} onSelect={p.onSelect} onClose={p.onCloseItem} onNotice={p.onNotice} wide={wide} onWide={p.mobile ? undefined : p.onWide} nav={p.nav} status={p.status} />}
+      {wide && p.notice}
       {/* Large, the details scroll in their own columns. */}
       {wide ? <div className="@container flex min-h-0 flex-1">{body}</div> : <div className="flex-1 overflow-y-auto overscroll-contain p-4">{body}</div>}
     </aside>
@@ -205,7 +220,7 @@ export default function Toolbox(p: Props) {
  * The head of a step's details: what it is (a menu, since the kind is rarely changed) and when, the way to the large
  * details and back, its actions, and × back to where the sidebar was. Large, it also leads to the entries before and after.
  */
-function InspectorHeader({ item, start, data, change, owner, onSelect, onClose, onNotice, wide, onWide, nav }: { item: Item; start: number | null; data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onSelect: (id: string) => void; onClose: () => void; onNotice: (text: string) => void; wide: boolean; /** Left out where the details cannot be shown large (a phone). */ onWide?: (wide: boolean) => void; nav?: ItemNav }) {
+function InspectorHeader({ item, start, data, change, owner, onSelect, onClose, onNotice, wide, onWide, nav, status }: { item: Item; start: number | null; data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onSelect: (id: string) => void; onClose: () => void; onNotice: (text: string) => void; wide: boolean; /** Left out where the details cannot be shown large (a phone). */ onWide?: (wide: boolean) => void; nav?: ItemNav; status?: WorkshopStatus }) {
   const { t } = useTranslation()
   const save = useLibrary((s) => s.save)
   const mayChangeLibrary = useLibraryEdit()
@@ -239,17 +254,31 @@ function InspectorHeader({ item, start, data, change, owner, onSelect, onClose, 
         items={KINDS.map((kind) => ({ label: t(`kinds.${kind}`), checked: kind === item.kind, onSelect: () => kind !== item.kind && change([{ op: 'set', entity: 'item', id: item.id, fields: kindFields(item, kind) }]) }))}
       />
       <div className="min-w-0 flex-1 truncate text-[13px] text-ink-2 tnum">{[when, place].filter(Boolean).join(' · ')}</div>
-      {onWide &&
-        (wide ? (
-          <Button size="sm" variant="ghost" onClick={() => onWide(false)}>
-            <Minimize2 size={13} />
-            {t('item.shrink')}
-          </Button>
-        ) : (
-          <IconButton label={t('item.enlarge')} onClick={() => onWide(true)}>
-            <Maximize2 size={14} />
+      {/* Large, the workshop's header is out of sight: what it says and undoes stands here. */}
+      {wide && status && !status.live && <span className="shrink-0 text-[12px] text-amber">{t('planner.offline')}</span>}
+      {wide && status && (
+        <>
+          <IconButton label={t('common.undo')} onClick={status.undo} disabled={!status.canUndo}>
+            <Undo2 size={15} />
           </IconButton>
-        ))}
+          <IconButton label={t('common.redo')} onClick={status.redo} disabled={!status.canRedo}>
+            <Redo2 size={15} />
+          </IconButton>
+        </>
+      )}
+      {onWide && (
+        // One button for both ways, so that it keeps the focus when the details change their size under it.
+        <button
+          type="button"
+          aria-label={wide ? t('item.shrink') : t('item.enlarge')}
+          title={wide ? t('item.shrink') : t('item.enlarge')}
+          onClick={() => onWide(!wide)}
+          className={cx('tap inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-full text-[13px] font-semibold transition-colors hover:bg-surface-2 hover:text-ink pointer-coarse:h-9', wide ? 'px-3 text-ink-2' : 'w-7 text-ink-3 pointer-coarse:w-9')}
+        >
+          {wide ? <Minimize2 size={13} /> : <Maximize2 size={14} />}
+          {wide && t('item.shrink')}
+        </button>
+      )}
       <Menu label={t('item.menu')} title={item.title || t(`kinds.${item.kind}`)} items={actions} />
       <IconButton label={t('item.close')} onClick={onClose}>
         <X size={16} />

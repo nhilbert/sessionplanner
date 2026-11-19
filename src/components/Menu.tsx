@@ -62,8 +62,10 @@ export default function Menu({
     const close = (e: Event) => {
       if (!ref.current?.contains(e.target as Node) && !list.current?.contains(e.target as Node)) setOpen(false)
     }
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
+    // On the way down, before anything on the page gets the press: another menu's button keeps it to itself (it stops
+    // presses from reaching what it sits on), and this menu would stay open beside the one it opens.
+    window.addEventListener('mousedown', close, true)
+    return () => window.removeEventListener('mousedown', close, true)
   }, [open, phone])
   // Near the end of a panel the dropdown would open below what is in view.
   useEffect(() => {
