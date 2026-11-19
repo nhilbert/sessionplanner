@@ -1,9 +1,12 @@
-import { type ComponentProps, useEffect, useRef, useState } from 'react'
+import { type ComponentProps, type FocusEvent, type FocusEventHandler, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { newId } from '@/domain/ops'
 import type { Item, ItemKind } from '@/domain/types'
 import { formatDuration, formatTime, parseClock, parseDuration } from '@/domain/time'
 import { cx } from '@/components/ui'
+
+/** A value that reads as text until it is edited: no frame and no ground, both come with the pointer and the focus. */
+export const BARE = 'border-transparent bg-transparent hover:bg-surface-2 focus:border-line-2 focus:bg-surface'
 
 /**
  * A text field bound to a stored value. It saves after a short pause and on leaving the field, and while
@@ -14,21 +17,53 @@ export function TextField({
   value,
   onCommit,
   multiline,
+  wrap,
+  bare,
+  onLeave,
   className,
   ...props
-}: { value: string; onCommit: (value: string) => void; multiline?: boolean; className?: string } & Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'ref'>) {
+}: {
+  value: string
+  onCommit: (value: string) => void
+  multiline?: boolean
+  /**
+   * One line of text that breaks into several where its place is narrow (a title in the sidebar), instead of being cut:
+   * it has no line breaks of its own, and Enter leaves the field. Always without a frame.
+   */
+  wrap?: boolean
+  /** Without a frame until it is edited (a title, a line of the details); a bare text of several lines is as high as its text. */
+  bare?: boolean
+  /** Called with the field's text when it is left. */
+  onLeave?: (value: string) => void
+  className?: string
+} & Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'ref' | 'onBlur'>) {
   const [local, setLocal] = useState(value)
   const focused = useRef(false)
   /** Typed since the last save. */
   const dirty = useRef(false)
   const stored = useRef(value)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const area = useRef<HTMLTextAreaElement>(null)
   stored.current = value
 
   useEffect(() => {
     if (!focused.current) setLocal(value)
   }, [value])
   useEffect(() => () => clearTimeout(timer.current), [])
+  // As high as its text, also after the place it stands in got wider or narrower.
+  const grow = !!wrap || (!!multiline && !!bare)
+  useLayoutEffect(() => {
+    const el = area.current
+    if (!grow || !el) return
+    const fit = () => {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight + 2}px`
+    }
+    fit()
+    const watch = new ResizeObserver(fit)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [grow, local])
 
   const commit = (v: string) => {
     clearTimeout(timer.current)
@@ -37,11 +72,15 @@ export function TextField({
   }
   const common = {
     value: local,
-    onFocus: () => void (focused.current = true),
+    onFocus: (e: FocusEvent<HTMLInputElement>) => {
+      focused.current = true
+      props.onFocus?.(e)
+    },
     onBlur: () => {
       focused.current = false
       if (dirty.current) commit(local)
       else setLocal(stored.current)
+      onLeave?.(local)
     },
     onChange: (e: { target: { value: string } }) => {
       dirty.current = true
@@ -51,16 +90,30 @@ export function TextField({
       timer.current = setTimeout(() => commit(v), 800)
     },
   }
-  if (multiline)
+  if (multiline || wrap)
     return (
       <textarea
         {...common}
+        onChange={wrap ? (e) => common.onChange({ target: { value: e.target.value.replace(/\s*\n+\s*/g, ' ') } }) : common.onChange}
+        onKeyDown={
+          wrap
+            ? (e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                e.currentTarget.blur()
+              }
+            : undefined
+        }
+        onFocus={common.onFocus as unknown as FocusEventHandler<HTMLTextAreaElement>}
+        ref={area}
+        rows={grow ? 1 : undefined}
+        autoFocus={props.autoFocus}
         placeholder={props.placeholder}
         aria-label={props['aria-label']}
-        className={cx('field min-h-[84px] resize-y py-2 leading-relaxed', className)}
+        className={cx(grow ? 'field-bare block w-full resize-none overflow-hidden px-2 py-1.5 leading-snug placeholder:text-ink-3' : 'field min-h-[84px] resize-y py-2 leading-relaxed', className)}
       />
     )
-  return <input {...props} {...common} className={cx('field', className)} />
+  return <input {...props} {...common} className={cx('field', bare && BARE, className)} />
 }
 
 /**

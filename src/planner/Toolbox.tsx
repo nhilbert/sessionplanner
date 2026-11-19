@@ -2,17 +2,17 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Archive, BookMarked, FolderOpen, Info, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, X } from 'lucide-react'
+import { Archive, BookMarked, ChevronDown, ChevronUp, FolderOpen, Info, Maximize2, Minimize2, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
-import { cx, IconButton, isTyping, SearchField, useLocalState } from '@/components/ui'
+import { Button, cx, IconButton, isTyping, SearchField, useLocalState } from '@/components/ui'
 import { useOverlay } from '@/components/overlay'
 import { AddBar, Entries, List } from './DayColumn'
 import Menu from '@/components/Menu'
-import ItemPanel, { itemActions } from './ItemPanel'
+import ItemPanel, { itemActions, kindFields, KINDS } from './ItemPanel'
 import { MaterialPanel, WorkshopPanel } from './panels'
 import { DeckPanel } from '@/slides/DeckPanel'
 import { LIB, PARKING } from './board'
@@ -64,18 +64,34 @@ interface Props {
   onNotice: (text: string) => void
   /** From a list of the sidebar to an entry of the agenda: its details open and the agenda shows it. */
   onJump: (itemId: string) => void
+  /** The details are shown large, in place of the agenda (not on a phone, where they fill the screen anyway). */
+  wide: boolean
+  onWide: (wide: boolean) => void
+  /** Where the open entry stands among the others, and the way to its neighbours (shown with the large details). */
+  nav?: ItemNav
+}
+
+export interface ItemNav {
+  /** Counted from 1. */
+  index: number
+  count: number
+  onPrev?: () => void
+  onNext?: () => void
 }
 
 /**
  * The right-hand sidebar, in two modes. Its tabs are the workshop's tools: parking lot, library, material (packing
  * list and files), the deck and the details. A step chosen on the agenda opens over them as an inspector, headed by
  * what it is and when, with its actions in a ⋯ menu and × to close; the tabs stay in reach, and choosing one closes it.
+ * From there the details can be shown large: they take the agenda's place, without the tabs, until they are made
+ * small again or closed.
  */
 export default function Toolbox(p: Props) {
   const { t } = useTranslation()
   const [widthRaw, setWidthRaw] = useLocalState('sp.toolboxWidth', String(DEFAULT_WIDTH))
   const width = clampWidth(Number(widthRaw) || DEFAULT_WIDTH)
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
+  const wide = p.wide && !!item && !p.mobile
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, material: p.data.attachments.length }
   const tabs = TABS.filter((x) => x.id !== 'library' || p.owner || !!p.data.access?.library)
   const tab = shownTab(p.tab, p.owner, p.data)
@@ -111,7 +127,7 @@ export default function Toolbox(p: Props) {
     )
 
   const body: ReactNode = item ? (
-    <ItemPanel key={item.id} item={item} computedStart={p.computedStart} data={p.data} change={p.change} onAttachment={p.onAttachment} onNotice={p.onNotice} owner={p.owner} />
+    <ItemPanel key={item.id} item={item} computedStart={p.computedStart} data={p.data} change={p.change} onAttachment={p.onAttachment} onNotice={p.onNotice} owner={p.owner} wide={wide} />
   ) : tab === 'parking' ? (
     <div>
       <p className="mb-2 text-[12px] leading-snug text-ink-3">{t('planner.parkingHint')}</p>
@@ -129,17 +145,17 @@ export default function Toolbox(p: Props) {
   ) : (
     <WorkshopPanel data={p.data} change={p.change} owner={p.owner} onDayDate={p.onDayDate} />
   )
-  // On a phone, details opened from the agenda are a sheet of their own: no tabs above them.
-  const showTabs = !(item && p.mobile && p.itemFromAgenda)
+  // On a phone, details opened from the agenda are a sheet of their own: no tabs above them. Nor above the large details.
+  const showTabs = !(item && (wide || (p.mobile && p.itemFromAgenda)))
 
   return (
     <aside
       ref={panel}
       tabIndex={-1}
-      style={p.mobile ? undefined : { width }}
-      className={cx('no-print flex flex-col bg-surface outline-none', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]' : 'relative hidden shrink-0 border-l border-line md:flex')}
+      style={p.mobile || wide ? undefined : { width }}
+      className={cx('no-print flex flex-col bg-surface outline-none', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]' : cx('relative hidden border-l border-line md:flex', wide ? 'min-w-0 flex-1' : 'shrink-0'))}
     >
-      {!p.mobile && <ResizeEdge width={width} onWidth={(w) => setWidthRaw(String(w))} label={t('toolbox.resize')} />}
+      {!p.mobile && !wide && <ResizeEdge width={width} onWidth={(w) => setWidthRaw(String(w))} label={t('toolbox.resize')} />}
       {showTabs && (
         <div className="flex items-stretch gap-0.5 border-b border-line px-1.5 py-1.5">
           <div role="tablist" aria-label={t('toolbox.tabs')} className="flex min-w-0 flex-1 gap-0.5">
@@ -178,26 +194,62 @@ export default function Toolbox(p: Props) {
           )}
         </div>
       )}
-      {item && <InspectorHeader item={item} start={p.computedStart} data={p.data} change={p.change} owner={p.owner} onSelect={p.onSelect} onClose={p.onCloseItem} onNotice={p.onNotice} />}
-      <div className="flex-1 overflow-y-auto overscroll-contain p-4">{body}</div>
+      {item && <InspectorHeader item={item} start={p.computedStart} data={p.data} change={p.change} owner={p.owner} onSelect={p.onSelect} onClose={p.onCloseItem} onNotice={p.onNotice} wide={wide} onWide={p.mobile ? undefined : p.onWide} nav={p.nav} />}
+      {/* Large, the details scroll in their own columns. */}
+      {wide ? <div className="@container flex min-h-0 flex-1">{body}</div> : <div className="flex-1 overflow-y-auto overscroll-contain p-4">{body}</div>}
     </aside>
   )
 }
 
-/** The head of a step's details: what it is and when, its actions, and × back to where the sidebar was. */
-function InspectorHeader({ item, start, data, change, owner, onSelect, onClose, onNotice }: { item: Item; start: number | null; data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onSelect: (id: string) => void; onClose: () => void; onNotice: (text: string) => void }) {
+/**
+ * The head of a step's details: what it is (a menu, since the kind is rarely changed) and when, the way to the large
+ * details and back, its actions, and × back to where the sidebar was. Large, it also leads to the entries before and after.
+ */
+function InspectorHeader({ item, start, data, change, owner, onSelect, onClose, onNotice, wide, onWide, nav }: { item: Item; start: number | null; data: WorkshopState; change: (ops: Op[]) => void; owner: boolean; onSelect: (id: string) => void; onClose: () => void; onNotice: (text: string) => void; wide: boolean; /** Left out where the details cannot be shown large (a phone). */ onWide?: (wide: boolean) => void; nav?: ItemNav }) {
   const { t } = useTranslation()
   const save = useLibrary((s) => s.save)
   const mayChangeLibrary = useLibraryEdit()
   const length = durationOf(item)
   const when = item.dayId === null ? t('planner.parking') : start === null ? '' : length > 0 ? `${formatTime(start)}–${formatTime(start + length)}` : formatTime(start)
   const actions = itemActions({ item, data, change, t, mayChangeLibrary: owner && mayChangeLibrary, onSelect, onClose, onSaved: (title) => onNotice(t('library.saved', { title })), save })
+  const place = wide && nav ? t('item.position', { n: nav.index, count: nav.count }) : ''
   return (
-    <div className="flex items-center gap-1 border-b border-line bg-surface-2/50 py-1.5 pl-4 pr-1.5">
-      <div className="min-w-0 flex-1 truncate text-[13px]">
-        <span className="font-medium text-ink">{t(`kinds.${item.kind}`)}</span>
-        {when && <span className="text-ink-3 tnum"> · {when}</span>}
-      </div>
+    <div className="flex items-center gap-1 border-b border-line bg-surface-2/50 py-1.5 pl-2 pr-1.5">
+      {wide && nav && (
+        <>
+          <IconButton label={t('item.prev')} disabled={!nav.onPrev} onClick={nav.onPrev} className="border border-line-2 bg-surface text-brand-ink">
+            <ChevronUp size={15} />
+          </IconButton>
+          <IconButton label={t('item.next')} disabled={!nav.onNext} onClick={nav.onNext} className="mr-1 border border-line-2 bg-surface text-brand-ink">
+            <ChevronDown size={15} />
+          </IconButton>
+        </>
+      )}
+      <Menu
+        align="left"
+        label={`${t('item.kind')}: ${t(`kinds.${item.kind}`)}`}
+        title={t('item.kind')}
+        triggerClassName="tap inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13px] font-semibold text-brand-ink transition-colors hover:bg-surface-2 pointer-coarse:h-9"
+        trigger={
+          <>
+            {t(`kinds.${item.kind}`)}
+            <ChevronDown size={13} className="text-ink-3" />
+          </>
+        }
+        items={KINDS.map((kind) => ({ label: t(`kinds.${kind}`), checked: kind === item.kind, onSelect: () => kind !== item.kind && change([{ op: 'set', entity: 'item', id: item.id, fields: kindFields(item, kind) }]) }))}
+      />
+      <div className="min-w-0 flex-1 truncate text-[13px] text-ink-2 tnum">{[when, place].filter(Boolean).join(' · ')}</div>
+      {onWide &&
+        (wide ? (
+          <Button size="sm" variant="ghost" onClick={() => onWide(false)}>
+            <Minimize2 size={13} />
+            {t('item.shrink')}
+          </Button>
+        ) : (
+          <IconButton label={t('item.enlarge')} onClick={() => onWide(true)}>
+            <Maximize2 size={14} />
+          </IconButton>
+        ))}
       <Menu label={t('item.menu')} title={item.title || t(`kinds.${item.kind}`)} items={actions} />
       <IconButton label={t('item.close')} onClick={onClose}>
         <X size={16} />

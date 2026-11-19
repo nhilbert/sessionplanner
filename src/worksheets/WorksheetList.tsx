@@ -34,7 +34,7 @@ export interface SheetPrinting {
   onGroups: (groups: number) => void
 }
 
-export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing, facts, onCopiedToLibrary }: { /** Who may change the library copies a step's sheet into an entry; called with the entry's title. */ onCopiedToLibrary?: (title: string) => void; /** The step's facts, for the facts block of its sheets. */ facts?: string; sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
+export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, printing, facts, onCopiedToLibrary, heading = true }: { /** Off where the place names the sheets itself (a section of the details that folds). */ heading?: boolean; /** Who may change the library copies a step's sheet into an entry; called with the entry's title. */ onCopiedToLibrary?: (title: string) => void; /** The step's facts, for the facts block of its sheets. */ facts?: string; sheets: Worksheet[]; onChange?: (next: Worksheet[]) => void; scope: AssetScope; theme: string; logo: string | null; onPrint?: (sheetId: string) => void; printing?: SheetPrinting }) {
   const { t } = useTranslation()
   /** The sheet open in the editor, and whether it opened for editing. */
   const [viewing, setViewing] = useState<string | null>(null)
@@ -68,7 +68,7 @@ export function WorksheetList({ sheets, onChange, scope, theme, logo, onPrint, p
 
   return (
     <div>
-      <SectionLabel>{t('sheets.title')}</SectionLabel>
+      {heading && <SectionLabel>{t('sheets.title')}</SectionLabel>}
       {sheets.length > 0 && (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-3">
           {sheets.map((sheet) => (

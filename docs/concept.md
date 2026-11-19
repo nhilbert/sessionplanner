@@ -154,6 +154,15 @@ On the owner's retired instance there was no public access, so no share links: e
 
 Printed material for steps: worksheets and handouts, with a print rule per sheet (off, per person, per group, once, a count) and one print package per workshop with a file per print job. Sheets belong to steps and are copies like slides and files; no central collection. They are written in the app as building blocks in the slide format's HTML subset; PDFs made elsewhere stay and take the same rule, unread and unmerged. Stage 0 (the rule and the package for attached PDFs) comes first. Decisions, format, blocks and stages: [worksheets.md](worksheets.md).
 
+**2026-11-19, an entry's details in order** (revises the order of the item pane, unchanged since stage 1)
+
+The details had grown field by field into one column about two screens long: the switch of the kind and the colour dots on top, empty fields as large as filled ones, the notes below six fields, and material, files, slides and worksheets out of sight. Three layouts were drawn and compared (lines and folding sections in the sidebar; tabs; a wide two-column view); chosen: the first, with the wide view as its large state. The rules are in docs/ui.md, "The details of an entry".
+
+- Nothing was taken away and no data changed: the same fields, in another order and form. The kind moved into the head, the own colour into the category's menu, a material's link behind a button of its row.
+- Folding is a choice per device, not per entry: who never uses worksheets folds them once.
+- The large details replace the agenda instead of lying over it, so nothing is hidden behind a layer; the agenda keeps its scroll position and the slim list keeps the entry's place in view. They are not remembered: enlarging is asked for per entry, since most visits to the details are short.
+- Not built: tabs inside the details (they hide what an entry has), and a reading view of the notes by default (the field stays the editor it was).
+
 **2026-11-18, one place per kind of thing** (revises the planner header of "phones", 2026-10-29, and the theme in the Slides tab of 2026-11-04)
 
 Functions had been placed one by one as they came: printing in the header, presenting and the slide files in the Slides tab, the ZIP export, duplicating, archiving and deleting at the foot of the details, sharing as a tab of its own; the theme in two places; a step's actions at the foot of its long details, a group's in a ⋯, a day's as an icon that only showed on hover. Now one rule says where a thing is:

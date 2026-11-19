@@ -70,6 +70,29 @@ hangs on the body and takes the page's colours.
 - **The day strip** above the agenda shows the day to scale in the same colours, with the minutes per category below
   it as word and number. An overlap is drawn in the conflict colour.
 
+## The details of an entry
+
+Opened from the agenda, an entry's details stand in the sidebar; from there they can be shown large.
+
+- **The head says what and when**: the kind as a small menu (it is rarely changed, so it is no row of buttons), the
+  span, then the way to the large details, the entry's ⋯ and ×.
+- **Text reads as text.** Title and short description have no frame until they are edited (`TextField` with `bare`
+  or `wrap`, `src/planner/fields.tsx`); a long title breaks into lines instead of being cut.
+- **Short facts are lines**: the name on the left, the value beside it (length, start, category, goal, method, lead).
+  A line that says nothing yet is a "+ …" pill below the others, and becomes one again when it is left empty. The
+  start is the computed time with "fix" beside it; fixed, it is a field with the way back to the agenda's flow.
+- **The category's menu holds the colour.** An own colour instead of the category's is a rare choice: it stands at
+  the foot of that menu, not as a row of its own.
+- **What an entry carries is a section that folds**: notes, material, files, slides, worksheets, each with how much
+  it holds and, folded, a line of what that is. What is folded is remembered on the device for all entries. A section
+  without content is its head alone where the head can add to it (material).
+- **Large, the same parts stand in two columns** in place of the agenda: what is written on the left (title, goal,
+  notes, slides), the facts on the right (time, category, material, files, worksheets). The agenda stays beside it as
+  a slim list of the days' entries with their starts, and the head leads to the entry before and after. "To the
+  agenda" and Escape make the details small again; an entry opened anew starts small. Where the room is too narrow
+  for two columns they stand one below the other, and the slim list shows only where both columns fit beside it.
+- On a phone the details fill the screen anyway: one column, and no large form.
+
 ## Inserting
 
 No strip of marks beside the agenda.

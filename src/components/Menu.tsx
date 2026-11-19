@@ -29,6 +29,7 @@ export default function Menu({
   triggerClassName,
   align = 'right',
   float = false,
+  footer,
 }: {
   items: MenuItem[]
   label: string
@@ -47,6 +48,8 @@ export default function Menu({
   trigger?: ReactNode
   /** The trigger's look instead of the small icon button: a labelled button in a header. */
   triggerClassName?: string
+  /** Below the items, apart from them: a choice that does not close the menu (an own colour under the categories). */
+  footer?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const phone = useIsPhone()
@@ -130,6 +133,7 @@ export default function Menu({
               </SheetRow>
             </div>
           ))}
+          {footer && <div className="mt-1 border-t border-line px-2 pb-1 pt-3">{footer}</div>}
         </Sheet>
       ) : open ? (
         dropdown(
@@ -166,6 +170,7 @@ export default function Menu({
                 </button>
               </div>
             ))}
+            {footer && <div className="mt-1 border-t border-line px-3 pb-2 pt-2">{footer}</div>}
           </div>,
         )
       ) : null}

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bold, Eye, Heading, Italic, List, Maximize2, PenLine } from 'lucide-react'
 import Markdown from '@/components/Markdown'
@@ -10,7 +10,23 @@ import { cx, IconButton, Modal } from '@/components/ui'
  * on leaving) and is not overwritten by other windows while you type.
  */
 // Not inside a <label>: a click there is passed on to the label's first control, which would be the preview button.
-export default function NotesField({ value, onCommit, label, hint }: { value: string; onCommit: (v: string) => void; label: string; hint?: string }) {
+export default function NotesField({
+  value,
+  onCommit,
+  label,
+  hint,
+  tall,
+  frame,
+}: {
+  value: string
+  onCommit: (v: string) => void
+  label: string
+  hint?: string
+  /** Where the notes have room (the details shown large): the field starts higher. */
+  tall?: boolean
+  /** The place draws the heading itself (a section that folds) and gets the two buttons and the field to put there. */
+  frame?: (parts: { tools: ReactNode; body: ReactNode }) => ReactNode
+}) {
   const { t } = useTranslation()
   const [local, setLocal] = useState(value)
   const [preview, setPreview] = useState(false)
@@ -43,6 +59,7 @@ export default function NotesField({ value, onCommit, label, hint }: { value: st
     <Editor
       value={local}
       big={big}
+      tall={tall}
       label={label}
       onChange={change}
       onFocus={() => void (typing.current = true)}
@@ -54,26 +71,39 @@ export default function NotesField({ value, onCommit, label, hint }: { value: st
     />
   )
 
+  const tools = (
+    <>
+      <IconButton label={preview ? t('notes.edit') : t('notes.preview')} onClick={() => setPreview(!preview)}>
+        {preview ? <PenLine size={14} /> : <Eye size={14} />}
+      </IconButton>
+      <IconButton label={t('notes.enlarge')} onClick={() => setLarge(true)}>
+        <Maximize2 size={14} />
+      </IconButton>
+    </>
+  )
+  const body = preview ? (
+    <button type="button" onClick={() => setPreview(false)} className="block w-full rounded-lg border border-line bg-surface px-3 py-2 text-left text-[14px] leading-relaxed">
+      {local.trim() ? <Markdown text={local} /> : <span className="text-ink-3">{t('notes.empty')}</span>}
+    </button>
+  ) : (
+    editor(false)
+  )
+
   return (
     <div>
-      <div className="mb-1 flex items-center gap-0.5">
-        <span className="mr-auto text-[12px] font-medium text-ink-2">
-          {label}
-          {hint && <span className="ml-1.5 font-normal text-ink-3">{hint}</span>}
-        </span>
-        <IconButton label={preview ? t('notes.edit') : t('notes.preview')} onClick={() => setPreview(!preview)}>
-          {preview ? <PenLine size={14} /> : <Eye size={14} />}
-        </IconButton>
-        <IconButton label={t('notes.enlarge')} onClick={() => setLarge(true)}>
-          <Maximize2 size={14} />
-        </IconButton>
-      </div>
-      {preview ? (
-        <button type="button" onClick={() => setPreview(false)} className="block w-full rounded-lg border border-line bg-surface px-3 py-2 text-left text-[14px] leading-relaxed">
-          {local.trim() ? <Markdown text={local} /> : <span className="text-ink-3">{t('notes.empty')}</span>}
-        </button>
+      {frame ? (
+        frame({ tools, body })
       ) : (
-        editor(false)
+        <>
+          <div className="mb-1 flex items-center gap-0.5">
+            <span className="mr-auto text-[13px] font-semibold text-brand-ink">
+              {label}
+              {hint && <span className="ml-1.5 font-normal text-ink-3">{hint}</span>}
+            </span>
+            {tools}
+          </div>
+          {body}
+        </>
       )}
       <Modal open={large} onClose={() => setLarge(false)} width="max-w-5xl" top="pt-[max(1rem,env(safe-area-inset-top))] md:pt-[6vh]">
         <div className="mb-3 flex items-center justify-between">
@@ -95,7 +125,7 @@ export default function NotesField({ value, onCommit, label, hint }: { value: st
 }
 
 /** The text area with its toolbar; grows with the text (the large one fills the dialog). */
-function Editor({ value, big, label, onChange, onFocus, onBlur }: { value: string; big: boolean; label: string; onChange: (v: string) => void; onFocus: () => void; onBlur: () => void }) {
+function Editor({ value, big, tall, label, onChange, onFocus, onBlur }: { value: string; big: boolean; tall?: boolean; label: string; onChange: (v: string) => void; onFocus: () => void; onBlur: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -103,8 +133,8 @@ function Editor({ value, big, label, onChange, onFocus, onBlur }: { value: strin
     const el = ref.current
     if (!el || big) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(Math.max(el.scrollHeight + 2, 120), window.innerHeight * 0.6)}px`
-  }, [value, big])
+    el.style.height = `${Math.min(Math.max(el.scrollHeight + 2, tall ? 260 : 120), window.innerHeight * 0.6)}px`
+  }, [value, big, tall])
 
   /** Wraps the selection (bold, italic) or prefixes its lines (list, heading). */
   const format = (kind: 'bold' | 'italic' | 'list' | 'heading') => {
