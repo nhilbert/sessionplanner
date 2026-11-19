@@ -4,7 +4,7 @@ import { api } from '@/api'
 import type { Category, ItemContent, LibraryBatch, LibraryEntry, LibraryEntryInput, TrashedLibraryEntry } from '@/domain/types'
 import { categoryName } from './useSettings'
 import { inOrder } from '@/domain/inOrder'
-import { type LibraryFilter, NO_FILTER } from '@/domain/libraryView'
+import type { LibraryFilter } from '@/domain/libraryView'
 
 /** What a library search looks through: titles, descriptions, goal, method, lead, the category, a group's items and the file names. */
 export function libraryText(e: LibraryEntry, categories: Category[], t: TFunction): string {
@@ -19,6 +19,10 @@ export const matchesWords = (text: string, query: string): boolean => query.trim
 interface LibraryStore {
   entries: LibraryEntry[]
   loaded: boolean
+  /** A read of the library is under way. */
+  loading: boolean
+  /** The last read failed: what is shown may be nothing, or out of date. */
+  failed: boolean
   load: () => Promise<void>
   /** Without tags an entry keeps the ones it has. */
   save: (entry: LibraryEntryInput, id?: string) => Promise<LibraryEntry>
@@ -44,11 +48,14 @@ const sort = (list: LibraryEntry[]) => [...list].sort((a, b) => a.title.localeCo
 export const useLibrary = create<LibraryStore>((set, get) => ({
   entries: [],
   loaded: false,
+  loading: false,
+  failed: false,
   load: async () => {
+    set({ loading: true })
     try {
-      set({ entries: await api.listLibrary(), loaded: true })
+      set({ entries: await api.listLibrary(), loaded: true, loading: false, failed: false })
     } catch {
-      set({ loaded: true })
+      set({ loaded: true, loading: false, failed: true })
     }
   },
   save: async (entry, id) => {
@@ -102,16 +109,39 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
   },
 }))
 
-/**
- * What the library page shows, kept while the app is open: coming back from an entry's page finds the search, the
- * filters and the place on the page again.
- */
-interface LibraryView {
+/** What the library's list showed: its search and filters, how far it was scrolled, and the entry opened from it. */
+export interface LibraryListView {
   query: string
   filter: LibraryFilter
-  /** How far the page was scrolled when it was left. */
   scroll: number
-  set: (view: Partial<Pick<LibraryView, 'query' | 'filter' | 'scroll'>>) => void
+  /** The entry last opened from the list: the focus returns to its line. */
+  opened: string | null
 }
 
-export const useLibraryView = create<LibraryView>((set) => ({ query: '', filter: NO_FILTER, scroll: 0, set }))
+const listViews = new Map<string, LibraryListView>()
+const LIST_VIEWS = 30
+
+/**
+ * The list's view per entry of the browser's history (`location.key`): the way back from an entry's page finds the
+ * list as it was left, and a fresh visit of the library starts fresh. Kept while the app is open, for the last few.
+ */
+export const libraryListView = {
+  get: (key: string): LibraryListView | undefined => listViews.get(key),
+  set: (key: string, view: LibraryListView) => {
+    listViews.delete(key)
+    listViews.set(key, view)
+    if (listViews.size > LIST_VIEWS) listViews.delete(listViews.keys().next().value as string)
+  },
+}
+
+let trashedElsewhere: string[] = []
+
+/** Entries put into the trash on their own page: the list, opened next, says so and offers the way back. */
+export const trashedOnPage = {
+  leave: (ids: string[]) => void (trashedElsewhere = ids),
+  take: (): string[] => {
+    const ids = trashedElsewhere
+    trashedElsewhere = []
+    return ids
+  },
+}

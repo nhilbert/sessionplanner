@@ -28,7 +28,7 @@ export interface Sort {
 }
 
 /** The sort of a list, remembered per device under `name`. */
-export function useSort<T>(name: string, options: SortOption<T>[], initial: Sort): { sort: Sort; setSort: (s: Sort) => void; toggle: (key: string) => void; sorted: (rows: T[]) => T[] } {
+export function useSort<T>(name: string, options: SortOption<T>[], initial: Sort): { sort: Sort; setSort: (s: Sort) => void; sorted: (rows: T[]) => T[] } {
   const [stored, setStored] = useLocalState(name, `${initial.key}:${initial.dir}`)
   const [key, dir] = stored.split(':')
   const option = options.find((o) => o.key === key) ?? options.find((o) => o.key === initial.key) ?? options[0]
@@ -37,8 +37,6 @@ export function useSort<T>(name: string, options: SortOption<T>[], initial: Sort
   return {
     sort,
     setSort,
-    // A click on the sorted column turns it round; on another one it sorts by that, in its usual direction.
-    toggle: (k) => setSort(k === sort.key ? { key: k, dir: sort.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: options.find((o) => o.key === k)?.first ?? 'asc' }),
     sorted: (rows) => sortRows(rows, option, sort.dir),
   }
 }
@@ -84,19 +82,6 @@ export function SortControl<T>({ options, sort, onChange }: { options: SortOptio
     </div>
   )
 }
-
-/** A column head that sorts: a button, with the direction shown on the sorted column only (aria-sort goes on the cell around it). */
-export function SortHead({ id, label, sort, onToggle, className }: { id: string; label: string; sort: Sort; onToggle: (key: string) => void; className?: string }) {
-  const active = sort.key === id
-  return (
-    <button type="button" onClick={() => onToggle(id)} className={cx('group inline-flex items-center gap-1 text-[12px] hover:text-ink', active ? 'text-ink' : 'text-ink-3', className)}>
-      {label}
-      <span className={cx('inline-flex', !active && 'opacity-0 group-hover:opacity-60 group-focus-visible:opacity-60')}>{active && sort.dir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}</span>
-    </button>
-  )
-}
-
-export const ariaSort = (id: string, sort: Sort): 'ascending' | 'descending' | undefined => (sort.key === id ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined)
 
 // ---- selection -------------------------------------------------------------------------------------------------
 

@@ -260,8 +260,7 @@
     "printOverflow_one": "One page runs past its bottom margin and is cut there.",
     "printOverflow_other": "{{count}} pages run past their bottom margin and are cut there.",
     "count_one": "{{count}} sheet",
-    "count_other": "{{count}} sheets",
-    "filter": "With worksheet"
+    "count_other": "{{count}} sheets"
   },
   "sheetEditor": {
     "onPageHint": "Click a text on the page to type in it · Ctrl+B bold, Ctrl+I italic · Enter or Esc ends · blanks (___) and new entries in the fields",
@@ -800,7 +799,8 @@
     "showResults_one": "Show {{count}} entry",
     "showResults_other": "Show {{count}} entries",
     "missing": "This entry does not exist (any more).",
-    "position": "{{n}} of {{total}} in {{section}}",
+    "position": "{{n}} of {{total}}",
+    "positionSection": "in {{section}}",
     "previous": "Previous entry",
     "next": "Next entry",
     "entryMenu": "Actions of the entry",

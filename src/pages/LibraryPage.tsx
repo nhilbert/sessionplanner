@@ -1,27 +1,27 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Check, LayoutGrid, List, Pencil, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { type Category, type LibraryEntry, TRASH_DAYS } from '@/domain/types'
 import { formatDuration } from '@/domain/time'
-import { facetCounts, type FacetCounts, filterCount, GROUPS, HOLDS, type Holds, type LibraryFilter, minutesOf, NO_FILTER, passes, sectionKeys, sectionsOf } from '@/domain/libraryView'
+import { facetCounts, type FacetCounts, filterCount, GROUPS, HOLDS, type Holds, knownFilter, type LibraryFilter, minutesOf, NO_FILTER, passes, sectionKeys, sectionsOf } from '@/domain/libraryView'
 import { tagCounts } from '@/domain/tags'
-import { libraryText, matchesWords, useLibrary, useLibraryView } from '@/store/useLibrary'
+import { libraryListView, libraryText, matchesWords, trashedOnPage, useLibrary } from '@/store/useLibrary'
 import { useLibraryEdit, useSettings } from '@/store/useSettings'
-import { Button, cx, Empty, PageHeader, SearchField, Segmented, Sheet, useLocalState } from '@/components/ui'
+import { Button, cx, Empty, isTyping, PageHeader, SearchField, Segmented, Sheet, useLocalState } from '@/components/ui'
 import { BulkBar, NoticeBar, SelectAll, type Selection, SortControl, type SortOption, TagFilter, TrashSection, useNotice, useSelection, useSort } from '@/components/collection'
 import { reportFailure } from '@/api'
 import { BulkEdit } from '@/library/BulkEdit'
-import { coverOf, entryPath, HoldsLine, railOf, sectionColor, sectionName, summaryOf } from '@/library/parts'
+import { coverOf, entryPath, type FromList, HoldsLine, railOf, sectionColor, sectionName, summaryOf, useLibraryTheme, useReadOnReturn } from '@/library/parts'
 import { SlideView } from '@/slides/SlideView'
-import { useViewTheme, ViewThemeSelect } from '@/slides/ThemeSelect'
+import { ViewThemeSelect } from '@/slides/ThemeSelect'
 
 /**
  * The shared library. The category orders the page: one section per category, the groups last. Beside it on a wide
  * screen stand the filters, each option with the number of entries it would show; a narrow screen has the sections as
  * chips under the search field, which stays in reach while the page scrolls, and the other filters in a sheet. The
  * entries show as lines to scan or as cards with their first slide; a click opens an entry's own page
- * (LibraryEntryPage). "Select" turns the entries into ticks, to tag, colour or delete several together. Deleted
+ * (LibraryEntryPage), which pages through the list as it stood here; the way back finds the list as it was left. "Select" turns the entries into ticks, to tag, colour or delete several together. Deleted
  * entries wait in the trash at the end. Inserting happens in a workshop (library tab).
  * Who may only read the library (a guest with it switched on, server/access.ts; a reader the host names,
  * `Me.libraryEdit`) gets it as it is, without ticks and without the trash.
@@ -29,52 +29,43 @@ import { useViewTheme, ViewThemeSelect } from '@/slides/ThemeSelect'
 export default function LibraryPage() {
   const { t } = useTranslation()
   const location = useLocation()
-  const navigate = useNavigate()
   const { entries, loaded, load, loadTrash, change, trash, restore, purge } = useLibrary()
   const categories = useSettings((s) => s.settings.categories)
   // Who changes the library; everybody else who gets here reads it.
   const owner = useLibraryEdit()
-  // The search and the filters outlive the page (useLibraryView): the way back from an entry leads to the same list.
-  const { query, filter, set: setShown } = useLibraryView()
-  const setQuery = (next: string) => setShown({ query: next })
-  const setFilter = (next: LibraryFilter) => setShown({ filter: next })
+  // The list as it was left, for the way back from an entry's page (libraryListView): a fresh visit starts fresh.
+  const [start] = useState(() => libraryListView.get(location.key))
+  const [query, setQuery] = useState(start?.query ?? '')
+  const [chosen, setFilter] = useState<LibraryFilter>(start?.filter ?? NO_FILTER)
+  // A category deleted meanwhile no longer narrows the list.
+  const filter = knownFilter(chosen, categories)
   const [layout, setLayout] = useLocalState('sp.library.view', 'list')
   const [selecting, setSelecting] = useState(false)
   const [bulkEdit, setBulkEdit] = useState(false)
   /** The filters as a sheet, where the screen has no room for them beside the entries. */
   const [sheet, setSheet] = useState(false)
   /** The slides shown in another theme, to see how they look there. */
-  const [view, setView] = useViewTheme('sp.library.theme')
-  const usual = useSettings((s) => s.settings.theme)
-  const theme = view || usual || 'default'
+  const { theme, view, setView } = useLibraryTheme()
   const { notice, show, close } = useNotice()
-  // ... and to the same place on it: the page remembers how far it was scrolled and returns there once it has entries.
+  // The place on the page and the entry last opened belong to what is remembered: the page returns there once it
+  // has entries, and the focus to that entry's line.
   const page = useRef<HTMLDivElement>(null)
-  const scrolled = useRef(useLibraryView.getState().scroll)
+  const scrolled = useRef(start?.scroll ?? 0)
+  const opened = useRef(start?.opened ?? null)
   const restored = useRef(false)
   useLayoutEffect(() => {
     if (restored.current || !entries.length || !page.current) return
     restored.current = true
     page.current.scrollTop = scrolled.current
-  }, [entries.length])
-  useEffect(() => () => useLibraryView.getState().set({ scroll: scrolled.current }), [])
-  useEffect(() => {
-    const read = () => {
-      void load()
-      if (owner) void loadTrash()
-    }
-    read()
-    // Back in this tab: an agent (or another window) may have changed entries meanwhile.
-    const again = () => {
-      if (document.visibilityState === 'visible') read()
-    }
-    window.addEventListener('focus', again)
-    document.addEventListener('visibilitychange', again)
-    return () => {
-      window.removeEventListener('focus', again)
-      document.removeEventListener('visibilitychange', again)
-    }
-  }, [load, loadTrash, owner])
+    if (start?.opened) page.current.querySelector<HTMLElement>(`[data-entry="${CSS.escape(start.opened)}"]`)?.focus({ preventScroll: true })
+  }, [entries.length, start])
+  const remember = useRef(() => undefined as void)
+  remember.current = () => libraryListView.set(location.key, { query, filter: chosen, scroll: scrolled.current, opened: opened.current })
+  useEffect(() => () => remember.current(), [])
+  useReadOnReturn(() => {
+    void load()
+    if (owner) void loadTrash()
+  })
   /** A failed save or delete (the entry may be gone): say so, and show the library as it is now. */
   const failed = (err: unknown) => {
     reportFailure(err)
@@ -83,12 +74,10 @@ export default function LibraryPage() {
   }
   const trashedNote = (ids: string[]) => show({ text: t('library.trashed', { count: ids.length }), undo: () => void restore(ids).then(loadTrash, failed) })
   // An entry deleted on its own page: the way back is offered here, where the page returned to.
-  const arrived = (location.state as { trashed?: string[] } | null)?.trashed
   useEffect(() => {
-    if (!arrived?.length) return
-    trashedNote(arrived)
-    void navigate('.', { replace: true, state: null })
-    // once, for the state the page was opened with
+    const ids = trashedOnPage.take()
+    if (ids.length) trashedNote(ids)
+    // once, on arriving
   }, [])
 
   const options: SortOption<LibraryEntry>[] = [
@@ -104,7 +93,8 @@ export default function LibraryPage() {
   const shown = sections.flatMap((s) => s.entries)
   const counts = facetCounts(found, filter, categories)
   const active = filterCount(filter)
-  const selection = useSelection(shown.map((e) => e.id))
+  const ids = shown.map((e) => e.id)
+  const selection = useSelection(ids)
   const known = tagCounts(entries.map((e) => e.tags)).map((c) => c.tag)
   const picked = shown.filter((e) => selection.has(e.id))
   const cards = layout === 'cards'
@@ -119,6 +109,18 @@ export default function LibraryPage() {
     selection.clear()
     setSelecting(false)
   }
+  // Escape takes the ticks off first (useSelection); with none left it ends selecting.
+  const ticked = selection.ids.length
+  useEffect(() => {
+    if (!selecting) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !ticked && !isTyping(e.target) && !document.querySelector('[role="dialog"]')) setSelecting(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selecting, ticked])
+  /** What an entry's line or card needs to open its page: the list it stands in, for paging there, and a note of which one it was. */
+  const opening = { ids, onOpen: (id: string) => void (opened.current = id) }
   const filters = (withSections: boolean) => <Filters filter={filter} onChange={setFilter} counts={counts} categories={categories} tagRows={found.filter((e) => passes(e, filter, categories, 'tags')).map((e) => e.tags)} withSections={withSections} />
   const sortControl = <SortControl options={options} sort={sort} onChange={setSort} />
 
@@ -129,13 +131,10 @@ export default function LibraryPage() {
         <PageHeader title={t('nav.library')} subtitle={<span className="max-md:hidden">{t('library.subtitle')}</span>} right={entries.length > 0 && <span className="max-lg:hidden"><ViewThemeSelect value={view} onChange={setView} /></span>} />
         {loaded && !entries.length && <Empty title={t('library.empty')} body={t(owner ? 'library.emptyHint' : 'library.emptyGuest')} />}
         {entries.length > 0 && (
-          <div className="lg:flex lg:items-start lg:gap-7">
-            <aside aria-label={t('library.filters')} className="hidden w-[220px] shrink-0 lg:block">
-              {filters(true)}
-            </aside>
-            <div className="min-w-0 flex-1">
-              {/* The search stays in reach while a narrow page scrolls; the sections are chips under it there. */}
-              <div className="sticky top-0 z-10 -mx-4 space-y-2 bg-paper px-4 py-2 md:-mx-8 md:px-8 lg:static lg:mx-0 lg:p-0">
+          <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-x-7">
+            {/* The search comes first in the page (Tab reaches it before the filters), though the filters stand to its left
+                on a wide screen. On a narrow one it stays in reach while the page scrolls, the sections as chips under it. */}
+            <div className="sticky top-0 z-10 -mx-4 space-y-2 bg-paper px-4 py-2 md:-mx-8 md:px-8 lg:static lg:col-start-2 lg:row-start-1 lg:mx-0 lg:p-0">
                 <div className="flex items-center gap-2">
                   <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} shortcut className="min-w-0 flex-1" />
                   <button
@@ -150,7 +149,11 @@ export default function LibraryPage() {
                   </button>
                 </div>
                 <SectionChips filter={filter} onChange={setFilter} counts={counts} categories={categories} total={found.filter((e) => passes(e, filter, categories, 'sections')).length} />
-              </div>
+            </div>
+            <aside aria-label={t('library.filters')} className="hidden lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block">
+              {filters(true)}
+            </aside>
+            <div className="min-w-0 lg:col-start-2 lg:row-start-2">
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                 {owner && selecting ? <SelectAll selection={selection} count={shown.length} /> : <span className="text-[13.5px] font-semibold text-ink-2">{t('library.count', { count: shown.length })}</span>}
                 <span className="ml-auto" />
@@ -165,8 +168,8 @@ export default function LibraryPage() {
                   value={cards ? 'cards' : 'list'}
                   onChange={setLayout}
                   options={[
-                    { value: 'list', label: <span className="inline-flex items-center gap-1" title={t('list.asList')}><List size={13} /><span className="sr-only md:not-sr-only">{t('list.asList')}</span></span> },
-                    { value: 'cards', label: <span className="inline-flex items-center gap-1" title={t('list.asCards')}><LayoutGrid size={13} /><span className="sr-only md:not-sr-only">{t('list.asCards')}</span></span> },
+                    { value: 'list', label: <span className="inline-flex items-center gap-1" title={t('list.asList')}><List size={13} /><span className="sr-only xl:not-sr-only">{t('list.asList')}</span></span> },
+                    { value: 'cards', label: <span className="inline-flex items-center gap-1" title={t('list.asCards')}><LayoutGrid size={13} /><span className="sr-only xl:not-sr-only">{t('list.asCards')}</span></span> },
                   ]}
                 />
               </div>
@@ -193,13 +196,13 @@ export default function LibraryPage() {
                   {cards ? (
                     <ul className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
                       {s.entries.map((e) => (
-                        <EntryCard key={e.id} entry={e} categories={categories} theme={theme} selection={owner && selecting ? selection : null} />
+                        <EntryCard key={e.id} entry={e} categories={categories} theme={theme} selection={owner && selecting ? selection : null} opening={opening} />
                       ))}
                     </ul>
                   ) : (
                     <ul className="card overflow-hidden">
                       {s.entries.map((e) => (
-                        <EntryRow key={e.id} entry={e} categories={categories} selection={owner && selecting ? selection : null} />
+                        <EntryRow key={e.id} entry={e} categories={categories} selection={owner && selecting ? selection : null} opening={opening} />
                       ))}
                     </ul>
                   )}
@@ -362,12 +365,18 @@ function SectionChips({ filter, onChange, counts, categories, total }: { filter:
   )
 }
 
+/** The list an entry is opened from (its ids in the order shown), and how the list notes which entry it was. */
+interface Opening {
+  ids: string[]
+  onOpen: (id: string) => void
+}
+
 /** What an entry is as a whole: a link to its page, or a tick while entries are being selected. */
-function EntryTarget({ entry, selection, className, children }: { entry: LibraryEntry; selection: Selection | null; className?: string; children: ReactNode }) {
+function EntryTarget({ entry, selection, opening, className, children }: { entry: LibraryEntry; selection: Selection | null; opening: Opening; className?: string; children: ReactNode }) {
   const { t } = useTranslation()
   if (!selection)
     return (
-      <Link to={entryPath(entry.id)} className={className}>
+      <Link to={entryPath(entry.id)} state={{ list: opening.ids } satisfies FromList} data-entry={entry.id} onClick={() => opening.onOpen(entry.id)} className={className}>
         {children}
       </Link>
     )
@@ -391,18 +400,20 @@ function EntryTarget({ entry, selection, className, children }: { entry: Library
 }
 
 /** An entry as a line: its rail, title and one line of what it is, what it holds and how long it runs. */
-function EntryRow({ entry, categories, selection }: { entry: LibraryEntry; categories: Category[]; selection: Selection | null }) {
+function EntryRow({ entry, categories, selection, opening }: { entry: LibraryEntry; categories: Category[]; selection: Selection | null; opening: Opening }) {
   const { t } = useTranslation()
   const minutes = minutesOf(entry)
   const picked = !!selection?.has(entry.id)
+  const summary = summaryOf(entry, t)
   return (
     <li className={cx('border-b border-line last:border-b-0', picked && 'bg-accent-soft')}>
-      <EntryTarget entry={entry} selection={selection} className={cx('flex min-h-12 items-center gap-3 px-3 py-2 transition-colors pointer-coarse:min-h-[60px]', !picked && 'hover:bg-surface-2/60')}>
+      <EntryTarget entry={entry} selection={selection} opening={opening} className={cx('flex min-h-12 items-center gap-3 px-3 py-2 transition-colors pointer-coarse:min-h-[60px]', !picked && 'hover:bg-surface-2/60')}>
         {selection && <Tick on={picked} />}
         <span aria-hidden className="my-0.5 w-[6px] shrink-0 self-stretch rounded-[3px]" style={{ background: railOf(entry, categories) }} />
         <span className="min-w-0 flex-1 md:flex md:items-center md:gap-4">
-          <span className="block truncate font-semibold md:max-w-[62%] md:shrink-0">{entry.title}</span>
-          <span className="block truncate text-[13px] text-ink-2 md:min-w-0 md:flex-1 md:text-[13.5px]">{summaryOf(entry, t)}</span>
+          {/* The title takes the room it needs; a summary, where there is one, keeps a third of the line. */}
+          <span className={cx('block truncate font-semibold', summary ? 'md:max-w-[66%] md:shrink-0' : 'md:min-w-0 md:flex-1')}>{entry.title}</span>
+          {summary && <span className="block truncate text-[13px] text-ink-2 md:min-w-0 md:flex-1 md:text-[13.5px]">{summary}</span>}
         </span>
         <span className="hidden w-[104px] shrink-0 md:block">
           <HoldsLine entry={entry} />
@@ -414,16 +425,16 @@ function EntryRow({ entry, categories, selection }: { entry: LibraryEntry; categ
 }
 
 /** An entry as a card: its first slide as the picture (an entry without slides says there what it is), then title, length and what it holds. */
-function EntryCard({ entry, categories, theme, selection }: { entry: LibraryEntry; categories: Category[]; theme: string; selection: Selection | null }) {
+function EntryCard({ entry, categories, theme, selection, opening }: { entry: LibraryEntry; categories: Category[]; theme: string; selection: Selection | null; opening: Opening }) {
   const { t } = useTranslation()
   const minutes = minutesOf(entry)
   const cover = coverOf(entry)
   const picked = !!selection?.has(entry.id)
   return (
     <li className={cx('card overflow-hidden', picked && 'border-accent bg-accent-soft')}>
-      <EntryTarget entry={entry} selection={selection} className="flex h-full flex-col">
+      <EntryTarget entry={entry} selection={selection} opening={opening} className="flex h-full flex-col">
         {cover ? (
-          <SlideView html={cover.html} theme={theme} scope="library" className="rounded-none border-b border-line" />
+          <SlideView html={cover.html} theme={theme} scope="library" className="rounded-none! border-b border-line" />
         ) : (
           <span className="flex aspect-video items-center border-b border-line bg-surface-2 px-5">
             <span className="line-clamp-4 text-[14px] leading-normal text-ink-2">{summaryOf(entry, t) || t(entry.kind === 'group' ? 'library.kindGroup' : `kinds.${entry.data.kind}`)}</span>

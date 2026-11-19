@@ -143,16 +143,23 @@ No strip of marks beside the agenda.
   would show none cannot be chosen. A chosen option is a fill in `accent-soft`. On a narrower screen the sections are
   chips under the search field, the chosen one in `brand` as in a segmented control, and the other filters open as a
   sheet from the round button beside the search, with the sort and the theme to look in. The search and the chips
-  stay at the top while the page scrolls.
+  stay at the top while the page scrolls. The search comes first in the page's order, so Tab reaches it before the
+  filters.
 - **Two views with two jobs.** Lines to scan: the rail, the title, one line of what the entry is, what it holds as
   signs with numbers, its length. Cards to browse by the picture: the entry's first slide at the top, then the rail,
   the title, the length and the signs. An entry without slides says in the picture's place what it is, so every card
   has the same build.
 - **An entry opens as a page of its own** (`/library/:id`), not inside the list. It reads first: what it is about, the
   slides at a size to look at, the worksheets, the notes for the facilitator on the ground's tint; beside them its
-  facts (length, category, colour, tags, material, files). Who changes the library gets a pencil per part, which
-  turns it into its fields, and "Done" to read it again; the facts are fields at once. The arrows in the head page
-  through the entry's section. The way back finds the list as it was left: search, filters and place.
+  facts (length, category, colour, tags, material, files). An entry that says nothing about itself is its slides:
+  they stand first then. Who changes the library gets a pencil per part, which turns it into its fields, and "Done"
+  to read it again; the facts are fields at once. In the title's field Enter keeps what was typed and Escape leaves
+  the title as it was. A group shows its items in their order, each with all it carries to read.
+- **The list and the entry belong together.** The arrows in an entry's head page through the list it was opened
+  from, as that list was sorted and filtered, and the count says where in it the entry stands; the focus stays on
+  the arrow. The way back is the step back in the browser's history and finds the list as it was left: search,
+  filters, place, and the focus on the entry's line. A fresh visit of the library starts fresh. Opened by its
+  address alone, an entry pages through its section by title.
 - **Selecting is a mode.** "Select" turns the entries into ticks (the whole line or card is the tick); the bar of
   actions comes up as in every list.
 

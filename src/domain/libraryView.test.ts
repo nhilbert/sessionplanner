@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Category, ItemContent, LibraryAttachment, LibraryEntry, Slide, Worksheet } from './types.ts'
-import { facetCounts, filterCount, GROUPS, holdsOf, minutesOf, neighbours, NO_CATEGORY, NO_FILTER, passes, sectionOf, sectionsOf } from './libraryView.ts'
+import { byTitle, facetCounts, filterCount, GROUPS, holdsOf, knownFilter, minutesOf, neighbours, NO_CATEGORY, NO_FILTER, passes, placeIn, sectionOf, sectionsOf } from './libraryView.ts'
 
 const categories: Category[] = [
   { id: 'input', name: '', color: 'slate' },
@@ -97,3 +97,32 @@ describe('paging through a section', () => {
     expect(neighbours(all, 'weg', categories)).toBeNull()
   })
 })
+
+describe('a filter after the categories changed', () => {
+  it('drops a chosen section whose category is gone, and keeps the rest', () => {
+    const filter = { ...NO_FILTER, sections: ['input', 'deleted', GROUPS], tags: ['Modell'] }
+    expect(knownFilter(filter, categories)).toEqual({ ...filter, sections: ['input', GROUPS] })
+    expect(filterCount(knownFilter({ ...NO_FILTER, sections: ['deleted'] }, categories))).toBe(0)
+  })
+
+  it('hands back the same filter where nothing is gone', () => {
+    const filter = { ...NO_FILTER, sections: ['exercise', NO_CATEGORY] }
+    expect(knownFilter(filter, categories)).toBe(filter)
+  })
+})
+
+describe('paging through the list an entry was opened from', () => {
+  it('names the ids before and after, in the order of the list', () => {
+    expect(placeIn(['c', 'a', 'b'], 'a')).toEqual({ index: 1, total: 3, previous: 'c', next: 'b' })
+    expect(placeIn(['c', 'a', 'b'], 'c')).toEqual({ index: 0, total: 3, previous: null, next: 'a' })
+  })
+
+  it('knows nothing about an entry the list did not hold', () => {
+    expect(placeIn(['a'], 'x')).toBeNull()
+  })
+
+  it('orders titles as the list does: umlauts beside their letters, numbers by their value', () => {
+    expect(['Zuhören', 'übung A', 'Teil 10', 'Teil 2', 'Ablauf'].map((title) => ({ title })).sort(byTitle).map((e) => e.title)).toEqual(['Ablauf', 'Teil 2', 'Teil 10', 'übung A', 'Zuhören'])
+  })
+})
+

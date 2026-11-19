@@ -260,8 +260,7 @@
     "printOverflow_one": "Eine Seite läuft über den unteren Rand und wird dort abgeschnitten.",
     "printOverflow_other": "{{count}} Seiten laufen über den unteren Rand und werden dort abgeschnitten.",
     "count_one": "{{count}} Blatt",
-    "count_other": "{{count}} Blätter",
-    "filter": "Mit Arbeitsblatt"
+    "count_other": "{{count}} Blätter"
   },
   "sheetEditor": {
     "onPageHint": "Klick auf einen Text der Seite tippt hinein · Strg+B fett, Strg+I kursiv · Enter oder Esc beendet · Schreiblücken (___) und neue Einträge in den Feldern",
@@ -800,7 +799,8 @@
     "showResults_one": "{{count}} Eintrag zeigen",
     "showResults_other": "{{count}} Einträge zeigen",
     "missing": "Diesen Eintrag gibt es nicht (mehr).",
-    "position": "{{n}} von {{total}} in {{section}}",
+    "position": "{{n}} von {{total}}",
+    "positionSection": "in {{section}}",
     "previous": "Vorheriger Eintrag",
     "next": "Nächster Eintrag",
     "entryMenu": "Aktionen des Eintrags",

@@ -86,3 +86,20 @@ export const isDark = (hex: string): boolean => {
   const rgb = parseHex(hex)
   return !!rgb && luminance(rgb) < 0.18
 }
+
+/**
+ * The rail of a group that shows what is inside (a folded group in the agenda, a group in the library): its members'
+ * colours, each as long as the member lasts. Null where no member has a length.
+ */
+export function groupRail(members: { color: string; minutes: number }[]): string | null {
+  const timed = members.filter((m) => m.minutes > 0)
+  const total = timed.reduce((sum, m) => sum + m.minutes, 0)
+  if (!total) return null
+  let at = 0
+  const stops = timed.map((m) => {
+    const from = (at / total) * 100
+    at += m.minutes
+    return `${m.color} ${from.toFixed(1)}% ${((at / total) * 100).toFixed(1)}%`
+  })
+  return `linear-gradient(${stops.join(', ')})`
+}

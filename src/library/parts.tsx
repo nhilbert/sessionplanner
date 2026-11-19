@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { FileText, Paperclip, Presentation } from 'lucide-react'
@@ -8,15 +9,50 @@ import { GROUPS, holdsOf, NO_CATEGORY } from '@/domain/libraryView'
 import { slideAssets } from '@/domain/slides'
 import { api } from '@/api'
 import { useLibrary } from '@/store/useLibrary'
-import { categoryName, stripColor } from '@/store/useSettings'
+import { categoryName, stripColor, useSettings } from '@/store/useSettings'
+import { groupRail } from '@/domain/color'
 import { cx } from '@/components/ui'
 import { FileManager } from '@/planner/FileManager'
 import { SlideEditor } from '@/slides/editor/SlideEditor'
 import { listSource } from '@/slides/editor/source'
+import { useViewTheme } from '@/slides/ThemeSelect'
 import { WorksheetList } from '@/worksheets/WorksheetList'
 import { useSheetBrand, useStepFacts } from '@/worksheets/SheetView'
 
 /** What the library's pages share: how an entry is named, coloured and summed up, and the editors of what it holds. */
+
+/**
+ * Reads on arriving and again whenever the tab is come back to: an agent (or another window) may have changed the
+ * library meanwhile.
+ */
+export function useReadOnReturn(read: () => void) {
+  const latest = useRef(read)
+  latest.current = read
+  useEffect(() => {
+    const again = () => document.visibilityState === 'visible' && latest.current()
+    latest.current()
+    window.addEventListener('focus', again)
+    document.addEventListener('visibilitychange', again)
+    return () => {
+      window.removeEventListener('focus', again)
+      document.removeEventListener('visibilitychange', again)
+    }
+  }, [])
+}
+
+/** The theme the library's pages show slides in: the one chosen to look in (remembered per device), else the settings'. */
+export function useLibraryTheme(): { theme: string; view: string; setView: (theme: string) => void } {
+  const [view, setView] = useViewTheme('sp.library.theme')
+  const usual = useSettings((s) => s.settings.theme)
+  return { theme: view || usual || 'default', view, setView }
+}
+
+/** What an entry's page is told by the list it was opened from: the ids the list showed, in its order, to page through. */
+export interface FromList {
+  list?: string[]
+  /** The arrow that led here, while paging: the focus stays on it. */
+  paged?: 'previous' | 'next'
+}
 
 /** Where the page of an entry is. */
 export const entryPath = (id: string): string => `/library/${encodeURIComponent(id)}`
@@ -40,16 +76,7 @@ export const sectionColor = (key: string, categories: Category[]): string => {
  */
 export function railOf(entry: LibraryEntry, categories: Category[]): string {
   if (entry.kind === 'item') return stripColor(entry.data, categories)
-  const timed = entry.data.items.filter((i) => durationOf(i) > 0)
-  const total = timed.reduce((sum, i) => sum + durationOf(i), 0)
-  if (!total) return 'var(--line-2)'
-  let at = 0
-  const stops = timed.map((i) => {
-    const from = (at / total) * 100
-    at += durationOf(i)
-    return `${stripColor(i, categories)} ${from.toFixed(1)}% ${((at / total) * 100).toFixed(1)}%`
-  })
-  return `linear-gradient(${stops.join(', ')})`
+  return groupRail(entry.data.items.map((i) => ({ color: stripColor(i, categories), minutes: durationOf(i) }))) ?? 'var(--line-2)'
 }
 
 /** The slide that stands for an entry: its first one, over a group's items in their order. */
@@ -109,6 +136,15 @@ export function LibrarySlideEditor({ entryId, start, mode, theme, owner, onClose
   return <SlideEditor source={source} start={start} mode={owner ? mode : 'view'} onClose={onClose} theme={theme} scope="library" owner={owner} canEdit={owner} known={known} />
 }
 
+/** The slides of one item of a group, to page through. A group's items are changed in a workshop and saved anew, not here. */
+export function GroupSlideViewer({ entry, item, start, theme, onClose }: { entry: Extract<LibraryEntry, { kind: 'group' }>; item: number; start: string; theme: string; onClose: () => void }) {
+  const { t } = useTranslation()
+  const content = entry.data.items[item]
+  if (!content) return null
+  const source = listSource({ context: t('editor.ctx.library'), label: content.title || entry.title, get: () => content.slides, set: () => undefined, editable: false })
+  return <SlideEditor source={source} start={start} mode="view" onClose={onClose} theme={theme} scope="library" owner={false} canEdit={false} known={[]} />
+}
+
 /** The files of one item of an entry; a workshop gets copies of them when the entry is inserted, and keeps those whatever happens here. */
 export function EntryFiles({ entry, item, compact }: { entry: LibraryEntry; item: number; compact?: boolean }) {
   const { t } = useTranslation()
@@ -152,8 +188,8 @@ export function EntryFileLinks({ entry, item }: { entry: LibraryEntry; item: num
 }
 
 /** An entry's worksheets in the theme and with the logo of the settings, as a new workshop would print them. */
-export function LibrarySheets({ sheets, step, onChange }: { sheets: Worksheet[]; step: ItemContent; onChange?: (next: Worksheet[]) => void }) {
+export function LibrarySheets({ sheets, step, onChange, heading }: { sheets: Worksheet[]; step: ItemContent; onChange?: (next: Worksheet[]) => void; /** Off where the place names the sheets itself. */ heading?: boolean }) {
   const brand = useSheetBrand('')
   const facts = useStepFacts()
-  return <WorksheetList sheets={sheets} onChange={onChange} scope="library" theme={brand.theme} logo={brand.logo} facts={facts(step)} />
+  return <WorksheetList sheets={sheets} onChange={onChange} scope="library" theme={brand.theme} logo={brand.logo} facts={facts(step)} heading={heading} />
 }

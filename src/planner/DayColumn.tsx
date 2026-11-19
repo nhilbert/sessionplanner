@@ -8,6 +8,7 @@ import type { Category, Day, Group, Item, ItemKind } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { BREAK_GAP, durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH, longestStretch } from '@/domain/time'
 import { categoryName, itemColor, stripColor } from '@/store/useSettings'
+import { groupRail } from '@/domain/color'
 import { formatDate } from '@/i18n'
 import { cx, useIsPhone } from '@/components/ui'
 import Menu from '@/components/Menu'
@@ -206,15 +207,7 @@ function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: 
   const slots = members.map((m) => schedule?.slots[m.id]).filter((s) => !!s)
   const range = slots.length ? `${formatTime(slots[0].start)}–${formatTime(Math.max(...slots.map((s) => s.end)))}` : null
   // Folded, the group's rail shows what is inside: its members' colours, each as long as the member lasts.
-  let at = 0
-  const stops = members
-    .filter((m) => lengthOf(m) > 0)
-    .map((m) => {
-      const color = stripColor(m, ctx.categories)
-      const from = total ? (at / total) * 100 : 0
-      at += lengthOf(m)
-      return `${color} ${from.toFixed(1)}% ${(total ? (at / total) * 100 : 100).toFixed(1)}%`
-    })
+  const rail = groupRail(members.map((m) => ({ color: stripColor(m, ctx.categories), minutes: lengthOf(m) })))
 
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('entry relative', !schedule && 'mb-1.5', isDragging && 'drag-target')}>
@@ -230,7 +223,7 @@ function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: 
           }}
           className="@container my-0.5 flex min-h-9 cursor-grab touch-manipulation items-center gap-1.5 rounded-[10px] bg-paper py-0.5 pl-3 pr-1 active:cursor-grabbing"
         >
-          <span className="w-[6px] shrink-0 self-stretch rounded-[3px]" style={collapsed && stops.length ? { background: `linear-gradient(${stops.join(', ')})` } : undefined} />
+          <span className="w-[6px] shrink-0 self-stretch rounded-[3px]" style={collapsed && rail ? { background: rail } : undefined} />
           <button
             type="button"
             aria-label={collapsed ? t('group.expand') : t('group.collapse')}

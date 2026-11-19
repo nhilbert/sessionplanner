@@ -121,3 +121,21 @@ export function neighbours(entries: LibraryEntry[], id: string, categories: Cate
   const index = list.findIndex((e) => e.id === id)
   return { index, total: list.length, section, previous: list[index - 1] ?? null, next: list[index + 1] ?? null }
 }
+
+/** The filter with the sections that exist: a chosen category that was deleted since narrows nothing and counts as no filter. */
+export function knownFilter(filter: LibraryFilter, categories: Category[]): LibraryFilter {
+  const keys = sectionKeys(categories)
+  const sections = filter.sections.filter((key) => keys.includes(key))
+  return sections.length === filter.sections.length ? filter : { ...filter, sections }
+}
+
+/** The order of titles as a list shows them: whatever the capitals, umlauts beside their letters, 2 before 10. */
+export const byTitle = (a: { title: string }, b: { title: string }): number => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true })
+
+/** An entry's place in a list of ids (the list it was opened from), with the ids before and after it. */
+export function placeIn(ids: readonly string[], id: string): { index: number; total: number; previous: string | null; next: string | null } | null {
+  const index = ids.indexOf(id)
+  if (index < 0) return null
+  return { index, total: ids.length, previous: ids[index - 1] ?? null, next: ids[index + 1] ?? null }
+}
+
