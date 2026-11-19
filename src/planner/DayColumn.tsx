@@ -7,7 +7,7 @@ import { AlertTriangle, Archive, BookmarkPlus, CalendarDays, ChevronDown, Maximi
 import type { Category, Day, Group, Item, ItemKind } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { BREAK_GAP, durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH, longestStretch } from '@/domain/time'
-import { categoryName, colorVar, itemColor } from '@/store/useSettings'
+import { categoryName, itemColor, stripColor } from '@/store/useSettings'
 import { formatDate } from '@/i18n'
 import { cx, useIsPhone } from '@/components/ui'
 import Menu from '@/components/Menu'
@@ -65,8 +65,8 @@ export interface Preview {
 export const BoardContext = createContext<BoardCtx | null>(null)
 export const useBoardCtx = (): BoardCtx => useContext(BoardContext)!
 
-/** The members a top-level entry stands for: the item itself, or a group's items in order. */
-const membersOf = (ctx: BoardCtx, id: string): Item[] =>
+/** The items a top-level entry stands for: the item itself, or a group's items in order. */
+const itemsOfEntry = (ctx: BoardCtx, id: string): Item[] =>
   (ctx.groups[id] ? (ctx.lists[inner(id)] ?? []).map((m) => ctx.items[m]) : [ctx.items[id]]).filter((m): m is Item => !!m)
 
 interface Run {
@@ -89,7 +89,7 @@ function runsOf(ctx: BoardCtx, ids: string[], schedule: DaySchedule): Run[] {
     while (current.length && isMarker(current[0])) current.shift()
     while (current.length && isMarker(current[current.length - 1])) current.pop()
     if (current.length) {
-      const members = current.flatMap((id) => membersOf(ctx, id))
+      const members = current.flatMap((id) => itemsOfEntry(ctx, id))
       const slots = members.filter((m) => m.kind === 'block' && schedule.slots[m.id]).map((m) => schedule.slots[m.id])
       runs.push({
         ids: current,
@@ -105,7 +105,7 @@ function runsOf(ctx: BoardCtx, ids: string[], schedule: DaySchedule): Run[] {
       close()
       continue
     }
-    const first = membersOf(ctx, id)[0]
+    const first = itemsOfEntry(ctx, id)[0]
     if (current.length && first && (schedule.slots[first.id]?.gap ?? 0) >= BREAK_GAP) close()
     current.push(id)
   }
@@ -210,7 +210,7 @@ function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: 
   const stops = members
     .filter((m) => lengthOf(m) > 0)
     .map((m) => {
-      const color = m.kind === 'break' ? 'var(--line-2)' : (colorVar(itemColor(m, ctx.categories)) ?? 'var(--ink-3)')
+      const color = stripColor(m, ctx.categories)
       const from = total ? (at / total) * 100 : 0
       at += lengthOf(m)
       return `${color} ${from.toFixed(1)}% ${(total ? (at / total) * 100 : 100).toFixed(1)}%`
@@ -220,7 +220,16 @@ function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: 
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('entry relative', !schedule && 'mb-1.5', isDragging && 'drag-target')}>
       <div className={cx(runClass(run), !schedule && 'rounded-[14px] border border-line bg-surface p-1')}>
         {run?.head}
-        <div ref={setActivatorNodeRef} {...listeners} {...attributes} data-row className="my-0.5 flex min-h-9 cursor-grab touch-manipulation items-center gap-1.5 rounded-[10px] bg-paper py-0.5 pl-3 pr-1 active:cursor-grabbing">
+        <div ref={setActivatorNodeRef} {...listeners} {...attributes} data-row
+          // Enter folds and unfolds (Space moves the group, as it moves an entry).
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && e.target === e.currentTarget && !isDragging) {
+              e.preventDefault()
+              ctx.onToggleGroup(group.id)
+            } else listeners?.onKeyDown?.(e)
+          }}
+          className="@container my-0.5 flex min-h-9 cursor-grab touch-manipulation items-center gap-1.5 rounded-[10px] bg-paper py-0.5 pl-3 pr-1 active:cursor-grabbing"
+        >
           <span className="w-[6px] shrink-0 self-stretch rounded-[3px]" style={collapsed && stops.length ? { background: `linear-gradient(${stops.join(', ')})` } : undefined} />
           <button
             type="button"
@@ -242,7 +251,7 @@ function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: 
             inputClassName="w-full text-[14px] font-bold"
           />
           <span className="ml-auto shrink-0 pl-2 text-[12px] text-ink-2 tnum">
-            {range && <span className="max-md:hidden">{range} · </span>}
+            {range && <span className="@max-md:hidden">{range} · </span>}
             {t('group.units', { count: members.filter((m) => m.kind === 'block').length })} · {formatDuration(total)}
           </span>
           <Menu
@@ -411,7 +420,7 @@ function DayStrip({ dayId, start, target, schedule, ctx }: { dayId: string; star
   const pct = (minutes: number) => `${(minutes / span) * 100}%`
   // The colour a unit shows in the strip is the one of its rail: its own, else its category's. The legend names every
   // colour that occurs, so a unit with a colour of its own gets a line of its own.
-  const colorOf = (it: Item) => (it.kind === 'break' ? 'var(--line-2)' : (colorVar(itemColor(it, ctx.categories)) ?? 'var(--ink-3)'))
+  const colorOf = (it: Item) => stripColor(it, ctx.categories)
   const sums = new Map<string, { key: string; label: string; color: string; minutes: number }>()
   for (const it of items) {
     const minutes = schedule.slots[it.id].end - schedule.slots[it.id].start

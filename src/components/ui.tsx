@@ -263,12 +263,15 @@ export function Modal({ open, onClose, children, width = 'max-w-lg', top = 'pt-[
   const panel = useRef<HTMLDivElement>(null)
   useOverlay(open, onClose, { root: panel })
   if (!open) return null
-  return (
+  // On the body, as a Sheet is: a dialog opened from a place with colours of its own (the navigation, the phone's
+  // brand-coloured header, also by a build's tool there) takes the page's colours, not that place's.
+  return createPortal(
     <div className={cx('fixed inset-0 z-50 flex items-start justify-center bg-ink/15 px-4 backdrop-blur-[2px]', top)} onMouseDown={onClose}>
       <div ref={panel} role="dialog" aria-modal="true" tabIndex={-1} className={cx('card fade-in max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain p-5 shadow-[var(--shadow)] outline-none', width)} onMouseDown={(e) => e.stopPropagation()}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

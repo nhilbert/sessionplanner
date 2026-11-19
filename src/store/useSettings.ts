@@ -58,5 +58,9 @@ export function itemColor(item: Pick<Item, 'color' | 'categoryId'>, categories: 
 
 export const colorVar = (key: PaletteKey | null): string | undefined => (key ? `var(--c-${key})` : undefined)
 
+/** The colour an entry has where the day is drawn to scale (the day strip, a folded group's rail): its own or its category's, a neutral tone for breaks and for units without either. */
+export const stripColor = (item: Pick<Item, 'kind' | 'color' | 'categoryId'>, categories: Category[]): string =>
+  item.kind === 'break' ? 'var(--line-2)' : (colorVar(itemColor(item, categories)) ?? 'var(--ink-3)')
+
 /** Whether whoever is signed in changes the library: the owner, unless the host says otherwise (`Me.libraryEdit`). */
 export const useLibraryEdit = (): boolean => useSettings((s) => s.me.libraryEdit ?? s.me.owner)

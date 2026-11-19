@@ -54,7 +54,7 @@
     "purgeAllConfirm": "Delete all {{count}} workshops in the trash with all their days, items and files for good? This cannot be undone."
   },
   "planner": {
-    "dragHelp": "Space picks the entry up and puts it down, the arrow keys move it, Escape cancels. Enter opens the details.",
+    "dragHelp": "Space picks the entry up and puts it down, the arrow keys move it, Escape cancels. Enter opens the details, or folds and unfolds a group.",
     "dragPicked": "Picked up {{title}}.",
     "dragOverEntry": "{{title}} is at {{other}}, {{place}}.",
     "dragOverList": "{{title}} is in: {{place}}.",

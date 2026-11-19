@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Archive, BookmarkPlus, CalendarPlus, Copy, Minus, Plus, Trash2, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, Material, WorkshopState } from '@/domain/types'
 import { newId, type ItemFields, type Op } from '@/domain/ops'
-import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
+import { entriesIn, membersOf, placeIn, positionAtEnd, sortedDays } from '@/domain/order'
 import { contentOf } from '@/domain/copy'
 import { newSlides } from '@/domain/slides'
 import { categoryName, useLibraryEdit, useSettings } from '@/store/useSettings'
@@ -230,11 +230,12 @@ export function itemActions({
     { label: t('item.duplicate'), icon: <Copy size={14} />, onSelect: duplicate },
     ...(mayChangeLibrary && item.kind !== 'note' ? [{ label: t('item.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => void toLibrary() }] : []),
     // To the end of a day: the way back from the parking lot, and to another day, with a place that is known beforehand.
-    ...[...data.days]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .filter((d) => d.id !== item.dayId)
-      .map((d) => ({
-        label: t('item.toDay', { day: formatDate(d.date, { weekday: 'short', day: 'numeric', month: 'short' }) }),
+    // The days in the order and with the numbers of the day tabs, so two days of one date can be told apart.
+    ...sortedDays(data.days)
+      .map((d, i, all) => ({ d, name: `${all.length > 1 ? `${i + 1} · ` : ''}${formatDate(d.date, { weekday: 'short', day: 'numeric', month: 'short' })}` }))
+      .filter(({ d }) => d.id !== item.dayId)
+      .map(({ d, name }) => ({
+        label: t('item.toDay', { day: name }),
         icon: <CalendarPlus size={14} />,
         onSelect: () => change([{ op: 'set', entity: 'item', id: item.id, fields: { dayId: d.id, groupId: null, position: positionAtEnd(entriesIn(data, d.id)) } }]),
       })),

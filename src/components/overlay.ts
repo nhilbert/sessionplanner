@@ -14,6 +14,7 @@ import { type RefObject, useEffect, useRef } from 'react'
 interface Entry {
   escape: () => void
   root?: RefObject<HTMLElement | null>
+  page?: boolean
 }
 
 const stack: Entry[] = []
@@ -67,6 +68,11 @@ export interface OverlayOptions {
   focus?: 'root' | 'first'
   /** Give the focus back to what had it before (default true). */
   restore?: boolean
+  /**
+   * A part of the page shown full screen (the planner's sidebar on a phone), not something above it: it keeps the
+   * focus and gets Escape like the others, but the page's shortcuts go on while it is open.
+   */
+  page?: boolean
 }
 
 /**
@@ -86,7 +92,7 @@ export function useOverlay(open: boolean, onEscape: () => void, options: Overlay
       installed = true
     }
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const e: Entry = { escape: () => handler.current(), root: opts.current.root }
+    const e: Entry = { escape: () => handler.current(), root: opts.current.root, page: opts.current.page }
     entry.current = e
     stack.push(e)
     // After the overlay has painted: into it, unless something inside already has the focus (an autofocus field).
@@ -113,4 +119,4 @@ export function useOverlay(open: boolean, onEscape: () => void, options: Overlay
 }
 
 /** Whether any overlay is open (the page's own shortcuts wait). */
-export const overlayOpen = (): boolean => stack.length > 0
+export const overlayOpen = (): boolean => stack.some((e) => !e.page)

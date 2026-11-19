@@ -54,7 +54,7 @@
     "purgeAllConfirm": "Alle {{count}} Workshops im Papierkorb mit allen Tagen, Punkten und Dateien endgültig löschen? Das lässt sich nicht rückgängig machen."
   },
   "planner": {
-    "dragHelp": "Die Leertaste nimmt den Eintrag auf und legt ihn wieder ab, die Pfeiltasten verschieben ihn, Escape bricht ab. Enter öffnet die Details.",
+    "dragHelp": "Die Leertaste nimmt den Eintrag auf und legt ihn wieder ab, die Pfeiltasten verschieben ihn, Escape bricht ab. Enter öffnet die Details, bei einer Gruppe klappt es sie ein oder aus.",
     "dragPicked": "{{title}} aufgenommen.",
     "dragOverEntry": "{{title}} steht bei {{other}}, {{place}}.",
     "dragOverList": "{{title}} steht in: {{place}}.",

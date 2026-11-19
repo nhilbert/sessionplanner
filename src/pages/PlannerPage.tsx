@@ -19,7 +19,7 @@ import { Button, cx, IconButton, isTyping, useIsPhone, useLocalState, useMediaQu
 import { overlayOpen } from '@/components/overlay'
 import { BoardContext, type BoardCtx, DayColumn } from '@/planner/DayColumn'
 import { ItemCard } from '@/planner/ItemCard'
-import Toolbox from '@/planner/Toolbox'
+import Toolbox, { shownTab } from '@/planner/Toolbox'
 import WorkshopHeader from '@/planner/WorkshopHeader'
 import { flatIds, inner, PARKING, placeOf, useBoard } from '@/planner/board'
 import { newItem } from '@/planner/fields'
@@ -57,8 +57,11 @@ export default function PlannerPage() {
   // Several days: one can be opened on its own, full width.
   const [focusDay, setFocusDay] = useState<string | null>(null)
   // Touch screens: the ⊕ marks between the entries show only while inserting is switched on (one button for all of them).
-  const touch = useMediaQuery('(hover: none)')
+  // (Some touch devices report a pointer that hovers; a coarse pointer counts as touch as well.)
+  const touch = useMediaQuery('(hover: none), (pointer: coarse)')
   const [inserting, setInserting] = useState(false)
+  // Inserting ends with whatever changes the screen below it: another workshop, the sidebar, a tab, details.
+  useEffect(() => setInserting(false), [id, mobileToolbox, tab, detailsId])
   const ppm = ZOOM[zoom] ?? ZOOM.m
   const collapsed = useMemo(() => new Set<string>(safeParse(collapsedRaw)), [collapsedRaw])
 
@@ -416,7 +419,6 @@ export default function PlannerPage() {
   const activeLib = active?.startsWith('lib:') ? library.entries.find((e) => `lib:${e.id}` === active) : undefined
   const focused = focusDay && days.some((d) => d.id === focusDay) ? focusDay : null
   const shownDays = focused ? days.filter((d) => d.id === focused) : days
-  // One day gets one wide, centred column; two share the width; more scroll sideways.
   // One day gets one wide, centred column; two share the width; more scroll sideways. Side by side only where the
   // agenda's own room allows it (not the window's: both sidebars may be open); otherwise the days stand one below the other.
   const dayWidth = shownDays.length === 1 ? 'mx-auto w-full max-w-[760px]' : shownDays.length === 2 ? 'w-full @3xl:min-w-[320px] @3xl:max-w-[640px] @3xl:flex-1' : 'w-full @3xl:w-[330px] @3xl:shrink-0'
@@ -533,7 +535,7 @@ export default function PlannerPage() {
               <p className="no-print px-8 pb-24 text-center text-[12px] text-ink-3 md:pb-6">{touch ? t('planner.touchKeys') : t('planner.keys')}</p>
             </main>
 
-            {touch && (!(phone && mobileToolbox) || (tab === 'parking' && !detailsItem)) && (
+            {touch && (!(phone && mobileToolbox) || (!detailsItem && shownTab(tab, owner, data) === 'parking')) && (
               // One button for inserting instead of a mark at every gap: it shows the gaps, a tap on one asks for the kind.
               // On a phone it stays above the full-screen sidebar while that shows the parking lot, which has gaps too.
               <button

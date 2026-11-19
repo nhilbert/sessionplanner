@@ -83,7 +83,7 @@ export default function SheetsPrint({ data }: { data: WorkshopState }) {
   })
   return (
     <div className="min-h-dvh bg-[#2a2a2a] print:bg-white">
-      <style>{`${PAGES} @media print { .sheet { break-after: page; } .sheet-print { gap: 0 !important; padding: 0 !important; } } @media screen { .blank-leaf { opacity: 0.35; } .sheet[data-over] { box-shadow: inset 0 -1.2mm 0 #a9513f; } }`}</style>
+      <style>{`${PAGES} @media print { .sheet { break-after: page; } .sheet-print { gap: 0 !important; padding: 0 !important; } } @media screen { .blank-leaf { opacity: 0.35; } .sheet[data-over] { box-shadow: inset 0 -1.2mm 0 #7c2d54; } }`}</style>
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-black/20 bg-[#fff8ee] px-4 py-2 text-[13px] text-[#111]">
         <span className="font-medium">{title}</span>
         <span className="text-ink-3">{t('sheets.count', { count: sheets.length })}</span>

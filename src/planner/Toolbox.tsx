@@ -8,7 +8,7 @@ import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
-import { cx, IconButton, SearchField, useLocalState } from '@/components/ui'
+import { cx, IconButton, isTyping, SearchField, useLocalState } from '@/components/ui'
 import { useOverlay } from '@/components/overlay'
 import { AddBar, Entries, List } from './DayColumn'
 import Menu from '@/components/Menu'
@@ -29,6 +29,12 @@ const TABS = [
 ] as const satisfies readonly { id: Tab; icon: typeof Archive; key: string; short?: string }[]
 
 /** A tab remembered from before the tabs were merged: the packing list and the files are the material now; sharing moved to the header. */
+/** The tab the sidebar shows for a stored choice: a tab that is not offered (the library, for a guest without it) falls back to the parking lot. */
+export const shownTab = (raw: string, owner: boolean, data: WorkshopState): Tab => {
+  const wanted = tabOf(raw)
+  return wanted !== 'library' || owner || !!data.access?.library ? wanted : 'parking'
+}
+
 const tabOf = (raw: string): Tab => (raw === 'packing' || raw === 'files' ? 'material' : (TABS.find((x) => x.id === raw)?.id ?? 'parking'))
 
 interface Props {
@@ -70,12 +76,16 @@ export default function Toolbox(p: Props) {
   const item = p.itemId ? p.data.items.find((i) => i.id === p.itemId) : undefined
   const counts: Partial<Record<Tab, number>> = { parking: p.parkingIds.length, material: p.data.attachments.length }
   const tabs = TABS.filter((x) => x.id !== 'library' || p.owner || !!p.data.access?.library)
-  const wanted = tabOf(p.tab)
-  const tab: Tab = tabs.some((x) => x.id === wanted) ? wanted : 'parking'
+  const tab = shownTab(p.tab, p.owner, p.data)
   // Full screen on a phone it is an overlay like a dialog: the focus goes into it, Tab stays inside (the agenda below
   // is covered), Escape closes it, and the focus returns to what opened it.
   const panel = useRef<HTMLElement>(null)
-  useOverlay(p.mobile, p.onCloseMobile, { root: panel })
+  useOverlay(
+    p.mobile,
+    // Escape in a field leaves the field first, as on the wide screen, where the page ignores keys typed into fields.
+    () => (isTyping(document.activeElement) ? (document.activeElement as HTMLElement).blur() : p.onCloseMobile()),
+    { root: panel, page: true },
+  )
 
   if (!p.open && !p.mobile)
     return (

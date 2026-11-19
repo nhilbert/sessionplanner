@@ -83,14 +83,16 @@ No strip of marks beside the agenda.
 
 ## Without a mouse
 
-- Tab reaches every entry. Enter opens its details, where title, start and length are fields; Space picks the entry
+- Tab reaches every entry. Enter opens its details, where title, start and length are fields (on a group it folds
+  and unfolds it); Space picks the entry
   up and puts it down, the arrow keys move it, Escape cancels. While it moves, a screen reader hears the entry's
   title and the place (the day, the parking lot, the group), not ids.
 - The place an entry would land on while it is dragged, by pointer or keys, is outlined in the action's colour.
 - An entry's ⋯ menu moves it to the end of another day (the way back from the parking lot, with a place that is
   known beforehand) and to the parking lot.
-- On a narrow screen the sidebar is an overlay like a dialog: the focus goes into it, Tab stays inside, Escape
-  closes it, and the focus returns to what opened it.
+- On a narrow screen the sidebar keeps the focus like a dialog: the focus goes into it, Tab stays inside, Escape
+  leaves a field first and then closes it, and the focus returns to what opened it. The page's shortcuts go on.
+- Dialogs and sheets are mounted on the body, so they take the page's colours wherever they were opened.
 
 ## The frame on narrow and wide screens
 
