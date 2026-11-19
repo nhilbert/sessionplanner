@@ -54,6 +54,12 @@
     "purgeAllConfirm": "Alle {{count}} Workshops im Papierkorb mit allen Tagen, Punkten und Dateien endgültig löschen? Das lässt sich nicht rückgängig machen."
   },
   "planner": {
+    "dragHelp": "Die Leertaste nimmt den Eintrag auf und legt ihn wieder ab, die Pfeiltasten verschieben ihn, Escape bricht ab. Enter öffnet die Details.",
+    "dragPicked": "{{title}} aufgenommen.",
+    "dragOverEntry": "{{title}} steht bei {{other}}, {{place}}.",
+    "dragOverList": "{{title}} steht in: {{place}}.",
+    "dragDropped": "{{title}} abgelegt: {{place}}.",
+    "dragCancelled": "Verschieben abgebrochen, {{title}} bleibt an seinem Platz.",
     "run": "{{d}} am Stück",
     "noCategory": "ohne Kategorie",
     "strip": "Verlauf des Tages",
@@ -93,7 +99,7 @@
     "late": "passt nicht vor {{time}}",
     "emptyDay": "Punkte hinzufügen oder hierher ziehen",
     "syncError": "Eine Änderung konnte nicht gespeichert werden. Der Workshop wurde neu vom Server geladen.",
-    "keys": "Klick auf einen Punkt für Details, auf Titel, Uhrzeit oder Dauer zum direkten Ändern · ziehen zum Verschieben · Shift+Klick für mehrere · Strg+Z rückgängig",
+    "keys": "Klick auf einen Punkt für Details, auf Titel, Uhrzeit oder Dauer zum direkten Ändern · ziehen zum Verschieben · Shift+Klick für mehrere · Strg+Z rückgängig · mit der Tastatur: Enter öffnet die Details, die Leertaste verschiebt",
     "touchKeys": "Tippen für Details, auf Uhrzeit oder Dauer zum direkten Ändern · lange drücken und ziehen zum Verschieben · der runde Knopf unten rechts fügt dazwischen ein",
     "actions": "Weitere Aktionen",
     "zoomS": "Ansicht: kompakt",
@@ -120,6 +126,7 @@
     "note": "Notiz"
   },
   "item": {
+    "toDay": "Ans Ende von {{day}}",
     "menu": "Aktionen des Punkts",
     "close": "Details schließen",
     "kind": "Art",
@@ -621,6 +628,7 @@
     }
   },
   "nav": {
+    "more": "Mehr",
     "workshops": "Workshops",
     "library": "Bibliothek",
     "pool": "Foliensammlung",

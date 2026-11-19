@@ -4,9 +4,10 @@ import { PRINT_CHOICES, PRINT_VARIANTS, type PrintOptions, type PrintVariant } f
 import { cx } from '@/components/ui'
 import { VARIANT_LABEL } from './options'
 
-const base = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[13px] font-medium'
-const btn = `${base} border-black/15 bg-white text-black hover:bg-[#f1f0ec]`
-const primary = `${base} border-transparent bg-[#4f6f5f] text-white hover:bg-[#44604f]`
+// The colours of src/index.css in their light values, fixed: the print views are light whatever the app's appearance.
+const base = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-semibold'
+const btn = `${base} border-[#dccdb6] bg-white text-[#12382f] hover:bg-[#f6ecdd]`
+const primary = `${base} border-transparent bg-[#c94a0c] text-white hover:bg-[#b3420b]`
 
 /** Above the sheet, never printed: the view, its switches, print and Markdown. Always light, like the sheet. */
 export function Toolbar({
@@ -40,11 +41,11 @@ export function Toolbar({
   const { t } = useTranslation()
   const choices = PRINT_CHOICES[variant]
   return (
-    <div className="no-print sticky top-0 z-10 border-b border-black/10 bg-[#f7f6f2]/95 backdrop-blur">
+    <div className="no-print sticky top-0 z-10 border-b border-black/10 bg-[#fff8ee]/95 backdrop-blur">
       <div className="mx-auto flex max-w-[297mm] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
-        <div role="tablist" className="inline-flex rounded-lg border border-black/15 bg-white p-0.5 text-[13px]">
+        <div role="tablist" className="inline-flex rounded-full border border-[#dccdb6] bg-white p-0.5 text-[13px]">
           {PRINT_VARIANTS.map((v) => (
-            <button key={v} type="button" role="tab" aria-selected={v === variant} onClick={() => onVariant(v)} className={cx('rounded-md px-2.5 py-1 whitespace-nowrap', v === variant ? 'bg-[#e9e6df] font-medium text-black' : 'text-black/60 hover:text-black')}>
+            <button key={v} type="button" role="tab" aria-selected={v === variant} onClick={() => onVariant(v)} className={cx('rounded-full px-3 py-1 whitespace-nowrap', v === variant ? 'bg-[#12382f] font-semibold text-[#fff8ee]' : 'text-[#6b6358] hover:text-black')}>
               {t(VARIANT_LABEL[v])}
             </button>
           ))}
@@ -70,7 +71,7 @@ export function Toolbar({
               const off = k === 'legend' && !options.colorBars
               return (
                 <label key={k} className={cx('inline-flex items-center gap-1.5 whitespace-nowrap', off ? 'text-black/40' : 'cursor-pointer')}>
-                  <input type="checkbox" className="h-3.5 w-3.5 accent-[#4f6f5f]" checked={options[k] && !off} disabled={off} onChange={(e) => update({ [k]: e.target.checked })} />
+                  <input type="checkbox" className="h-3.5 w-3.5 accent-[#c94a0c]" checked={options[k] && !off} disabled={off} onChange={(e) => update({ [k]: e.target.checked })} />
                   {t(`print.options.${k}`)}
                 </label>
               )

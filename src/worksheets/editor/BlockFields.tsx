@@ -357,7 +357,7 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
         <div className="grid gap-3">
           {[0, 1].map((col) => (
             <div key={col} className="rounded-md border border-dashed border-line p-2">
-              <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-3">{t(col === 0 ? 'sheetEditor.leftColumn' : 'sheetEditor.rightColumn')}</div>
+              <div className="mb-1.5 text-[12px] font-semibold text-brand-ink">{t(col === 0 ? 'sheetEditor.leftColumn' : 'sheetEditor.rightColumn')}</div>
               <Blocks blocks={b.columns[col]} onChange={(next, f) => change((x) => void ((x as typeof b).columns[col] = next), f)} scope={scope} theme={theme} words={words} path={`${path}.col${col}`} nested />
             </div>
           ))}

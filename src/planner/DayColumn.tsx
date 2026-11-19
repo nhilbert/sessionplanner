@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Archive, BookmarkPlus, CalendarDays, ChevronDown, Maximize2, Minimize2, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
 import type { Category, Day, Group, Item, ItemKind } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
-import { BREAK_GAP, durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH } from '@/domain/time'
+import { BREAK_GAP, durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH, longestStretch } from '@/domain/time'
 import { categoryName, colorVar, itemColor } from '@/store/useSettings'
 import { formatDate } from '@/i18n'
 import { cx, useIsPhone } from '@/components/ui'
@@ -73,7 +73,7 @@ interface Run {
   ids: string[]
   start: number | null
   end: number | null
-  /** The longest run of work without a break inside the card (a break inside a group does not split the card). */
+  /** The longest run of work without a break inside the card, by the day's own rule (a break inside a group does not split the card). */
   longest: number
 }
 
@@ -89,21 +89,14 @@ function runsOf(ctx: BoardCtx, ids: string[], schedule: DaySchedule): Run[] {
     while (current.length && isMarker(current[0])) current.shift()
     while (current.length && isMarker(current[current.length - 1])) current.pop()
     if (current.length) {
-      let start: number | null = null
-      let end: number | null = null
-      let stretch = 0
-      let longest = 0
-      for (const m of current.flatMap((id) => membersOf(ctx, id))) {
-        const slot = schedule.slots[m.id]
-        if (!slot) continue
-        if (m.kind === 'break' || slot.gap >= BREAK_GAP) stretch = 0
-        if (m.kind !== 'block') continue
-        start = start === null ? slot.start : Math.min(start, slot.start)
-        end = end === null ? slot.end : Math.max(end, slot.end)
-        stretch += slot.end - slot.start
-        longest = Math.max(longest, stretch)
-      }
-      runs.push({ ids: current, start, end, longest })
+      const members = current.flatMap((id) => membersOf(ctx, id))
+      const slots = members.filter((m) => m.kind === 'block' && schedule.slots[m.id]).map((m) => schedule.slots[m.id])
+      runs.push({
+        ids: current,
+        start: slots.length ? Math.min(...slots.map((s) => s.start)) : null,
+        end: slots.length ? Math.max(...slots.map((s) => s.end)) : null,
+        longest: longestStretch(members, schedule.slots),
+      })
     }
     current = []
   }
@@ -127,7 +120,7 @@ function RunHead({ run }: { run: Run }) {
   const long = run.longest > LONG_STRETCH
   return (
     <div className="flex items-baseline gap-2 px-3 pb-0.5 pt-2">
-      <span className="title text-[14px] font-bold tnum">
+      <span className="app-title text-[14px] font-bold tnum">
         {formatTime(run.start)} – {formatTime(run.end)}
       </span>
       <span className={cx('ml-auto inline-flex items-center gap-1 text-[12px] tnum', long ? 'font-semibold text-amber' : 'text-ink-3')}>
@@ -224,8 +217,8 @@ function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: 
     })
 
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('group/entry relative', !schedule && 'mb-1.5', isDragging && 'opacity-30')}>
-      <div className={cx(runClass(run), !run && schedule && 'px-[7px]', !schedule && 'rounded-[14px] border border-line bg-surface p-1')}>
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('entry relative', !schedule && 'mb-1.5', isDragging && 'drag-target')}>
+      <div className={cx(runClass(run), !schedule && 'rounded-[14px] border border-line bg-surface p-1')}>
         {run?.head}
         <div ref={setActivatorNodeRef} {...listeners} {...attributes} data-row className="my-0.5 flex min-h-9 cursor-grab touch-manipulation items-center gap-1.5 rounded-[10px] bg-paper py-0.5 pl-3 pr-1 active:cursor-grabbing">
           <span className="w-[6px] shrink-0 self-stretch rounded-[3px]" style={collapsed && stops.length ? { background: `linear-gradient(${stops.join(', ')})` } : undefined} />
@@ -250,7 +243,7 @@ function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: 
           />
           <span className="ml-auto shrink-0 pl-2 text-[12px] text-ink-2 tnum">
             {range && <span className="max-md:hidden">{range} · </span>}
-            {t('group.units', { count: members.length })} · {formatDuration(total)}
+            {t('group.units', { count: members.filter((m) => m.kind === 'block').length })} · {formatDuration(total)}
           </span>
           <Menu
             label={t('group.menu')}
@@ -303,7 +296,7 @@ export function DayColumn({ day, index, count, ids, schedule, className, focused
     <section className={cx('flex flex-col', className)}>
       <header className="group/day mb-2 space-y-2 px-1">
         <div className="flex items-center gap-2">
-          {count > 1 && <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{index + 1}</span>}
+          {count > 1 && <span className="text-[12px] font-semibold text-brand-ink">{index + 1}</span>}
           <DateButton date={day.date} short={count > 1 || phone} onDate={(date) => onChange({ date })} />
           <div className="ml-auto flex items-center gap-1.5 text-[12px] text-ink-3">
             <TimeField value={day.startMin} onChange={(v) => v !== null && onChange({ startMin: v })} className="h-7 w-[58px] text-[12px] max-md:h-9 max-md:w-[66px]" aria-label={t('planner.start')} title={t('planner.start')} />
@@ -324,10 +317,10 @@ export function DayColumn({ day, index, count, ids, schedule, className, focused
         <DaySummary schedule={schedule} endMin={day.endMin} />
         <DayStrip dayId={day.id} start={day.startMin} target={day.endMin} schedule={schedule} ctx={ctx} />
       </header>
-      <List id={day.id} ids={ids} empty={t('planner.emptyDay')}>
+      <List id={day.id} ids={ids} empty={t('planner.emptyDay')} emptyInsert={ctx.inserting && ctx.onInsert ? <InsertPoint mode="pick" position="top" allowGroup onInsert={(kind) => ctx.onInsert!(day.id, 0, kind)} /> : undefined}>
         <Entries list={day.id} ids={ids} schedule={schedule} />
       </List>
-      <AddBar onAdd={onAdd} />
+      <AddBar onAdd={onAdd} first={!ids.length} />
     </section>
   )
 }
@@ -350,7 +343,7 @@ export function DateButton({ date, short, onDate }: { date: string; short?: bool
             el.focus()
           }
         }}
-        className="title -mx-2 inline-flex min-w-0 items-center gap-2 rounded-full px-2 py-0.5 text-[20px] font-bold hover:bg-surface-2 md:text-[22px]"
+        className="app-title -mx-2 inline-flex min-w-0 items-center gap-2 rounded-full px-2 py-0.5 text-[20px] font-bold hover:bg-surface-2 md:text-[22px]"
       >
         <CalendarDays size={16} className="shrink-0" />
         <span className="truncate">{formatDate(date, short ? { weekday: 'short', day: 'numeric', month: 'short' } : { weekday: 'long', day: 'numeric', month: 'long' })}</span>
@@ -416,24 +409,26 @@ function DayStrip({ dayId, start, target, schedule, ctx }: { dayId: string; star
   const to = Math.max(target ?? 0, ...items.map((it) => schedule.slots[it.id].end))
   const span = Math.max(1, to - from)
   const pct = (minutes: number) => `${(minutes / span) * 100}%`
-  const sums = new Map<string, { label: string; color: string; minutes: number }>()
-  const add = (key: string, label: string, color: string, minutes: number) => sums.set(key, { label, color, minutes: (sums.get(key)?.minutes ?? 0) + minutes })
+  // The colour a unit shows in the strip is the one of its rail: its own, else its category's. The legend names every
+  // colour that occurs, so a unit with a colour of its own gets a line of its own.
+  const colorOf = (it: Item) => (it.kind === 'break' ? 'var(--line-2)' : (colorVar(itemColor(it, ctx.categories)) ?? 'var(--ink-3)'))
+  const sums = new Map<string, { key: string; label: string; color: string; minutes: number }>()
   for (const it of items) {
     const minutes = schedule.slots[it.id].end - schedule.slots[it.id].start
     const category = ctx.categories.find((c) => c.id === it.categoryId)
-    if (it.kind === 'break') add('break', t('planner.stripBreaks'), 'var(--line-2)', minutes)
-    else if (category) add(category.id, categoryName(category, t), `var(--c-${category.color})`, minutes)
-    else add('none', t('planner.noCategory'), 'var(--ink-3)', minutes)
+    const color = colorOf(it)
+    const key = it.kind === 'break' ? 'break' : `${category?.id ?? ''}|${color}`
+    const label = it.kind === 'break' ? t('planner.stripBreaks') : category ? categoryName(category, t) : t('planner.noCategory')
+    sums.set(key, { key, label, color, minutes: (sums.get(key)?.minutes ?? 0) + minutes })
   }
   // Breaks last, the rest by what takes most of the day.
-  const legend = [...sums.entries()].sort(([a, x], [b, y]) => (a === 'break' ? 1 : b === 'break' ? -1 : y.minutes - x.minutes)).map(([, v]) => v)
+  const legend = [...sums.values()].sort((x, y) => (x.key === 'break' ? 1 : y.key === 'break' ? -1 : y.minutes - x.minutes))
   return (
     <div>
       <div role="img" aria-label={`${t('planner.strip')}: ${legend.map((l) => `${l.label} ${formatDuration(l.minutes)}`).join(', ')}`} className="relative h-3.5 overflow-hidden rounded-[4px]">
         {items.map((it) => {
           const slot = schedule.slots[it.id]
-          const color = it.kind === 'break' ? 'var(--line-2)' : (colorVar(itemColor(it, ctx.categories)) ?? 'var(--ink-3)')
-          return <span key={it.id} className="absolute inset-y-0 rounded-[4px] border-x border-paper" style={{ left: pct(slot.start - from), width: pct(slot.end - slot.start), background: color }} />
+          return <span key={it.id} className="absolute inset-y-0 rounded-[4px] border-x border-paper" style={{ left: pct(slot.start - from), width: pct(slot.end - slot.start), background: colorOf(it) }} />
         })}
         {items
           .filter((it) => schedule.slots[it.id].overlap > 0)
@@ -444,7 +439,7 @@ function DayStrip({ dayId, start, target, schedule, ctx }: { dayId: string; star
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-ink-2 tnum">
         {legend.map((l) => (
-          <span key={l.label} className="inline-flex items-center gap-1.5">
+          <span key={l.key} className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: l.color }} />
             {l.label} <b className="font-bold text-ink">{formatDuration(l.minutes)}</b>
           </span>
@@ -455,24 +450,32 @@ function DayStrip({ dayId, start, target, schedule, ctx }: { dayId: string; star
 }
 
 /** A sortable list that also takes drops while empty. */
-export function List({ id, ids, empty, compact, children }: { id: string; ids: string[]; empty: string; compact?: boolean; children: ReactNode }) {
+export function List({ id, ids, empty, compact, emptyInsert, children }: { id: string; ids: string[]; empty: string; compact?: boolean; emptyInsert?: ReactNode; children: ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <SortableContext id={id} items={ids} strategy={verticalListSortingStrategy}>
       <div ref={setNodeRef} className={cx('group/list rounded-[14px] transition-colors', compact ? 'min-h-9' : 'min-h-24 flex-1 py-1', isOver && 'bg-surface-2')}>
         {children}
         {!ids.length && (
-          <div className={cx('flex items-center justify-center rounded-[10px] border border-dashed border-line-2 px-4 text-center text-[12px] text-ink-3', compact ? 'h-8' : 'h-20')}>{empty}</div>
+          <div className={cx('relative flex items-center justify-center rounded-[10px] border border-dashed border-line-2 px-4 text-center text-[12px] text-ink-3', compact ? 'h-8' : 'h-20')}>
+            {empty}
+            {emptyInsert}
+          </div>
         )}
       </div>
     </SortableContext>
   )
 }
 
-export function AddBar({ onAdd }: { onAdd: (kind: ItemKind | 'group') => void }) {
+/** The kinds to add at the end of a list. In an empty day (`first`) the first unit is the view's main action. */
+export function AddBar({ onAdd, first }: { onAdd: (kind: ItemKind | 'group') => void; first?: boolean }) {
   const { t } = useTranslation()
   const button = (kind: ItemKind | 'group', icon: ReactNode) => (
-    <button type="button" onClick={() => onAdd(kind)} className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-line-2 px-3 text-[13px] font-semibold text-brand-ink hover:bg-surface-2 pointer-coarse:h-9">
+    <button
+      type="button"
+      onClick={() => onAdd(kind)}
+      className={cx('inline-flex h-8 items-center gap-1 rounded-full px-3 text-[13px] font-semibold pointer-coarse:h-9', first && kind === 'block' ? 'bg-accent text-accent-ink hover:opacity-90' : 'border border-dashed border-line-2 text-brand-ink hover:bg-surface-2')}
+    >
       {icon}
       {kind === 'group' ? t('group.new') : t(`kinds.${kind}`)}
     </button>

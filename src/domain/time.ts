@@ -98,13 +98,14 @@ export function scheduleDay(startMin: number, endMin: number | null, items: Time
   }
 }
 
-function longestStretch(items: TimedItem[], slots: Record<string, Slot>): number {
+/** The longest run of blocks without a break or a gap of BREAK_GAP minutes or more, among `items` in their order. */
+export function longestStretch(items: TimedItem[], slots: Record<string, Slot>): number {
   let longest = 0
   let from: number | null = null
   let lastEnd = 0
   for (const item of items) {
     const slot = slots[item.id]
-    if (item.kind === 'marker' || item.kind === 'note') continue
+    if (!slot || item.kind === 'marker' || item.kind === 'note') continue
     if (from !== null && slot.start - lastEnd >= BREAK_GAP) from = null
     if (item.kind === 'break') {
       from = null

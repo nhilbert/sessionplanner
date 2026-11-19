@@ -1,11 +1,11 @@
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { BookMarked, CalendarDays, Images, PanelLeftClose, PanelLeftOpen, Presentation, Settings } from 'lucide-react'
+import { BookMarked, CalendarDays, Ellipsis, Images, PanelLeftClose, PanelLeftOpen, Presentation, Settings } from 'lucide-react'
 import { useSettings } from '@/store/useSettings'
 import { LOGIN_REQUIRED } from '@/api'
 import { productName } from '@/features'
-import { cx, useLocalState } from './ui'
+import { cx, Sheet, useLocalState } from './ui'
 
 const NAV = [
   { to: '/', key: 'nav.workshops', icon: CalendarDays, end: false, owner: false },
@@ -24,7 +24,11 @@ const onWidthChange = (listener: () => void) => {
   return () => query.removeEventListener('change', listener)
 }
 
-/** The frame shared with Zendo and the Revenue Tracker: navigation on the left (icons only when folded), a bottom bar on phones. */
+/**
+ * The frame shared with Zendo and the Revenue Tracker: navigation on the left (icons only when folded), a bottom bar
+ * on phones. The bar holds the pages and, where a build adds a menu of its own, one "More" for the settings and that
+ * menu: a bar has room for five entries, not for a build's as well.
+ */
 export default function AppShell({ menu }: { menu?: (options: { folded: boolean }) => ReactNode }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
@@ -38,6 +42,11 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
   const nav = me.owner ? NAV : NAV.filter((n) => !n.owner || (n.to === '/library' && me.library))
 
   const [loginExpired, setLoginExpired] = useState(false)
+  const [more, setMore] = useState(false)
+  useEffect(() => setMore(false), [pathname])
+  const barItem = (active: boolean) => cx('flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]', active ? 'font-bold text-accent-strong' : 'font-medium text-ink-2')
+  // On a page the bar has no entry for (the settings, a build's own pages) "More" is the one that is open.
+  const elsewhere = !nav.some((n) => (n.to === '/' ? /^\/(w\/|$)/.test(pathname) : pathname.startsWith(n.to)))
   useEffect(() => {
     void load()
     void loadMe()
@@ -68,10 +77,12 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
 
   return (
     <div className="flex h-dvh">
+      {/* Phones with a notch: the strip above the page takes the brand colour, as the navigation does on wide screens. */}
+      <div aria-hidden className="no-print fixed inset-x-0 top-0 z-30 h-[env(safe-area-inset-top)] bg-brand md:hidden" />
       <aside className={cx('nav-surface no-print sticky top-0 hidden h-dvh shrink-0 flex-col bg-brand py-6 md:flex', collapsed ? 'w-[60px] px-2' : 'w-[216px] px-3')}>
         <div className={cx('mb-8 flex items-center gap-2', collapsed ? 'justify-center' : 'px-2')}>
           <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-7 w-7 shrink-0" />
-          {!collapsed && <span className="title text-[19px] text-on-brand">{productName()}</span>}
+          {!collapsed && <span className="app-title text-[19px] text-on-brand">{productName()}</span>}
         </div>
         <nav className="flex flex-col gap-1">{nav.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>
         {wide && menu?.({ folded: collapsed })}
@@ -101,14 +112,33 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
         <Outlet />
       </div>
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {[...nav, { to: '/settings', key: 'nav.settings', icon: Settings, end: true } as const].map(({ to, key, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => cx('flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]', isActive ? 'font-bold text-accent-deep' : 'font-medium text-ink-2')}>
+        {[...nav, ...(menu ? [] : [{ to: '/settings', key: 'nav.settings', icon: Settings, end: true } as const])].map(({ to, key, icon: Icon, end }) => (
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => barItem(isActive || (to === '/' && /^\/w\//.test(pathname)))}>
             <Icon size={18} strokeWidth={1.75} />
-            {t(key)}
+            <span className="max-w-full truncate px-0.5">{t(key)}</span>
           </NavLink>
         ))}
-        {!wide && menu?.({ folded: true })}
+        {menu && (
+          <button type="button" aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)} className={barItem(elsewhere)}>
+            <Ellipsis size={18} strokeWidth={1.75} />
+            {t('nav.more')}
+          </button>
+        )}
       </nav>
+      {menu && !wide && (
+        <Sheet open={more} onClose={() => setMore(false)} label={t('nav.more')}>
+          {/* A link taken closes the sheet (some load the page anew, the others change the page below it). */}
+          <div onClick={(e) => (e.target as HTMLElement).closest('a') && setMore(false)}>
+            <NavLink to="/settings" end className={({ isActive }) => cx('flex h-12 items-center gap-3 rounded-lg px-2 text-[15px] active:bg-surface-2', isActive && 'font-semibold text-accent-strong')}>
+              <span className="flex w-5 shrink-0 justify-center text-ink-3">
+                <Settings size={18} strokeWidth={1.75} />
+              </span>
+              {t('nav.settings')}
+            </NavLink>
+            <div className="mt-1 border-t border-line pt-1">{menu({ folded: false })}</div>
+          </div>
+        </Sheet>
+      )}
     </div>
   )
 }

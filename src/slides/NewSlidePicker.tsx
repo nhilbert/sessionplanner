@@ -100,7 +100,7 @@ export function NewSlidePicker({ open, onClose, onPick, onPool, theme, scope, ow
           </div>
           {STARTER_GROUPS.map((group) => (
             <section key={group}>
-              <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{tr(t, `slides.starterGroups.${group}`)}</div>
+              <div className="mb-1.5 text-[12px] font-semibold text-brand-ink">{tr(t, `slides.starterGroups.${group}`)}</div>
               <ul className="slot-hints grid grid-cols-2 gap-2.5 md:grid-cols-3">
                 {starters
                   .filter((s) => s.group === group)

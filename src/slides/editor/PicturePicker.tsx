@@ -124,7 +124,7 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current, th
             if (!entries.length) return null
             return (
               <div key={kind} className="mb-3">
-                <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{t(kind === 'icon' ? 'editor.poolIcons' : 'editor.poolPictures')}</div>
+                <div className="mb-1.5 text-[12px] font-semibold text-brand-ink">{t(kind === 'icon' ? 'editor.poolIcons' : 'editor.poolPictures')}</div>
                 <ul className={cx('grid gap-2', kind === 'icon' ? 'grid-cols-5 md:grid-cols-8' : 'grid-cols-3 md:grid-cols-4')}>
                   {entries.map((e) => (
                     <li key={e.hash}>
@@ -141,7 +141,7 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current, th
       )}
       {known.length ? (
         <>
-          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{t('editor.knownPictures')}</div>
+          <div className="mb-1.5 text-[12px] font-semibold text-brand-ink">{t('editor.knownPictures')}</div>
           <ul className="grid grid-cols-3 gap-2 md:grid-cols-4">
             {known.map((hash) => (
               <li key={hash}>

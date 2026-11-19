@@ -135,10 +135,10 @@ export default function WorkshopHeader(p: Props) {
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         placeholder={t('workshops.untitled')}
         aria-label={t('workshop.title')}
-        className="title field-bare -ml-2 h-9 w-full max-w-xl text-ellipsis px-2 text-[19px] md:text-[21px]"
+        className="app-title field-bare -ml-2 h-9 w-full max-w-xl text-ellipsis px-2 text-[19px] md:text-[21px]"
       />
       <div className="flex items-center gap-1.5 text-[13px] text-ink-2">
-        <span title={p.live ? t('planner.live') : t('planner.offline')} className={cx('h-1.5 w-1.5 shrink-0 rounded-full', p.live ? 'bg-accent' : 'bg-amber')} />
+        <span title={p.live ? t('planner.live') : t('planner.offline')} className={cx('h-1.5 w-1.5 shrink-0 rounded-full', p.live ? 'bg-[var(--c-sage)]' : 'bg-amber')} />
         {!p.live && <span className="shrink-0 text-amber">{t('planner.offline')}</span>}
         <span className="truncate">{[w.client, w.location, dates].filter(Boolean).join(' · ')}</span>
       </div>
@@ -159,7 +159,8 @@ export default function WorkshopHeader(p: Props) {
 
   if (p.phone)
     return (
-      <header className="nav-surface no-print -mt-[env(safe-area-inset-top)] flex items-center gap-x-1 bg-brand px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+      <>
+      <header className="nav-surface no-print flex items-center gap-x-1 bg-brand px-3 py-2">
         <Link to="/" aria-label={t('common.back')} title={t('common.back')} className="tap -ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-2 hover:bg-surface-2 hover:text-ink">
           <ChevronLeft size={20} />
         </Link>
@@ -188,8 +189,10 @@ export default function WorkshopHeader(p: Props) {
             <PanelRight size={15} />
           </IconButton>
         </div>
-        {dialogs}
       </header>
+      {/* Outside the header: inside it the text colours are the light ones of the brand ground. */}
+      {dialogs}
+      </>
     )
 
   return (

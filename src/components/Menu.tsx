@@ -157,7 +157,7 @@ export default function Menu({
                     <span className="block whitespace-nowrap">{it.label}</span>
                     {it.hint && <span className="block text-[11px] leading-snug text-ink-3">{it.hint}</span>}
                   </span>
-                  {it.checked && <Check size={14} className="shrink-0 text-accent-deep" />}
+                  {it.checked && <Check size={14} className="shrink-0 text-accent-strong" />}
                 </button>
               </div>
             ))}

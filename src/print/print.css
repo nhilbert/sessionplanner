@@ -1,7 +1,7 @@
 /* Print views (src/print): a sheet on the screen, A4 pages on paper. Always light, whatever the app's theme. */
 .print-root {
   color-scheme: light;
-  background: #efede8;
+  background: #f1e9db;
   color: #111;
   min-height: 100dvh;
 }

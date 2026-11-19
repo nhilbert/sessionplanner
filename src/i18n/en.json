@@ -54,6 +54,12 @@
     "purgeAllConfirm": "Delete all {{count}} workshops in the trash with all their days, items and files for good? This cannot be undone."
   },
   "planner": {
+    "dragHelp": "Space picks the entry up and puts it down, the arrow keys move it, Escape cancels. Enter opens the details.",
+    "dragPicked": "Picked up {{title}}.",
+    "dragOverEntry": "{{title}} is at {{other}}, {{place}}.",
+    "dragOverList": "{{title}} is in: {{place}}.",
+    "dragDropped": "Put down {{title}}: {{place}}.",
+    "dragCancelled": "Moving cancelled, {{title}} stays where it was.",
     "run": "{{d}} in one go",
     "noCategory": "no category",
     "strip": "The day at a glance",
@@ -93,7 +99,7 @@
     "late": "does not fit before {{time}}",
     "emptyDay": "Add items or drag them here",
     "syncError": "A change could not be saved. The workshop was reloaded from the server.",
-    "keys": "Click an item for details, its title, time or length to edit it there · drag to move · Shift+click to select several · Ctrl+Z undo",
+    "keys": "Click an item for details, its title, time or length to edit it there · drag to move · Shift+click to select several · Ctrl+Z undo · by keyboard: Enter opens the details, Space moves",
     "touchKeys": "Tap an item for details, its time or length to change it there · press and hold to drag · the round button at the lower right adds in between",
     "actions": "More actions",
     "zoomS": "View: compact",
@@ -120,6 +126,7 @@
     "note": "Note"
   },
   "item": {
+    "toDay": "To the end of {{day}}",
     "menu": "Item actions",
     "close": "Close details",
     "kind": "Kind",
@@ -621,6 +628,7 @@
     }
   },
   "nav": {
+    "more": "More",
     "workshops": "Workshops",
     "library": "Library",
     "pool": "Slide pool",

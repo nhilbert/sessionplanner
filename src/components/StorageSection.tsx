@@ -36,7 +36,7 @@ export default function StorageSection() {
       <p className="text-[14px] text-ink-2">{line}</p>
       {share !== null && (
         <div role="progressbar" aria-label={t('settings.storage')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)} className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3">
-          <div className={share >= NEARLY_FULL ? 'h-full bg-amber' : 'h-full bg-accent'} style={{ width: `${share * 100}%` }} />
+          <div className={share >= NEARLY_FULL ? 'h-full bg-amber' : 'h-full bg-brand-ink'} style={{ width: `${share * 100}%` }} />
         </div>
       )}
       <p className="mt-2 text-[13px] text-ink-3">{share !== null && share >= NEARLY_FULL ? t('settings.storageNearlyFull') : t('settings.storageHint')}</p>

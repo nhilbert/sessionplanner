@@ -355,7 +355,7 @@ export function AccessPanel({ data }: { data: WorkshopState }) {
         {/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed) && people.length > 0 && (!known || known.allowed === false) && <p className="text-[12px] leading-snug text-amber">{t('access.notListed')}</p>}
         {offer.length > 0 && (
           <div className="border-t border-line pt-2">
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.1em] text-ink-3">{t('access.known')}</div>
+            <div className="mb-1 text-[12px] font-semibold text-brand-ink">{t('access.known')}</div>
             <ul className="max-h-48 space-y-0.5 overflow-y-auto">
               {offer.map((p) => (
                 <li key={p.email}>

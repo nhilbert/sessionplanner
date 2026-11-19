@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { type Announcements, DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { FolderOpen, Plus, X } from 'lucide-react'
 import { productName } from '@/features'
@@ -143,8 +143,11 @@ export default function PlannerPage() {
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    // Space picks an entry up and puts it down; Enter is left to the entry itself, where it opens the details.
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates, keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space', 'Enter'] } }),
   )
+  // While inserting on a touch screen a long press must not pick an entry up.
+  const noSensors = useSensors()
 
   // ---- actions ---------------------------------------------------------------------------------
   const add = (dayId: string | null, kind: ItemKind | 'group') => {
@@ -335,7 +338,7 @@ export default function PlannerPage() {
     return (
       <Centered>
         <p>{t('common.missing')}</p>
-        <Link to="/" className="mt-4 inline-block text-accent-deep hover:underline">
+        <Link to="/" className="mt-4 inline-block text-accent-strong hover:underline">
           {t('common.back')}
         </Link>
       </Centered>
@@ -414,11 +417,36 @@ export default function PlannerPage() {
   const focused = focusDay && days.some((d) => d.id === focusDay) ? focusDay : null
   const shownDays = focused ? days.filter((d) => d.id === focused) : days
   // One day gets one wide, centred column; two share the width; more scroll sideways.
-  const dayWidth = shownDays.length === 1 ? 'w-full md:max-w-[760px]' : shownDays.length === 2 ? 'w-full md:min-w-[320px] md:max-w-[640px] md:flex-1' : 'w-full md:w-[330px] md:shrink-0'
+  // One day gets one wide, centred column; two share the width; more scroll sideways. Side by side only where the
+  // agenda's own room allows it (not the window's: both sidebars may be open); otherwise the days stand one below the other.
+  const dayWidth = shownDays.length === 1 ? 'mx-auto w-full max-w-[760px]' : shownDays.length === 2 ? 'w-full @3xl:min-w-[320px] @3xl:max-w-[640px] @3xl:flex-1' : 'w-full @3xl:w-[330px] @3xl:shrink-0'
+  // What a screen reader hears while an entry is moved with the keyboard: titles and places, not the entries' ids.
+  const nameOf = (id: string | number): string => {
+    const key = String(id)
+    if (items[key]) return items[key].title || t(`kinds.${items[key].kind}`)
+    if (groups[key]) return groups[key].title || t('group.untitled')
+    return library.entries.find((e) => `lib:${e.id}` === key)?.title ?? ''
+  }
+  const placeName = (id: string | number): string => {
+    const key = String(id)
+    const list = key in board.order ? key : Object.keys(board.order).find((l) => board.order[l].includes(key))
+    if (!list) return ''
+    if (list === PARKING) return t('planner.parking')
+    if (list.startsWith('in:')) return groups[list.slice(3)]?.title || t('group.untitled')
+    const day = days.find((d) => d.id === list)
+    return day ? formatDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' }) : ''
+  }
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => t('planner.dragPicked', { title: nameOf(active.id) }),
+    onDragOver: ({ active, over }) =>
+      !over ? undefined : String(over.id) in board.order ? t('planner.dragOverList', { title: nameOf(active.id), place: placeName(over.id) }) : t('planner.dragOverEntry', { title: nameOf(active.id), other: nameOf(over.id), place: placeName(over.id) }),
+    onDragEnd: ({ active, over }) => (over ? t('planner.dragDropped', { title: nameOf(active.id), place: placeName(over.id) }) : t('planner.dragCancelled', { title: nameOf(active.id) })),
+    onDragCancel: ({ active }) => t('planner.dragCancelled', { title: nameOf(active.id) }),
+  }
   return (
     <BoardContext.Provider value={ctx}>
-      <DndContext sensors={sensors} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
-        <div className="flex h-full min-h-0">
+      <DndContext sensors={touch && inserting ? noSensors : sensors} accessibility={{ announcements, screenReaderInstructions: { draggable: t('planner.dragHelp') } }} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
+        <div className={cx('flex h-full min-h-0', touch && inserting && 'inserting')}>
           <div className="relative flex min-w-0 flex-1 flex-col">
             <WorkshopHeader
               data={data}
@@ -455,11 +483,16 @@ export default function PlannerPage() {
                     type="button"
                     onClick={() => setFocusDay(dayId)}
                     aria-pressed={focused === dayId}
-                    className={cx('shrink-0 rounded-md px-2.5 py-1 text-[13px] transition-colors pointer-coarse:py-2', focused === dayId ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink')}
+                    className={cx('shrink-0 rounded-full px-3 py-1 text-[13px] transition-colors pointer-coarse:py-2', focused === dayId ? 'bg-brand font-semibold text-on-brand' : 'text-ink-2 hover:bg-surface-2 hover:text-ink')}
                   >
                     {dayId === null ? t('planner.allDays') : `${i} · ${formatDate(days[i - 1].date, { weekday: 'short', day: 'numeric', month: 'numeric' })}`}
                   </button>
                 ))}
+                {/* A day more belongs with the days (it stays in the workshop's menu too, where a single day has no tabs). */}
+                <button type="button" onClick={addDay} className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-semibold text-brand-ink transition-colors hover:bg-surface-2 pointer-coarse:py-2">
+                  <Plus size={13} />
+                  {t('planner.addDay')}
+                </button>
               </nav>
             )}
 
@@ -478,8 +511,8 @@ export default function PlannerPage() {
 
             {touch && inserting && <p className="no-print bg-accent-soft px-4 py-2 text-[13px] font-semibold md:px-6">{t('insert.where')}</p>}
 
-            <main className={cx('min-h-0 flex-1 overflow-auto', touch && inserting && 'inserting')}>
-              <div className={cx('flex min-h-full flex-col gap-8 p-4 md:flex-row md:items-start md:gap-6 md:p-8', shownDays.length === 1 && 'md:justify-center')}>
+            <main className="@container min-h-0 flex-1 overflow-auto">
+              <div className="flex min-h-full flex-col gap-8 p-4 md:p-8 @3xl:flex-row @3xl:items-start @3xl:gap-6">
                 {shownDays.map((d) => (
                   <DayColumn
                     key={d.id}
@@ -497,11 +530,12 @@ export default function PlannerPage() {
                   />
                 ))}
               </div>
-              <p className="no-print px-8 pb-24 text-center text-[12px] text-ink-3 md:pb-6">{phone ? t('planner.touchKeys') : t('planner.keys')}</p>
+              <p className="no-print px-8 pb-24 text-center text-[12px] text-ink-3 md:pb-6">{touch ? t('planner.touchKeys') : t('planner.keys')}</p>
             </main>
 
-            {touch && (
+            {touch && (!(phone && mobileToolbox) || (tab === 'parking' && !detailsItem)) && (
               // One button for inserting instead of a mark at every gap: it shows the gaps, a tap on one asks for the kind.
+              // On a phone it stays above the full-screen sidebar while that shows the parking lot, which has gaps too.
               <button
                 type="button"
                 data-insert-toggle
@@ -509,7 +543,7 @@ export default function PlannerPage() {
                 aria-label={inserting ? t('insert.done') : t('insert.toggle')}
                 title={inserting ? t('insert.done') : t('insert.toggle')}
                 onClick={() => setInserting((on) => !on)}
-                className="no-print absolute bottom-4 right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-ink ring-4 ring-paper"
+                className="no-print fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-[45] flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-ink ring-4 ring-paper md:absolute md:bottom-4 md:z-20"
               >
                 <Plus size={24} className={cx('transition-transform', inserting && 'rotate-45')} />
               </button>

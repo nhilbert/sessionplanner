@@ -9,6 +9,7 @@ import { durationOf, formatDuration, formatTime } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { cx, IconButton, SearchField, useLocalState } from '@/components/ui'
+import { useOverlay } from '@/components/overlay'
 import { AddBar, Entries, List } from './DayColumn'
 import Menu from '@/components/Menu'
 import ItemPanel, { itemActions } from './ItemPanel'
@@ -71,6 +72,10 @@ export default function Toolbox(p: Props) {
   const tabs = TABS.filter((x) => x.id !== 'library' || p.owner || !!p.data.access?.library)
   const wanted = tabOf(p.tab)
   const tab: Tab = tabs.some((x) => x.id === wanted) ? wanted : 'parking'
+  // Full screen on a phone it is an overlay like a dialog: the focus goes into it, Tab stays inside (the agenda below
+  // is covered), Escape closes it, and the focus returns to what opened it.
+  const panel = useRef<HTMLElement>(null)
+  useOverlay(p.mobile, p.onCloseMobile, { root: panel })
 
   if (!p.open && !p.mobile)
     return (
@@ -117,8 +122,10 @@ export default function Toolbox(p: Props) {
 
   return (
     <aside
+      ref={panel}
+      tabIndex={-1}
       style={p.mobile ? undefined : { width }}
-      className={cx('no-print flex flex-col bg-surface', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]' : 'relative hidden shrink-0 border-l border-line md:flex')}
+      className={cx('no-print flex flex-col bg-surface outline-none', p.mobile ? 'fixed inset-0 z-40 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]' : 'relative hidden shrink-0 border-l border-line md:flex')}
     >
       {!p.mobile && <ResizeEdge width={width} onWidth={(w) => setWidthRaw(String(w))} label={t('toolbox.resize')} />}
       {showTabs && (

@@ -22,7 +22,7 @@ const cssString = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"
  * boxes; browsers that do not know them (Firefox, Safari) print their own header line instead when it is switched on.
  */
 function pageCss(landscape: boolean, footer: string, page: string, of: string): string {
-  const font = 'font: 8.5pt/1 "Inter Variable", system-ui, sans-serif; color: #555;'
+  const font = 'font: 8.5pt/1 "Figtree Variable", "Inter Variable", system-ui, sans-serif; color: #555;'
   return `@page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: 14mm 12mm 16mm 12mm;
   @bottom-left { content: ${cssString(footer)}; ${font} }
   @bottom-right { content: ${cssString(`${page} `)} counter(page) ${cssString(` ${of} `)} counter(pages); ${font} } }`

@@ -120,7 +120,7 @@ export function MoveSlideDialog({ open, homes, current, onPick, onClose }: { ope
       {homes.map((h) => (
         <section key={h.day?.id ?? 'parking'} className="mb-2 last:mb-0">
           {headed && (
-            <h3 className="mb-0.5 px-2 text-[11px] font-medium uppercase tracking-wide text-ink-3">
+            <h3 className="mb-0.5 px-2 text-[12px] font-semibold text-brand-ink">
               {h.day ? `${t('print.day', { n: h.n })} · ${formatDate(h.day.date, { weekday: 'short', day: 'numeric', month: 'short' })}` : t('planner.parking')}
             </h3>
           )}

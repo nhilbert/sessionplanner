@@ -63,7 +63,8 @@ export function InsertPoint({ onInsert, allowGroup, position, mode }: { onInsert
             onMouseDown={stop}
             onTouchStart={stop}
             onClick={open}
-            className={cx(plus, 'tap peer pointer-events-auto relative opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 group-hover/entry:opacity-45', menu && 'opacity-100')}
+            // Beside the entry under the pointer only: the mark's own entry, not a group around it.
+            className={cx(plus, 'tap peer pointer-events-auto relative opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 [.entry:hover>div>&]:opacity-45', menu && 'opacity-100')}
           >
             <Plus size={13} strokeWidth={2.5} />
           </button>
@@ -120,7 +121,7 @@ function Radial({ x, y, allowGroup, onPick, onClose }: { x: number; y: number; a
           onMouseLeave={() => setHover(null)}
           onClick={() => onPick(k.kind)}
           style={{ transform: `translate(${k.dx - 18}px, ${k.dy - 18}px)` }}
-          className="fade-in absolute flex h-9 w-9 items-center justify-center rounded-full border border-line-2 bg-surface text-brand-ink shadow-sm transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-deep"
+          className="fade-in absolute flex h-9 w-9 items-center justify-center rounded-full border border-line-2 bg-surface text-brand-ink shadow-sm transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-strong"
         >
           {k.icon}
         </button>

@@ -53,7 +53,7 @@ export function LayoutGrid({ current, doc, onPick, theme, scope, columns = 'grid
     <div className="space-y-4">
       {GROUPS.map((group) => (
         <section key={group}>
-          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{tr(t, `slides.layoutGroups.${group}`)}</div>
+          <div className="mb-1.5 text-[12px] font-semibold text-brand-ink">{tr(t, `slides.layoutGroups.${group}`)}</div>
           <ul className={cx('slot-hints grid gap-2.5', columns)}>
             {ENTRIES.filter((e) => e.group === group).map((e) => (
               <li key={e.key}>

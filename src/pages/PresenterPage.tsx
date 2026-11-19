@@ -110,7 +110,7 @@ export default function PresenterPage() {
         <span className="truncate font-medium">{title}</span>
         <span className="text-ink-3">·</span>
         <span className="tnum text-ink-2">{formatTime(minutesNow)}</span>
-        <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-accent' : 'bg-amber')} />
+        <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-[var(--c-sage)]' : 'bg-amber')} />
         {!live && <span className="text-[12px] text-amber">{t('planner.offline')}</span>}
         <span className="flex-1" />
         <IconButton label={t('slides.keys')} aria-pressed={keys} onClick={() => setKeys(!keys)} className={cx('max-md:hidden', keys && 'bg-surface-2 text-ink')}>
@@ -164,7 +164,7 @@ export default function PresenterPage() {
         </div>
         <aside className="flex min-h-0 min-w-0 flex-col gap-4 md:overflow-y-auto">
           <div>
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('slides.nextSlide')}</div>
+            <div className="mb-1 text-[12px] font-semibold text-brand-ink">{t('slides.nextSlide')}</div>
             {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2, part: next.part && t('slides.part', next.part) }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
             {next && <div className="mt-1 truncate text-[12px] text-ink-3">{next.caption}</div>}
           </div>

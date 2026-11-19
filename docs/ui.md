@@ -27,7 +27,7 @@ The frame carries the brand, the agenda carries the day.
 | `brand-ink` | `#12382f` | `#9cc7b4` | titles, times, labels, secondary buttons |
 | `accent` | `#c94a0c` | `#c94a0c` | the main action, the insert marks, the target while dragging |
 | `accent-soft` | `#fce6d2` | `#4a2c1a` | selection |
-| `accent-deep` | `#a4441a` | `#f08a4b` | the action colour as text (the fill itself is too light for small text) |
+| `accent-strong` | `#a4441a` | `#f08a4b` | the action colour as text (the fill itself is too light for small text) |
 | `amber` | `#8f5f14` | `#d3a05a` | needs attention: a stretch without a break that is too long |
 | `rose` | `#7c2d54` | `#e8a3bf` | a conflict: overlap, does not fit, over the day's end |
 | `--c-*` | the category palette | | the rail of a unit, the day strip, dots in lists |
@@ -40,7 +40,7 @@ by a build (`menu` in `src/start.tsx`), reads without knowing where it stands.
 
 ## Type
 
-- Titles (`.title`): Bricolage Grotesque, 800, 88 % width, in `brand-ink`. The workshop's title, a page's title, the
+- Titles (`.app-title`): Bricolage Grotesque, 800, 88 % width, in `brand-ink`. The workshop's title, a page's title, the
   day, the head of a card.
 - Everything else: Figtree. Rows 14–15 px, 600 for a unit's title; times 700 in `brand-ink` with tabular figures;
   durations and meta 12–13 px in `ink-2`.
@@ -78,4 +78,25 @@ No strip of marks beside the agenda.
 - On touch screens one round button stands at the lower right. It switches inserting on: the rows step back, every
   gap shows as a line with a ⊕, a tap on one asks for the kind (a sheet on phones). At a break there are two gaps,
   the end of the stretch before it and the start of the one after.
-- The row of buttons under a day adds at its end, on every device.
+- The row of buttons under a day adds at its end, on every device. In an empty day its first button (a unit) is the
+  filled one: there it is the main action.
+
+## Without a mouse
+
+- Tab reaches every entry. Enter opens its details, where title, start and length are fields; Space picks the entry
+  up and puts it down, the arrow keys move it, Escape cancels. While it moves, a screen reader hears the entry's
+  title and the place (the day, the parking lot, the group), not ids.
+- The place an entry would land on while it is dragged, by pointer or keys, is outlined in the action's colour.
+- An entry's ⋯ menu moves it to the end of another day (the way back from the parking lot, with a place that is
+  known beforehand) and to the parking lot.
+- On a narrow screen the sidebar is an overlay like a dialog: the focus goes into it, Tab stays inside, Escape
+  closes it, and the focus returns to what opened it.
+
+## The frame on narrow and wide screens
+
+- Days stand side by side only where the agenda's own room allows it (a container query, not the window's width:
+  both sidebars may be open); otherwise they stand one below the other. "Add a day" stands with the day tabs and
+  stays in the workshop's menu, where a single day has no tabs.
+- The phone's bottom bar has room for five entries. It holds the pages and the settings; where a build adds a menu
+  of its own (`menu` in `src/start.tsx`), the last entry is "More", a sheet with the settings and that menu.
+- The print views and their toolbars are always light and carry the light values as fixed colours.

@@ -752,7 +752,7 @@ export function SlideEditor(p: Props) {
         {editing && (
           <aside className="flex w-[380px] shrink-0 flex-col border-l border-line lg:w-[420px]">
             <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{t('editor.layout')}</span>
+              <span className="text-[12px] font-semibold text-brand-ink">{t('editor.layout')}</span>
               {layoutButton}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">

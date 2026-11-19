@@ -218,7 +218,7 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
   const fields = (
     <div className="space-y-5">
       <section className="space-y-2">
-        <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('sheetEditor.sheet')}</h3>
+        <h3 className="text-[12px] font-semibold text-brand-ink">{t('sheetEditor.sheet')}</h3>
         <div className="flex gap-2">
           <label className="block min-w-0 flex-1">
             <span className="mb-0.5 block text-[11px] text-ink-3">{t('sheets.titleField')}</span>
@@ -237,14 +237,14 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
         </div>
       </section>
       <section className="space-y-2">
-        <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('sheetEditor.page', { n: current + 1, total: draft.pages.length })}</h3>
+        <h3 className="text-[12px] font-semibold text-brand-ink">{t('sheetEditor.page', { n: current + 1, total: draft.pages.length })}</h3>
         <label className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
           <input type="checkbox" checked={d.landscape} onChange={(e) => setPage((x) => void (x.landscape = e.target.checked))} />
           {t('sheetEditor.landscape')}
         </label>
       </section>
       <section className="space-y-2">
-        <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('sheetEditor.header')}</h3>
+        <h3 className="text-[12px] font-semibold text-brand-ink">{t('sheetEditor.header')}</h3>
         {d.headerRaw !== undefined ? (
           <p className="text-[12px] text-ink-3">{t('sheetEditor.headerRaw')}</p>
         ) : d.header ? (
@@ -271,7 +271,7 @@ export function SheetEditor({ facts, sheet, scope, theme, logo, canEdit, startEd
         )}
       </section>
       <section className="space-y-2">
-        <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{t('sheetEditor.blocks')}</h3>
+        <h3 className="text-[12px] font-semibold text-brand-ink">{t('sheetEditor.blocks')}</h3>
         <Blocks key={`p${current}`} blocks={d.blocks} onChange={(blocks, f) => setPage((x) => void (x.blocks = blocks), f)} scope={scope} theme={theme} words={words} path={`p${current}`} overflow={overflow} focus={focus} />
       </section>
     </div>

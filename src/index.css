@@ -23,7 +23,7 @@
   --accent: #c94a0c;
   --accent-ink: #ffffff;
   --accent-soft: #fce6d2;
-  --accent-deep: #a4441a;
+  --accent-strong: #a4441a;
   --brand: #12382f;
   --brand-ink: #12382f;
   --on-brand: #fff8ee;
@@ -61,7 +61,7 @@
     --accent: #c94a0c;
     --accent-ink: #ffffff;
     --accent-soft: #4a2c1a;
-    --accent-deep: #f08a4b;
+    --accent-strong: #f08a4b;
     --brand: #1b4539;
     --brand-ink: #9cc7b4;
     --on-brand: #fff8ee;
@@ -97,7 +97,7 @@
   --accent: #c94a0c;
   --accent-ink: #ffffff;
   --accent-soft: #4a2c1a;
-  --accent-deep: #f08a4b;
+  --accent-strong: #f08a4b;
   --brand: #1b4539;
   --brand-ink: #9cc7b4;
   --on-brand: #fff8ee;
@@ -133,7 +133,7 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
-  --color-accent-deep: var(--accent-deep);
+  --color-accent-strong: var(--accent-strong);
   --color-brand: var(--brand);
   --color-brand-ink: var(--brand-ink);
   --color-on-brand: var(--on-brand);
@@ -207,17 +207,19 @@
     --ink-3: var(--on-brand-2);
     --surface-2: color-mix(in oklab, var(--on-brand) 12%, transparent);
     --line: color-mix(in oklab, var(--on-brand) 18%, transparent);
+    --amber: #f0b445;
     color: var(--on-brand-2);
   }
-  .nav-surface .title {
+  .nav-surface .app-title {
     color: var(--on-brand);
   }
   .nav-surface .field-bare:focus {
     background: color-mix(in oklab, var(--on-brand) 14%, transparent);
     border-color: color-mix(in oklab, var(--on-brand) 30%, transparent);
   }
-  /* Titles: the display face, a little narrower than its normal width, in the brand colour. */
-  .title {
+  /* Titles: the display face, a little narrower than its normal width, in the brand colour. (Not `.title`: that is
+     the slides' own class for a title slide.) */
+  .app-title {
     font-family: var(--font-title);
     font-stretch: 88%;
     font-weight: 800;
@@ -291,8 +293,19 @@
     opacity: 0.5;
     pointer-events: none;
   }
+  /* A unit that does not fit: a bar at its right edge, which stays whatever ground the row has (hover, selection). */
   .item-late {
-    background: color-mix(in oklab, var(--rose-soft) 55%, transparent);
+    box-shadow: inset -3px 0 0 var(--rose);
+  }
+  /* The place an entry would land on while it is dragged: its own outline in the action's colour. */
+  .drag-target {
+    border-radius: 10px;
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    background: var(--accent-soft);
+  }
+  .drag-target > * {
+    opacity: 0.25;
   }
   /* Touch screens: a transparent 6px slop around small controls, so a 28px icon reaches 40px without moving the layout. */
   @media (pointer: coarse) {

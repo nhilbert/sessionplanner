@@ -62,7 +62,14 @@ export function SortableItem({ after, ...props }: CardProps & { after?: React.Re
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={cx('group/entry relative touch-manipulation select-none [-webkit-touch-callout:none]', isDragging && 'opacity-30')}
+      // Enter opens the details (the way to title, start and length without a mouse); Space is the drag's, see the sensors.
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && e.target === e.currentTarget && !isDragging) {
+          e.preventDefault()
+          props.onSelect?.(e)
+        } else listeners?.onKeyDown?.(e)
+      }}
+      className={cx('entry relative touch-manipulation select-none [-webkit-touch-callout:none]', isDragging && 'drag-target')}
     >
       <ItemCard {...props} />
       {after}
@@ -214,12 +221,17 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
     </div>
   )
 
+  // Between two rows of one card the notice stays on the card's surface; before a card's first row it stands above it.
+  const outside = !run || run.first ? notices : null
+  const inside = run && !run.first ? notices : null
+
   if (item.kind === 'marker')
     return (
       <div style={style} className={cx(!ppm && 'pb-1')}>
-        {notices}
+        {outside}
         <div className={runClass(run)}>
           {run?.head}
+          {inside}
           <div data-row onClick={select} className={cx('flex h-8 cursor-pointer items-center gap-2.5 rounded-[10px] px-3 text-[14px] text-brand-ink transition-colors', tone)}>
             <span className="w-[6px] shrink-0" />
             {start && <span className="w-[46px] shrink-0 font-bold">{start}</span>}
@@ -233,9 +245,10 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   if (item.kind === 'note')
     return (
       <div style={style} className={cx(!ppm && 'pb-1')}>
-        {notices}
+        {outside}
         <div className={runClass(run)}>
           {run?.head}
+          {inside}
           <div data-row onClick={select} className={cx('my-0.5 flex cursor-pointer gap-2 rounded-[10px] px-3 py-1.5 text-[13px] transition-colors', selected ? 'bg-accent-soft' : 'bg-amber-soft/70 hover:bg-amber-soft')}>
             <StickyNote size={13} className="mt-0.5 shrink-0 text-amber" />
             <div className="min-w-0 flex-1">
@@ -254,28 +267,29 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   const alone = !ppm
   return (
     <div style={style} className={cx(alone && 'pb-1')}>
-      {notices}
+      {outside}
       <div className={runClass(run)}>
         {run?.head}
+        {inside}
         <div
           data-row
           onClick={select}
-          style={{ height }}
+          style={late ? { minHeight: height } : { height }}
           className={cx(
             'relative flex cursor-pointer gap-2.5 overflow-hidden rounded-[10px] px-3 py-1 text-[14px] transition-colors',
             alone && (pause ? 'border border-dashed border-line-2' : 'border border-line'),
-            selected ? 'bg-accent-soft' : alone && !pause ? 'bg-surface hover:bg-surface-2' : 'hover:bg-surface-2',
+            selected ? 'bg-accent-soft' : alone ? 'bg-surface hover:bg-surface-2' : 'hover:bg-surface-2',
             pause && 'text-ink-2',
             late && 'item-late',
           )}
         >
           {pause ? <span className="w-[6px] shrink-0" /> : <span className="cat-rail" />}
-          <div className="min-w-0 flex-1 py-0.5">
+          <div className="@container min-w-0 flex-1 py-0.5">
             <div className="flex items-baseline gap-2.5">
               {start && <span className={cx('w-[46px] shrink-0', pause ? 'font-semibold' : 'font-bold text-brand-ink')}>{start}</span>}
               {pause && <Coffee size={14} className="shrink-0 self-center" />}
               <span className={cx('min-w-0 flex-1 truncate', !pause && 'font-semibold')}>{title()}</span>
-              {category && <span className="shrink-0 text-[12px] font-semibold text-ink-2 max-md:hidden">{category}</span>}
+              {category && <span className="shrink-0 text-[12px] font-semibold text-ink-2 @max-md:hidden">{category}</span>}
               {onOpenTime ? (
                 <TimeButton label={t('item.duration')} onOpen={(r) => onOpenTime('duration', r)} className="tnum shrink-0 text-[13px] text-ink-2">
                   {formatDuration(minutes)}

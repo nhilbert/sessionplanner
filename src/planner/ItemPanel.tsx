@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive, BookmarkPlus, Copy, Minus, Plus, Trash2, X } from 'lucide-react'
+import { Archive, BookmarkPlus, CalendarPlus, Copy, Minus, Plus, Trash2, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, Material, WorkshopState } from '@/domain/types'
 import { newId, type ItemFields, type Op } from '@/domain/ops'
 import { entriesIn, membersOf, placeIn, positionAtEnd } from '@/domain/order'
@@ -11,6 +11,7 @@ import Swatches from '@/components/Swatches'
 import { MAX_DURATION, SNAP } from '@/domain/time'
 import { api, reportFailure } from '@/api'
 import type { TFunction } from 'i18next'
+import { formatDate } from '@/i18n'
 import { Button, Checkbox, Field, IconButton, SectionLabel, Segmented } from '@/components/ui'
 import type { MenuItem } from '@/components/Menu'
 import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
@@ -228,6 +229,15 @@ export function itemActions({
   return [
     { label: t('item.duplicate'), icon: <Copy size={14} />, onSelect: duplicate },
     ...(mayChangeLibrary && item.kind !== 'note' ? [{ label: t('item.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => void toLibrary() }] : []),
+    // To the end of a day: the way back from the parking lot, and to another day, with a place that is known beforehand.
+    ...[...data.days]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .filter((d) => d.id !== item.dayId)
+      .map((d) => ({
+        label: t('item.toDay', { day: formatDate(d.date, { weekday: 'short', day: 'numeric', month: 'short' }) }),
+        icon: <CalendarPlus size={14} />,
+        onSelect: () => change([{ op: 'set', entity: 'item', id: item.id, fields: { dayId: d.id, groupId: null, position: positionAtEnd(entriesIn(data, d.id)) } }]),
+      })),
     ...(item.dayId !== null
       ? [{ label: t('item.toParking'), icon: <Archive size={14} />, onSelect: () => change([{ op: 'set', entity: 'item', id: item.id, fields: { dayId: null, groupId: null, position: positionAtEnd(entriesIn(data, null)) } }]) }]
       : []),

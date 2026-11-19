@@ -159,7 +159,7 @@ export function Chip({ className, children, tone = 'neutral' }: { className?: st
         tone === 'neutral' && 'bg-surface-2 text-ink-2',
         tone === 'amber' && 'bg-amber-soft text-amber',
         tone === 'rose' && 'bg-rose-soft text-rose',
-        tone === 'accent' && 'bg-accent-soft text-accent-deep',
+        tone === 'accent' && 'bg-accent-soft text-accent-strong',
         className,
       )}
     >
@@ -180,7 +180,7 @@ export function PageHeader({ title, subtitle, right }: { title: ReactNode; subti
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 md:mb-8">
       <div className="min-w-0">
-        <h1 className="title text-[26px] leading-[1.08] md:text-[30px]">{title}</h1>
+        <h1 className="app-title text-[26px] leading-[1.08] md:text-[30px]">{title}</h1>
         {subtitle && <p className="mt-1 text-[14px] text-ink-2">{subtitle}</p>}
       </div>
       {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
@@ -315,7 +315,7 @@ export function SheetRow({ icon, checked, danger, className, children, ...props 
     >
       {icon && <span className="flex w-5 shrink-0 justify-center text-ink-3">{icon}</span>}
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {checked && <Check size={16} className="shrink-0 text-accent-deep" />}
+      {checked && <Check size={16} className="shrink-0 text-accent-strong" />}
     </button>
   )
 }
