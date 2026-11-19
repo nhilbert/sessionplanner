@@ -185,6 +185,8 @@
     "participantsHint": "Für Blätter, die pro Person gedruckt werden."
   },
   "packing": {
+    "showUses": "Zeigen, wo das gebraucht wird",
+    "jump": "Zum Punkt in der Agenda",
     "empty": "Noch kein Material. Ergänze Material an den Agendapunkten.",
     "venue": "vor Ort",
     "usedIn_one": "{{count}} Punkt",

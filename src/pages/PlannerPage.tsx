@@ -240,6 +240,20 @@ export default function PlannerPage() {
       setMobileToolbox(false)
     }
   }
+  /** From a list beside the agenda (the packing list) to the entry itself: its details open and the agenda shows it. */
+  const jumpTo = (itemId: string) => {
+    const item = items[itemId]
+    if (!item) return
+    // Out of a folded group and onto the day that is shown, or there is no row to go to.
+    if (item.groupId && collapsed.has(item.groupId)) setCollapsedRaw(JSON.stringify([...collapsed].filter((x) => x !== item.groupId)))
+    if (focusDay && item.dayId !== focusDay) setFocusDay(null)
+    openDetails(itemId)
+    window.setTimeout(() => {
+      const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      document.querySelector(`[data-entry="${CSS.escape(itemId)}"]`)?.scrollIntoView({ block: 'center', behavior: calm ? 'auto' : 'smooth' })
+    }, 60)
+  }
+
   const closeMobileToolbox = () => {
     setMobileToolbox(false)
     setOverlayForItem(false)
@@ -577,6 +591,7 @@ export default function PlannerPage() {
             onAttachment={addAttachment}
             onRemoveAttachment={removeAttachment}
             onNotice={setNotice}
+            onJump={jumpTo}
           />
         </div>
         <DragOverlay dropAnimation={null}>

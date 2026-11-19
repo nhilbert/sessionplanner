@@ -62,6 +62,7 @@ export function SortableItem({ after, ...props }: CardProps & { after?: React.Re
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
+      data-entry={props.item.id}
       // Enter opens the details (the way to title, start and length without a mouse); Space is the drag's, see the sensors.
       onKeyDown={(e) => {
         if (e.key === 'Enter' && e.target === e.currentTarget && !isDragging) {

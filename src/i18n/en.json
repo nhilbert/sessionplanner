@@ -185,6 +185,8 @@
     "participantsHint": "For sheets printed per person."
   },
   "packing": {
+    "showUses": "Show where this is needed",
+    "jump": "Go to the item on the agenda",
     "empty": "No material yet. Add material to the agenda items.",
     "venue": "at the venue",
     "usedIn_one": "{{count}} item",

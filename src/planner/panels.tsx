@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Plus, UserMinus, UserPlus, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, Plus, UserMinus, UserPlus, X } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { type Attachment, type Member, type MemberRole, type PackingState, TRASH_DAYS, type WorkshopState } from '@/domain/types'
 import { newId, type Op, type WorkshopFields } from '@/domain/ops'
 import { agendaOrder } from '@/domain/order'
-import { workshopPacking } from '@/domain/packing'
+import { packingKey, workshopPacking } from '@/domain/packing'
 import { api, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { Button, Checkbox, cx, Field, IconButton, Input, Modal, SectionLabel, Segmented } from '@/components/ui'
@@ -76,13 +76,13 @@ export async function deleteWorkshop(w: WorkshopState['workshop'], t: TFunction,
 }
 
 /** The workshop's material: the packing list from all its steps, then all its files. */
-export function MaterialPanel({ data, change, onAttachment, onRemove, owner }: { data: WorkshopState; change: (ops: Op[]) => void; onAttachment: (a: Attachment) => void; onRemove: (id: string) => void; owner: boolean }) {
+export function MaterialPanel({ data, change, onAttachment, onRemove, owner, onJump }: { data: WorkshopState; change: (ops: Op[]) => void; onAttachment: (a: Attachment) => void; onRemove: (id: string) => void; owner: boolean; onJump?: (itemId: string) => void }) {
   const { t } = useTranslation()
   return (
     <div className="space-y-6">
       <section>
         <SectionLabel>{t('planner.packing')}</SectionLabel>
-        <PackingPanel data={data} change={change} />
+        <PackingPanel data={data} change={change} onJump={onJump} />
       </section>
       <section>
         <SectionLabel>{t('planner.files')}</SectionLabel>
@@ -92,9 +92,17 @@ export function MaterialPanel({ data, change, onAttachment, onRemove, owner }: {
   )
 }
 
-export function PackingPanel({ data, change }: { data: WorkshopState; change: (ops: Op[]) => void }) {
+/**
+ * The packing list. A line says in how many entries the thing is needed; with `onJump` that count opens the entries
+ * themselves, each with its own quantity, and a click on one goes there: its details open and the agenda shows it,
+ * to see where the thing is used and to change it at its source.
+ */
+export function PackingPanel({ data, change, onJump }: { data: WorkshopState; change: (ops: Op[]) => void; onJump?: (itemId: string) => void }) {
   const { t } = useTranslation()
   const lines = useMemo(() => workshopPacking(data), [data])
+  const [shown, setShown] = useState<Set<string>>(new Set())
+  const toggle = (key: string) => setShown((old) => new Set(old.has(key) ? [...old].filter((k) => k !== key) : [...old, key]))
+  const days = sortedDays(data.days)
   const w = data.workshop
   const update = (key: string, patch: PackingState) => {
     const packing = { ...w.packing, [key]: { ...w.packing[key], ...patch } }
@@ -108,12 +116,21 @@ export function PackingPanel({ data, change }: { data: WorkshopState; change: (o
       {!lines.length && <p className="mt-4 text-[14px] text-ink-2">{t('packing.empty')}</p>}
       <ul className="mt-3 divide-y divide-line">
         {lines.map((l) => (
-          <li key={l.key} className="flex items-center gap-2.5 py-2">
+          <li key={l.key} className="py-2">
+            <div className="flex items-center gap-2.5">
             <Checkbox checked={!!l.state.checked} label={l.label} onChange={(checked) => update(l.key, { checked })} />
             <div className={cx('min-w-0 flex-1', l.state.checked && 'text-ink-3 line-through')}>
               <div className="truncate text-[14px]">{l.label}</div>
               <div className="flex flex-wrap items-center gap-x-2 text-[12px] text-ink-3">
-                {l.itemIds.length > 0 && <span>{t('packing.usedIn', { count: l.itemIds.length })}</span>}
+                {l.itemIds.length > 0 &&
+                  (onJump ? (
+                    <button type="button" aria-expanded={shown.has(l.key)} title={t('packing.showUses')} onClick={() => toggle(l.key)} className="tap -mx-1 inline-flex items-center gap-0.5 rounded px-1 font-semibold text-brand-ink no-underline hover:bg-surface-2">
+                      {shown.has(l.key) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                      {t('packing.usedIn', { count: l.itemIds.length })}
+                    </button>
+                  ) : (
+                    <span>{t('packing.usedIn', { count: l.itemIds.length })}</span>
+                  ))}
                 {l.workshopMaterialIds.length > 0 && <span>{t('packing.general')}</span>}
                 {l.sheet && <span>· {t('packing.printed')}</span>}
                 {l.unknown && l.state.qty === undefined && <span className="text-amber">· {t('packing.noParticipants')}</span>}
@@ -136,6 +153,27 @@ export function PackingPanel({ data, change }: { data: WorkshopState; change: (o
               </IconButton>
             ) : (
               <span className="w-7 shrink-0" />
+            )}
+            </div>
+            {onJump && shown.has(l.key) && (
+              <ul className="ml-[28px] mt-1 space-y-0.5">
+                {l.itemIds.map((id) => {
+                  const item = data.items.find((i) => i.id === id)
+                  if (!item) return null
+                  const day = days.findIndex((d) => d.id === item.dayId)
+                  const qty = item.materials.find((m) => packingKey(m.label) === l.key)?.qty
+                  return (
+                    <li key={id}>
+                      <button type="button" title={t('packing.jump')} onClick={() => onJump(id)} className="flex min-h-8 w-full items-center gap-2 rounded-[10px] px-2 text-left text-[13px] hover:bg-surface-2 pointer-coarse:min-h-10">
+                        {days.length > 1 && day >= 0 && <span className="shrink-0 text-[12px] font-semibold text-brand-ink tnum">{day + 1}</span>}
+                        <span className="min-w-0 flex-1 truncate">{item.title || t(`kinds.${item.kind}`)}</span>
+                        {qty !== undefined && <span className="shrink-0 text-[12px] text-ink-2 tnum">{qty || 1}</span>}
+                        <ChevronRight size={13} className="shrink-0 text-ink-3" />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
             )}
           </li>
         ))}

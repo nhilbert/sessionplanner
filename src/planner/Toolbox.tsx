@@ -62,6 +62,8 @@ interface Props {
   onAttachment: (a: Attachment) => void
   onRemoveAttachment: (id: string) => void
   onNotice: (text: string) => void
+  /** From a list of the sidebar to an entry of the agenda: its details open and the agenda shows it. */
+  onJump: (itemId: string) => void
 }
 
 /**
@@ -121,7 +123,7 @@ export default function Toolbox(p: Props) {
   ) : tab === 'library' ? (
     <LibraryTab onInsert={p.onLibraryInsert} owner={p.owner} />
   ) : tab === 'material' ? (
-    <MaterialPanel data={p.data} change={p.change} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} owner={p.owner} />
+    <MaterialPanel data={p.data} change={p.change} onAttachment={p.onAttachment} onRemove={p.onRemoveAttachment} owner={p.owner} onJump={p.onJump} />
   ) : tab === 'deck' ? (
     <DeckPanel data={p.data} change={p.change} onNotice={p.onNotice} />
   ) : (
