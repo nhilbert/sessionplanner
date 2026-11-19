@@ -6,6 +6,7 @@ import PlannerPage from './pages/PlannerPage'
 import PrintPage from './pages/PrintPage'
 import SettingsPage from './pages/SettingsPage'
 import LibraryPage from './pages/LibraryPage'
+import LibraryEntryPage from './pages/LibraryEntryPage'
 import DecksPage from './pages/DecksPage'
 import PresentPage from './pages/PresentPage'
 import PresenterPage from './pages/PresenterPage'
@@ -55,6 +56,8 @@ const routes = ({ routes: extra = [], menu }: Extensions): RouteObject[] => [
       { index: true, element: <WorkshopsPage /> },
       { path: 'w/:id', element: <PlannerPage /> },
       { path: 'library', element: <LibraryReaders><LibraryPage /></LibraryReaders> },
+      // One entry of the library on a page of its own. (`library/decks` below is an old address, not an entry.)
+      { path: 'library/:id', element: <LibraryReaders><LibraryEntryPage /></LibraryReaders> },
       // The slides area: what slides are made from – the pool, the templates, the themes (docs/slides.md, section 7).
       { path: 'slides', element: <Navigate to="/slides/pool" replace /> },
       { path: 'slides/pool', element: <OwnerOnly><DecksPage /></OwnerOnly> },

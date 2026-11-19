@@ -303,7 +303,7 @@ export function TagInput({ onAdd, known, placeholder, id }: { onAdd: (tags: stri
         onBlur={() => typed.trim() && add(typed)}
         placeholder={placeholder ?? t('tags.add')}
         aria-label={t('tags.add')}
-        className="field h-7 w-36 min-w-0 flex-1 text-[13px] pointer-coarse:h-9"
+        className="field h-7 min-w-36 flex-1 text-[13px] pointer-coarse:h-9"
       />
       <datalist id={id}>
         {known.map((k) => (

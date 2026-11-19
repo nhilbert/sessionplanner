@@ -5,7 +5,7 @@ import type { AssetScope } from '@/api'
 import type { Slide } from '@/domain/types'
 import { newId } from '@/domain/ops'
 import { MAX_SLIDES, normalizeSlideHtml } from '@/domain/slides'
-import { Button, SectionLabel } from '@/components/ui'
+import { Button, cx, SectionLabel } from '@/components/ui'
 import { SlideView } from './SlideView'
 import { SlidePicker } from './SlidePicker'
 import { NewSlidePicker } from './NewSlidePicker'
@@ -28,6 +28,7 @@ export function SlideStrip({
   owner,
   onMove,
   onRemoved,
+  tile = 'w-[132px] max-md:w-[calc(50%-4px)]',
 }: {
   slides: Slide[]
   /** The list as the store has it now, and how to store a new one. */
@@ -42,6 +43,8 @@ export function SlideStrip({
   onMove?: (slideId: string) => void
   /** Where removing can be undone (the planner): called once a slide is gone. Without it, removing asks first. */
   onRemoved?: () => void
+  /** How wide a thumbnail is (Tailwind classes): larger where the slides have a page's room. */
+  tile?: string
 }) {
   const { t } = useTranslation()
   const [adding, setAdding] = useState(false)
@@ -92,7 +95,7 @@ export function SlideStrip({
               key={s.id}
               id={s.id}
               fixed={!canEdit}
-              className="w-[132px] max-md:w-[calc(50%-4px)]"
+              className={tile}
               menu={canEdit && <SlideMenu n={i + 1} onMove={onMove && (() => onMove(s.id))} onDuplicate={() => duplicate(s.id)} onRemove={() => remove(s.id)} />}
             >
               <SlideView html={s.html} theme={theme} scope={scope} onClick={() => onOpen(s.id, 'view')} label={t('slides.slide', { n: i + 1 })} />
@@ -101,7 +104,7 @@ export function SlideStrip({
           ))}
         </SlideSort>
         {canEdit && (
-          <button type="button" onClick={() => setAdding(true)} className="flex aspect-video w-[132px] items-center justify-center gap-1 rounded border border-dashed border-line-2 text-[12px] text-ink-3 transition-colors hover:border-ink-3 hover:text-ink max-md:w-[calc(50%-4px)]" aria-label={t('slides.new')}>
+          <button type="button" onClick={() => setAdding(true)} className={cx('flex aspect-video items-center justify-center gap-1 rounded border border-dashed border-line-2 text-[12px] text-ink-3 transition-colors hover:border-ink-3 hover:text-ink', tile)} aria-label={t('slides.new')}>
             <Plus size={14} />
             {t('slides.new')}
           </button>

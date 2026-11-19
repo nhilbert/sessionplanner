@@ -4,6 +4,7 @@ import { api } from '@/api'
 import type { Category, ItemContent, LibraryBatch, LibraryEntry, LibraryEntryInput, TrashedLibraryEntry } from '@/domain/types'
 import { categoryName } from './useSettings'
 import { inOrder } from '@/domain/inOrder'
+import { type LibraryFilter, NO_FILTER } from '@/domain/libraryView'
 
 /** What a library search looks through: titles, descriptions, goal, method, lead, the category, a group's items and the file names. */
 export function libraryText(e: LibraryEntry, categories: Category[], t: TFunction): string {
@@ -100,3 +101,17 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
     if (isLatest()) set({ entries: sort([...get().entries.filter((e) => e.id !== saved.id), saved]) })
   },
 }))
+
+/**
+ * What the library page shows, kept while the app is open: coming back from an entry's page finds the search, the
+ * filters and the place on the page again.
+ */
+interface LibraryView {
+  query: string
+  filter: LibraryFilter
+  /** How far the page was scrolled when it was left. */
+  scroll: number
+  set: (view: Partial<Pick<LibraryView, 'query' | 'filter' | 'scroll'>>) => void
+}
+
+export const useLibraryView = create<LibraryView>((set) => ({ query: '', filter: NO_FILTER, scroll: 0, set }))

@@ -255,7 +255,7 @@ export function itemActions({
   ]
 }
 
-function Materials({ materials, onChange }: { materials: Material[]; onChange: (m: Material[]) => void }) {
+export function Materials({ materials, onChange }: { materials: Material[]; onChange: (m: Material[]) => void }) {
   const { t } = useTranslation()
   const update = (id: string, fields: Partial<Material>) => onChange(materials.map((m) => (m.id === id ? { ...m, ...fields } : m)))
   return (

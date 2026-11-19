@@ -150,6 +150,15 @@ On the owner's retired instance there was no public access, so no share links: e
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
 
+**2026-11-19, the library ordered by category, an entry on a page of its own** (revises "the library opens as a list" and the entry opened inside it, of 2026-11-16)
+
+- The category orders the library: one section per category, then the entries without one, then the groups. While preparing, the question is which input, which exercise; the sections answer it before any filter is touched. The sort orders the entries inside a section.
+- The filters stand beside the entries on a wide screen (sections, what an entry holds, tags), each option with the number of entries it would show (`src/domain/libraryView.ts`); they take over what tabs per category would do, so there are none. On a narrow screen the sections are chips under the search field, which stays in reach while the page scrolls, and the other filters open as a sheet.
+- The two views have two jobs: lines to scan, cards to browse by the picture. A card shows the entry's first slide; most entries hold slides, and a card that showed text only would say little more than a line does. An entry without slides says in the picture's place what it is.
+- An entry opens as a page of its own (`/library/:id`), which reads first and is edited part by part (a pencil per part, the fields saving as they are left; the facts beside the text are fields at once). It replaces the fields that unfolded inside the list and pushed the other entries away. Goal, method, lead and material are edited there too; before, the library showed them without a way to change them. The page keeps the list's search, filters and place for the way back.
+- Selecting several entries is a mode ("Select"), not a tick in front of every line: the lines stay links to their pages.
+- Three directions were drawn first (the entry beside the list as in the agenda, a catalogue with a table and large pictures, an index of cards paged through in a dialog); this is the second round's mix of them. The rules are in [ui.md](ui.md).
+
 **2026-11-18, worksheets** (revises "the printouts stay black on white" of 2026-11-04 for worksheets only)
 
 Printed material for steps: worksheets and handouts, with a print rule per sheet (off, per person, per group, once, a count) and one print package per workshop with a file per print job. Sheets belong to steps and are copies like slides and files; no central collection. They are written in the app as building blocks in the slide format's HTML subset; PDFs made elsewhere stay and take the same rule, unread and unmerged. Stage 0 (the rule and the package for attached PDFs) comes first. Decisions, format, blocks and stages: [worksheets.md](worksheets.md).

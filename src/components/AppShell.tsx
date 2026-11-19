@@ -9,7 +9,8 @@ import { cx, Sheet, useLocalState } from './ui'
 
 const NAV = [
   { to: '/', key: 'nav.workshops', icon: CalendarDays, end: false, owner: false },
-  { to: '/library', key: 'nav.library', icon: BookMarked, end: true, owner: true },
+  // Not `end`: an entry's own page (/library/:id) is still the library.
+  { to: '/library', key: 'nav.library', icon: BookMarked, end: false, owner: true },
   // The slides area (pool, templates, themes) under one entry; its pages have tabs.
   { to: '/slides', key: 'nav.slides', icon: Presentation, end: false, owner: true },
   // The picture pool: pictures for the generated slides and icons for cards (docs/slides.md, section 4).

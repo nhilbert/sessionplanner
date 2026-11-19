@@ -1,74 +1,70 @@
-import { type ReactNode, useEffect, useId, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Coffee, FileText, Flag, FolderOpen, LayoutGrid, List, NotebookPen, Package, Paperclip, Pencil, Presentation, Square, StickyNote, Trash2 } from 'lucide-react'
-import { type Category, type ItemContent, type ItemKind, type LibraryEntry, type LibraryEntryInput, type PaletteKey, TRASH_DAYS } from '@/domain/types'
-import { durationOf, formatDuration } from '@/domain/time'
-import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
-import { categoryName, itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
-import { Button, cx, Empty, Field, Modal, PageHeader, SearchField, SectionLabel, Segmented, useLocalState } from '@/components/ui'
-import { ariaSort, BulkBar, NoticeBar, SelectAll, SelectBox, type Selection, shortDate, SortControl, SortHead, type SortOption, TagEditor, TagFilter, TagInput, TagList, TrashSection, useNotice, useSelection, useSort } from '@/components/collection'
-import { hasTag, tagCounts } from '@/domain/tags'
-import { api, reportFailure } from '@/api'
-import { entryItems } from '@/domain/copy'
-import { rulesWithNewSheets } from '@/domain/printing'
-import { FileManager } from '@/planner/FileManager'
-import Swatches from '@/components/Swatches'
-import { DurationField, TextField } from '@/planner/fields'
-import { SlideStrip } from '@/slides/SlideStrip'
-import { WorksheetList } from '@/worksheets/WorksheetList'
-import { useSheetBrand, useStepFacts } from '@/worksheets/SheetView'
+import { Check, LayoutGrid, List, Pencil, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { type Category, type LibraryEntry, TRASH_DAYS } from '@/domain/types'
+import { formatDuration } from '@/domain/time'
+import { facetCounts, type FacetCounts, filterCount, GROUPS, HOLDS, type Holds, type LibraryFilter, minutesOf, NO_FILTER, passes, sectionKeys, sectionsOf } from '@/domain/libraryView'
+import { tagCounts } from '@/domain/tags'
+import { libraryText, matchesWords, useLibrary, useLibraryView } from '@/store/useLibrary'
+import { useLibraryEdit, useSettings } from '@/store/useSettings'
+import { Button, cx, Empty, PageHeader, SearchField, Segmented, Sheet, useLocalState } from '@/components/ui'
+import { BulkBar, NoticeBar, SelectAll, type Selection, SortControl, type SortOption, TagFilter, TrashSection, useNotice, useSelection, useSort } from '@/components/collection'
+import { reportFailure } from '@/api'
+import { BulkEdit } from '@/library/BulkEdit'
+import { coverOf, entryPath, HoldsLine, railOf, sectionColor, sectionName, summaryOf } from '@/library/parts'
 import { SlideView } from '@/slides/SlideView'
-import { SlideEditor } from '@/slides/editor/SlideEditor'
-import { listSource } from '@/slides/editor/source'
-import { slideAssets } from '@/domain/slides'
 import { useViewTheme, ViewThemeSelect } from '@/slides/ThemeSelect'
-import type { Slide, Worksheet } from '@/domain/types'
-
-const KIND_ICON: Record<ItemKind, ReactNode> = {
-  block: <Square size={12} />,
-  break: <Coffee size={12} />,
-  marker: <Flag size={12} />,
-  note: <StickyNote size={12} />,
-}
-const GROUP_PREVIEW = 6
-
-const minutesOf = (e: LibraryEntry) => entryItems(e).reduce((s, i) => s + durationOf(i), 0)
 
 /**
- * The shared library, as a list to sort or as cards with what each entry holds. A search and the tags narrow it;
- * ticked entries are tagged, coloured or deleted together. A tap opens an entry; its slides open to look at, with
- * editing a click away. Deleted entries wait in the trash at the end. Inserting happens in a workshop (library tab).
- * Who may only read it (a guest with the library switched on, server/access.ts; a reader the host names, `Me.libraryEdit`)
- * gets it as it is, without ticks, editing or the trash.
+ * The shared library. The category orders the page: one section per category, the groups last. Beside it on a wide
+ * screen stand the filters, each option with the number of entries it would show; a narrow screen has the sections as
+ * chips under the search field, which stays in reach while the page scrolls, and the other filters in a sheet. The
+ * entries show as lines to scan or as cards with their first slide; a click opens an entry's own page
+ * (LibraryEntryPage). "Select" turns the entries into ticks, to tag, colour or delete several together. Deleted
+ * entries wait in the trash at the end. Inserting happens in a workshop (library tab).
+ * Who may only read the library (a guest with it switched on, server/access.ts; a reader the host names,
+ * `Me.libraryEdit`) gets it as it is, without ticks and without the trash.
  */
 export default function LibraryPage() {
   const { t } = useTranslation()
-  const { entries, loaded, load, loadTrash, save, change, trash, restore, purge } = useLibrary()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { entries, loaded, load, loadTrash, change, trash, restore, purge } = useLibrary()
   const categories = useSettings((s) => s.settings.categories)
   // Who changes the library; everybody else who gets here reads it.
   const owner = useLibraryEdit()
-  const [query, setQuery] = useState('')
-  const [tags, setTags] = useState<string[]>([])
-  /** Only entries that hold a worksheet. */
-  const [withSheets, setWithSheets] = useState(false)
+  // The search and the filters outlive the page (useLibraryView): the way back from an entry leads to the same list.
+  const { query, filter, set: setShown } = useLibraryView()
+  const setQuery = (next: string) => setShown({ query: next })
+  const setFilter = (next: LibraryFilter) => setShown({ filter: next })
   const [layout, setLayout] = useLocalState('sp.library.view', 'list')
-  const [open, setOpen] = useState<string | null>(null)
+  const [selecting, setSelecting] = useState(false)
   const [bulkEdit, setBulkEdit] = useState(false)
-  /** The slide editor on an entry's slides (from a thumbnail on its card or in its details). */
-  const [editing, setEditing] = useState<{ entryId: string; key: string; mode: 'view' | 'edit' } | null>(null)
+  /** The filters as a sheet, where the screen has no room for them beside the entries. */
+  const [sheet, setSheet] = useState(false)
   /** The slides shown in another theme, to see how they look there. */
   const [view, setView] = useViewTheme('sp.library.theme')
   const usual = useSettings((s) => s.settings.theme)
   const theme = view || usual || 'default'
   const { notice, show, close } = useNotice()
+  // ... and to the same place on it: the page remembers how far it was scrolled and returns there once it has entries.
+  const page = useRef<HTMLDivElement>(null)
+  const scrolled = useRef(useLibraryView.getState().scroll)
+  const restored = useRef(false)
+  useLayoutEffect(() => {
+    if (restored.current || !entries.length || !page.current) return
+    restored.current = true
+    page.current.scrollTop = scrolled.current
+  }, [entries.length])
+  useEffect(() => () => useLibraryView.getState().set({ scroll: scrolled.current }), [])
   useEffect(() => {
     const read = () => {
       void load()
       if (owner) void loadTrash()
     }
     read()
-    // Back in this tab: an agent (or another window) may have changed entries meanwhile, and an edit here is laid
-    // over the entry as this page has it.
+    // Back in this tab: an agent (or another window) may have changed entries meanwhile.
     const again = () => {
       if (document.visibilityState === 'visible') read()
     }
@@ -85,6 +81,15 @@ export default function LibraryPage() {
     void load()
     void loadTrash()
   }
+  const trashedNote = (ids: string[]) => show({ text: t('library.trashed', { count: ids.length }), undo: () => void restore(ids).then(loadTrash, failed) })
+  // An entry deleted on its own page: the way back is offered here, where the page returned to.
+  const arrived = (location.state as { trashed?: string[] } | null)?.trashed
+  useEffect(() => {
+    if (!arrived?.length) return
+    trashedNote(arrived)
+    void navigate('.', { replace: true, state: null })
+    // once, for the state the page was opened with
+  }, [])
 
   const options: SortOption<LibraryEntry>[] = [
     { key: 'title', label: t('list.title'), value: (e) => e.title },
@@ -92,118 +97,140 @@ export default function LibraryPage() {
     { key: 'created', label: t('list.created'), value: (e) => e.createdAt, first: 'desc' },
     { key: 'updated', label: t('list.updated'), value: (e) => e.updatedAt, first: 'desc' },
   ]
-  const { sort, setSort, toggle, sorted } = useSort('sp.library.sort', options, { key: 'title', dir: 'asc' })
+  const { sort, setSort, sorted } = useSort('sp.library.sort', options, { key: 'title', dir: 'asc' })
   const searching = query.trim() !== ''
   const found = entries.filter((e) => !searching || matchesWords(libraryText(e, categories, t), query))
-  const shown = sorted(found.filter((e) => tags.every((tag) => hasTag(e.tags, tag)) && (!withSheets || hasWorksheet(e))))
+  const sections = sectionsOf(sorted(found.filter((e) => passes(e, filter, categories))), categories)
+  const shown = sections.flatMap((s) => s.entries)
+  const counts = facetCounts(found, filter, categories)
+  const active = filterCount(filter)
   const selection = useSelection(shown.map((e) => e.id))
   const known = tagCounts(entries.map((e) => e.tags)).map((c) => c.tag)
   const picked = shown.filter((e) => selection.has(e.id))
+  const cards = layout === 'cards'
 
   /** Into the trash without asking: the note offers the way back, and the trash keeps them TRASH_DAYS days. */
   const toTrash = (ids: string[]) =>
     change({ ids, trash: true }).then(() => {
       selection.clear()
-      if (open && ids.includes(open)) setOpen(null)
-      show({ text: t('library.trashed', { count: ids.length }), undo: () => void restore(ids).then(loadTrash, failed) })
+      trashedNote(ids)
     }, failed)
-  const saveEntry = (id: string) => (x: LibraryEntryInput) => void save(x, id).catch(failed)
-  const row = (e: LibraryEntry) => ({
-    entry: e,
-    theme,
-    open: open === e.id,
-    selection: owner ? selection : null,
-    onToggle: () => setOpen(open === e.id ? null : e.id),
-    onOpenSlide: (key: string, mode: 'view' | 'edit') => setEditing({ entryId: e.id, key, mode: owner ? mode : 'view' }),
-    details: !owner ? <EntryView entry={e} theme={theme} onOpenSlide={(key) => setEditing({ entryId: e.id, key, mode: 'view' })} /> : <EntryDetails entry={e} theme={theme} known={known} onSave={saveEntry(e.id)} onDelete={() => void toTrash([e.id])} onOpenSlide={(key, mode) => setEditing({ entryId: e.id, key, mode })} list={slideList(e.id, failed)} />,
-  })
+  const endSelecting = () => {
+    selection.clear()
+    setSelecting(false)
+  }
+  const filters = (withSections: boolean) => <Filters filter={filter} onChange={setFilter} counts={counts} categories={categories} tagRows={found.filter((e) => passes(e, filter, categories, 'tags')).map((e) => e.tags)} withSections={withSections} />
+  const sortControl = <SortControl options={options} sort={sort} onChange={setSort} />
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className={cx('mx-auto max-w-5xl px-4 py-8 md:px-10 md:py-10', selection.ids.length > 0 && 'pb-28')}>
-        <PageHeader title={t('nav.library')} subtitle={t('library.subtitle')} right={entries.length > 0 && <ViewThemeSelect value={view} onChange={setView} />} />
+    <div ref={page} onScroll={(e) => void (scrolled.current = e.currentTarget.scrollTop)} className="h-full overflow-y-auto">
+      <div className={cx('mx-auto max-w-[1240px] px-4 py-8 md:px-8 md:py-10', selection.ids.length > 0 && 'pb-28')}>
+        {/* A narrow screen keeps the head short, so the search stands near the top: the theme to look in moves into the filters' sheet. */}
+        <PageHeader title={t('nav.library')} subtitle={<span className="max-md:hidden">{t('library.subtitle')}</span>} right={entries.length > 0 && <span className="max-lg:hidden"><ViewThemeSelect value={view} onChange={setView} /></span>} />
+        {loaded && !entries.length && <Empty title={t('library.empty')} body={t(owner ? 'library.emptyHint' : 'library.emptyGuest')} />}
         {entries.length > 0 && (
-          <div className="mb-4 space-y-3">
-            <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} shortcut />
-            <TagFilter rows={found.map((e) => e.tags)} active={tags} onChange={setTags} />
-            {entries.some(hasWorksheet) && (
-              <label className="inline-flex items-center gap-2 text-[13px] text-ink-2">
-                <input type="checkbox" checked={withSheets} onChange={(e) => setWithSheets(e.target.checked)} />
-                {t('sheets.filter')}
-              </label>
-            )}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              {owner ? <SelectAll selection={selection} count={shown.length} /> : <span className="text-[13px] text-ink-3">{t('library.readOnly')}</span>}
-              <span className="ml-auto" />
-              <SortControl options={options} sort={sort} onChange={setSort} />
-              <Segmented
-                size="sm"
-                value={layout === 'cards' ? 'cards' : 'list'}
-                onChange={setLayout}
-                options={[
-                  { value: 'list', label: <span className="inline-flex items-center gap-1" title={t('list.asList')}><List size={13} /><span className="sr-only md:not-sr-only">{t('list.asList')}</span></span> },
-                  { value: 'cards', label: <span className="inline-flex items-center gap-1" title={t('list.asCards')}><LayoutGrid size={13} /><span className="sr-only md:not-sr-only">{t('list.asCards')}</span></span> },
-                ]}
+          <div className="lg:flex lg:items-start lg:gap-7">
+            <aside aria-label={t('library.filters')} className="hidden w-[220px] shrink-0 lg:block">
+              {filters(true)}
+            </aside>
+            <div className="min-w-0 flex-1">
+              {/* The search stays in reach while a narrow page scrolls; the sections are chips under it there. */}
+              <div className="sticky top-0 z-10 -mx-4 space-y-2 bg-paper px-4 py-2 md:-mx-8 md:px-8 lg:static lg:mx-0 lg:p-0">
+                <div className="flex items-center gap-2">
+                  <SearchField value={query} onChange={setQuery} placeholder={t('library.search')} shortcut className="min-w-0 flex-1" />
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-label={active ? t('library.filtersActive', { count: active }) : t('library.filters')}
+                    title={t('library.filters')}
+                    onClick={() => setSheet(true)}
+                    className={cx('relative inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors pointer-coarse:h-11 pointer-coarse:w-11 lg:hidden', active ? 'border-accent bg-accent-soft text-accent-strong' : 'border-line-2 bg-surface text-brand-ink hover:bg-surface-2')}
+                  >
+                    <SlidersHorizontal size={16} strokeWidth={1.75} />
+                  </button>
+                </div>
+                <SectionChips filter={filter} onChange={setFilter} counts={counts} categories={categories} total={found.filter((e) => passes(e, filter, categories, 'sections')).length} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                {owner && selecting ? <SelectAll selection={selection} count={shown.length} /> : <span className="text-[13.5px] font-semibold text-ink-2">{t('library.count', { count: shown.length })}</span>}
+                <span className="ml-auto" />
+                <span className="hidden lg:inline-flex">{sortControl}</span>
+                {owner && (
+                  <Button size="sm" variant={selecting ? 'default' : 'ghost'} onClick={() => (selecting ? endSelecting() : setSelecting(true))}>
+                    {t(selecting ? 'library.selectDone' : 'library.selectMode')}
+                  </Button>
+                )}
+                <Segmented
+                  size="sm"
+                  value={cards ? 'cards' : 'list'}
+                  onChange={setLayout}
+                  options={[
+                    { value: 'list', label: <span className="inline-flex items-center gap-1" title={t('list.asList')}><List size={13} /><span className="sr-only md:not-sr-only">{t('list.asList')}</span></span> },
+                    { value: 'cards', label: <span className="inline-flex items-center gap-1" title={t('list.asCards')}><LayoutGrid size={13} /><span className="sr-only md:not-sr-only">{t('list.asCards')}</span></span> },
+                  ]}
+                />
+              </div>
+              {!owner && <p className="mt-2 text-[13px] text-ink-3">{t('library.readOnly')}</p>}
+
+              {!shown.length && (
+                <div className="py-12 text-center text-[14px] text-ink-2">
+                  <p>{searching && !active ? t('library.noMatch', { q: query.trim() }) : t('library.noFilterMatch')}</p>
+                  {active > 0 && (
+                    <Button variant="ghost" size="sm" className="mt-2" onClick={() => setFilter(NO_FILTER)}>
+                      <X size={13} />
+                      {t('library.clearFilters')}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {sections.map((s) => (
+                <section key={s.key} aria-label={sectionName(s.key, categories, t)}>
+                  <div className="flex items-baseline gap-2.5 px-1 pb-2 pt-5">
+                    <span aria-hidden className="h-2.5 w-2.5 shrink-0 self-center rounded-full" style={{ background: sectionColor(s.key, categories) }} />
+                    <h2 className="app-title text-[18px] leading-tight">{sectionName(s.key, categories, t)}</h2>
+                    <span className="text-[13px] text-ink-2">{s.minutes > 0 ? t('library.sectionMeta', { count: s.entries.length, duration: formatDuration(s.minutes) }) : t('library.count', { count: s.entries.length })}</span>
+                  </div>
+                  {cards ? (
+                    <ul className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
+                      {s.entries.map((e) => (
+                        <EntryCard key={e.id} entry={e} categories={categories} theme={theme} selection={owner && selecting ? selection : null} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="card overflow-hidden">
+                      {s.entries.map((e) => (
+                        <EntryRow key={e.id} entry={e} categories={categories} selection={owner && selecting ? selection : null} />
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ))}
+
+              <TrashSection
+                rows={!owner || searching || active ? [] : trash}
+                hint={t('library.trashHint', { days: TRASH_DAYS })}
+                meta={(r) => <span>{r.kind === 'group' ? t('library.kindGroup') : t('library.kindItem')}</span>}
+                onRestore={(r) => void restore([r.id]).then(loadTrash, failed)}
+                onPurge={(rows) => void purge(rows.map((r) => r.id)).catch(failed)}
+                purgeConfirm={(rows) => (rows.length === 1 ? t('library.purgeConfirm', { title: rows[0].title }) : t('library.purgeAllConfirm', { count: rows.length }))}
               />
             </div>
           </div>
         )}
-        {loaded && !entries.length && <Empty title={t('library.empty')} body={t(owner ? 'library.emptyHint' : 'library.emptyGuest')} />}
-        {entries.length > 0 && !shown.length && (
-          <div className="py-10 text-center text-[14px] text-ink-2">
-            <p>{searching ? t('library.noMatch', { q: query.trim() }) : t('library.noTagMatch')}</p>
-            {tags.length > 0 && (
-              <Button variant="ghost" size="sm" className="mt-2" onClick={() => setTags([])}>
-                {t('tags.clear')}
-              </Button>
-            )}
-          </div>
-        )}
-        {shown.length > 0 &&
-          (layout === 'cards' ? (
-            <ul className="grid items-start gap-3 md:grid-cols-2">
-              {shown.map((e) => (
-                <li key={e.id} className={cx('card overflow-hidden', open === e.id && 'md:col-span-2', selection.has(e.id) && 'ring-1 ring-accent')}>
-                  <CardRow {...row(e)} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full table-fixed border-collapse text-left text-[14px]">
-                <thead className="hidden border-b border-line md:table-header-group">
-                  <tr>
-                    {owner && <th className="w-10" />}
-                    <th scope="col" aria-sort={ariaSort('title', sort)} className="px-2 py-2 font-normal">
-                      <SortHead id="title" label={t('list.title')} sort={sort} onToggle={toggle} />
-                    </th>
-                    <th scope="col" aria-sort={ariaSort('duration', sort)} className="w-24 px-2 py-2 text-right font-normal">
-                      <SortHead id="duration" label={t('item.duration')} sort={sort} onToggle={toggle} />
-                    </th>
-                    <th scope="col" aria-sort={ariaSort('created', sort)} className="hidden w-32 px-2 py-2 font-normal lg:table-cell">
-                      <SortHead id="created" label={t('list.created')} sort={sort} onToggle={toggle} />
-                    </th>
-                    <th scope="col" aria-sort={ariaSort('updated', sort)} className="w-32 px-2 py-2 pr-4 font-normal">
-                      <SortHead id="updated" label={t('list.updated')} sort={sort} onToggle={toggle} />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((e) => (
-                    <ListRow key={e.id} {...row(e)} />
-                  ))}
-                </tbody>
-              </table>
+
+        <Sheet open={sheet} onClose={() => setSheet(false)} label={t('library.filters')} title={t('library.filters')}>
+          <div className="space-y-5 pb-2">
+            {filters(false)}
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[13px] font-semibold text-brand-ink">{t('list.sortBy')}</span>
+              {sortControl}
             </div>
-          ))}
-        <TrashSection
-          rows={!owner || searching || tags.length ? [] : trash}
-          hint={t('library.trashHint', { days: TRASH_DAYS })}
-          meta={(r) => <span>{r.kind === 'group' ? t('library.kindGroup') : t('library.kindItem')}</span>}
-          onRestore={(r) => void restore([r.id]).then(loadTrash, failed)}
-          onPurge={(rows) => void purge(rows.map((r) => r.id)).catch(failed)}
-          purgeConfirm={(rows) => (rows.length === 1 ? t('library.purgeConfirm', { title: rows[0].title }) : t('library.purgeAllConfirm', { count: rows.length }))}
-        />
+            <ViewThemeSelect value={view} onChange={setView} />
+            <Button variant="primary" className="w-full" onClick={() => setSheet(false)}>
+              {t('library.showResults', { count: shown.length })}
+            </Button>
+          </div>
+        </Sheet>
         <BulkBar count={owner ? selection.ids.length : 0} onClear={selection.clear}>
           <Button size="sm" onClick={() => setBulkEdit(true)}>
             <Pencil size={13} />
@@ -228,570 +255,192 @@ export default function LibraryPage() {
           />
         )}
         <NoticeBar notice={notice} onClose={close} raised={selection.ids.length > 0} />
-        {editing && <LibrarySlideEditor key={editing.entryId} theme={theme} entryId={editing.entryId} start={editing.key} mode={editing.mode} owner={owner} onClose={() => setEditing(null)} onFailed={failed} />}
       </div>
     </div>
   )
 }
 
-type TagChoice = 'keep' | 'all' | 'none'
+const toggled = <T,>(list: T[], value: T): T[] => (list.includes(value) ? list.filter((x) => x !== value) : [...list, value])
 
 /**
- * Tags, category and colour for all ticked entries at once. A tag some of them carry starts as it is and is, click by
- * click, given to all, taken from all, or left again; nothing changes that is not chosen here.
+ * The filters: the sections (where they are not chips already), what an entry holds, and the tags. Every option says
+ * how many entries it would show; one that would show none cannot be chosen.
  */
-function BulkEdit({ entries, known, onClose, onApply }: { entries: LibraryEntry[]; known: string[]; onClose: () => void; onApply: (patch: { addTags?: string[]; removeTags?: string[]; categoryId?: string | null; color?: PaletteKey | null }) => void }) {
+function Filters({ filter, onChange, counts, categories, tagRows, withSections }: { filter: LibraryFilter; onChange: (f: LibraryFilter) => void; counts: FacetCounts; categories: Category[]; /** The tags of every entry the other filters leave. */ tagRows: string[][]; withSections: boolean }) {
   const { t } = useTranslation()
-  const id = useId()
-  const categories = useSettings((s) => s.settings.categories)
-  const present = tagCounts(entries.map((e) => e.tags))
-  const [choice, setChoice] = useState<Record<string, TagChoice>>({})
-  const [added, setAdded] = useState<string[]>([])
-  const [category, setCategory] = useState('keep')
-  const [color, setColor] = useState<PaletteKey | null | undefined>(undefined)
-  const cycle = (tag: string, partial: boolean) => {
-    const now = choice[tag] ?? 'keep'
-    const next: TagChoice = now === 'keep' ? (partial ? 'all' : 'none') : now === 'all' ? 'none' : 'keep'
-    setChoice({ ...choice, [tag]: next })
-  }
-  const addTags = [...present.filter((c) => choice[c.tag] === 'all').map((c) => c.tag), ...added]
-  const removeTags = present.filter((c) => choice[c.tag] === 'none').map((c) => c.tag)
-  const dirty = addTags.length > 0 || removeTags.length > 0 || category !== 'keep' || color !== undefined
+  const sections = sectionKeys(categories).filter((key) => counts.sections[key] || filter.sections.includes(key))
+  const holds: Record<Holds, string> = { slides: t('slides.title'), sheets: t('library.holdsSheets'), files: t('item.files') }
   return (
-    <Modal open onClose={onClose}>
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (dirty) onApply({ addTags, removeTags, ...(category !== 'keep' ? { categoryId: category || null } : {}), ...(color !== undefined ? { color } : {}) })
-        }}
-      >
-        <h2 className="text-lg font-medium">{t('library.bulkTitle', { count: entries.length })}</h2>
-        <Field label={t('tags.label')} hint={present.length ? t('library.bulkTagsHint') : undefined}>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {present.map((c) => {
-              const state = choice[c.tag] ?? 'keep'
-              const partial = c.count < entries.length
-              const label = state === 'all' ? t('library.tagToAll', { tag: c.tag }) : state === 'none' ? t('library.tagFromAll', { tag: c.tag }) : t('library.tagKept', { tag: c.tag, count: c.count, total: entries.length })
-              return (
-                <button
-                  key={c.tag}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={state === 'all' || (state === 'keep' && !partial) ? true : state === 'none' ? false : 'mixed'}
-                  aria-label={label}
-                  title={label}
-                  onClick={() => cycle(c.tag, partial)}
-                  className={cx(
-                    'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] pointer-coarse:h-9',
-                    state === 'all' && 'border-accent bg-accent-soft text-accent-strong',
-                    state === 'none' && 'border-line text-ink-3 line-through',
-                    state === 'keep' && 'border-line bg-surface-2 text-ink-2',
-                  )}
-                >
-                  {c.tag}
-                  {state === 'keep' && partial && (
-                    <span className="text-[12px] text-ink-3 tnum">
-                      {c.count}/{entries.length}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-            {added.map((tag) => (
-              <button key={tag} type="button" title={t('tags.remove', { tag })} onClick={() => setAdded(added.filter((x) => x !== tag))} className="inline-flex h-7 items-center gap-1 rounded-full border border-accent bg-accent-soft px-2.5 text-[13px] text-accent-strong pointer-coarse:h-9">
-                + {tag}
-              </button>
-            ))}
-            <TagInput id={id} known={known.filter((k) => !hasTag(added, k) && !present.some((c) => hasTag([c.tag], k) && c.count === entries.length))} onAdd={(more) => setAdded([...added, ...more.filter((m) => !hasTag(added, m))])} />
-          </div>
-        </Field>
-        <Field label={t('item.category')}>
-          <select className="field h-8 text-[13px]" value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="keep">{t('library.unchanged')}</option>
-            <option value="">{t('item.noCategory')}</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {categoryName(c, t)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label={t('item.color')}>
-          {color === undefined ? (
-            <Button size="sm" onClick={() => setColor(null)}>
-              {t('library.changeColor')}
-            </Button>
-          ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <Swatches value={color} allowNone onChange={setColor} />
-              <Button size="sm" variant="ghost" onClick={() => setColor(undefined)}>
-                {t('library.unchanged')}
-              </Button>
-            </div>
-          )}
-        </Field>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" type="submit" disabled={!dirty}>
-            {t('library.apply')}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
-/** An entry's slides as the store has them now, and how to store a new list (shown at once, saved in order). */
-function slideList(entryId: string, failed: (err: unknown) => void) {
-  const entryNow = () => {
-    const e = useLibrary.getState().entries.find((x) => x.id === entryId)
-    return e?.kind === 'item' ? e : undefined
-  }
-  return {
-    get: (): Slide[] => entryNow()?.data.slides ?? [],
-    set: (slides: Slide[]) => {
-      const e = entryNow()
-      if (e) void useLibrary.getState().save({ kind: 'item', title: e.title, data: { ...e.data, slides } }, entryId).catch(failed)
-    },
-  }
-}
-
-/** The slide editor on one library entry. */
-/** The owner edits an entry's slides; a guest pages through them. */
-function LibrarySlideEditor({ entryId, start, mode, theme, owner, onClose, onFailed }: { entryId: string; start: string; mode: 'view' | 'edit'; theme: string; owner: boolean; onClose: () => void; onFailed: (err: unknown) => void }) {
-  const { t } = useTranslation()
-  const entry = useLibrary((s) => s.entries.find((e) => e.id === entryId))
-  if (!entry || entry.kind !== 'item') return null
-  const list = slideList(entryId, onFailed)
-  const source = listSource({ context: t('editor.ctx.library'), label: entry.title, get: list.get, set: list.set, editable: owner })
-  const known = [...new Set(entry.data.slides.flatMap((s) => slideAssets(s.html)))]
-  return <SlideEditor source={source} start={start} mode={owner ? mode : 'view'} onClose={onClose} theme={theme} scope="library" owner={owner} canEdit={owner} known={known} />
-}
-
-/** The files of one item of an entry; a workshop gets copies of them when the entry is inserted, and keeps those whatever happens here. */
-function EntryFiles({ entry, item, compact }: { entry: LibraryEntry; item: number; compact?: boolean }) {
-  const { t } = useTranslation()
-  const changeFiles = useLibrary((s) => s.changeFiles)
-  const files = entryItems(entry)[item].attachmentIds.flatMap((id) => entry.attachments.filter((a) => a.id === id))
-  return (
-    <FileManager
-      files={files}
-      href={api.libraryFileUrl}
-      compact={compact}
-      onUpload={(file) => changeFiles(entry.id, () => api.uploadLibraryFile(entry.id, item, file))}
-      onRename={(id, name) => changeFiles(entry.id, () => api.renameLibraryFile(id, name))}
-      onReplace={(id, file) => changeFiles(entry.id, () => api.replaceLibraryFile(id, file))}
-      remove={{
-        label: t('common.delete'),
-        danger: true,
-        run: async (a) => {
-          if (window.confirm(t('files.deleteLibraryConfirm', { name: a.name }))) await changeFiles(entry.id, () => api.deleteLibraryFile(a.id))
-        },
-      }}
-    />
-  )
-}
-
-/** How many files an entry holds, for its card. */
-function FileCount({ entry }: { entry: LibraryEntry }) {
-  const { t } = useTranslation()
-  return (
-    <span className="inline-flex items-center gap-1">
-      <Paperclip size={12} />
-      {t('files.count', { count: entry.attachments.length })}
-    </span>
-  )
-}
-
-/** A small coloured dot with the category's name (or the colour alone when the item has its own colour only). */
-function CategoryTag({ item, categories }: { item: ItemContent; categories: Category[] }) {
-  const { t } = useTranslation()
-  const category = categories.find((c) => c.id === item.categoryId)
-  const color = itemColor(item, categories)
-  if (!category && !color) return null
-  return (
-    <span className="inline-flex items-center gap-1">
-      {color && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: `var(--c-${color})` }} />}
-      {category && categoryName(category, t)}
-    </span>
-  )
-}
-
-/** The face of an entry: everything worth knowing before inserting it. */
-function EntryCard({ entry, theme, slides = true }: { entry: LibraryEntry; theme: string; /** Thumbnails inside the card (off where they are shown beside it, as buttons). */ slides?: boolean }) {
-  const { t } = useTranslation()
-  const categories = useSettings((s) => s.settings.categories)
-  const items = entry.kind === 'group' ? entry.data.items : [entry.data]
-  const minutes = items.reduce((s, i) => s + durationOf(i), 0)
-
-  if (entry.kind === 'group') {
-    const rest = entry.data.items.length - GROUP_PREVIEW
-    return (
-      <>
-        <div className="flex items-baseline gap-2">
-          <FolderOpen size={15} className="shrink-0 self-center text-ink-3" />
-          <span className="min-w-0 flex-1 truncate font-medium">{entry.title}</span>
-          <span className="shrink-0 text-[13px] text-ink-3 tnum">{formatDuration(minutes)}</span>
-        </div>
-        <div className="mt-0.5 text-[12px] text-ink-3">{t('library.group', { count: items.length })}</div>
-        <ol className="mt-2.5 space-y-1 border-l-2 border-line pl-3 text-[13px]">
-          {entry.data.items.slice(0, GROUP_PREVIEW).map((i, n) => {
-            const color = itemColor(i, categories)
-            return (
-              <li key={n} className="flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color ? `var(--c-${color})` : 'var(--line-2)' }} />
-                <span className={cx('min-w-0 flex-1 truncate', i.kind === 'break' && 'text-ink-2')}>{i.title || t(`kinds.${i.kind}`)}</span>
-                <span className="shrink-0 text-[12px] text-ink-3 tnum">{durationOf(i) ? formatDuration(durationOf(i)) : ''}</span>
-              </li>
-            )
-          })}
-          {rest > 0 && <li className="text-[12px] text-ink-3">{t('library.more', { count: rest })}</li>}
-        </ol>
-        {entry.attachments.length > 0 && (
-          <div className="mt-2 text-[12px] text-ink-3">
-            <FileCount entry={entry} />
-          </div>
-        )}
-      </>
-    )
-  }
-
-  const i = entry.data
-  const color = itemColor(i, categories)
-  const facts = (
-    [
-      ['item.goal', i.goal],
-      ['item.method', i.method],
-      ['item.lead', i.lead],
-    ] as const
-  ).filter(([, v]) => v.trim())
-  return (
-    <div className="flex gap-3">
-      <span className="w-[3px] shrink-0 self-stretch rounded-full" style={{ background: color ? `var(--c-${color})` : 'var(--line-2)' }} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 truncate font-medium">{entry.title}</span>
-          {minutes > 0 && <span className="shrink-0 text-[13px] text-ink-3 tnum">{formatDuration(minutes)}</span>}
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
-          <span className="inline-flex items-center gap-1">
-            {KIND_ICON[i.kind]}
-            {t(`kinds.${i.kind}`)}
-          </span>
-          <CategoryTag item={i} categories={categories} />
-        </div>
-        {i.description && <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-snug text-ink-2">{i.description}</p>}
-        {facts.length > 0 && (
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px] leading-snug">
-            {facts.map(([key, v]) => (
-              <div key={key} className="contents">
-                <dt className="text-ink-3">{t(key)}</dt>
-                <dd className="line-clamp-2 text-ink-2">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        {slides && i.slides.length > 0 && (
-          <div className="mt-2 grid grid-cols-3 gap-1.5">
-            {i.slides.slice(0, 3).map((s) => (
-              <SlideView key={s.id} html={s.html} theme={theme} scope="library" />
-            ))}
-          </div>
-        )}
-        {(i.materials.length > 0 || i.notes.trim() || i.slides.length > 3 || (i.worksheets ?? []).length > 0 || entry.attachments.length > 0) && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-3">
-            {i.slides.length > 3 && <span>{t('slides.count', { count: i.slides.length })}</span>}
-            {(i.worksheets ?? []).length > 0 && (
-              <span className="inline-flex items-center gap-1">
-                <FileText size={12} className="shrink-0" />
-                {t('sheets.count', { count: (i.worksheets ?? []).length })}
-              </span>
-            )}
-            {i.materials.length > 0 && (
-              <span className="inline-flex min-w-0 items-center gap-1">
-                <Package size={12} className="shrink-0" />
-                <span className="truncate">{i.materials.map((m) => (m.qty > 1 ? `${m.label} ×${m.qty}` : m.label)).join(', ')}</span>
-              </span>
-            )}
-            {i.notes.trim() && (
-              <span className="inline-flex items-center gap-1">
-                <NotebookPen size={12} />
-                {t('item.notes')}
-              </span>
-            )}
-            {entry.attachments.length > 0 && <FileCount entry={entry} />}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-interface RowProps {
-  entry: LibraryEntry
-  theme: string
-  open: boolean
-  /** The ticks: the owner's only. */
-  selection: Selection | null
-  onToggle: () => void
-  onOpenSlide: (key: string, mode: 'view' | 'edit') => void
-  /** The entry's fields, shown while it is open. */
-  details: ReactNode
-}
-
-/** An entry as a line of the list: tick, title with what it is and its tags, length and dates. A click on the title opens it below. */
-function ListRow({ entry, open, selection, onToggle, details }: RowProps) {
-  const { t } = useTranslation()
-  const categories = useSettings((s) => s.settings.categories)
-  const items = entryItems(entry)
-  const minutes = minutesOf(entry)
-  const color = entry.kind === 'item' ? itemColor(entry.data, categories) : null
-  const slides = items.reduce((n, i) => n + i.slides.length, 0)
-  const sheets = items.reduce((n, i) => n + (i.worksheets ?? []).length, 0)
-  const picked = !!selection?.has(entry.id)
-  return (
-    <>
-      <tr className={cx('border-b border-line last:border-b-0', picked ? 'bg-accent-soft/50' : 'hover:bg-surface-2/60', open && 'border-b-0')}>
-        {selection && (
-          <td className="w-10 py-1 pl-2 align-top">
-            <SelectBox state={picked} onToggle={(range) => selection.toggle(entry.id, range)} label={t('list.select', { title: entry.title })} />
-          </td>
-        )}
-        <td className={cx('px-2 py-1 align-top', !selection && 'pl-4')}>
-          <button type="button" onClick={onToggle} aria-expanded={open} className="block w-full py-1 text-left">
-            <span className="flex items-center gap-2">
-              {entry.kind === 'group' ? <FolderOpen size={14} className="shrink-0 text-ink-3" /> : <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color ? `var(--c-${color})` : 'var(--line-2)' }} />}
-              <span className="min-w-0 truncate font-medium">{entry.title}</span>
-            </span>
-            <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-4 text-[12px] text-ink-3">
-              <span className="inline-flex items-center gap-1">
-                {entry.kind === 'group' ? t('library.group', { count: items.length }) : <>{KIND_ICON[entry.data.kind]}{t(`kinds.${entry.data.kind}`)}</>}
-              </span>
-              {entry.kind === 'item' && <CategoryTag item={entry.data} categories={categories} />}
-              {slides > 0 && (
-                <span className="inline-flex items-center gap-1">
-                  <Presentation size={12} />
-                  {t('slides.count', { count: slides })}
-                </span>
-              )}
-              {sheets > 0 && (
-                <span className="inline-flex items-center gap-1">
-                  <FileText size={12} />
-                  {t('sheets.count', { count: sheets })}
-                </span>
-              )}
-              {entry.attachments.length > 0 && <FileCount entry={entry} />}
-              <span className="md:hidden">{t('list.updatedOn', { date: shortDate(entry.updatedAt) })}</span>
-              <TagList tags={entry.tags} />
-            </span>
-          </button>
-        </td>
-        <td className="w-24 px-2 py-2 text-right align-top text-[13px] text-ink-2 tnum">{minutes > 0 ? formatDuration(minutes) : ''}</td>
-        <td className="hidden w-32 px-2 py-2 align-top text-[13px] text-ink-3 lg:table-cell">{shortDate(entry.createdAt)}</td>
-        <td className="hidden w-32 px-2 py-2 pr-4 align-top text-[13px] text-ink-3 md:table-cell">{shortDate(entry.updatedAt)}</td>
-      </tr>
-      {open && (
-        <tr className="border-b border-line last:border-b-0">
-          <td colSpan={selection ? 5 : 4} className="p-0">
-            {details}
-          </td>
-        </tr>
-      )}
-    </>
-  )
-}
-
-/** An entry as a card: tick beside it, the card opens its details. */
-function CardRow({ entry, theme, open, selection, onToggle, onOpenSlide, details }: RowProps) {
-  const { t } = useTranslation()
-  return (
-    <div>
-      <div className="flex items-start">
-        {selection && <SelectBox state={selection.has(entry.id)} onToggle={(range) => selection.toggle(entry.id, range)} label={t('list.select', { title: entry.title })} className="ml-1.5 mt-2" />}
-        <button type="button" onClick={onToggle} aria-expanded={open} className={cx('block min-w-0 flex-1 py-3 pr-4 text-left transition-colors hover:bg-surface-2/60', selection ? 'pl-1' : 'pl-4')}>
-          <EntryCard entry={entry} theme={theme} slides={false} />
-          <TagList tags={entry.tags} className="mt-2" />
-        </button>
-      </div>
-      {/* The first slides: each opens the slide editor, as thumbnails do everywhere (the card itself opens the details). */}
-      {!open && entry.kind === 'item' && entry.data.slides.length > 0 && (
-        <div className={cx('-mt-1 grid grid-cols-3 gap-1.5 px-4 pb-3', selection ? 'pl-[52px]' : 'pl-[30px]')}>
-          {entry.data.slides.slice(0, 3).map((s, n) => (
-            <SlideView key={s.id} html={s.html} theme={theme} scope="library" onClick={() => onOpenSlide(s.id, 'view')} label={t('slides.slide', { n: n + 1 })} />
+    <div className="space-y-5">
+      {withSections && (
+        <FilterGroup label={t('item.category')} action={filterCount(filter) > 0 && <button type="button" onClick={() => onChange(NO_FILTER)} className="tap text-[13px] font-semibold text-accent-strong hover:underline">{t('library.clearFilters')}</button>}>
+          {sections.map((key) => (
+            <Option key={key} on={filter.sections.includes(key)} count={counts.sections[key] ?? 0} onToggle={() => onChange({ ...filter, sections: toggled(filter.sections, key) })}>
+              <span aria-hidden className="h-[9px] w-[9px] shrink-0 rounded-full" style={{ background: sectionColor(key, categories) }} />
+              <span className="min-w-0 flex-1 truncate">{sectionName(key, categories, t)}</span>
+            </Option>
           ))}
-        </div>
+        </FilterGroup>
       )}
-      {open && details}
+      <FilterGroup label={t('library.holds')}>
+        {HOLDS.map((h) => (
+          <Option key={h} on={filter.holds.includes(h)} count={counts.holds[h]} onToggle={() => onChange({ ...filter, holds: toggled(filter.holds, h) })}>
+            <span className="min-w-0 flex-1 truncate">{holds[h]}</span>
+          </Option>
+        ))}
+      </FilterGroup>
+      {(tagRows.some((tags) => tags.length) || filter.tags.length > 0) && (
+        <FilterGroup label={t('tags.label')}>
+          <TagFilter rows={tagRows} active={filter.tags} onChange={(tags) => onChange({ ...filter, tags })} />
+        </FilterGroup>
+      )}
     </div>
   )
 }
 
-/** An open entry as a guest reads it: its items with what they hold, the files to download, the slides to look at. */
-function EntryView({ entry, theme, onOpenSlide }: { entry: LibraryEntry; theme: string; onOpenSlide: (key: string) => void }) {
-  const { t } = useTranslation()
+function FilterGroup({ label, action, children }: { label: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <div className="space-y-4 border-t border-line px-4 py-4 text-[14px]">
-      {entryItems(entry).map((i, n) => {
-        const facts = (
-          [
-            ['item.description', i.description],
-            ['item.goal', i.goal],
-            ['item.method', i.method],
-            ['item.lead', i.lead],
-            ['item.notes', i.notes],
-          ] as const
-        ).filter(([, v]) => v.trim())
-        const files = i.attachmentIds.flatMap((id) => entry.attachments.filter((a) => a.id === id))
+    <div role="group" aria-label={label}>
+      <div className="mb-1 flex min-h-6 items-center justify-between gap-2">
+        <span className="text-[13px] font-semibold text-brand-ink">{label}</span>
+        {action}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** One option of a filter: a tick, what it is, and the number of entries it would show. */
+function Option({ on, count, onToggle, children }: { on: boolean; count: number; onToggle: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      disabled={!on && !count}
+      onClick={onToggle}
+      className={cx('-mx-1.5 flex min-h-9 w-[calc(100%+0.75rem)] items-center gap-2.5 rounded-[10px] px-1.5 text-left text-[14px] transition-colors pointer-coarse:min-h-11', on ? 'bg-accent-soft font-semibold' : 'hover:bg-surface-2', !on && !count && 'opacity-40')}
+    >
+      <Tick on={on} />
+      {children}
+      <span className="shrink-0 text-[13px] font-normal text-ink-2 tnum">{count}</span>
+    </button>
+  )
+}
+
+/** The look of a tick, for a place that is a checkbox as a whole (an option, an entry while selecting). */
+function Tick({ on, className }: { on: boolean; className?: string }) {
+  return (
+    <span aria-hidden className={cx('flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border transition-colors', on ? 'border-accent bg-accent text-accent-ink' : 'border-line-2 bg-surface', className)}>
+      {on && <Check size={12} strokeWidth={3} />}
+    </span>
+  )
+}
+
+/** The sections as chips, where the filters do not stand beside the entries: "All" and one per section that has entries. */
+function SectionChips({ filter, onChange, counts, categories, total }: { filter: LibraryFilter; onChange: (f: LibraryFilter) => void; counts: FacetCounts; categories: Category[]; /** What the other filters leave over all sections. */ total: number }) {
+  const { t } = useTranslation()
+  const keys = sectionKeys(categories).filter((key) => counts.sections[key] || filter.sections.includes(key))
+  const chip = (on: boolean) => cx('inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-semibold transition-colors pointer-coarse:h-11', on ? 'border-brand bg-brand text-on-brand' : 'border-line bg-surface text-ink hover:bg-surface-2')
+  return (
+    <div role="group" aria-label={t('item.category')} className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] md:-mx-8 md:px-8 lg:hidden">
+      <button type="button" aria-pressed={!filter.sections.length} onClick={() => onChange({ ...filter, sections: [] })} className={chip(!filter.sections.length)}>
+        {t('library.all')}
+        <span className="text-[13px] font-normal opacity-80 tnum">{total}</span>
+      </button>
+      {keys.map((key) => {
+        const on = filter.sections.includes(key)
         return (
-          <div key={n} className="space-y-2">
-            {entry.kind === 'group' && (
-              <div className="flex justify-between gap-3 font-medium">
-                <span className="truncate">{i.title || t(`kinds.${i.kind}`)}</span>
-                <span className="shrink-0 font-normal text-ink-3 tnum">{durationOf(i) ? formatDuration(durationOf(i)) : ''}</span>
-              </div>
-            )}
-            {facts.length > 0 && (
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px] leading-snug">
-                {facts.map(([key, v]) => (
-                  <div key={key} className="contents">
-                    <dt className="text-ink-3">{t(key)}</dt>
-                    <dd className="whitespace-pre-line text-ink-2">{v}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-            {i.materials.length > 0 && (
-              <p className="inline-flex items-center gap-1 text-[13px] text-ink-2">
-                <Package size={12} className="shrink-0 text-ink-3" />
-                {i.materials.map((m) => (m.qty > 1 ? `${m.label} ×${m.qty}` : m.label)).join(', ')}
-              </p>
-            )}
-            {files.length > 0 && (
-              <ul className="space-y-1 text-[13px]">
-                {files.map((a) => (
-                  <li key={a.id}>
-                    <a href={api.libraryFileUrl(a.id)} download={a.name} className="inline-flex items-center gap-1 text-ink-2 hover:text-ink hover:underline">
-                      <Paperclip size={12} className="shrink-0 text-ink-3" />
-                      {a.name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {entry.kind === 'item' && i.slides.length > 0 && (
-              <div className="grid grid-cols-3 gap-1.5 md:grid-cols-4">
-                {i.slides.map((s, k) => (
-                  <SlideView key={s.id} html={s.html} theme={theme} scope="library" onClick={() => onOpenSlide(s.id)} label={t('slides.slide', { n: k + 1 })} />
-                ))}
-              </div>
-            )}
-            {entry.kind === 'item' && (i.worksheets ?? []).length > 0 && <LibrarySheets sheets={i.worksheets} step={i} />}
-          </div>
+          <button key={key} type="button" aria-pressed={on} onClick={() => onChange({ ...filter, sections: toggled(filter.sections, key) })} className={chip(on)}>
+            {key !== GROUPS && <span aria-hidden className="h-[9px] w-[9px] shrink-0 rounded-full" style={{ background: sectionColor(key, categories) }} />}
+            {sectionName(key, categories, t)}
+            <span className="text-[13px] font-normal opacity-80 tnum">{counts.sections[key] ?? 0}</span>
+          </button>
         )
       })}
-      <p className="text-[12px] text-ink-3">
-        {t('list.createdOn', { date: shortDate(entry.createdAt) })} · {t('list.updatedOn', { date: shortDate(entry.updatedAt) })} · {t('library.insertHint')}
-      </p>
     </div>
   )
 }
 
-/** The fields of an open entry. */
-function EntryDetails({ entry, theme, known, onSave, onDelete, onOpenSlide, list }: { entry: LibraryEntry; theme: string; known: string[]; onSave: (e: LibraryEntryInput) => void; onDelete: () => void; onOpenSlide: (key: string, mode: 'view' | 'edit') => void; list: { get(): Slide[]; set(slides: Slide[]): void } }) {
+/** What an entry is as a whole: a link to its page, or a tick while entries are being selected. */
+function EntryTarget({ entry, selection, className, children }: { entry: LibraryEntry; selection: Selection | null; className?: string; children: ReactNode }) {
   const { t } = useTranslation()
-  const id = useId()
-  const categories = useSettings((s) => s.settings.categories)
-  const setItem = (patch: Partial<ItemContent>) => entry.kind === 'item' && onSave({ kind: 'item', title: patch.title ?? entry.title, data: { ...entry.data, ...patch } })
-  const tagField = (
-    <Field label={t('tags.label')}>
-      <TagEditor id={id} tags={entry.tags} known={known} onChange={(tags) => onSave({ kind: entry.kind, title: entry.title, data: entry.data, tags } as LibraryEntryInput)} />
-    </Field>
-  )
-
+  if (!selection)
+    return (
+      <Link to={entryPath(entry.id)} className={className}>
+        {children}
+      </Link>
+    )
   return (
-        <div className="space-y-3 border-t border-line px-4 py-4">
-          {entry.kind === 'group' ? (
-            <>
-              <Field label={t('group.title')}>
-                <TextField value={entry.title} onCommit={(title) => onSave({ kind: 'group', title, data: entry.data })} />
-              </Field>
-              <ol className="space-y-2 text-[14px]">
-                {entry.data.items.map((i, n) => (
-                  <li key={n}>
-                    <div className="flex justify-between gap-3">
-                      <span className="truncate">{i.title || t(`kinds.${i.kind}`)}</span>
-                      <span className="shrink-0 text-ink-3 tnum">{durationOf(i) ? formatDuration(durationOf(i)) : ''}</span>
-                    </div>
-                    {i.kind !== 'note' && <EntryFiles entry={entry} item={n} compact />}
-                  </li>
-                ))}
-              </ol>
-              {tagField}
-            </>
-          ) : (
-            <>
-              <Field label={t('item.title')}>
-                <TextField value={entry.data.title} onCommit={(title) => setItem({ title })} />
-              </Field>
-              <Field label={t('item.description')}>
-                <TextField multiline value={entry.data.description} onCommit={(description) => setItem({ description })} className="min-h-[64px]" />
-              </Field>
-              <div className="flex flex-wrap items-end gap-4">
-                {(entry.data.kind === 'block' || entry.data.kind === 'break') && (
-                  <Field label={t('item.duration')}>
-                    <DurationField value={entry.data.duration} onChange={(duration) => setItem({ duration })} className="w-[104px]" aria-label={t('item.duration')} />
-                  </Field>
-                )}
-                <Field label={t('item.category')}>
-                  <select className="field h-8 text-[13px]" value={entry.data.categoryId ?? ''} onChange={(e) => setItem({ categoryId: e.target.value || null })}>
-                    <option value="">{t('item.noCategory')}</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {categoryName(c, t)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-              <Field label={t('item.color')} hint={t('item.colorHint')}>
-                <Swatches value={entry.data.color} allowNone onChange={(c) => setItem({ color: c })} />
-              </Field>
-              {tagField}
-              <Field label={t('item.notes')}>
-                <TextField multiline value={entry.data.notes} onCommit={(notes) => setItem({ notes })} />
-              </Field>
-              {entry.data.kind !== 'note' && (
-                <div>
-                  <SectionLabel>{t('item.files')}</SectionLabel>
-                  <EntryFiles entry={entry} item={0} />
-                </div>
-              )}
-              <SlideStrip slides={entry.data.slides} list={list} onOpen={onOpenSlide} scope="library" theme={theme} canEdit owner />
-              {entry.data.kind === 'block' && <LibrarySheets sheets={entry.data.worksheets ?? []} step={entry.data} onChange={(worksheets) => setItem({ worksheets, printRules: rulesWithNewSheets(entry.data.printRules, entry.data.worksheets, worksheets) })} />}
-            </>
-          )}
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <span className="mr-auto text-[12px] text-ink-3">
-              {t('list.createdOn', { date: shortDate(entry.createdAt) })} · {t('list.updatedOn', { date: shortDate(entry.updatedAt) })}
-            </span>
-            <Button size="sm" variant="ghost" onClick={onDelete}>
-              <Trash2 size={14} />
-              {t('common.delete')}
-            </Button>
-          </div>
-        </div>
+    <div
+      role="checkbox"
+      aria-checked={selection.has(entry.id)}
+      aria-label={t('list.select', { title: entry.title })}
+      tabIndex={0}
+      onClick={(e) => selection.toggle(entry.id, e.shiftKey)}
+      onKeyDown={(e) => {
+        if (e.key !== ' ' && e.key !== 'Enter') return
+        e.preventDefault()
+        selection.toggle(entry.id, e.shiftKey)
+      }}
+      className={cx(className, 'cursor-pointer select-none')}
+    >
+      {children}
+    </div>
   )
 }
 
-/** Whether an entry holds a worksheet, on its item or on one of its group's. */
-const hasWorksheet = (e: LibraryEntry): boolean => entryItems(e).some((c) => (c.worksheets ?? []).length > 0)
+/** An entry as a line: its rail, title and one line of what it is, what it holds and how long it runs. */
+function EntryRow({ entry, categories, selection }: { entry: LibraryEntry; categories: Category[]; selection: Selection | null }) {
+  const { t } = useTranslation()
+  const minutes = minutesOf(entry)
+  const picked = !!selection?.has(entry.id)
+  return (
+    <li className={cx('border-b border-line last:border-b-0', picked && 'bg-accent-soft')}>
+      <EntryTarget entry={entry} selection={selection} className={cx('flex min-h-12 items-center gap-3 px-3 py-2 transition-colors pointer-coarse:min-h-[60px]', !picked && 'hover:bg-surface-2/60')}>
+        {selection && <Tick on={picked} />}
+        <span aria-hidden className="my-0.5 w-[6px] shrink-0 self-stretch rounded-[3px]" style={{ background: railOf(entry, categories) }} />
+        <span className="min-w-0 flex-1 md:flex md:items-center md:gap-4">
+          <span className="block truncate font-semibold md:max-w-[62%] md:shrink-0">{entry.title}</span>
+          <span className="block truncate text-[13px] text-ink-2 md:min-w-0 md:flex-1 md:text-[13.5px]">{summaryOf(entry, t)}</span>
+        </span>
+        <span className="hidden w-[104px] shrink-0 md:block">
+          <HoldsLine entry={entry} />
+        </span>
+        <span className="w-[4.5rem] shrink-0 text-right text-[13.5px] font-semibold text-brand-ink tnum">{minutes > 0 ? formatDuration(minutes) : ''}</span>
+      </EntryTarget>
+    </li>
+  )
+}
 
-/** An entry's worksheets in the theme and with the logo of the settings, as a new workshop would print them. */
-function LibrarySheets({ sheets, step, onChange }: { sheets: Worksheet[]; step: ItemContent; onChange?: (next: Worksheet[]) => void }) {
-  const brand = useSheetBrand('')
-  const facts = useStepFacts()
-  return <WorksheetList sheets={sheets} onChange={onChange} scope="library" theme={brand.theme} logo={brand.logo} facts={facts(step)} />
+/** An entry as a card: its first slide as the picture (an entry without slides says there what it is), then title, length and what it holds. */
+function EntryCard({ entry, categories, theme, selection }: { entry: LibraryEntry; categories: Category[]; theme: string; selection: Selection | null }) {
+  const { t } = useTranslation()
+  const minutes = minutesOf(entry)
+  const cover = coverOf(entry)
+  const picked = !!selection?.has(entry.id)
+  return (
+    <li className={cx('card overflow-hidden', picked && 'border-accent bg-accent-soft')}>
+      <EntryTarget entry={entry} selection={selection} className="flex h-full flex-col">
+        {cover ? (
+          <SlideView html={cover.html} theme={theme} scope="library" className="rounded-none border-b border-line" />
+        ) : (
+          <span className="flex aspect-video items-center border-b border-line bg-surface-2 px-5">
+            <span className="line-clamp-4 text-[14px] leading-normal text-ink-2">{summaryOf(entry, t) || t(entry.kind === 'group' ? 'library.kindGroup' : `kinds.${entry.data.kind}`)}</span>
+          </span>
+        )}
+        <span className="flex flex-1 gap-3 p-3">
+          {selection && <Tick on={picked} className="mt-0.5" />}
+          <span aria-hidden className="w-[6px] shrink-0 self-stretch rounded-[3px]" style={{ background: railOf(entry, categories) }} />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="font-semibold leading-snug">{entry.title}</span>
+            <span className="mt-auto flex items-center gap-2.5 pt-1.5">
+              <span className="flex-1 text-[13.5px] font-semibold text-brand-ink tnum">{minutes > 0 ? formatDuration(minutes) : ''}</span>
+              <HoldsLine entry={entry} />
+            </span>
+          </span>
+        </span>
+      </EntryTarget>
+    </li>
+  )
 }
