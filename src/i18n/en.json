@@ -134,7 +134,6 @@
     "description": "Short description",
     "duration": "Duration",
     "fixedStart": "Fixed start",
-    "fixedHint": "stays at this time",
     "goal": "Goal",
     "method": "Method",
     "lead": "Lead",
@@ -160,7 +159,20 @@
     "noCategory": "No category",
     "color": "Colour",
     "colorHint": "overrides the category",
-    "saveToLibrary": "Save to library"
+    "saveToLibrary": "Save to library",
+    "enlarge": "Show large",
+    "shrink": "To the agenda",
+    "prev": "Previous entry",
+    "next": "Next entry",
+    "position": "{{n}} of {{count}}",
+    "start": "Start",
+    "fix": "fix",
+    "unfix": "Follow the agenda again",
+    "descriptionAdd": "Add a short description",
+    "goalAdd": "What should be reached by the end of it?",
+    "time": "Time",
+    "placing": "Classification",
+    "dayList": "Entries of the workshop"
   },
   "workshop": {
     "menu": "Workshop actions",
@@ -635,8 +647,8 @@
     "library": "Library",
     "pool": "Slide pool",
     "settings": "Settings",
-    "collapse": "Collapse",
-    "expand": "Expand",
+    "collapse": "Collapse navigation",
+    "expand": "Expand navigation",
     "slides": "Slide pool",
     "pictures": "Pictures"
   },
@@ -801,7 +813,6 @@
     "editNotes": "Edit the notes",
     "noNotes": "No notes yet.",
     "facts": "Facts",
-    "editMaterial": "Edit the material",
     "noMaterial": "No material yet.",
     "points": "Items of the group"
   },

@@ -1,10 +1,11 @@
 import { type ReactNode, useEffect, useId, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { Category, ItemContent, LibraryEntry, LibraryEntryInput } from '@/domain/types'
 import { durationOf, formatDuration } from '@/domain/time'
 import { minutesOf, neighbours } from '@/domain/libraryView'
+import { newId } from '@/domain/ops'
 import { rulesWithNewSheets } from '@/domain/printing'
 import { tagCounts } from '@/domain/tags'
 import { useLibrary } from '@/store/useLibrary'
@@ -220,9 +221,16 @@ function ItemBody({ entry, owner, theme, categories, known, onSave, onTags, onSl
   const { t } = useTranslation()
   const id = useId()
   /** The section whose fields show. */
-  const [editing, setEditing] = useState<'about' | 'notes' | 'material' | null>(null)
+  const [editing, setEditing] = useState<'about' | 'notes' | null>(null)
+  /** The line of material just added: its field takes the focus. */
+  const [freshMaterial, setFreshMaterial] = useState<string | null>(null)
   const i = entry.data
   const set = (patch: Partial<ItemContent>) => onSave({ kind: 'item', title: entry.title, data: { ...i, ...patch } })
+  const addMaterial = () => {
+    const fresh = newId()
+    setFreshMaterial(fresh)
+    set({ materials: [...i.materials, { id: fresh, label: '', qty: 1 }] })
+  }
   const edit = (part: NonNullable<typeof editing>, label: string) => (owner ? { on: editing === part, label, toggle: () => setEditing(editing === part ? null : part) } : undefined)
   const category = categories.find((c) => c.id === i.categoryId)
   const color = itemColor(i, categories)
@@ -345,50 +353,45 @@ function ItemBody({ entry, owner, theme, categories, known, onSave, onTags, onSl
               {owner ? <TagEditor id={id} tags={entry.tags} known={known} onChange={onTags} /> : <TagList tags={entry.tags} />}
             </Fact>
           )}
-          {i.kind !== 'note' &&
-            (editing === 'material' ? (
-              <div className="border-b border-line py-3 last:border-b-0">
-                <Materials materials={i.materials} onChange={(materials) => set({ materials })} />
-                <div className="mt-2 text-right">
-                  <Button size="sm" onClick={() => setEditing(null)}>
-                    {t('library.selectDone')}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              (owner || i.materials.length > 0) && (
-                <Fact
-                  stacked
-                  label={t('item.materials')}
-                  action={
-                    owner && (
-                      <IconButton label={t('library.editMaterial')} onClick={() => setEditing('material')} className="-mr-1.5">
-                        <Pencil size={15} />
-                      </IconButton>
-                    )
-                  }
-                >
-                  {i.materials.length > 0 ? (
-                    <ul className="space-y-1 text-[14.5px]">
-                      {i.materials.map((m) => (
-                        <li key={m.id} className="flex justify-between gap-3">
-                          {m.link ? (
-                            <a href={m.link} target="_blank" rel="noreferrer" className="min-w-0 truncate underline decoration-line-2 underline-offset-2 hover:decoration-ink-3">
-                              {m.label}
-                            </a>
-                          ) : (
-                            <span className="min-w-0 truncate">{m.label}</span>
-                          )}
-                          <span className="shrink-0 font-semibold tnum">{m.qty}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-[13.5px] text-ink-3">{t('library.noMaterial')}</p>
-                  )}
-                </Fact>
-              )
-            ))}
+          {i.kind !== 'note' && (owner || i.materials.length > 0) && (
+            <Fact
+              stacked
+              label={t('item.materials')}
+              action={
+                owner && (
+                  <IconButton label={t('item.addMaterial')} onClick={addMaterial} className="-mr-1.5">
+                    <Plus size={15} />
+                  </IconButton>
+                )
+              }
+            >
+              {/* Who changes the library edits the lines where they stand, as in a step's details; everybody else reads them. */}
+              {owner ? (
+                i.materials.length > 0 ? (
+                  <div className="-mx-2">
+                    <Materials materials={i.materials} fresh={freshMaterial} onChange={(materials) => set({ materials })} />
+                  </div>
+                ) : (
+                  <p className="text-[13.5px] text-ink-3">{t('library.noMaterial')}</p>
+                )
+              ) : (
+                <ul className="space-y-1 text-[14.5px]">
+                  {i.materials.map((m) => (
+                    <li key={m.id} className="flex justify-between gap-3">
+                      {m.link ? (
+                        <a href={m.link} target="_blank" rel="noreferrer" className="min-w-0 truncate underline decoration-line-2 underline-offset-2 hover:decoration-ink-3">
+                          {m.label}
+                        </a>
+                      ) : (
+                        <span className="min-w-0 truncate">{m.label}</span>
+                      )}
+                      <span className="shrink-0 font-semibold tnum">{m.qty}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Fact>
+          )}
           {i.kind !== 'note' && (owner || i.attachmentIds.length > 0) && (
             <Fact stacked label={t('item.files')}>
               {owner ? <EntryFiles entry={entry} item={0} /> : <EntryFileLinks entry={entry} item={0} />}

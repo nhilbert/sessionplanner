@@ -36,7 +36,8 @@ Colour never stands alone: a category is a rail or dot plus its name, a conflict
 sentence.
 
 Inside the navigation the text tokens are remapped to the light ones (`.nav-surface`), so anything placed there, also
-by a build (`menu` in `src/start.tsx`), reads without knowing where it stands.
+by a build (`navigation` in `src/start.tsx`), reads without knowing where it stands. What floats out of it (a menu)
+hangs on the body and takes the page's colours.
 
 ## Type
 
@@ -69,6 +70,29 @@ by a build (`menu` in `src/start.tsx`), reads without knowing where it stands.
 - **The day strip** above the agenda shows the day to scale in the same colours, with the minutes per category below
   it as word and number. An overlap is drawn in the conflict colour.
 
+## The details of an entry
+
+Opened from the agenda, an entry's details stand in the sidebar; from there they can be shown large.
+
+- **The head says what and when**: the kind as a small menu (it is rarely changed, so it is no row of buttons), the
+  span, then the way to the large details, the entry's ⋯ and ×.
+- **Text reads as text.** Title and short description have no frame until they are edited (`TextField` with `bare`
+  or `wrap`, `src/planner/fields.tsx`); a long title breaks into lines instead of being cut.
+- **Short facts are lines**: the name on the left, the value beside it (length, start, category, goal, method, lead).
+  A line that says nothing yet is a "+ …" pill below the others, and becomes one again when it is left empty. The
+  start is the computed time with "fix" beside it; fixed, it is a field with the way back to the agenda's flow.
+- **The category's menu holds the colour.** An own colour instead of the category's is a rare choice: it stands at
+  the foot of that menu, not as a row of its own.
+- **What an entry carries is a section that folds**: notes, material, files, slides, worksheets, each with how much
+  it holds and, folded, a line of what that is. What is folded is remembered on the device for all entries. A section
+  without content is its head alone where the head can add to it (material).
+- **Large, the same parts stand in two columns** in place of the agenda: what is written on the left (title, goal,
+  notes, slides), the facts on the right (time, category, material, files, worksheets). The agenda stays beside it as
+  a slim list of the days' entries with their starts, and the head leads to the entry before and after. "To the
+  agenda" and Escape make the details small again; an entry opened anew starts small. Where the room is too narrow
+  for two columns they stand one below the other, and the slim list shows only where both columns fit beside it.
+- On a phone the details fill the screen anyway: one column, and no large form.
+
 ## Inserting
 
 No strip of marks beside the agenda.
@@ -93,6 +117,21 @@ No strip of marks beside the agenda.
 - On a narrow screen the sidebar keeps the focus like a dialog: the focus goes into it, Tab stays inside, Escape
   leaves a field first and then closes it, and the focus returns to what opened it. The page's shortcuts go on.
 - Dialogs and sheets are mounted on the body, so they take the page's colours wherever they were opened.
+
+## The navigation
+
+- **One order, top to bottom**, the same open, folded and in the phone's sheet: the name, where the person is, the
+  pages, what manages the place (a build's pages, the settings), who is signed in.
+- **One kind of row**: an icon and a label, 14 px, 36 px high, a pill; the open page stands as a cut-out in the
+  ground's colour. No rows without an icon and no second size of type.
+- The button that folds the navigation is an icon beside the name (below the logo when folded), not a row. Open, the
+  navigation is 232 px wide, so that the name and the button fit side by side; a longer name of a build is cut with an
+  ellipsis. Folded, it is 60 px.
+- **A build adds and moves nothing.** `navigation` (`src/start.tsx`, `components/AppShell.tsx`) has three places:
+  `place` under the name (a workspace and the way to the others), `pages` above the settings, `account` at the foot
+  (who is signed in). Each is drawn in the form of where it stands: `open`, `folded` or `sheet`. Without them the
+  navigation is the name, the pages and the settings.
+- What is needed rarely (the other workspaces, signing out, the legal pages) is in the menu of its place, not a row.
 
 ## The library
 
@@ -122,6 +161,7 @@ No strip of marks beside the agenda.
 - Days stand side by side only where the agenda's own room allows it (a container query, not the window's width:
   both sidebars may be open); otherwise they stand one below the other. "Add a day" stands with the day tabs and
   stays in the workshop's menu, where a single day has no tabs.
-- The phone's bottom bar has room for five entries. It holds the pages and the settings; where a build adds a menu
-  of its own (`menu` in `src/start.tsx`), the last entry is "More", a sheet with the settings and that menu.
+- The phone's bottom bar has room for five entries. It holds the pages and the settings; where a build adds to the
+  navigation, the last entry is "More", a sheet with the rest in the navigation's order: the place, the build's pages
+  and the settings, the account.
 - The print views and their toolbars are always light and carry the light values as fixed colours.

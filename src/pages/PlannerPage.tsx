@@ -19,7 +19,8 @@ import { Button, cx, IconButton, isTyping, useIsPhone, useLocalState, useMediaQu
 import { overlayOpen } from '@/components/overlay'
 import { BoardContext, type BoardCtx, DayColumn } from '@/planner/DayColumn'
 import { ItemCard } from '@/planner/ItemCard'
-import Toolbox, { shownTab } from '@/planner/Toolbox'
+import Toolbox, { type ItemNav, shownTab } from '@/planner/Toolbox'
+import { DayList } from '@/planner/DayList'
 import WorkshopHeader from '@/planner/WorkshopHeader'
 import { flatIds, inner, PARKING, placeOf, useBoard } from '@/planner/board'
 import { newItem } from '@/planner/fields'
@@ -50,6 +51,11 @@ export default function PlannerPage() {
   const [overlayForItem, setOverlayForItem] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [detailsId, setDetailsId] = useState<string | null>(null)
+  // The details shown large, in place of the agenda: asked for per entry opened, and over once the details close.
+  const [wide, setWide] = useState(false)
+  useEffect(() => {
+    if (!detailsId || phone) setWide(false)
+  }, [detailsId, phone])
   // What the timeline shows before it is saved: a length dragged or slid, a start time being chosen.
   const [preview, setPreview] = useState<Preview | null>(null)
   const [timeEdit, setTimeEdit] = useState<{ id: string; mode: TimeMode; anchor: DOMRect } | null>(null)
@@ -330,7 +336,11 @@ export default function PlannerPage() {
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
-      } else if (e.key === 'Escape') clearSelection()
+      } else if (e.key === 'Escape') {
+        // One step back at a time: from the large details to the agenda with the details beside it, then out of them.
+        if (wide && detailsId) setWide(false)
+        else clearSelection()
+      }
       else if (!mod && single && items[single] && (e.key === '+' || e.key === '=' || e.key === '-')) {
         e.preventDefault()
         resizeBy(items[single], e.key === '-' ? -SNAP : SNAP)
@@ -427,6 +437,11 @@ export default function PlannerPage() {
 
   const detailsItem = detailsId ? items[detailsId] : null
   const computedStart = detailsItem?.dayId ? (schedules[detailsItem.dayId]?.slots[detailsItem.id]?.start ?? null) : null
+  const showWide = wide && !!detailsItem && !phone
+  // The entries in the agenda's order, for the way to the one before and after: all days, or the parking lot for an entry that waits there.
+  const sequence = !detailsItem ? [] : detailsItem.dayId ? days.flatMap((d) => flatIds(board.order, d.id, board.groupIds)) : flatIds(board.order, PARKING, board.groupIds)
+  const at = detailsItem ? sequence.indexOf(detailsItem.id) : -1
+  const nav: ItemNav | undefined = at === -1 ? undefined : { index: at + 1, count: sequence.length, onPrev: at > 0 ? () => openDetails(sequence[at - 1]) : undefined, onNext: at < sequence.length - 1 ? () => openDetails(sequence[at + 1]) : undefined }
   const active = board.activeId
   const activeItem = active ? items[active] : undefined
   const activeGroup = active ? groups[active] : undefined
@@ -463,7 +478,9 @@ export default function PlannerPage() {
     <BoardContext.Provider value={ctx}>
       <DndContext sensors={touch && inserting ? noSensors : sensors} accessibility={{ announcements, screenReaderInstructions: { draggable: t('planner.dragHelp') } }} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
         <div className={cx('flex h-full min-h-0', touch && inserting && 'inserting')}>
-          <div className="relative flex min-w-0 flex-1 flex-col">
+          {/* Behind the large details the agenda stays as it is (its scroll position too); a slim list stands in for it. */}
+          {showWide && detailsItem && <DayList title={data.workshop.title} days={days} lists={board.order} items={items} groups={groups} schedules={schedules} categories={settings.categories} currentId={detailsItem.id} onSelect={openDetails} />}
+          <div className={cx('relative min-w-0 flex-1 flex-col', showWide ? 'hidden' : 'flex')}>
             <WorkshopHeader
               data={data}
               owner={owner}
@@ -592,6 +609,9 @@ export default function PlannerPage() {
             onRemoveAttachment={removeAttachment}
             onNotice={setNotice}
             onJump={jumpTo}
+            wide={showWide}
+            onWide={setWide}
+            nav={nav}
           />
         </div>
         <DragOverlay dropAnimation={null}>

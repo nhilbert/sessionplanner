@@ -29,7 +29,10 @@ export function SlideStrip({
   onMove,
   onRemoved,
   tile = 'w-[132px] max-md:w-[calc(50%-4px)]',
+  heading = true,
 }: {
+  /** Off where the place names the slides itself (a section of the details that folds). */
+  heading?: boolean
   slides: Slide[]
   /** The list as the store has it now, and how to store a new one. */
   list: { get(): Slide[]; set(slides: Slide[]): void }
@@ -86,7 +89,7 @@ export function SlideStrip({
 
   return (
     <div>
-      <SectionLabel>{t('slides.title')}</SectionLabel>
+      {heading && <SectionLabel>{t('slides.title')}</SectionLabel>}
       {slides.length === 0 && <p className="mb-1.5 text-[13px] text-ink-3">{t('slides.empty')}</p>}
       <div className="flex flex-wrap gap-2">
         <SlideSort onDrop={drop} overlay={(id) => <SlideView html={slides.find((x) => x.id === id)?.html ?? ''} theme={theme} scope={scope} />}>

@@ -23,11 +23,13 @@ export default function Menu({
   items,
   label,
   title,
+  header,
   className,
   trigger,
   triggerClassName,
   align = 'right',
   float = false,
+  footer,
 }: {
   items: MenuItem[]
   label: string
@@ -40,10 +42,14 @@ export default function Menu({
   float?: boolean
   /** Heading of the sheet on phones (the group's name, "Print"); the label otherwise. */
   title?: string
+  /** Above the items, apart from them: what the choices belong to (who is signed in). */
+  header?: ReactNode
   className?: string
   trigger?: ReactNode
   /** The trigger's look instead of the small icon button: a labelled button in a header. */
   triggerClassName?: string
+  /** Below the items, apart from them: a choice that does not close the menu (an own colour under the categories). */
+  footer?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const phone = useIsPhone()
@@ -119,6 +125,7 @@ export default function Menu({
       </button>
       {open && phone ? (
         <Sheet open onClose={() => setOpen(false)} label={label} title={title ?? label}>
+          {header && <div className="mb-1 border-b border-line px-2 pb-2">{header}</div>}
           {items.map((it, i) => (
             <div key={i} className={cx(it.separated && i > 0 && 'mt-1 border-t border-line pt-1')}>
               <SheetRow icon={it.icon} checked={it.checked} danger={it.danger} disabled={it.disabled} onClick={() => pick(it)} className="disabled:opacity-40">
@@ -126,6 +133,7 @@ export default function Menu({
               </SheetRow>
             </div>
           ))}
+          {footer && <div className="mt-1 border-t border-line px-2 pb-1 pt-3">{footer}</div>}
         </Sheet>
       ) : open ? (
         dropdown(
@@ -143,6 +151,7 @@ export default function Menu({
               items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
             }}
           >
+            {header && <div className="mb-1 border-b border-line px-3 py-2">{header}</div>}
             {items.map((it, i) => (
               <div key={i} role="none" className={cx(it.separated && i > 0 && 'mt-1 border-t border-line pt-1')}>
                 <button
@@ -154,13 +163,14 @@ export default function Menu({
                 >
                   {it.icon && <span className="flex w-4 shrink-0 justify-center self-start pt-0.5">{it.icon}</span>}
                   <span className="min-w-0 flex-1">
-                    <span className="block whitespace-nowrap">{it.label}</span>
+                    <span className="block truncate">{it.label}</span>
                     {it.hint && <span className="block text-[11px] leading-snug text-ink-3">{it.hint}</span>}
                   </span>
                   {it.checked && <Check size={14} className="shrink-0 text-accent-strong" />}
                 </button>
               </div>
             ))}
+            {footer && <div className="mt-1 border-t border-line px-3 pb-2 pt-2">{footer}</div>}
           </div>,
         )
       ) : null}
