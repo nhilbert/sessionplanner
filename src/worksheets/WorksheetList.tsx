@@ -8,12 +8,13 @@ import { SHEET_STARTERS, starterSheet, starterWords } from '@/domain/sheetStarte
 import { SheetEditor } from './editor/SheetEditor'
 import { entryItems } from '@/domain/copy'
 import { newId } from '@/domain/ops'
+import { slideText } from '@/domain/slides'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, newWorksheets, normalizeSheetHtml, splitPages } from '@/domain/sheets'
 import { type ItemContent, PAPERS, type Paper, type PrintRule, type Worksheet } from '@/domain/types'
 import { ruleOf, rulesWithNewSheets } from '@/domain/printing'
 import { PrintRuleField } from '@/planner/PrintRuleField'
 import type { AssetScope } from '@/api'
-import { Button, cx, Field, Input, Modal, SectionLabel } from '@/components/ui'
+import { Button, cx, Field, Input, Modal, SearchField, SectionLabel } from '@/components/ui'
 import Menu, { type MenuItem } from '@/components/Menu'
 import { useLibrary } from '@/store/useLibrary'
 import { SheetPage, useSheetChrome } from './SheetView'
@@ -266,20 +267,43 @@ function LibrarySheetPicker({ theme, logo, onClose, onPick }: { theme: string; l
   const entries = useLibrary((s) => s.entries)
   const load = useLibrary((s) => s.load)
   useEffect(() => void load(), [load])
-  const found = entries.flatMap((e) => entryItems(e).flatMap((c) => (c.worksheets ?? []).map((sheet) => ({ entry: e.title, sheet }))))
+  const [query, setQuery] = useState('')
+  // every sheet of the library with where it lies; found by its title, its entry, its step and what its pages say
+  const found = useMemo(
+    () =>
+      entries.flatMap((e) =>
+        entryItems(e).flatMap((c) =>
+          (c.worksheets ?? []).map((sheet) => {
+            const entry = e.kind === 'group' && c.title ? `${e.title} › ${c.title}` : e.title
+            return { entry, sheet, text: `${sheet.title} ${entry} ${e.tags.join(' ')} ${sheet.pages.map((p) => slideText(p.html)).join(' ')}`.toLowerCase() }
+          }),
+        ),
+      ),
+    [entries],
+  )
+  const shown = query.trim() ? found.filter((x) => matchesWords(x.text, query)) : found
   return (
-    <Modal open onClose={onClose} width="max-w-3xl">
-      <h2 className="mb-1 text-lg font-medium">{t('sheets.addFromLibrary')}</h2>
+    <Modal open onClose={onClose} width="max-w-3xl" top="pt-[max(1rem,env(safe-area-inset-top))] md:pt-[6vh]">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <h2 className="mr-auto text-lg font-medium">{t('sheets.addFromLibrary')}</h2>
+        {found.length > 0 && <SearchField value={query} onChange={setQuery} placeholder={t('sheets.pickSearch')} className="w-full md:w-64" />}
+      </div>
       <p className="mb-4 text-[13px] text-ink-3">{t('sheets.pickHint')}</p>
       {!found.length ? (
         <p className="text-[14px] text-ink-2">{t('sheets.noneInLibrary')}</p>
+      ) : !shown.length ? (
+        <p className="py-8 text-center text-[14px] text-ink-2">{t('library.noMatch', { q: query.trim() })}</p>
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-4">
-          {found.map(({ entry, sheet }) => (
+          {shown.map(({ entry, sheet }) => (
             <li key={sheet.id} className="min-w-0">
               <PickThumb sheet={sheet} scope="library" theme={theme} logo={logo} onPick={() => onPick(sheet)} />
-              <div className="mt-1 truncate text-[13px]">{sheet.title || t('sheets.untitled')}</div>
-              <div className="truncate text-[11px] text-ink-3">{entry}</div>
+              <div className="mt-1 truncate text-[13px]" title={sheet.title}>
+                {sheet.title || t('sheets.untitled')}
+              </div>
+              <div className="truncate text-[11px] text-ink-3" title={entry}>
+                {entry}
+              </div>
             </li>
           ))}
         </ul>
