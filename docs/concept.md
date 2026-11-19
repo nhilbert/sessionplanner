@@ -150,6 +150,18 @@ On the owner's retired instance there was no public access, so no share links: e
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
 
+**2026-11-19, the workshops by time and by client** (revises the workshops list of 2026-10-29 and its sort of 2026-11-06)
+
+The list was built for a handful of workshops: one flat list, newest date first. After some years it holds hundreds; then the next workshop is not on top once several are planned, nothing divides what is coming from what is over, and "what did we do for this client last year" means scrolling.
+
+- Time is the order one works in. Today divides the list: what stands next (large), what is planned (nearest first), what has no date, and what is over, year by year; the years are folded but the latest, and a folded year says how many workshops and days it held and for whom. A workshop that still runs today counts as coming. The sort by title, client or the day of a change is gone: time orders, the search finds.
+- The client is a second way to look at the same workshops, not a second place to keep ("By client", remembered per device): the clients as a list (who has a workshop coming first, then who was last worked for; or A to Z), beside it everything done for one of them, with a new workshop for that client and the copy at every line. A client's name in any line leads there too. The clients one worked for once stand together as "single jobs", so they do not fill the list.
+- A client is its name, however it was typed (capitals and spaces do not make a second one, `clientKey`), and the client's field suggests the names there are, so one client is typed the same way every time. There is no table of clients, nothing to keep up beside the workshops.
+- The search finds both: clients whose name holds what was typed, then workshops of all years by title, client, place or year, the archived ones too. No filters: finding goes by typing or by the client. A year to jump to and a column of filters were drawn and left out.
+- Archiving stays (it takes a workshop out of every view until asked for) but is needed less: what is over steps back by itself.
+- A line carries the workshop's actions (duplicate, archive, delete), so a copy of an old workshop no longer means opening it. Selecting several is a mode, as in the library.
+- The order is `src/domain/workshopsView.ts`, with "today" as an argument; the rules of the look are in [ui.md](ui.md). Three directions were drawn first (by time, a catalogue with filters, by client); this is the first with the third as its second view.
+
 **2026-11-19, the library ordered by category, an entry on a page of its own** (revises "the library opens as a list" and the entry opened inside it, of 2026-11-16)
 
 - The category orders the library: one section per category, then the entries without one, then the groups. While preparing, the question is which input, which exercise; the sections answer it before any filter is touched. The sort orders the entries inside a section.

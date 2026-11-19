@@ -46,4 +46,14 @@ export function formatDate(date: string, opts: Intl.DateTimeFormatOptions = { we
   return new Intl.DateTimeFormat(i18n.language, { ...opts, timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, d)))
 }
 
+/** A span of days in the current language, written once where both ends share it ("24.–25.11.2026"); one day where it is one. */
+export function formatDateRange(first: string, last: string | null, opts: Intl.DateTimeFormatOptions): string {
+  const at = (date: string) => {
+    const [y, m, d] = date.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d))
+  }
+  const format = new Intl.DateTimeFormat(i18n.language, { ...opts, timeZone: 'UTC' })
+  return !last || last === first ? format.format(at(first)) : format.formatRange(at(first), at(last))
+}
+
 export default i18n

@@ -11,6 +11,7 @@ import { api, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { Button, Checkbox, cx, Field, IconButton, Input, Modal, SectionLabel, Segmented } from '@/components/ui'
 import { sortedDays } from '@/domain/order'
+import { clientNames } from '@/domain/workshopsView'
 import { QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
 import { FileManager } from './FileManager'
@@ -20,6 +21,7 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
   const { t } = useTranslation()
   const w = data.workshop
   const set = (fields: Partial<WorkshopFields>) => change([{ op: 'set', entity: 'workshop', id: w.id, fields }])
+  const clients = useKnownClients()
   return (
     <div className="space-y-4">
       <div>
@@ -37,7 +39,8 @@ export function WorkshopPanel({ data, change, owner, onDayDate }: { data: Worksh
         </ul>
       </div>
       <Field label={t('workshop.client')}>
-        <TextField value={w.client} onCommit={(client) => set({ client })} />
+        <TextField value={w.client} onCommit={(client) => set({ client })} list={clients.length ? 'sp-known-clients' : undefined} />
+        <ClientSuggestions id="sp-known-clients" names={clients} />
       </Field>
       <Field label={t('workshop.location')}>
         <TextField value={w.location} onCommit={(location) => set({ location })} />
@@ -232,6 +235,29 @@ function AddMaterial({ data, change }: { data: WorkshopState; change: (ops: Op[]
   )
 }
 
+/**
+ * The clients of the workshops one sees, the most used first: a client's field suggests them, so one client is typed
+ * the same way every time (the list by client goes by the name, domain/workshopsView.ts).
+ */
+export function useKnownClients(): string[] {
+  const [names, setNames] = useState<string[]>([])
+  useEffect(() => {
+    api.listWorkshops().then((list) => setNames(clientNames(list)), () => undefined)
+  }, [])
+  return names
+}
+
+/** The suggestions of a client's field (its `list`). */
+export function ClientSuggestions({ id, names }: { id: string; names: string[] }) {
+  return (
+    <datalist id={id}>
+      {names.map((n) => (
+        <option key={n} value={n} />
+      ))}
+    </datalist>
+  )
+}
+
 /** All files of the workshop, those of its steps included: each is one file of the workshop, linked to any number of steps. */
 export function FilesPanel({ data, onAttachment, onRemove, owner }: { data: WorkshopState; onAttachment: (a: Attachment) => void; onRemove: (id: string) => void; owner: boolean }) {
   const { t } = useTranslation()
@@ -261,18 +287,27 @@ export function FilesPanel({ data, onAttachment, onRemove, owner }: { data: Work
   )
 }
 
-/** A copy of the workshop under a new title, its days moved to a new first date. */
-export function DuplicateDialog({ data, open, onClose }: { data: WorkshopState; open: boolean; onClose: () => void }) {
+/** What a copy is made from: enough of a workshop to ask for the copy's title and first day. */
+export interface DuplicateSource {
+  id: string
+  title: string
+  /** The first day (YYYY-MM-DD); empty where the workshop has none. */
+  firstDate: string
+  days: number
+}
+
+/** A copy of a workshop under a new title, its days moved to a new first date. Opened from the workshop and from the list. */
+export function DuplicateDialog({ source, open, onClose }: { source: DuplicateSource; open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [busy, setBusy] = useState(false)
-  const first = sortedDays(data.days)[0]?.date ?? ''
+  const first = source.firstDate
   // Each opening starts from the workshop as it is now.
   useEffect(() => {
     if (!open) return
-    setTitle(t('workshop.copyTitle', { title: data.workshop.title || t('workshops.untitled') }))
+    setTitle(t('workshop.copyTitle', { title: source.title || t('workshops.untitled') }))
     setDate(first)
   }, [open]) // only on opening: typing in the fields must not reset them
   return (
@@ -283,7 +318,7 @@ export function DuplicateDialog({ data, open, onClose }: { data: WorkshopState; 
           e.preventDefault()
           setBusy(true)
           try {
-            const copy = await api.duplicateWorkshop(data.workshop.id, { title: title.trim(), firstDate: date || undefined })
+            const copy = await api.duplicateWorkshop(source.id, { title: title.trim(), firstDate: date || undefined })
             onClose()
             navigate(`/w/${copy.workshop.id}`)
           } catch (err) {
@@ -298,7 +333,7 @@ export function DuplicateDialog({ data, open, onClose }: { data: WorkshopState; 
           <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
         {first && (
-          <Field label={t('workshops.firstDay')} hint={data.days.length > 1 ? t('workshop.daysFollow') : undefined}>
+          <Field label={t('workshops.firstDay')} hint={source.days > 1 ? t('workshop.daysFollow') : undefined}>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
         )}

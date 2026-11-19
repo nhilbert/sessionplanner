@@ -140,6 +140,35 @@ No strip of marks beside the agenda.
   navigation is the name, the pages and the settings.
 - What is needed rarely (the other workspaces, signing out, the legal pages) is in the menu of its place, not a row.
 
+## The workshops
+
+- **Time orders the page.** Today divides it: "Next" is the nearest coming workshop as a card of its own (its days as
+  a block, how far away it is as a chip in `accent-soft`), "Planned" the others, nearest first, then those without a
+  date, then "Past" by year. A year's head is a button in the title face that folds it; it says how many workshops
+  and days the year held and, folded, for whom. Only the latest year stands open. Inside a year a small line names
+  each month.
+- **One kind of line** everywhere (`WorkshopRow`, `src/workshops/parts.tsx`): the days in `brand-ink`, the title, the
+  client and place, the length, and for a coming workshop how far away it is. The whole line opens the workshop (the
+  title is the link, stretched over the line); the client's name and the actions lie above it. Inside a year the days
+  stand without the year, across years with it. On a narrow screen the days move under the title; the length shows
+  only where the list is wide enough.
+- **The client is a second view, chosen by a switch beside the search** ("By time", "By client"; remembered on the
+  device). The clients are a list of one kind of row: name, how many workshops and when next or last, and small bars
+  for the workshops per year; the chosen one is a fill in `accent-soft`. Beside it stands that client's history: name
+  in the title face, the facts, "New workshop for this client", then what is planned and the years. One slim line
+  above still says what stands next. Below `lg` the list and the history are two steps, with "Back".
+- **A client's name is a way to go**: in any line it opens that client's history (`?client=`), so the way back is the
+  browser's and finds the list where it was left. Not on a phone, where a second thing to press inside a line is
+  hit by mistake, and not in a history, where one is there already.
+- **The search finds clients first, then workshops.** A client found is a card that opens the history; the workshops
+  found are one list across the years, newest first, archived ones with their chip. Escape clears the search and the
+  view returns.
+- **A line's actions are its ⋯** (duplicate, archive, delete), shown when the pointer is on the line and always on
+  touch screens. In a client's history the copy stands beside it as a button of its own: copying an earlier workshop
+  is what one comes there for.
+- **Selecting is a mode**, as in the library; what stands next is then a line like the others, so it can be ticked.
+- The archive and the trash stay at the foot of the page, as buttons that say how much they hold.
+
 ## The library
 
 - **The category orders the page.** One section per category in the order of the settings, then the entries without

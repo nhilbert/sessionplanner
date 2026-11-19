@@ -227,28 +227,35 @@ export function Field({ label, hint, children, className }: { label: ReactNode; 
   )
 }
 
-/** Segmented control for small enumerations (priority, status, …). */
+/** Segmented control for small enumerations (priority, status, …). `full`: as wide as its place, the parts sharing it. */
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
   size = 'md',
+  full,
+  label,
 }: {
   value: T
   options: { value: T; label: ReactNode }[]
   onChange: (v: T) => void
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
+  full?: boolean
+  /** What is chosen here, for a screen reader. */
+  label?: string
 }) {
   return (
-    <div className="inline-flex rounded-full border border-line bg-paper p-0.5">
+    <div role={label ? 'group' : undefined} aria-label={label} className={cx('rounded-full border border-line bg-paper p-0.5', full ? 'flex' : 'inline-flex')}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
+          aria-pressed={o.value === value}
           onClick={() => onChange(o.value)}
           className={cx(
             'rounded-full px-3 font-semibold transition-colors',
-            size === 'sm' ? 'h-6 text-[12px] pointer-coarse:h-9' : 'h-7 text-[13px] pointer-coarse:h-9',
+            full && 'flex-1',
+            size === 'sm' ? 'h-6 text-[12px] pointer-coarse:h-9' : size === 'lg' ? 'h-[34px] px-4 text-[14px] pointer-coarse:h-10' : 'h-7 text-[13px] pointer-coarse:h-9',
             o.value === value ? 'bg-brand text-on-brand' : 'text-ink-2 hover:text-ink',
           )}
         >

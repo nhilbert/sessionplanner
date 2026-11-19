@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { historyViews } from './listViews'
 import type { TFunction } from 'i18next'
 import { api } from '@/api'
 import type { Category, ItemContent, LibraryBatch, LibraryEntry, LibraryEntryInput, TrashedLibraryEntry } from '@/domain/types'
@@ -118,21 +119,11 @@ export interface LibraryListView {
   opened: string | null
 }
 
-const listViews = new Map<string, LibraryListView>()
-const LIST_VIEWS = 30
-
 /**
- * The list's view per entry of the browser's history (`location.key`): the way back from an entry's page finds the
- * list as it was left, and a fresh visit of the library starts fresh. Kept while the app is open, for the last few.
+ * The list's view per entry of the browser's history (store/listViews.ts): the way back from an entry's page finds the
+ * list as it was left, and a fresh visit of the library starts fresh.
  */
-export const libraryListView = {
-  get: (key: string): LibraryListView | undefined => listViews.get(key),
-  set: (key: string, view: LibraryListView) => {
-    listViews.delete(key)
-    listViews.set(key, view)
-    if (listViews.size > LIST_VIEWS) listViews.delete(listViews.keys().next().value as string)
-  },
-}
+export const libraryListView = historyViews<LibraryListView>()
 
 let trashedElsewhere: string[] = []
 

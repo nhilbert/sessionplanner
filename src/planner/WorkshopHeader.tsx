@@ -41,6 +41,7 @@ import Menu, { type MenuItem } from '@/components/Menu'
 import { useDeckExport } from '@/slides/useDeckExport'
 import { TextField } from './fields'
 import { AccessPanel, deleteWorkshop, DuplicateDialog } from './panels'
+import { sortedDays } from '@/domain/order'
 import { PrintPackageDialog } from './PrintPackageDialog'
 
 /** The trigger of a labelled menu or button in the header: quiet, with its label where the header has room. */
@@ -146,7 +147,7 @@ export default function WorkshopHeader(p: Props) {
   )
   const dialogs: ReactNode = (
     <>
-      {p.owner && <DuplicateDialog data={p.data} open={duplicating} onClose={() => setDuplicating(false)} />}
+      {p.owner && <DuplicateDialog source={{ id: w.id, title: w.title, firstDate: sortedDays(p.data.days)[0]?.date ?? '', days: p.data.days.length }} open={duplicating} onClose={() => setDuplicating(false)} />}
       <PrintPackageDialog data={p.data} open={printing} change={p.change} onClose={() => setPrinting(false)} />
       {share && (
         <Modal open={sharing} onClose={() => setSharing(false)}>
