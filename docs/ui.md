@@ -36,7 +36,8 @@ Colour never stands alone: a category is a rail or dot plus its name, a conflict
 sentence.
 
 Inside the navigation the text tokens are remapped to the light ones (`.nav-surface`), so anything placed there, also
-by a build (`menu` in `src/start.tsx`), reads without knowing where it stands.
+by a build (`navigation` in `src/start.tsx`), reads without knowing where it stands. What floats out of it (a menu)
+hangs on the body and takes the page's colours.
 
 ## Type
 
@@ -94,11 +95,27 @@ No strip of marks beside the agenda.
   leaves a field first and then closes it, and the focus returns to what opened it. The page's shortcuts go on.
 - Dialogs and sheets are mounted on the body, so they take the page's colours wherever they were opened.
 
+## The navigation
+
+- **One order, top to bottom**, the same open, folded and in the phone's sheet: the name, where the person is, the
+  pages, what manages the place (a build's pages, the settings), who is signed in.
+- **One kind of row**: an icon and a label, 14 px, 36 px high, a pill; the open page stands as a cut-out in the
+  ground's colour. No rows without an icon and no second size of type.
+- The button that folds the navigation is an icon beside the name (below the logo when folded), not a row. Open, the
+  navigation is 232 px wide, so that the name and the button fit side by side; a longer name of a build is cut with an
+  ellipsis. Folded, it is 60 px.
+- **A build adds and moves nothing.** `navigation` (`src/start.tsx`, `components/AppShell.tsx`) has three places:
+  `place` under the name (a workspace and the way to the others), `pages` above the settings, `account` at the foot
+  (who is signed in). Each is drawn in the form of where it stands: `open`, `folded` or `sheet`. Without them the
+  navigation is the name, the pages and the settings.
+- What is needed rarely (the other workspaces, signing out, the legal pages) is in the menu of its place, not a row.
+
 ## The frame on narrow and wide screens
 
 - Days stand side by side only where the agenda's own room allows it (a container query, not the window's width:
   both sidebars may be open); otherwise they stand one below the other. "Add a day" stands with the day tabs and
   stays in the workshop's menu, where a single day has no tabs.
-- The phone's bottom bar has room for five entries. It holds the pages and the settings; where a build adds a menu
-  of its own (`menu` in `src/start.tsx`), the last entry is "More", a sheet with the settings and that menu.
+- The phone's bottom bar has room for five entries. It holds the pages and the settings; where a build adds to the
+  navigation, the last entry is "More", a sheet with the rest in the navigation's order: the place, the build's pages
+  and the settings, the account.
 - The print views and their toolbars are always light and carry the light values as fixed colours.

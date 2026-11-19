@@ -635,8 +635,8 @@
     "library": "Library",
     "pool": "Slide pool",
     "settings": "Settings",
-    "collapse": "Collapse",
-    "expand": "Expand",
+    "collapse": "Collapse navigation",
+    "expand": "Expand navigation",
     "slides": "Slide pool",
     "pictures": "Pictures"
   },

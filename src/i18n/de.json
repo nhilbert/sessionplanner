@@ -635,8 +635,8 @@
     "library": "Bibliothek",
     "pool": "Foliensammlung",
     "settings": "Einstellungen",
-    "collapse": "Einklappen",
-    "expand": "Ausklappen",
+    "collapse": "Navigation einklappen",
+    "expand": "Navigation ausklappen",
     "slides": "Folienpool",
     "pictures": "Bilder"
   },

@@ -302,7 +302,7 @@ The same app, not a reduced one; what differs follows the device, consistently:
 - Secondary choices come up as bottom sheets with labelled rows: the ⋯ menus, the kinds to insert (instead of the radial menu) and the time editor. A tap on the backdrop closes a sheet; for the time editor that saves, like a click elsewhere on desktop.
 - The planner header keeps back, title, undo and the sidebar; the rest (redo, descriptions, zoom, add day, print) sits in a ⋯ menu. The day heading uses the short date and drops the focus button (the day tabs do that).
 - Details opened from the agenda go back to the agenda; details opened from a sidebar tab go back to that tab.
-- The bottom bar holds the pages and the settings; a build with a menu of its own gets one "More" there instead, a sheet with the settings and that menu (docs/ui.md).
+- The bottom bar holds the pages and the settings; a build that adds to the navigation gets one "More" there instead, a sheet with the settings and the build's parts (docs/ui.md).
 - Touch targets: on coarse pointers icon buttons, segmented controls, colour dots and the resize grip are larger, and small controls get an invisible 6px slop (`.tap`), so nothing drops below about 40px without moving the layout. The resize grip blocks page scrolling while it is dragged.
 - Safe areas (notch, home indicator) on the shell, the full-screen sidebar, sheets and dialogs; overlays contain their scrolling. The offline state is shown as text next to the dot, on every size.
 

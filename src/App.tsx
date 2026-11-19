@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router'
-import AppShell from './components/AppShell'
+import AppShell, { type NavExtensions } from './components/AppShell'
 import WorkshopsPage from './pages/WorkshopsPage'
 import PlannerPage from './pages/PlannerPage'
 import PrintPage from './pages/PrintPage'
@@ -22,8 +22,8 @@ export interface Extensions {
   basePath?: string
   /** More pages inside the app's frame. */
   routes?: RouteObject[]
-  /** One place in the navigation for something of its own; `folded`: only icons fit. */
-  menu?: (options: { folded: boolean }) => ReactNode
+  /** Its parts of the navigation: where the person is, pages of its own, who is signed in (components/AppShell.tsx). */
+  navigation?: NavExtensions
   /** Leaves out a workshop's sharing by e-mail, for a build with its own way of inviting people. */
   workshopSharing?: false
   /** One place in a workshop's header for something of its own. */
@@ -46,10 +46,10 @@ function LibraryReaders({ children }: { children: ReactNode }) {
   return me.owner || me.library ? children : <Navigate to="/" replace />
 }
 
-const routes = ({ routes: extra = [], menu }: Extensions): RouteObject[] => [
+const routes = ({ routes: extra = [], navigation }: Extensions): RouteObject[] => [
   {
     path: '/',
-    element: <AppShell menu={menu} />,
+    element: <AppShell navigation={navigation} />,
     children: [
       ...extra,
       { index: true, element: <WorkshopsPage /> },
