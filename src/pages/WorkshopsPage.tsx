@@ -580,8 +580,11 @@ function ClientList({ view, chosen, order, onOrder, onOpen }: { view: ClientsVie
 function ClientHistory({ group, planned, undated, years, ctx, onNew, onBack }: { group: ClientGroup; planned: WorkshopSummary[]; undated: WorkshopSummary[]; years: YearSection[]; ctx: RowContext; onNew: (() => void) | null; onBack: (() => void) | null }) {
   const { t } = useTranslation()
   const head = useRef<HTMLDivElement>(null)
-  // Another client chosen while this one's history was scrolled: its head comes into view.
-  useEffect(() => head.current?.scrollIntoView({ block: 'nearest' }), [group.key])
+  // Another client chosen while this one's history was scrolled: its head comes into view. (In braces: scrolling
+  // answers with a promise in newer browsers, and an effect must give back nothing but a way to clean up.)
+  useEffect(() => {
+    head.current?.scrollIntoView({ block: 'nearest' })
+  }, [group.key])
   // The single jobs are of several clients, so their lines name them.
   const mixed = group.key === SINGLES
   const name = group.key === SINGLES ? t('workshops.singles') : group.key === NO_CLIENT ? t('workshops.noClient') : group.name
