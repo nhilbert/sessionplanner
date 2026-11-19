@@ -20,12 +20,16 @@ const kindsOf = (t: TFunction, allowGroup: boolean): { kind: InsertKind; icon: R
 ]
 
 /**
- * A ⊕ in the gutter left of the cards, at the gap between two entries (docs/concept.md, section 3). It never
- * starts a drag and sits outside the cards, so the lower-edge resize handle and dragging keep working; while
- * something is dragged or resized the planner hides all of them. On touch screens it stays faintly visible and
- * is larger; on phones the kinds come up as a labelled sheet instead of the radial menu.
+ * A ⊕ at the gap between two entries (docs/concept.md, section 3). It never starts a drag and sits on the cards'
+ * left edge, outside their rows, so the lower-edge resize handle and dragging keep working; while something is
+ * dragged or resized the planner hides all of them.
+ *
+ * With a pointer that hovers ("hover") it shows only beside the entry under the pointer. On touch screens the
+ * marks would have to stand there all the time and took a strip of the screen: there they stay away until inserting
+ * is switched on ("pick"), and then every gap is one wide target, as high as the lowest row so that two never overlap. On phones the kinds come up as a labelled sheet
+ * instead of the radial menu.
  */
-export function InsertPoint({ onInsert, allowGroup, position }: { onInsert: (kind: InsertKind) => void; allowGroup: boolean; position: 'top' | 'bottom' }) {
+export function InsertPoint({ onInsert, allowGroup, position, mode }: { onInsert: (kind: InsertKind) => void; allowGroup: boolean; position: 'top' | 'bottom'; mode: 'hover' | 'pick' }) {
   const { t } = useTranslation()
   const phone = useIsPhone()
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
@@ -33,30 +37,40 @@ export function InsertPoint({ onInsert, allowGroup, position }: { onInsert: (kin
     setMenu(null)
     onInsert(kind)
   }
+  const open = (e: { stopPropagation: () => void; currentTarget: Element }) => {
+    e.stopPropagation()
+    const r = (e.currentTarget.querySelector('[data-plus]') ?? e.currentTarget).getBoundingClientRect()
+    setMenu({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+  }
+  const plus = 'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink'
   return (
-    // Only the ⊕ takes the pointer; the rest lets clicks and the resize handle underneath work as before.
-    <div className={cx('pointer-events-none absolute -left-6 z-10 flex h-5 w-full items-center pointer-coarse:-left-7', position === 'top' ? '-top-2.5' : '-bottom-2')}>
-      <button
-        type="button"
-        aria-label={t('insert.here')}
-        title={t('insert.here')}
-        onPointerDown={stop}
-        onMouseDown={stop}
-        onTouchStart={stop}
-        onClick={(e) => {
-          e.stopPropagation()
-          const r = e.currentTarget.getBoundingClientRect()
-          setMenu({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
-        }}
-        className={cx(
-          'tap peer pointer-events-auto relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line-2 bg-surface text-ink-3 opacity-0 shadow-sm transition-opacity hover:border-accent hover:text-accent hover:opacity-100 group-hover/list:opacity-40 pointer-coarse:h-7 pointer-coarse:w-7 [@media(hover:none)]:opacity-50',
-          menu && 'opacity-100',
-        )}
-      >
-        <Plus size={12} strokeWidth={2.5} />
-      </button>
-      {/* the line shows where the new entry lands */}
-      <span className={cx('pointer-events-none ml-1 h-px flex-1 bg-accent/50 opacity-0 transition-opacity peer-hover:opacity-100', menu && 'opacity-100')} />
+    // Only the ⊕ (or, while picking, the gap) takes the pointer; the rest lets clicks and the resize handle underneath work.
+    <div className={cx('pointer-events-none absolute -left-[11px] right-0 z-10 flex items-center', mode === 'pick' ? 'h-8' : 'h-5', position === 'top' ? (mode === 'pick' ? '-top-4' : '-top-2.5') : mode === 'pick' ? '-bottom-4' : '-bottom-2.5')}>
+      {mode === 'pick' ? (
+        <button type="button" aria-label={t('insert.here')} onPointerDown={stop} onMouseDown={stop} onTouchStart={stop} onClick={open} className="pointer-events-auto flex h-full w-full items-center gap-1.5">
+          <span data-plus className={plus}>
+            <Plus size={13} strokeWidth={2.5} />
+          </span>
+          <span className="h-0.5 flex-1 rounded-full bg-accent" />
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            aria-label={t('insert.here')}
+            title={t('insert.here')}
+            onPointerDown={stop}
+            onMouseDown={stop}
+            onTouchStart={stop}
+            onClick={open}
+            className={cx(plus, 'tap peer pointer-events-auto relative opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 group-hover/entry:opacity-45', menu && 'opacity-100')}
+          >
+            <Plus size={13} strokeWidth={2.5} />
+          </button>
+          {/* the line shows where the new entry lands */}
+          <span className={cx('pointer-events-none ml-1 h-0.5 flex-1 rounded-full bg-accent opacity-0 transition-opacity peer-hover:opacity-100', menu && 'opacity-100')} />
+        </>
+      )}
       {menu && phone ? (
         <Sheet open onClose={() => setMenu(null)} label={t('insert.here')} title={t('insert.here')}>
           {kindsOf(t, allowGroup).map((k) => (
@@ -106,7 +120,7 @@ function Radial({ x, y, allowGroup, onPick, onClose }: { x: number; y: number; a
           onMouseLeave={() => setHover(null)}
           onClick={() => onPick(k.kind)}
           style={{ transform: `translate(${k.dx - 18}px, ${k.dy - 18}px)` }}
-          className="fade-in absolute flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-2 shadow-sm transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent"
+          className="fade-in absolute flex h-9 w-9 items-center justify-center rounded-full border border-line-2 bg-surface text-brand-ink shadow-sm transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-deep"
         >
           {k.icon}
         </button>

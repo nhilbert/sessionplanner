@@ -102,7 +102,7 @@ export function inline(text: string): ReactNode[] {
       const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part)
       if (link)
         return SAFE_LINK.test(link[2]) ? (
-          <a key={i} href={link[2]} target="_blank" rel="noreferrer noopener" className="text-accent underline underline-offset-2">
+          <a key={i} href={link[2]} target="_blank" rel="noreferrer noopener" className="text-accent-deep underline underline-offset-2">
             {link[1]}
           </a>
         ) : (

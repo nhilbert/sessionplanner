@@ -105,8 +105,8 @@ function Row({ item, schedule, data, color }: { item: Item; schedule: DaySchedul
       </li>
     )
   return (
-    <li className={cx('flex overflow-hidden rounded-lg border text-[14px]', item.kind === 'break' ? 'item-break' : 'cat-tint')} style={{ '--cat': color ? `var(--c-${color})` : undefined } as React.CSSProperties}>
-      {color && <span className="cat-bar w-[3px] shrink-0" />}
+    <li className={cx('flex overflow-hidden rounded-[14px] text-[14px]', item.kind === 'break' ? 'text-ink-2' : 'border border-line bg-surface')} style={{ '--cat': color ? `var(--c-${color})` : undefined } as React.CSSProperties}>
+      {item.kind !== 'break' && <span className="cat-rail my-2 ml-2.5" />}
       <div className="flex min-w-0 flex-1 gap-3 px-3 py-2">
         <span className="w-24 shrink-0 text-[13px] text-ink-2 tnum">
           {formatTime(slot.start)}–{formatTime(slot.end)}

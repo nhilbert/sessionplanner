@@ -54,34 +54,35 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
       title={collapsed ? label : undefined}
       className={({ isActive }) =>
         cx(
-          'flex items-center gap-2.5 rounded-lg py-[7px] text-[14px] transition-colors',
-          collapsed ? 'justify-center px-0' : 'px-2.5',
-          isActive || (to === '/' && /^\/(w\/|$)/.test(pathname)) ? 'bg-surface-2 text-ink' : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
+          'flex h-9 items-center gap-2.5 rounded-full text-[14px] transition-colors',
+          collapsed ? 'justify-center px-0' : 'px-3',
+          // The entry of the page that is open stands as a cut-out in the ground's colour.
+          isActive || (to === '/' && /^\/(w\/|$)/.test(pathname)) ? 'bg-paper font-semibold text-brand-ink' : 'font-medium text-on-brand-2 hover:bg-on-brand/10 hover:text-on-brand',
         )
       }
     >
-      <Icon size={16} strokeWidth={1.75} className="shrink-0 text-ink-3" />
+      <Icon size={16} strokeWidth={1.75} className="shrink-0" />
       {!collapsed && label}
     </NavLink>
   )
 
   return (
     <div className="flex h-dvh">
-      <aside className={cx('no-print sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line py-7 md:flex', collapsed ? 'w-[60px] px-2' : 'w-[216px] px-4')}>
+      <aside className={cx('nav-surface no-print sticky top-0 hidden h-dvh shrink-0 flex-col bg-brand py-6 md:flex', collapsed ? 'w-[60px] px-2' : 'w-[216px] px-3')}>
         <div className={cx('mb-8 flex items-center gap-2', collapsed ? 'justify-center' : 'px-2')}>
-          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-5 w-5 shrink-0" />
-          {!collapsed && <span className="text-[15px] font-medium tracking-[-0.01em]">{productName()}</span>}
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-7 w-7 shrink-0" />
+          {!collapsed && <span className="title text-[19px] text-on-brand">{productName()}</span>}
         </div>
-        <nav className="flex flex-col gap-0.5">{nav.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>
+        <nav className="flex flex-col gap-1">{nav.map((n) => link(n.to, t(n.key), n.icon, n.end))}</nav>
         {wide && menu?.({ folded: collapsed })}
-        <div className="mt-auto flex flex-col gap-0.5">
-          {!me.owner && me.email && !collapsed && <p className="mb-2 truncate px-2.5 text-[12px] text-ink-3" title={me.email}>{t('guest.signedInAs', { email: me.email })}</p>}
+        <div className="mt-auto flex flex-col gap-1">
+          {!me.owner && me.email && !collapsed && <p className="mb-2 truncate px-3 text-[12px] text-on-brand-2" title={me.email}>{t('guest.signedInAs', { email: me.email })}</p>}
           {link('/settings', t('nav.settings'), Settings, true)}
           <button
             type="button"
             onClick={() => setFolded(collapsed ? 'open' : 'folded')}
             title={collapsed ? t('nav.expand') : t('nav.collapse')}
-            className={cx('flex items-center gap-2.5 rounded-lg py-[7px] text-[13px] text-ink-3 hover:bg-surface-2 hover:text-ink', collapsed ? 'justify-center' : 'px-2.5')}
+            className={cx('flex h-9 items-center gap-2.5 rounded-full text-[13px] text-on-brand-2 hover:bg-on-brand/10 hover:text-on-brand', collapsed ? 'justify-center' : 'px-3')}
           >
             {collapsed ? <PanelLeftOpen size={16} strokeWidth={1.75} /> : <PanelLeftClose size={16} strokeWidth={1.75} />}
             {!collapsed && t('nav.collapse')}
@@ -101,7 +102,7 @@ export default function AppShell({ menu }: { menu?: (options: { folded: boolean 
       </div>
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {[...nav, { to: '/settings', key: 'nav.settings', icon: Settings, end: true } as const].map(({ to, key, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => cx('flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]', isActive ? 'text-ink' : 'text-ink-3')}>
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => cx('flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]', isActive ? 'font-bold text-accent-deep' : 'font-medium text-ink-2')}>
             <Icon size={18} strokeWidth={1.75} />
             {t(key)}
           </NavLink>

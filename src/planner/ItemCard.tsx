@@ -2,7 +2,7 @@ import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, type Synthe
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { Flag, NotebookPen, Package, Paperclip, Pin, Presentation, StickyNote } from 'lucide-react'
+import { Coffee, Flag, NotebookPen, Package, Paperclip, Pin, Presentation, StickyNote } from 'lucide-react'
 import type { Item, PaletteKey } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime, MAX_DURATION, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
@@ -10,6 +10,20 @@ import { cx } from '@/components/ui'
 import type { TimeMode } from './TimeEditor'
 
 export const MIN_CARD = 40
+/** A break is a quiet row between two cards and may be lower than a unit. */
+const MIN_BREAK = 32
+
+/**
+ * Where an entry stands in a card. A card is the stretch between two breaks and only a surface: every entry draws
+ * its own part of it (and the first one the card's head), so the parts move with their entries while one is dragged.
+ */
+export interface RunPart {
+  first: boolean
+  last: boolean
+  head?: React.ReactNode
+}
+
+export const runClass = (run?: RunPart): string => (run ? cx('run px-[7px]', run.first && 'run-first mt-1', run.last && 'run-last mb-1 pb-1.5') : '')
 
 export interface CardProps {
   item: Item
@@ -34,6 +48,10 @@ export interface CardProps {
   onResizeEnd?: (minutes: number) => void
   /** The slide count on the card opens the slide editor on the step. */
   onOpenSlides?: () => void
+  /** The entry's part of a card on the timeline; undefined outside one (breaks, the parking lot, inside a group). */
+  run?: RunPart
+  /** The category's name: the word that goes with the colour of the rail. */
+  category?: string
 }
 
 export function SortableItem({ after, ...props }: CardProps & { after?: React.ReactNode }) {
@@ -44,7 +62,7 @@ export function SortableItem({ after, ...props }: CardProps & { after?: React.Re
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={cx('relative touch-manipulation select-none [-webkit-touch-callout:none]', isDragging && 'opacity-30')}
+      className={cx('group/entry relative touch-manipulation select-none [-webkit-touch-callout:none]', isDragging && 'opacity-30')}
     >
       <ItemCard {...props} />
       {after}
@@ -159,16 +177,17 @@ function TimeButton({ label, onOpen, className, children }: { label: string; onO
   )
 }
 
-export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd, onOpenSlides }: CardProps) {
+export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd, onOpenSlides, run, category }: CardProps) {
   const { t } = useTranslation()
   const minutes = duration ?? durationOf(item)
   const timed = slot !== undefined
   const late = slot?.late && segmentEnd !== undefined && segmentEnd !== null
-  const ring = selected ? 'ring-2 ring-accent/60' : ''
+  // Selection is a fill in the action's light tone, as everywhere in the app.
+  const tone = selected ? 'bg-accent-soft' : 'hover:bg-surface-2'
   const style = { '--cat': color ? `var(--c-${color})` : undefined } as React.CSSProperties
   const select = (e: React.MouseEvent) => onSelect?.(e)
   const title = (className?: string) => (
-    <Inline value={item.title} display={item.title || t(`kinds.${item.kind}`)} label={t('item.title')} disabled={!inlineTitle} onSave={onEdit && ((v) => onEdit({ title: v as string }))} className={className} inputClassName="w-full font-medium" />
+    <Inline value={item.title} display={item.title || t(`kinds.${item.kind}`)} label={t('item.title')} disabled={!inlineTitle} onSave={onEdit && ((v) => onEdit({ title: v as string }))} className={className} inputClassName="w-full font-semibold" />
   )
   const startLabel = timed && (
     <span className="inline-flex items-center gap-0.5">
@@ -180,15 +199,15 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
   const start =
     timed &&
     (onOpenTime ? (
-      <TimeButton label={t('item.fixedStart')} onOpen={(r) => onOpenTime('start', r)} className="tnum shrink-0 text-ink-2">
+      <TimeButton label={t('item.fixedStart')} onOpen={(r) => onOpenTime('start', r)} className="tnum shrink-0">
         {startLabel}
       </TimeButton>
     ) : (
-      <span className="tnum shrink-0 text-ink-2">{startLabel}</span>
+      <span className="tnum shrink-0">{startLabel}</span>
     ))
 
   const notices = slot && (slot.gap > 0 || slot.overlap > 0) && (
-    <div className={cx('mb-1 flex items-center gap-1 px-1 text-[11px] tnum', slot.overlap > 0 ? 'text-rose' : 'text-ink-3')}>
+    <div className={cx('my-1 flex items-center gap-1.5 px-3 text-[12px] tnum', slot.overlap > 0 ? 'font-semibold text-rose' : 'text-ink-3')}>
       <span className="h-px flex-1 bg-current opacity-40" />
       {slot.overlap > 0 ? t('planner.overlap', { d: formatDuration(slot.overlap) }) : t('planner.gap', { d: formatDuration(slot.gap) })}
       <span className="h-px flex-1 bg-current opacity-40" />
@@ -197,109 +216,125 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
 
   if (item.kind === 'marker')
     return (
-      <div className="pb-1" style={style}>
+      <div style={style} className={cx(!ppm && 'pb-1')}>
         {notices}
-        <div onClick={select} className={cx('flex h-7 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] hover:bg-surface-2', ring)}>
-          {start && <span className="w-12 shrink-0">{start}</span>}
-          <Flag size={13} className="shrink-0" style={{ color: color ? `var(--c-${color})` : 'var(--accent)' }} />
-          {title('min-w-0 truncate font-medium')}
-          <span className="h-px min-w-4 flex-1 bg-line-2" />
+        <div className={runClass(run)}>
+          {run?.head}
+          <div data-row onClick={select} className={cx('flex h-8 cursor-pointer items-center gap-2.5 rounded-[10px] px-3 text-[14px] text-brand-ink transition-colors', tone)}>
+            <span className="w-[6px] shrink-0" />
+            {start && <span className="w-[46px] shrink-0 font-bold">{start}</span>}
+            <Flag size={14} className="shrink-0" style={{ color: color ? `var(--c-${color})` : undefined }} />
+            {title('min-w-0 truncate font-bold')}
+          </div>
         </div>
       </div>
     )
 
   if (item.kind === 'note')
     return (
-      <div className="pb-1" style={style}>
+      <div style={style} className={cx(!ppm && 'pb-1')}>
         {notices}
-        <div onClick={select} className={cx('flex cursor-pointer gap-2 rounded-md bg-amber-soft/60 px-2 py-1.5 text-[13px] hover:bg-amber-soft', ring)}>
-          <StickyNote size={13} className="mt-0.5 shrink-0 text-amber" />
-          <div className="min-w-0 flex-1">
-            <div className="italic">{title('line-clamp-2')}</div>
-            {showDescription && item.description && <div className="line-clamp-3 text-ink-2">{item.description}</div>}
+        <div className={runClass(run)}>
+          {run?.head}
+          <div data-row onClick={select} className={cx('my-0.5 flex cursor-pointer gap-2 rounded-[10px] px-3 py-1.5 text-[13px] transition-colors', selected ? 'bg-accent-soft' : 'bg-amber-soft/70 hover:bg-amber-soft')}>
+            <StickyNote size={13} className="mt-0.5 shrink-0 text-amber" />
+            <div className="min-w-0 flex-1">
+              <div className="italic">{title('line-clamp-2')}</div>
+              {showDescription && item.description && <div className="line-clamp-3 text-ink-2">{item.description}</div>}
+            </div>
           </div>
         </div>
       </div>
     )
 
-  const height = ppm ? Math.max(MIN_CARD, minutes * ppm) : undefined
+  const pause = item.kind === 'break'
+  const height = ppm ? Math.max(pause ? MIN_BREAK : MIN_CARD, minutes * ppm) : undefined
   const roomy = !height || height >= 60
+  // Off the timeline (parking lot, the card under the pointer while dragging) an entry is a small card of its own.
+  const alone = !ppm
   return (
-    <div className="pb-1" style={style}>
+    <div style={style} className={cx(alone && 'pb-1')}>
       {notices}
-      <div
-        onClick={select}
-        style={{ height }}
-        className={cx(
-          'relative flex cursor-pointer overflow-hidden rounded-lg border text-[13px] transition-shadow hover:shadow-[var(--shadow)]',
-          item.kind === 'break' ? 'item-break' : 'cat-tint',
-          late && 'item-late',
-          ring,
-        )}
-      >
-        {color && <span className="cat-bar w-[3px] shrink-0" />}
-        <div className="min-w-0 flex-1 px-2.5 py-1.5">
-          <div className="flex items-baseline gap-2">
-            {start && <span className="shrink-0 text-[12px]">{start}</span>}
-            <span className={cx('min-w-0 flex-1 truncate font-medium', item.kind === 'break' && 'text-ink-2')}>{title()}</span>
-            {onOpenTime ? (
-              <TimeButton label={t('item.duration')} onOpen={(r) => onOpenTime('duration', r)} className="tnum shrink-0 text-[11px] text-ink-3">
-                {formatDuration(minutes)}
-              </TimeButton>
-            ) : (
-              <Inline
-                value={String(minutes)}
-                display={formatDuration(minutes)}
-                parse={parseDuration}
-                label={t('item.duration')}
-                onSave={onEdit && ((v) => onEdit({ duration: v as number }))}
-                className="tnum shrink-0 text-[11px] text-ink-3"
-                inputClassName="tnum w-12 text-right text-[12px]"
-              />
-            )}
-          </div>
-          {roomy && showDescription && item.description && <div className="mt-0.5 line-clamp-3 whitespace-pre-line text-[12px] leading-snug text-ink-2">{item.description}</div>}
-          {roomy && (
-            <div className="mt-1 flex items-center gap-2 text-ink-3">
-              {item.notes && <NotebookPen size={11} />}
-              {item.materials.length > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-[11px]">
-                  <Package size={11} />
-                  {item.materials.length}
-                </span>
-              )}
-              {item.attachmentIds.length > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-[11px]">
-                  <Paperclip size={11} />
-                  {item.attachmentIds.length}
-                </span>
-              )}
-              {item.slides.length > 0 &&
-                (onOpenSlides ? (
-                  <button
-                    type="button"
-                    // Pointer and click stay here (no drag, no details); of the keys only Enter and Space, which would start a
-                    // keyboard drag of the card – Ctrl+Z and the other shortcuts reach the planner.
-                    onPointerDown={shield.onPointerDown}
-                    onMouseDown={shield.onMouseDown}
-                    onTouchStart={shield.onTouchStart}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && e.stopPropagation()}
-                    onClick={(e) => (e.stopPropagation(), onOpenSlides())} className="tap -mx-1 inline-flex items-center gap-0.5 rounded px-1 text-[11px] hover:bg-surface-2 hover:text-ink" title={t('slides.openSlides')} aria-label={`${t('slides.openSlides')}: ${item.slides.length}`}>
-                    <Presentation size={11} />
-                    {item.slides.length}
-                  </button>
-                ) : (
-                  <span className="inline-flex items-center gap-0.5 text-[11px]">
-                    <Presentation size={11} />
-                    {item.slides.length}
-                  </span>
-                ))}
-              {item.lead && <span className="truncate text-[11px]">{item.lead}</span>}
-            </div>
+      <div className={runClass(run)}>
+        {run?.head}
+        <div
+          data-row
+          onClick={select}
+          style={{ height }}
+          className={cx(
+            'relative flex cursor-pointer gap-2.5 overflow-hidden rounded-[10px] px-3 py-1 text-[14px] transition-colors',
+            alone && (pause ? 'border border-dashed border-line-2' : 'border border-line'),
+            selected ? 'bg-accent-soft' : alone && !pause ? 'bg-surface hover:bg-surface-2' : 'hover:bg-surface-2',
+            pause && 'text-ink-2',
+            late && 'item-late',
           )}
-          {late && <div className="mt-0.5 truncate text-[11px] text-rose">{t('planner.late', { time: formatTime(segmentEnd!) })}</div>}
+        >
+          {pause ? <span className="w-[6px] shrink-0" /> : <span className="cat-rail" />}
+          <div className="min-w-0 flex-1 py-0.5">
+            <div className="flex items-baseline gap-2.5">
+              {start && <span className={cx('w-[46px] shrink-0', pause ? 'font-semibold' : 'font-bold text-brand-ink')}>{start}</span>}
+              {pause && <Coffee size={14} className="shrink-0 self-center" />}
+              <span className={cx('min-w-0 flex-1 truncate', !pause && 'font-semibold')}>{title()}</span>
+              {category && <span className="shrink-0 text-[12px] font-semibold text-ink-2 max-md:hidden">{category}</span>}
+              {onOpenTime ? (
+                <TimeButton label={t('item.duration')} onOpen={(r) => onOpenTime('duration', r)} className="tnum shrink-0 text-[13px] text-ink-2">
+                  {formatDuration(minutes)}
+                </TimeButton>
+              ) : (
+                <Inline
+                  value={String(minutes)}
+                  display={formatDuration(minutes)}
+                  parse={parseDuration}
+                  label={t('item.duration')}
+                  onSave={onEdit && ((v) => onEdit({ duration: v as number }))}
+                  className="tnum shrink-0 text-[13px] text-ink-2"
+                  inputClassName="tnum w-12 text-right text-[12px]"
+                />
+              )}
+            </div>
+            {roomy && showDescription && item.description && <div className={cx('mt-0.5 line-clamp-3 whitespace-pre-line text-[13px] leading-snug text-ink-2', start && 'pl-[56px]')}>{item.description}</div>}
+            {roomy && (
+              <div className={cx('mt-1 flex items-center gap-2 text-ink-3', start && 'pl-[56px]')}>
+                {item.notes && <NotebookPen size={12} />}
+                {item.materials.length > 0 && (
+                  <span className="inline-flex items-center gap-0.5 text-[12px]">
+                    <Package size={12} />
+                    {item.materials.length}
+                  </span>
+                )}
+                {item.attachmentIds.length > 0 && (
+                  <span className="inline-flex items-center gap-0.5 text-[12px]">
+                    <Paperclip size={12} />
+                    {item.attachmentIds.length}
+                  </span>
+                )}
+                {item.slides.length > 0 &&
+                  (onOpenSlides ? (
+                    <button
+                      type="button"
+                      // Pointer and click stay here (no drag, no details); of the keys only Enter and Space, which would start a
+                      // keyboard drag of the card – Ctrl+Z and the other shortcuts reach the planner.
+                      onPointerDown={shield.onPointerDown}
+                      onMouseDown={shield.onMouseDown}
+                      onTouchStart={shield.onTouchStart}
+                      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && e.stopPropagation()}
+                      onClick={(e) => (e.stopPropagation(), onOpenSlides())} className="tap -mx-1 inline-flex items-center gap-0.5 rounded px-1 text-[12px] hover:bg-surface-2 hover:text-ink" title={t('slides.openSlides')} aria-label={`${t('slides.openSlides')}: ${item.slides.length}`}>
+                      <Presentation size={12} />
+                      {item.slides.length}
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 text-[12px]">
+                      <Presentation size={12} />
+                      {item.slides.length}
+                    </span>
+                  ))}
+                {item.lead && <span className="truncate text-[12px]">{item.lead}</span>}
+              </div>
+            )}
+            {late && <div className={cx('mt-0.5 truncate text-[12px] font-semibold text-rose', start && 'pl-[56px]')}>{t('planner.late', { time: formatTime(segmentEnd!) })}</div>}
+          </div>
+          {onResize && onResizeEnd && ppm && <ResizeHandle minutes={durationOf(item)} ppm={ppm} onResize={onResize} onResizeEnd={onResizeEnd} />}
         </div>
-        {onResize && onResizeEnd && ppm && <ResizeHandle minutes={durationOf(item)} ppm={ppm} onResize={onResize} onResizeEnd={onResizeEnd} />}
       </div>
     </div>
   )

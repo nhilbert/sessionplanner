@@ -284,7 +284,7 @@ function BulkEdit({ entries, known, onClose, onApply }: { entries: LibraryEntry[
                   onClick={() => cycle(c.tag, partial)}
                   className={cx(
                     'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] pointer-coarse:h-9',
-                    state === 'all' && 'border-accent bg-accent-soft text-accent',
+                    state === 'all' && 'border-accent bg-accent-soft text-accent-deep',
                     state === 'none' && 'border-line text-ink-3 line-through',
                     state === 'keep' && 'border-line bg-surface-2 text-ink-2',
                   )}
@@ -299,7 +299,7 @@ function BulkEdit({ entries, known, onClose, onApply }: { entries: LibraryEntry[
               )
             })}
             {added.map((tag) => (
-              <button key={tag} type="button" title={t('tags.remove', { tag })} onClick={() => setAdded(added.filter((x) => x !== tag))} className="inline-flex h-7 items-center gap-1 rounded-full border border-accent bg-accent-soft px-2.5 text-[13px] text-accent pointer-coarse:h-9">
+              <button key={tag} type="button" title={t('tags.remove', { tag })} onClick={() => setAdded(added.filter((x) => x !== tag))} className="inline-flex h-7 items-center gap-1 rounded-full border border-accent bg-accent-soft px-2.5 text-[13px] text-accent-deep pointer-coarse:h-9">
                 + {tag}
               </button>
             ))}

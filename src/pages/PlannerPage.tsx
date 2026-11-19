@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { FolderOpen, X } from 'lucide-react'
+import { FolderOpen, Plus, X } from 'lucide-react'
 import { productName } from '@/features'
 import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
@@ -15,7 +15,7 @@ import { newId, type Op } from '@/domain/ops'
 import { contentOf, fromLibrary } from '@/domain/copy'
 import type { Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
 import { formatDate } from '@/i18n'
-import { Button, cx, IconButton, isTyping, useIsPhone, useLocalState } from '@/components/ui'
+import { Button, cx, IconButton, isTyping, useIsPhone, useLocalState, useMediaQuery } from '@/components/ui'
 import { overlayOpen } from '@/components/overlay'
 import { BoardContext, type BoardCtx, DayColumn } from '@/planner/DayColumn'
 import { ItemCard } from '@/planner/ItemCard'
@@ -56,6 +56,9 @@ export default function PlannerPage() {
   const [notice, setNotice] = useState('')
   // Several days: one can be opened on its own, full width.
   const [focusDay, setFocusDay] = useState<string | null>(null)
+  // Touch screens: the ⊕ marks between the entries show only while inserting is switched on (one button for all of them).
+  const touch = useMediaQuery('(hover: none)')
+  const [inserting, setInserting] = useState(false)
   const ppm = ZOOM[zoom] ?? ZOOM.m
   const collapsed = useMemo(() => new Set<string>(safeParse(collapsedRaw)), [collapsedRaw])
 
@@ -332,7 +335,7 @@ export default function PlannerPage() {
     return (
       <Centered>
         <p>{t('common.missing')}</p>
-        <Link to="/" className="mt-4 inline-block text-accent hover:underline">
+        <Link to="/" className="mt-4 inline-block text-accent-deep hover:underline">
           {t('common.back')}
         </Link>
       </Centered>
@@ -374,8 +377,13 @@ export default function PlannerPage() {
     onEditItem: (itemId, fields) => change([{ op: 'set', entity: 'item', id: itemId, fields }]),
     onResize: (itemId, minutes) => setPreview(minutes === null ? null : { id: itemId, fields: { duration: minutes } }),
     onOpenTime: (itemId, mode, anchor) => setTimeEdit({ id: itemId, mode, anchor }),
-    onInsert: insertAt,
+    onInsert: (list, index, kind) => {
+      setInserting(false)
+      insertAt(list, index, kind)
+    },
     busy: !!board.activeId || !!preview,
+    touch,
+    inserting: touch && inserting,
     onResizeEnd: (itemId, duration) => change([{ op: 'set', entity: 'item', id: itemId, fields: { duration } }]),
     onToggleGroup: (gid) => setCollapsedRaw(JSON.stringify(collapsed.has(gid) ? [...collapsed].filter((x) => x !== gid) : [...collapsed, gid])),
     onRenameGroup: (gid, title) => change([{ op: 'set', entity: 'group', id: gid, fields: { title } }]),
@@ -411,7 +419,7 @@ export default function PlannerPage() {
     <BoardContext.Provider value={ctx}>
       <DndContext sensors={sensors} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
         <div className="flex h-full min-h-0">
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-w-0 flex-1 flex-col">
             <WorkshopHeader
               data={data}
               owner={owner}
@@ -468,7 +476,9 @@ export default function PlannerPage() {
               </div>
             )}
 
-            <main className="min-h-0 flex-1 overflow-auto">
+            {touch && inserting && <p className="no-print bg-accent-soft px-4 py-2 text-[13px] font-semibold md:px-6">{t('insert.where')}</p>}
+
+            <main className={cx('min-h-0 flex-1 overflow-auto', touch && inserting && 'inserting')}>
               <div className={cx('flex min-h-full flex-col gap-8 p-4 md:flex-row md:items-start md:gap-6 md:p-8', shownDays.length === 1 && 'md:justify-center')}>
                 {shownDays.map((d) => (
                   <DayColumn
@@ -487,8 +497,23 @@ export default function PlannerPage() {
                   />
                 ))}
               </div>
-              <p className="no-print px-8 pb-6 text-center text-[12px] text-ink-3">{phone ? t('planner.touchKeys') : t('planner.keys')}</p>
+              <p className="no-print px-8 pb-24 text-center text-[12px] text-ink-3 md:pb-6">{phone ? t('planner.touchKeys') : t('planner.keys')}</p>
             </main>
+
+            {touch && (
+              // One button for inserting instead of a mark at every gap: it shows the gaps, a tap on one asks for the kind.
+              <button
+                type="button"
+                data-insert-toggle
+                aria-pressed={inserting}
+                aria-label={inserting ? t('insert.done') : t('insert.toggle')}
+                title={inserting ? t('insert.done') : t('insert.toggle')}
+                onClick={() => setInserting((on) => !on)}
+                className="no-print absolute bottom-4 right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-ink ring-4 ring-paper"
+              >
+                <Plus size={24} className={cx('transition-transform', inserting && 'rotate-45')} />
+              </button>
+            )}
           </div>
 
           <Toolbox

@@ -23,7 +23,7 @@ Plan workshop agendas by moving the steps around until the time works. A compani
 - **Export as ZIP** (owner): a workshop with its record, files and slide pictures from its details; in the settings all data as JSON (workshops, library, slide pool, themes, templates, settings) and, separately, all media (files, pictures, theme files, logos) with an index `media.json` that ties each file to the ids in the data; workshops and library entries in the trash are in both, apart and marked. A way out, not a backup to restore: there is no import yet.
 - **AI agents** (Claude, Claude Code …) work with the same data through the built-in MCP server: draft an agenda from a brief, rework timings, fill the packing list, write and edit slides – see [docs/mcp.md](docs/mcp.md).
 
-The concept, decisions and the next stages (planning comfort, sharing by link, live mode) are in [docs/concept.md](docs/concept.md).
+The concept, decisions and the next stages (planning comfort, sharing by link, live mode) are in [docs/concept.md](docs/concept.md); how the app's own screens look, and the rules behind it, in [docs/ui.md](docs/ui.md).
 
 ## Run it
 

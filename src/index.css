@@ -1,29 +1,37 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/bricolage-grotesque/wdth.css";
 
 /* ---------------------------------------------------------------------------
-   Design tokens. One warm neutral base, one accent (sage) reserved for the
-   "next action" and selection, two semantic colours (amber: due today / needs
-   attention, rose: overdue). Everything else is hierarchy via greys & spacing.
+   Design tokens. The frame carries the brand: fir (brand) for the navigation, titles
+   and times, fox orange (accent) for the one main action and for selection, on a
+   cream ground. Inside an agenda colour belongs to the categories (--c-*). Two
+   semantic colours: amber needs attention, rose (berry) is a conflict.
    --------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
-  --paper: #faf9f6;
+  --paper: #fff8ee;
   --surface: #ffffff;
-  --surface-2: #f3f1ec;
-  --surface-3: #e9e6df;
-  --ink: #23221f;
-  --ink-2: #6b6963;
-  --ink-3: #a3a09a;
-  --line: #e9e7e1;
-  --line-2: #d8d5cd;
-  --accent: #4f6f5f;
+  --surface-2: #f6ecdd;
+  --surface-3: #eadfce;
+  --ink: #1e1b18;
+  --ink-2: #6b6358;
+  --ink-3: #7a7165;
+  --line: #eadfce;
+  --line-2: #dccdb6;
+  --accent: #c94a0c;
   --accent-ink: #ffffff;
-  --accent-soft: #e6eee9;
-  --amber: #b07a2a;
-  --amber-soft: #f7eedd;
-  --rose: #a9513f;
-  --rose-soft: #f6e4df;
+  --accent-soft: #fce6d2;
+  --accent-deep: #a4441a;
+  --brand: #12382f;
+  --brand-ink: #12382f;
+  --on-brand: #fff8ee;
+  --on-brand-2: #d9e5df;
+  --amber: #8f5f14;
+  --amber-soft: #f9ecd2;
+  --rose: #7c2d54;
+  --rose-soft: #f5e6ec;
   --c-sage: #5f8a74;
   --c-clay: #b5684a;
   --c-slate: #5b7a99;
@@ -41,22 +49,27 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-appearance="light"]) {
     color-scheme: dark;
-    --paper: #171716;
-    --surface: #1e1e1c;
-    --surface-2: #262624;
-    --surface-3: #2f2f2c;
-    --ink: #eae8e2;
-    --ink-2: #a5a29b;
-    --ink-3: #6f6d67;
-    --line: #2c2c29;
-    --line-2: #3b3a36;
-    --accent: #8db49f;
-    --accent-ink: #171716;
-    --accent-soft: #233029;
+    --paper: #161412;
+    --surface: #211e1a;
+    --surface-2: #2b2722;
+    --surface-3: #38332c;
+    --ink: #f1eadf;
+    --ink-2: #aaa295;
+    --ink-3: #8d8578;
+    --line: #3a352d;
+    --line-2: #4d463b;
+    --accent: #c94a0c;
+    --accent-ink: #ffffff;
+    --accent-soft: #4a2c1a;
+    --accent-deep: #f08a4b;
+    --brand: #1b4539;
+    --brand-ink: #9cc7b4;
+    --on-brand: #fff8ee;
+    --on-brand-2: #d9e5df;
     --amber: #d3a05a;
     --amber-soft: #332a1c;
-    --rose: #d0756a;
-    --rose-soft: #35221f;
+    --rose: #e8a3bf;
+    --rose-soft: #3a1f2b;
     --c-sage: #86b09a;
     --c-clay: #d0876a;
     --c-slate: #86a4c2;
@@ -72,22 +85,27 @@
 
 :root[data-appearance="dark"] {
   color-scheme: dark;
-  --paper: #171716;
-  --surface: #1e1e1c;
-  --surface-2: #262624;
-  --surface-3: #2f2f2c;
-  --ink: #eae8e2;
-  --ink-2: #a5a29b;
-  --ink-3: #6f6d67;
-  --line: #2c2c29;
-  --line-2: #3b3a36;
-  --accent: #8db49f;
-  --accent-ink: #171716;
-  --accent-soft: #233029;
+  --paper: #161412;
+  --surface: #211e1a;
+  --surface-2: #2b2722;
+  --surface-3: #38332c;
+  --ink: #f1eadf;
+  --ink-2: #aaa295;
+  --ink-3: #8d8578;
+  --line: #3a352d;
+  --line-2: #4d463b;
+  --accent: #c94a0c;
+  --accent-ink: #ffffff;
+  --accent-soft: #4a2c1a;
+  --accent-deep: #f08a4b;
+  --brand: #1b4539;
+  --brand-ink: #9cc7b4;
+  --on-brand: #fff8ee;
+  --on-brand-2: #d9e5df;
   --amber: #d3a05a;
   --amber-soft: #332a1c;
-  --rose: #d0756a;
-  --rose-soft: #35221f;
+  --rose: #e8a3bf;
+  --rose-soft: #3a1f2b;
   --c-sage: #86b09a;
   --c-clay: #d0876a;
   --c-slate: #86a4c2;
@@ -101,7 +119,8 @@
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Figtree Variable", "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-title: "Bricolage Grotesque Variable", "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
   --color-paper: var(--paper);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -114,6 +133,11 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-deep: var(--accent-deep);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-on-brand: var(--on-brand);
+  --color-on-brand-2: var(--on-brand-2);
   --color-amber: var(--amber);
   --color-amber-soft: var(--amber-soft);
   --color-rose: var(--rose);
@@ -131,7 +155,6 @@
     color: var(--ink);
     font-size: 15px;
     line-height: 1.5;
-    font-feature-settings: "cv11", "ss03", "calt";
   }
   ::selection {
     background: var(--accent-soft);
@@ -176,11 +199,36 @@
     border: 1px solid var(--line);
     border-radius: 14px;
   }
+  /* The navigation stands on the brand colour: inside it the text tokens are the light ones, so whatever a build
+     puts there (src/start.tsx, `menu`) reads without knowing where it stands. */
+  .nav-surface {
+    --ink: var(--on-brand);
+    --ink-2: var(--on-brand-2);
+    --ink-3: var(--on-brand-2);
+    --surface-2: color-mix(in oklab, var(--on-brand) 12%, transparent);
+    --line: color-mix(in oklab, var(--on-brand) 18%, transparent);
+    color: var(--on-brand-2);
+  }
+  .nav-surface .title {
+    color: var(--on-brand);
+  }
+  .nav-surface .field-bare:focus {
+    background: color-mix(in oklab, var(--on-brand) 14%, transparent);
+    border-color: color-mix(in oklab, var(--on-brand) 30%, transparent);
+  }
+  /* Titles: the display face, a little narrower than its normal width, in the brand colour. */
+  .title {
+    font-family: var(--font-title);
+    font-stretch: 88%;
+    font-weight: 800;
+    letter-spacing: -0.005em;
+    color: var(--brand-ink);
+  }
   .field {
-    height: 36px;
+    height: 38px;
     width: 100%;
-    border-radius: 8px;
-    border: 1px solid var(--line);
+    border-radius: 12px;
+    border: 1px solid var(--line-2);
     background: var(--surface);
     padding: 0 12px;
     font-size: 14px;
@@ -210,28 +258,41 @@
   .fade-in {
     animation: fade-in 180ms ease-out;
   }
-  /* Timeline cards: blocks in the accent tone, breaks quiet, problems in rose. */
-  .item-block {
-    background: color-mix(in oklab, var(--accent) 9%, var(--surface));
-    border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
+  /* The agenda. A card is the stretch between two breaks: surface only, drawn row by row, so a row keeps its part
+     of the card while it is dragged (src/planner/DayColumn.tsx). Colour inside it belongs to the category: a rail at
+     the row's left edge (set --cat on the row). Breaks, gaps and markers are quiet rows without a surface. */
+  .run {
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
   }
-  .item-break {
-    background: repeating-linear-gradient(135deg, var(--surface-2), var(--surface-2) 6px, var(--surface) 6px, var(--surface) 12px);
-    border-color: var(--line);
+  .run-first {
+    border-top: 1px solid var(--line);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
   }
-  /* Category colour, kept quiet: a thin bar and the faintest tint (set --cat on the card). */
-  .cat-bar {
+  .run-last {
+    border-bottom: 1px solid var(--line);
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+  }
+  .cat-rail {
+    width: 6px;
+    flex: none;
+    align-self: stretch;
+    border-radius: 3px;
     background: var(--cat, transparent);
-  }
-  .cat-tint {
-    background: color-mix(in oklab, var(--cat, var(--surface)) 5%, var(--surface));
-    border-color: color-mix(in oklab, var(--cat, var(--line)) 22%, var(--line));
   }
   .cat-dot {
     background: var(--cat);
   }
+  /* Inserting on a touch screen: the entries step back and leave the taps to the gaps between them. */
+  .inserting [data-row] {
+    opacity: 0.5;
+    pointer-events: none;
+  }
   .item-late {
-    box-shadow: inset 3px 0 0 var(--rose);
+    background: color-mix(in oklab, var(--rose-soft) 55%, transparent);
   }
   /* Touch screens: a transparent 6px slop around small controls, so a 28px icon reaches 40px without moving the layout. */
   @media (pointer: coarse) {

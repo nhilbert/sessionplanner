@@ -16,4 +16,4 @@ A new cloud session is a fresh clone. Two things are missing there, and without 
 
 If neither the file nor the variable is there: commits only warn and pushes are refused. Tell the owner (set `SP_PRIVATE_PATTERNS` in the environment settings, then a new session). Do not invent patterns, do not create a placeholder file to get past the check, and never use `--no-verify`. Do not print the variable's content into chat, commits or files: the patterns are the private data.
 
-Concept, stages and decisions: docs/concept.md. Stack and conventions follow the sibling app Zendo.
+Concept, stages and decisions: docs/concept.md. The look of the app's own screens and its rules: docs/ui.md. Stack and conventions follow the sibling app Zendo.

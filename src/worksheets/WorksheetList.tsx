@@ -341,7 +341,7 @@ function StarterPicker({ scope, theme, logo, onClose, onPick }: { scope: AssetSc
           <li key={s.kind} className="min-w-0">
             <SheetPage html={s.pages[0]} paper={s.paper ?? 'A4'} theme={theme} scope={scope} chrome={{ date: '', n: 1, total: 1, logo }} onClick={() => onPick(s.title, s.pages, s.paper)} label={t(`sheets.starter.${s.kind}`)} />
             {/* the name picks it too; the page above is the one stop for the keyboard */}
-            <button type="button" tabIndex={-1} className="mt-1 block w-full text-left text-[13px] hover:text-accent" onClick={() => onPick(s.title, s.pages, s.paper)}>
+            <button type="button" tabIndex={-1} className="mt-1 block w-full text-left text-[13px] hover:text-accent-deep" onClick={() => onPick(s.title, s.pages, s.paper)}>
               {t(`sheets.starter.${s.kind}`)}
             </button>
           </li>

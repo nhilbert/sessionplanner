@@ -366,7 +366,7 @@ function ShapePicker({ value, count, onChange }: { value: DiagramShape; count: n
   return (
     <div className="grid grid-cols-3 gap-1.5" role="radiogroup">
       {DIAGRAM_SHAPES.map((shape) => (
-        <button key={shape} type="button" role="radio" aria-checked={shape === value} onClick={() => onChange(shape)} className={cx('shape-pick flex flex-col items-center gap-1 rounded-md border px-1.5 pb-1 pt-2 text-[11px] transition-colors', shape === value ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-2 hover:bg-surface-2')}>
+        <button key={shape} type="button" role="radio" aria-checked={shape === value} onClick={() => onChange(shape)} className={cx('shape-pick flex flex-col items-center gap-1 rounded-md border px-1.5 pb-1 pt-2 text-[11px] transition-colors', shape === value ? 'border-accent bg-accent-soft text-accent-deep' : 'border-line text-ink-2 hover:bg-surface-2')}>
           <span className="block h-9 w-full" dangerouslySetInnerHTML={{ __html: diagramSvg(shape, Math.max(2, count || 3)).replace(/viewBox="[^"]*"/, `viewBox="${SHAPE_VIEW[shape]}"`) }} />
           {tr(t, `editor.shape.${shape}`)}
         </button>

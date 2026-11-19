@@ -249,13 +249,13 @@ export function TagFilter({ rows, active, onChange }: { /** The tags of every ro
             onClick={() => onChange(on ? active.filter((a) => !hasTag([c.tag], a)) : [...active, c.tag])}
             className={cx(
               'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors pointer-coarse:h-9',
-              on ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-surface text-ink-2 hover:border-line-2 hover:text-ink',
+              on ? 'border-accent bg-accent-soft text-accent-deep' : 'border-line bg-surface text-ink-2 hover:border-line-2 hover:text-ink',
               !on && count === 0 && 'opacity-40',
             )}
           >
             {on && <Check size={12} strokeWidth={2.5} />}
             {c.tag}
-            <span className={cx('text-[12px] tnum', on ? 'text-accent/80' : 'text-ink-3')}>{count}</span>
+            <span className={cx('text-[12px] tnum', on ? 'text-accent-deep/80' : 'text-ink-3')}>{count}</span>
           </button>
         )
       })}

@@ -248,7 +248,7 @@ function Chip({ active, phone, onClick, children }: { active: boolean; phone: bo
       className={cx(
         'tnum rounded-full border px-2.5 transition-colors',
         phone ? 'h-9 text-[14px]' : 'h-7 text-[12px]',
-        active ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-2 hover:bg-surface-2 hover:text-ink',
+        active ? 'border-accent bg-accent-soft text-accent-deep' : 'border-line text-ink-2 hover:bg-surface-2 hover:text-ink',
       )}
     >
       {children}

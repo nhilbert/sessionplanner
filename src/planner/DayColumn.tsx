@@ -6,14 +6,14 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Archive, BookmarkPlus, CalendarDays, ChevronDown, Maximize2, Minimize2, ChevronRight, Flag, FolderOpen, Plus, StickyNote, Trash2, Ungroup } from 'lucide-react'
 import type { Category, Day, Group, Item, ItemKind } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
-import { durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH } from '@/domain/time'
-import { itemColor } from '@/store/useSettings'
+import { BREAK_GAP, durationOf, type DaySchedule, formatDuration, formatTime, LONG_STRETCH } from '@/domain/time'
+import { categoryName, colorVar, itemColor } from '@/store/useSettings'
 import { formatDate } from '@/i18n'
 import { cx, useIsPhone } from '@/components/ui'
 import Menu from '@/components/Menu'
-import { Inline, SortableItem } from './ItemCard'
+import { Inline, runClass, type RunPart, SortableItem } from './ItemCard'
 import { TimeField } from './fields'
-import { inner, type Lists } from './board'
+import { flatIds, inner, type Lists } from './board'
 import { type InsertKind, InsertPoint } from './Insert'
 import type { TimeMode } from './TimeEditor'
 
@@ -39,6 +39,10 @@ export interface BoardCtx {
   onInsert?: (list: string, index: number, kind: InsertKind) => void
   /** Something is dragged or resized: the ⊕ marks step aside. */
   busy: boolean
+  /** A screen without a pointer that hovers: the ⊕ marks stay away until inserting is switched on. */
+  touch: boolean
+  /** Inserting is switched on (touch screens): every gap shows its ⊕ and takes the tap. */
+  inserting: boolean
   onResizeEnd: (id: string, minutes: number) => void
   onToggleGroup: (id: string) => void
   onRenameGroup: (id: string, title: string) => void
@@ -61,17 +65,100 @@ export interface Preview {
 export const BoardContext = createContext<BoardCtx | null>(null)
 export const useBoardCtx = (): BoardCtx => useContext(BoardContext)!
 
+/** The members a top-level entry stands for: the item itself, or a group's items in order. */
+const membersOf = (ctx: BoardCtx, id: string): Item[] =>
+  (ctx.groups[id] ? (ctx.lists[inner(id)] ?? []).map((m) => ctx.items[m]) : [ctx.items[id]]).filter((m): m is Item => !!m)
+
+interface Run {
+  ids: string[]
+  start: number | null
+  end: number | null
+  /** The longest run of work without a break inside the card (a break inside a group does not split the card). */
+  longest: number
+}
+
+/**
+ * The cards of a day: every stretch of entries between two breaks. A gap before a fixed start counts as a break
+ * (BREAK_GAP, as for the day's longest stretch); markers at a stretch's edges stay outside the card.
+ */
+function runsOf(ctx: BoardCtx, ids: string[], schedule: DaySchedule): Run[] {
+  const isMarker = (id: string) => ctx.items[id]?.kind === 'marker'
+  const runs: Run[] = []
+  let current: string[] = []
+  const close = () => {
+    while (current.length && isMarker(current[0])) current.shift()
+    while (current.length && isMarker(current[current.length - 1])) current.pop()
+    if (current.length) {
+      let start: number | null = null
+      let end: number | null = null
+      let stretch = 0
+      let longest = 0
+      for (const m of current.flatMap((id) => membersOf(ctx, id))) {
+        const slot = schedule.slots[m.id]
+        if (!slot) continue
+        if (m.kind === 'break' || slot.gap >= BREAK_GAP) stretch = 0
+        if (m.kind !== 'block') continue
+        start = start === null ? slot.start : Math.min(start, slot.start)
+        end = end === null ? slot.end : Math.max(end, slot.end)
+        stretch += slot.end - slot.start
+        longest = Math.max(longest, stretch)
+      }
+      runs.push({ ids: current, start, end, longest })
+    }
+    current = []
+  }
+  for (const id of ids) {
+    if (!ctx.groups[id] && (!ctx.items[id] || ctx.items[id].kind === 'break')) {
+      close()
+      continue
+    }
+    const first = membersOf(ctx, id)[0]
+    if (current.length && first && (schedule.slots[first.id]?.gap ?? 0) >= BREAK_GAP) close()
+    current.push(id)
+  }
+  close()
+  return runs
+}
+
+/** The head of a card: its span of the day and how long it runs without a break. */
+function RunHead({ run }: { run: Run }) {
+  const { t } = useTranslation()
+  if (run.start === null || run.end === null) return null
+  const long = run.longest > LONG_STRETCH
+  return (
+    <div className="flex items-baseline gap-2 px-3 pb-0.5 pt-2">
+      <span className="title text-[14px] font-bold tnum">
+        {formatTime(run.start)} – {formatTime(run.end)}
+      </span>
+      <span className={cx('ml-auto inline-flex items-center gap-1 text-[12px] tnum', long ? 'font-semibold text-amber' : 'text-ink-3')}>
+        {long && <AlertTriangle size={12} />}
+        {t('planner.run', { d: formatDuration(run.longest) })}
+      </span>
+    </div>
+  )
+}
+
 /** One list entry: an item or a group with its members. Without a schedule (parking lot) the cards are compact. */
 export function Entries({ list, ids, schedule }: { list: string; ids: string[]; schedule?: DaySchedule }) {
+  const { t } = useTranslation()
   const ctx = useBoardCtx()
   const inGroup = list.startsWith('in:')
+  const mode = ctx.inserting ? 'pick' : ctx.touch ? null : 'hover'
   const insert = (index: number, position: 'top' | 'bottom' = 'bottom') =>
-    ctx.onInsert && !ctx.busy ? <InsertPoint position={position} allowGroup={!inGroup} onInsert={(kind) => ctx.onInsert!(list, index, kind)} /> : null
+    ctx.onInsert && !ctx.busy && mode ? <InsertPoint mode={mode} position={position} allowGroup={!inGroup} onInsert={(kind) => ctx.onInsert!(list, index, kind)} /> : null
   const segmentEnd: Record<string, number | null> = {}
   for (const s of schedule?.segments ?? []) for (const id of s.itemIds) segmentEnd[id] = s.end
+  // A day's own list is cut into cards; the inside of a group stands in its group's part of one.
+  const parts: Record<string, RunPart> = {}
+  if (schedule && !inGroup)
+    for (const run of runsOf(ctx, ids, schedule))
+      run.ids.forEach((id, i) => {
+        parts[id] = { first: i === 0, last: i === run.ids.length - 1, head: i === 0 ? <RunHead run={run} /> : undefined }
+      })
   const card = (id: string, index: number) => {
     const item = ctx.items[id]
     if (!item) return null
+    const category = ctx.categories.find((c) => c.id === item.categoryId)
     return (
       <SortableItem
         key={id}
@@ -86,6 +173,8 @@ export function Entries({ list, ids, schedule }: { list: string; ids: string[]; 
         segmentEnd={segmentEnd[id]}
         ppm={schedule ? ctx.ppm : undefined}
         color={itemColor(item, ctx.categories)}
+        category={schedule && category ? categoryName(category, t) : undefined}
+        run={parts[id]}
         showDescription={ctx.showDescription}
         selected={ctx.selected.has(id)}
         duration={ctx.preview?.id === id ? ctx.preview.fields.duration : undefined}
@@ -103,7 +192,7 @@ export function Entries({ list, ids, schedule }: { list: string; ids: string[]; 
     <>
       {ids.map((id, index) =>
         ctx.groups[id] ? (
-          <GroupBlock key={id} group={ctx.groups[id]} schedule={schedule} after={<>{index === 0 && insert(0, 'top')}{insert(index + 1)}</>} />
+          <GroupBlock key={id} group={ctx.groups[id]} schedule={schedule} run={parts[id]} after={<>{index === 0 && insert(0, 'top')}{insert(index + 1)}</>} />
         ) : (
           card(id, index)
         ),
@@ -112,62 +201,79 @@ export function Entries({ list, ids, schedule }: { list: string; ids: string[]; 
   )
 }
 
-function GroupBlock({ group, schedule, after }: { group: Group; schedule?: DaySchedule; after: ReactNode }) {
+function GroupBlock({ group, schedule, run, after }: { group: Group; schedule?: DaySchedule; run?: RunPart; after: ReactNode }) {
   const { t } = useTranslation()
   const ctx = useBoardCtx()
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: group.id })
   const memberIds = ctx.lists[inner(group.id)] ?? []
   const members = memberIds.map((id) => ctx.items[id]).filter(Boolean)
   const collapsed = ctx.collapsed.has(group.id)
-  const total = members.reduce((sum, m) => sum + (ctx.preview?.id === m.id && ctx.preview.fields.duration !== undefined ? ctx.preview.fields.duration : durationOf(m)), 0)
+  const lengthOf = (m: Item) => (ctx.preview?.id === m.id && ctx.preview.fields.duration !== undefined ? ctx.preview.fields.duration : durationOf(m))
+  const total = members.reduce((sum, m) => sum + lengthOf(m), 0)
   const slots = members.map((m) => schedule?.slots[m.id]).filter((s) => !!s)
   const range = slots.length ? `${formatTime(slots[0].start)}–${formatTime(Math.max(...slots.map((s) => s.end)))}` : null
+  // Folded, the group's rail shows what is inside: its members' colours, each as long as the member lasts.
+  let at = 0
+  const stops = members
+    .filter((m) => lengthOf(m) > 0)
+    .map((m) => {
+      const color = m.kind === 'break' ? 'var(--line-2)' : (colorVar(itemColor(m, ctx.categories)) ?? 'var(--ink-3)')
+      const from = total ? (at / total) * 100 : 0
+      at += lengthOf(m)
+      return `${color} ${from.toFixed(1)}% ${(total ? (at / total) * 100 : 100).toFixed(1)}%`
+    })
 
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('relative mb-1.5', isDragging && 'opacity-30')}>
-      <div ref={setActivatorNodeRef} {...listeners} {...attributes} className="flex cursor-grab touch-manipulation items-center gap-1 rounded-md py-1 pr-1 hover:bg-surface-2 active:cursor-grabbing">
-        <button
-          type="button"
-          aria-label={collapsed ? t('group.expand') : t('group.collapse')}
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          onClick={() => ctx.onToggleGroup(group.id)}
-          className="tap inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-3 hover:text-ink pointer-coarse:h-8 pointer-coarse:w-8"
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-        </button>
-        <Inline
-          value={group.title}
-          display={group.title || t('group.untitled')}
-          label={t('group.title')}
-          onSave={(v) => ctx.onRenameGroup(group.id, v as string)}
-          className={cx('min-w-0 truncate text-[13px] font-semibold tracking-[-0.005em]', !group.title && 'text-ink-3')}
-          inputClassName="w-full text-[13px] font-semibold"
-        />
-        <span className="ml-auto shrink-0 pl-2 text-[11px] text-ink-3 tnum">
-          {range && `${range} · `}
-          {formatDuration(total)}
-        </span>
-        <Menu
-          label={t('group.menu')}
-          title={group.title || t('group.untitled')}
-          items={[
-            // The order of every object's menu: keep in the library, move to the parking lot, then (apart) delete.
-            ...(ctx.onSaveGroup ? [{ label: t('group.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => ctx.onSaveGroup!(group.id) }] : []),
-            ...(group.dayId !== null ? [{ label: t('item.toParking'), icon: <Archive size={14} />, onSelect: () => ctx.onParkGroup(group.id) }] : []),
-            { label: t('group.ungroup'), icon: <Ungroup size={14} />, onSelect: () => ctx.onUngroup(group.id) },
-            { label: t('group.delete'), icon: <Trash2 size={14} />, danger: true, separated: true, onSelect: () => ctx.onDeleteGroup(group.id) },
-          ]}
-        />
-      </div>
-      {!collapsed && (
-        <div className="ml-3 border-l-2 border-line pl-2">
-          <List id={inner(group.id)} ids={memberIds} empty={t('group.empty')} compact>
-            <Entries list={inner(group.id)} ids={memberIds} schedule={schedule} />
-          </List>
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('group/entry relative', !schedule && 'mb-1.5', isDragging && 'opacity-30')}>
+      <div className={cx(runClass(run), !run && schedule && 'px-[7px]', !schedule && 'rounded-[14px] border border-line bg-surface p-1')}>
+        {run?.head}
+        <div ref={setActivatorNodeRef} {...listeners} {...attributes} data-row className="my-0.5 flex min-h-9 cursor-grab touch-manipulation items-center gap-1.5 rounded-[10px] bg-paper py-0.5 pl-3 pr-1 active:cursor-grabbing">
+          <span className="w-[6px] shrink-0 self-stretch rounded-[3px]" style={collapsed && stops.length ? { background: `linear-gradient(${stops.join(', ')})` } : undefined} />
+          <button
+            type="button"
+            aria-label={collapsed ? t('group.expand') : t('group.collapse')}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={() => ctx.onToggleGroup(group.id)}
+            className="tap inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-brand-ink hover:bg-surface-2 pointer-coarse:h-8 pointer-coarse:w-8"
+          >
+            {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+          </button>
+          <Inline
+            value={group.title}
+            display={group.title || t('group.untitled')}
+            label={t('group.title')}
+            onSave={(v) => ctx.onRenameGroup(group.id, v as string)}
+            className={cx('min-w-0 truncate text-[14px] font-bold', group.title ? 'text-brand-ink' : 'text-ink-3')}
+            inputClassName="w-full text-[14px] font-bold"
+          />
+          <span className="ml-auto shrink-0 pl-2 text-[12px] text-ink-2 tnum">
+            {range && <span className="max-md:hidden">{range} · </span>}
+            {t('group.units', { count: members.length })} · {formatDuration(total)}
+          </span>
+          <Menu
+            label={t('group.menu')}
+            title={group.title || t('group.untitled')}
+            items={[
+              // The order of every object's menu: keep in the library, move to the parking lot, then (apart) delete.
+              ...(ctx.onSaveGroup ? [{ label: t('group.saveToLibrary'), icon: <BookmarkPlus size={14} />, onSelect: () => ctx.onSaveGroup!(group.id) }] : []),
+              ...(group.dayId !== null ? [{ label: t('item.toParking'), icon: <Archive size={14} />, onSelect: () => ctx.onParkGroup(group.id) }] : []),
+              { label: t('group.ungroup'), icon: <Ungroup size={14} />, onSelect: () => ctx.onUngroup(group.id) },
+              { label: t('group.delete'), icon: <Trash2 size={14} />, danger: true, separated: true, onSelect: () => ctx.onDeleteGroup(group.id) },
+            ]}
+          />
         </div>
-      )}
+        {!collapsed && (
+          // The members stand indented under the title, in the same card: no second frame. While inserting, room
+          // below them keeps the gap after the last member apart from the gap after the group.
+          <div className={cx('pl-4', ctx.inserting && 'pb-5')}>
+            <List id={inner(group.id)} ids={memberIds} empty={t('group.empty')} compact>
+              <Entries list={inner(group.id)} ids={memberIds} schedule={schedule} />
+            </List>
+          </div>
+        )}
+      </div>
       {after}
     </div>
   )
@@ -190,11 +296,12 @@ interface DayProps {
 
 export function DayColumn({ day, index, count, ids, schedule, className, focused, onFocus, onAdd, onChange, onDelete }: DayProps) {
   const { t } = useTranslation()
+  const ctx = useBoardCtx()
   // Phones: the short date, taller time fields, and no focus button (the day tabs above do that).
   const phone = useIsPhone()
   return (
     <section className={cx('flex flex-col', className)}>
-      <header className="group/day mb-3 space-y-1.5 px-1">
+      <header className="group/day mb-2 space-y-2 px-1">
         <div className="flex items-center gap-2">
           {count > 1 && <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{index + 1}</span>}
           <DateButton date={day.date} short={count > 1 || phone} onDate={(date) => onChange({ date })} />
@@ -215,6 +322,7 @@ export function DayColumn({ day, index, count, ids, schedule, className, focused
           </div>
         </div>
         <DaySummary schedule={schedule} endMin={day.endMin} />
+        <DayStrip dayId={day.id} start={day.startMin} target={day.endMin} schedule={schedule} ctx={ctx} />
       </header>
       <List id={day.id} ids={ids} empty={t('planner.emptyDay')}>
         <Entries list={day.id} ids={ids} schedule={schedule} />
@@ -242,9 +350,9 @@ export function DateButton({ date, short, onDate }: { date: string; short?: bool
             el.focus()
           }
         }}
-        className="-mx-1.5 inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[15px] font-medium hover:bg-surface-2"
+        className="title -mx-2 inline-flex min-w-0 items-center gap-2 rounded-full px-2 py-0.5 text-[20px] font-bold hover:bg-surface-2 md:text-[22px]"
       >
-        <CalendarDays size={14} className="shrink-0 text-ink-3" />
+        <CalendarDays size={16} className="shrink-0" />
         <span className="truncate">{formatDate(date, short ? { weekday: 'short', day: 'numeric', month: 'short' } : { weekday: 'long', day: 'numeric', month: 'long' })}</span>
       </button>
       <input
@@ -265,17 +373,17 @@ function DaySummary({ schedule, endMin }: { schedule: DaySchedule; endMin: numbe
   const over = schedule.overTarget
   const segments = schedule.segments.length > 1 ? schedule.segments : []
   return (
-    <div className="space-y-0.5 text-[12px] tnum">
-      <div className="flex flex-wrap gap-x-2 text-ink-3">
-        <span className={cx('text-ink-2', over !== null && over > 0 && 'font-medium text-rose')}>
+    <div className="space-y-0.5 text-[13px] tnum">
+      <div className="flex flex-wrap gap-x-2 text-ink-2">
+        <span className={cx('text-ink', over !== null && over > 0 && 'font-semibold text-rose')}>
           {t('planner.endsAt', { time: formatTime(schedule.end) })}
           {endMin !== null && over !== null && over !== 0 && ` · ${over > 0 ? t('planner.over', { d: formatDuration(over) }) : t('planner.left', { d: formatDuration(-over) })}`}
         </span>
         <span>· {t('planner.work', { d: formatDuration(schedule.workMinutes) })}</span>
         {schedule.breakMinutes > 0 && <span>· {t('planner.breaks', { d: formatDuration(schedule.breakMinutes) })}</span>}
         {schedule.longestStretch > LONG_STRETCH && (
-          <span className="inline-flex items-center gap-1 text-amber">
-            <AlertTriangle size={11} />
+          <span className="inline-flex items-center gap-1 font-semibold text-amber">
+            <AlertTriangle size={12} />
             {t('planner.stretch', { d: formatDuration(schedule.longestStretch) })}
           </span>
         )}
@@ -284,7 +392,7 @@ function DaySummary({ schedule, endMin }: { schedule: DaySchedule; endMin: numbe
         const diff = s.available === null ? null : s.planned - s.available
         if (diff === null || diff <= 0) return null
         return (
-          <div key={`${s.anchorId}-${s.start}`} className="text-rose">
+          <div key={`${s.anchorId}-${s.start}`} className="font-semibold text-rose">
             {t('planner.segment', { from: formatTime(s.start), to: formatTime(s.end!), planned: formatDuration(s.planned), available: formatDuration(s.available!) })} ·{' '}
             {t('planner.over', { d: formatDuration(diff) })}
           </div>
@@ -294,15 +402,67 @@ function DaySummary({ schedule, endMin }: { schedule: DaySchedule; endMin: numbe
   )
 }
 
+/**
+ * The day at a glance, to scale: every unit as wide as it lasts, in its category's colour, breaks in the neutral
+ * tone, an overlap in the conflict colour. Under it the minutes per category, as word and number.
+ */
+function DayStrip({ dayId, start, target, schedule, ctx }: { dayId: string; start: number; target: number | null; schedule: DaySchedule; ctx: BoardCtx }) {
+  const { t } = useTranslation()
+  const items = flatIds(ctx.lists, dayId, new Set(Object.keys(ctx.groups)))
+    .map((id) => ctx.items[id])
+    .filter((it): it is Item => !!it && !!schedule.slots[it.id] && schedule.slots[it.id].end > schedule.slots[it.id].start)
+  if (!items.length) return null
+  const from = Math.min(start, ...items.map((it) => schedule.slots[it.id].start))
+  const to = Math.max(target ?? 0, ...items.map((it) => schedule.slots[it.id].end))
+  const span = Math.max(1, to - from)
+  const pct = (minutes: number) => `${(minutes / span) * 100}%`
+  const sums = new Map<string, { label: string; color: string; minutes: number }>()
+  const add = (key: string, label: string, color: string, minutes: number) => sums.set(key, { label, color, minutes: (sums.get(key)?.minutes ?? 0) + minutes })
+  for (const it of items) {
+    const minutes = schedule.slots[it.id].end - schedule.slots[it.id].start
+    const category = ctx.categories.find((c) => c.id === it.categoryId)
+    if (it.kind === 'break') add('break', t('planner.stripBreaks'), 'var(--line-2)', minutes)
+    else if (category) add(category.id, categoryName(category, t), `var(--c-${category.color})`, minutes)
+    else add('none', t('planner.noCategory'), 'var(--ink-3)', minutes)
+  }
+  // Breaks last, the rest by what takes most of the day.
+  const legend = [...sums.entries()].sort(([a, x], [b, y]) => (a === 'break' ? 1 : b === 'break' ? -1 : y.minutes - x.minutes)).map(([, v]) => v)
+  return (
+    <div>
+      <div role="img" aria-label={`${t('planner.strip')}: ${legend.map((l) => `${l.label} ${formatDuration(l.minutes)}`).join(', ')}`} className="relative h-3.5 overflow-hidden rounded-[4px]">
+        {items.map((it) => {
+          const slot = schedule.slots[it.id]
+          const color = it.kind === 'break' ? 'var(--line-2)' : (colorVar(itemColor(it, ctx.categories)) ?? 'var(--ink-3)')
+          return <span key={it.id} className="absolute inset-y-0 rounded-[4px] border-x border-paper" style={{ left: pct(slot.start - from), width: pct(slot.end - slot.start), background: color }} />
+        })}
+        {items
+          .filter((it) => schedule.slots[it.id].overlap > 0)
+          .map((it) => {
+            const slot = schedule.slots[it.id]
+            return <span key={`o-${it.id}`} className="absolute inset-y-0 rounded-[4px] border-x border-paper bg-rose" style={{ left: pct(slot.start - from), width: pct(Math.min(slot.overlap, span)) }} />
+          })}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-ink-2 tnum">
+        {legend.map((l) => (
+          <span key={l.label} className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: l.color }} />
+            {l.label} <b className="font-bold text-ink">{formatDuration(l.minutes)}</b>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** A sortable list that also takes drops while empty. */
 export function List({ id, ids, empty, compact, children }: { id: string; ids: string[]; empty: string; compact?: boolean; children: ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <SortableContext id={id} items={ids} strategy={verticalListSortingStrategy}>
-      <div ref={setNodeRef} className={cx('group/list rounded-xl transition-colors', compact ? 'min-h-9 p-0.5' : 'min-h-24 flex-1 py-1 pl-7 pr-1', isOver && 'bg-surface-2')}>
+      <div ref={setNodeRef} className={cx('group/list rounded-[14px] transition-colors', compact ? 'min-h-9' : 'min-h-24 flex-1 py-1', isOver && 'bg-surface-2')}>
         {children}
         {!ids.length && (
-          <div className={cx('flex items-center justify-center rounded-lg border border-dashed border-line-2 px-4 text-center text-[12px] text-ink-3', compact ? 'h-8' : 'h-20')}>{empty}</div>
+          <div className={cx('flex items-center justify-center rounded-[10px] border border-dashed border-line-2 px-4 text-center text-[12px] text-ink-3', compact ? 'h-8' : 'h-20')}>{empty}</div>
         )}
       </div>
     </SortableContext>
@@ -312,13 +472,13 @@ export function List({ id, ids, empty, compact, children }: { id: string; ids: s
 export function AddBar({ onAdd }: { onAdd: (kind: ItemKind | 'group') => void }) {
   const { t } = useTranslation()
   const button = (kind: ItemKind | 'group', icon: ReactNode) => (
-    <button type="button" onClick={() => onAdd(kind)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-ink-3 hover:bg-surface-2 hover:text-ink pointer-coarse:h-9 pointer-coarse:text-[13px]">
+    <button type="button" onClick={() => onAdd(kind)} className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-line-2 px-3 text-[13px] font-semibold text-brand-ink hover:bg-surface-2 pointer-coarse:h-9">
       {icon}
       {kind === 'group' ? t('group.new') : t(`kinds.${kind}`)}
     </button>
   )
   return (
-    <div className="mt-1 flex flex-wrap gap-0.5 px-1 pointer-coarse:gap-1">
+    <div className="mt-2 flex flex-wrap gap-1.5">
       {button('block', <Plus size={13} />)}
       {button('break', <Plus size={13} />)}
       {button('marker', <Flag size={12} />)}

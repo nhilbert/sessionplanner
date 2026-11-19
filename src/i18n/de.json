@@ -54,6 +54,10 @@
     "purgeAllConfirm": "Alle {{count}} Workshops im Papierkorb mit allen Tagen, Punkten und Dateien endgültig löschen? Das lässt sich nicht rückgängig machen."
   },
   "planner": {
+    "run": "{{d}} am Stück",
+    "noCategory": "ohne Kategorie",
+    "strip": "Verlauf des Tages",
+    "stripBreaks": "Pausen",
     "parkingTab": "Speicher",
     "dayMenu": "Aktionen des Tages",
     "material": "Material",
@@ -90,7 +94,7 @@
     "emptyDay": "Punkte hinzufügen oder hierher ziehen",
     "syncError": "Eine Änderung konnte nicht gespeichert werden. Der Workshop wurde neu vom Server geladen.",
     "keys": "Klick auf einen Punkt für Details, auf Titel, Uhrzeit oder Dauer zum direkten Ändern · ziehen zum Verschieben · Shift+Klick für mehrere · Strg+Z rückgängig",
-    "touchKeys": "Tippen für Details, auf Uhrzeit oder Dauer zum direkten Ändern · lange drücken und ziehen zum Verschieben · ⊕ fügt dazwischen ein",
+    "touchKeys": "Tippen für Details, auf Uhrzeit oder Dauer zum direkten Ändern · lange drücken und ziehen zum Verschieben · der runde Knopf unten rechts fügt dazwischen ein",
     "actions": "Weitere Aktionen",
     "zoomS": "Ansicht: kompakt",
     "zoomM": "Ansicht: normal",
@@ -696,6 +700,8 @@
     "neutral": "Grau"
   },
   "group": {
+    "units_one": "{{count}} Einheit",
+    "units_other": "{{count}} Einheiten",
     "expand": "Gruppe aufklappen",
     "collapse": "Gruppe zuklappen",
     "untitled": "Gruppe ohne Titel",
@@ -797,6 +803,9 @@
     "done": "Fertig"
   },
   "insert": {
+    "toggle": "Einfügen",
+    "done": "Einfügen beenden",
+    "where": "Wohin? Tippe zwischen zwei Zeilen.",
     "here": "Hier einfügen"
   },
   "notes": {

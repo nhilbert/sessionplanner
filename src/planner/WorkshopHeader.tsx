@@ -44,7 +44,7 @@ import { AccessPanel, deleteWorkshop, DuplicateDialog } from './panels'
 import { PrintPackageDialog } from './PrintPackageDialog'
 
 /** The trigger of a labelled menu or button in the header: quiet, with its label where the header has room. */
-const headerButton = 'tap inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-2 pointer-coarse:h-9'
+const headerButton = 'tap inline-flex h-9 items-center gap-1.5 rounded-full border border-line-2 bg-surface px-3.5 text-[14px] font-bold text-brand-ink transition-colors hover:bg-surface-2'
 
 interface Props {
   data: WorkshopState
@@ -135,9 +135,9 @@ export default function WorkshopHeader(p: Props) {
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         placeholder={t('workshops.untitled')}
         aria-label={t('workshop.title')}
-        className="field-bare -ml-2 h-8 w-full max-w-xl text-ellipsis px-2 text-[17px] font-medium"
+        className="title field-bare -ml-2 h-9 w-full max-w-xl text-ellipsis px-2 text-[19px] md:text-[21px]"
       />
-      <div className="flex items-center gap-1.5 text-[12px] text-ink-3">
+      <div className="flex items-center gap-1.5 text-[13px] text-ink-2">
         <span title={p.live ? t('planner.live') : t('planner.offline')} className={cx('h-1.5 w-1.5 shrink-0 rounded-full', p.live ? 'bg-accent' : 'bg-amber')} />
         {!p.live && <span className="shrink-0 text-amber">{t('planner.offline')}</span>}
         <span className="truncate">{[w.client, w.location, dates].filter(Boolean).join(' · ')}</span>
@@ -159,8 +159,8 @@ export default function WorkshopHeader(p: Props) {
 
   if (p.phone)
     return (
-      <header className="no-print flex items-center gap-x-1 border-b border-line px-3 py-2">
-        <Link to="/" aria-label={t('common.back')} title={t('common.back')} className="tap -ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink">
+      <header className="nav-surface no-print -mt-[env(safe-area-inset-top)] flex items-center gap-x-1 bg-brand px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+        <Link to="/" aria-label={t('common.back')} title={t('common.back')} className="tap -ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-2 hover:bg-surface-2 hover:text-ink">
           <ChevronLeft size={20} />
         </Link>
         {title}
@@ -168,9 +168,9 @@ export default function WorkshopHeader(p: Props) {
           <IconButton label={t('common.undo')} onClick={p.undo} disabled={!p.canUndo}>
             <Undo2 size={15} />
           </IconButton>
-          <IconButton label={t('slides.present')} onClick={() => open('present')}>
+          <button type="button" aria-label={t('slides.present')} title={t('slides.present')} onClick={() => open('present')} className="tap mx-0.5 inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink">
             <Play size={15} />
-          </IconButton>
+          </button>
           {workshopToolFor(w.id)}
           <Menu
             label={t('planner.actions')}
@@ -193,7 +193,7 @@ export default function WorkshopHeader(p: Props) {
     )
 
   return (
-    <header className="no-print @container flex items-center gap-x-3 border-b border-line px-6 py-2.5">
+    <header className="no-print @container flex items-center gap-x-3 px-6 pb-2 pt-4 md:px-8">
       {title}
       <div className="flex shrink-0 items-center gap-1.5">
         <IconButton label={t('common.undo')} onClick={p.undo} disabled={!p.canUndo}>
@@ -206,7 +206,7 @@ export default function WorkshopHeader(p: Props) {
         <Menu label={t('planner.view')} items={view} trigger={<Eye size={15} />} />
         {share && (
           <button type="button" onClick={() => setSharing(true)} className={headerButton} title={t('access.shareButton')}>
-            <Users size={14} className="text-ink-3" />
+            <Users size={14} />
             <span className="@max-2xl:hidden">{t('access.shareButton')}</span>
           </button>
         )}
@@ -216,9 +216,9 @@ export default function WorkshopHeader(p: Props) {
           triggerClassName={headerButton}
           trigger={
             <>
-              <Download size={14} className="text-ink-3" />
+              <Download size={14} />
               <span className={cx(!exporting && '@max-2xl:hidden')}>{exporting || t('output.menu')}</span>
-              <ChevronDown size={13} className="text-ink-3" />
+              <ChevronDown size={13} />
             </>
           }
         />
@@ -227,7 +227,7 @@ export default function WorkshopHeader(p: Props) {
           <button
             type="button"
             onClick={() => open('present')}
-            className="tap inline-flex h-8 items-center gap-1.5 rounded-l-lg bg-accent px-3 text-[13px] font-medium text-accent-ink transition-opacity hover:opacity-90 pointer-coarse:h-9"
+            className="tap inline-flex h-9 items-center gap-1.5 rounded-l-full bg-accent pl-4 pr-3 text-[14px] font-bold text-accent-ink transition-opacity hover:opacity-90"
           >
             <Play size={14} />
             {t('slides.present')}
@@ -235,7 +235,7 @@ export default function WorkshopHeader(p: Props) {
           <Menu
             label={t('output.presentMenu')}
             items={present}
-            triggerClassName="tap inline-flex h-8 items-center rounded-r-lg border-l border-accent-ink/25 bg-accent px-1.5 text-accent-ink transition-opacity hover:opacity-90 pointer-coarse:h-9"
+            triggerClassName="tap inline-flex h-9 items-center rounded-r-full border-l border-accent-ink/25 bg-accent pl-1.5 pr-2.5 text-accent-ink transition-opacity hover:opacity-90"
             trigger={<ChevronDown size={14} />}
           />
         </div>

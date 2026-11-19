@@ -54,6 +54,10 @@
     "purgeAllConfirm": "Delete all {{count}} workshops in the trash with all their days, items and files for good? This cannot be undone."
   },
   "planner": {
+    "run": "{{d}} in one go",
+    "noCategory": "no category",
+    "strip": "The day at a glance",
+    "stripBreaks": "Breaks",
     "parkingTab": "Parking",
     "dayMenu": "Day actions",
     "material": "Material",
@@ -90,7 +94,7 @@
     "emptyDay": "Add items or drag them here",
     "syncError": "A change could not be saved. The workshop was reloaded from the server.",
     "keys": "Click an item for details, its title, time or length to edit it there · drag to move · Shift+click to select several · Ctrl+Z undo",
-    "touchKeys": "Tap an item for details, its time or length to change it there · press and hold to drag · ⊕ adds in between",
+    "touchKeys": "Tap an item for details, its time or length to change it there · press and hold to drag · the round button at the lower right adds in between",
     "actions": "More actions",
     "zoomS": "View: compact",
     "zoomM": "View: normal",
@@ -696,6 +700,8 @@
     "neutral": "Grey"
   },
   "group": {
+    "units_one": "{{count}} unit",
+    "units_other": "{{count}} units",
     "expand": "Expand group",
     "collapse": "Collapse group",
     "untitled": "Untitled group",
@@ -797,6 +803,9 @@
     "done": "Done"
   },
   "insert": {
+    "toggle": "Insert",
+    "done": "Stop inserting",
+    "where": "Where? Tap between two rows.",
     "here": "Add here"
   },
   "notes": {

@@ -24,10 +24,10 @@ type ButtonProps = ComponentProps<'button'> & {
 
 const buttonClass = (variant: NonNullable<ButtonProps['variant']>, size: NonNullable<ButtonProps['size']>, className?: string) =>
   cx(
-    'inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-medium transition-colors disabled:pointer-events-none disabled:opacity-40',
-    size === 'sm' ? 'h-7 px-2.5 text-[13px] pointer-coarse:h-9' : 'h-9 px-3.5 text-sm pointer-coarse:h-10',
+    'inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full font-semibold transition-colors disabled:pointer-events-none disabled:opacity-40',
+    size === 'sm' ? 'h-7 px-3 text-[13px] pointer-coarse:h-9' : 'h-9 px-4 text-sm pointer-coarse:h-10',
     variant === 'primary' && 'bg-accent text-accent-ink hover:opacity-90',
-    variant === 'default' && 'border border-line bg-surface text-ink hover:bg-surface-2',
+    variant === 'default' && 'border border-line-2 bg-surface text-brand-ink hover:bg-surface-2',
     variant === 'ghost' && 'text-ink-2 hover:bg-surface-2 hover:text-ink',
     variant === 'danger' && 'text-rose hover:bg-rose-soft',
     className,
@@ -49,7 +49,7 @@ export function IconButton({ className, label, ...props }: ComponentProps<'butto
       aria-label={label}
       title={label}
       className={cx(
-        'tap inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-30 pointer-coarse:h-9 pointer-coarse:w-9',
+        'tap inline-flex h-7 w-7 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-30 pointer-coarse:h-9 pointer-coarse:w-9',
         className,
       )}
       {...props}
@@ -159,7 +159,7 @@ export function Chip({ className, children, tone = 'neutral' }: { className?: st
         tone === 'neutral' && 'bg-surface-2 text-ink-2',
         tone === 'amber' && 'bg-amber-soft text-amber',
         tone === 'rose' && 'bg-rose-soft text-rose',
-        tone === 'accent' && 'bg-accent-soft text-accent',
+        tone === 'accent' && 'bg-accent-soft text-accent-deep',
         className,
       )}
     >
@@ -180,7 +180,7 @@ export function PageHeader({ title, subtitle, right }: { title: ReactNode; subti
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 md:mb-8">
       <div className="min-w-0">
-        <h1 className="text-[22px] font-medium leading-tight tracking-[-0.02em] md:text-[26px]">{title}</h1>
+        <h1 className="title text-[26px] leading-[1.08] md:text-[30px]">{title}</h1>
         {subtitle && <p className="mt-1 text-[14px] text-ink-2">{subtitle}</p>}
       </div>
       {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
@@ -191,7 +191,7 @@ export function PageHeader({ title, subtitle, right }: { title: ReactNode; subti
 export function SectionLabel({ children, className, right }: { children: ReactNode; className?: string; right?: ReactNode }) {
   return (
     <div className={cx('mb-2 flex items-center justify-between', className)}>
-      <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">{children}</div>
+      <div className="text-[13px] font-semibold text-brand-ink">{children}</div>
       {right}
     </div>
   )
@@ -218,7 +218,7 @@ export function Field({ label, hint, children, className }: { label: ReactNode; 
         if (e.currentTarget.querySelector('button,input,select,textarea')?.tagName === 'BUTTON') e.preventDefault()
       }}
     >
-      <span className="mb-1 block text-[12px] font-medium text-ink-2">
+      <span className="mb-1 block text-[13px] font-semibold text-brand-ink">
         {label}
         {hint && <span className="ml-1.5 font-normal text-ink-3">{hint}</span>}
       </span>
@@ -240,16 +240,16 @@ export function Segmented<T extends string>({
   size?: 'sm' | 'md'
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+    <div className="inline-flex rounded-full border border-line bg-paper p-0.5">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           className={cx(
-            'rounded-md px-2.5 transition-colors',
+            'rounded-full px-3 font-semibold transition-colors',
             size === 'sm' ? 'h-6 text-[12px] pointer-coarse:h-9' : 'h-7 text-[13px] pointer-coarse:h-9',
-            o.value === value ? 'bg-surface-2 text-ink' : 'text-ink-2 hover:text-ink',
+            o.value === value ? 'bg-brand text-on-brand' : 'text-ink-2 hover:text-ink',
           )}
         >
           {o.label}
@@ -315,7 +315,7 @@ export function SheetRow({ icon, checked, danger, className, children, ...props 
     >
       {icon && <span className="flex w-5 shrink-0 justify-center text-ink-3">{icon}</span>}
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {checked && <Check size={16} className="shrink-0 text-accent" />}
+      {checked && <Check size={16} className="shrink-0 text-accent-deep" />}
     </button>
   )
 }

@@ -6,7 +6,7 @@
 export type Appearance = 'system' | 'light' | 'dark'
 
 const KEY = 'sp.appearance'
-const PAPER = { light: '#faf9f6', dark: '#171716' }
+const PAPER = { light: '#fff8ee', dark: '#161412' }
 
 export function initialAppearance(): Appearance {
   try {
