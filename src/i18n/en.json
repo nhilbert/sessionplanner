@@ -1184,7 +1184,7 @@
     "hideAgenda": "Hide agenda slides",
     "hideBreaks": "Hide break slides",
     "hideGroups": "Hide divider slides",
-    "poolNote": "Slides of the pool stay as they are. Take them into a step with “New slide” → “From the slide pool”, or save them as a template.",
+    "poolNote": "Slides of the pool stay as they are. Take them into a step with “New slide” → “From the pool or the library”, or save them as a template.",
     "viewOnly": "View only.",
     "ctx": {
       "step": "Step",

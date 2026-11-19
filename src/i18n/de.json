@@ -1199,7 +1199,7 @@
     "hideAgenda": "Agenda-Folien ausblenden",
     "hideBreaks": "Pausenfolien ausblenden",
     "hideGroups": "Trennblätter ausblenden",
-    "poolNote": "Folien der Sammlung bleiben unverändert. Übernimm sie über „Neue Folie“ → „Aus der Foliensammlung“ in einen Schritt oder speichere sie als Vorlage.",
+    "poolNote": "Folien der Sammlung bleiben unverändert. Übernimm sie über „Neue Folie“ → „Aus Sammlung oder Bibliothek“ in einen Schritt oder speichere sie als Vorlage.",
     "viewOnly": "Nur ansehen.",
     "ctx": {
       "step": "Schritt",

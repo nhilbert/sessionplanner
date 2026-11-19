@@ -51,6 +51,7 @@ export function SlidePicker({ open, onClose, onPick, theme }: { open: boolean; o
   const [deckId, setDeckId] = useState<string>('')
   const [query, setQuery] = useState('')
   const entries = useLibrary((st) => st.entries)
+  const libraryRead = useLibrary((st) => st.loaded)
   const loadLibrary = useLibrary((st) => st.load)
   const [slides, setSlides] = useState<Found[]>([])
   const [selected, setSelected] = useState<string[]>([])
@@ -63,7 +64,11 @@ export function SlidePicker({ open, onClose, onPick, theme }: { open: boolean; o
     api.listDecks().then(setDecks, () => setDecks([]))
   }, [open, loadLibrary])
 
-  const sources = useMemo<Source[] | null>(() => decks && [...decks.map((d) => ({ id: d.id, title: d.title, theme: d.theme, count: d.slides, library: false })), ...librarySources(entries)], [decks, entries])
+  // none before both are read: an empty pool beside a library still on its way is not "no slides anywhere"
+  const sources = useMemo<Source[] | null>(
+    () => (decks && libraryRead ? [...decks.map((d) => ({ id: d.id, title: d.title, theme: d.theme, count: d.slides, library: false })), ...librarySources(entries)] : null),
+    [decks, libraryRead, entries],
+  )
   const pool = sources?.filter((s) => !s.library) ?? []
   const library = sources?.filter((s) => s.library) ?? []
   // the source shown: the one chosen, or the first there is
