@@ -207,4 +207,7 @@ No strip of marks beside the agenda.
 - The phone's bottom bar has room for five entries. It holds the pages and the settings; where a build adds to the
   navigation, the last entry is "More", a sheet with the rest in the navigation's order: the place, the build's pages
   and the settings, the account.
+- A page's header actions wrap onto further lines instead of running off the side. On a phone the slide pool puts
+  the upload first, leaves out "Upload folder" (mobile browsers offer no folder to pick) and stands the theme
+  choice above the list of decks it changes.
 - The print views and their toolbars are always light and carry the light values as fixed colours.

@@ -6,7 +6,7 @@ import type { Deck, DeckSlide } from '@/domain/types'
 import { formatDate } from '@/i18n'
 import { useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
-import { Button, cx, Empty, IconButton, PageHeader } from '@/components/ui'
+import { Button, cx, Empty, IconButton, PageHeader, useIsPhone } from '@/components/ui'
 import { Option } from '@/slides/Option'
 import { SlideView } from '@/slides/SlideView'
 import { forgetDecks } from '@/slides/SlidePicker'
@@ -39,6 +39,9 @@ export default function DecksPage() {
   /** The slides shown in another theme than their deck's, to see how they look there. */
   const [view, setView] = useViewTheme('sp.decks.theme')
   const themeOf = (deck: Deck) => view || deck.theme || settings.theme || 'default'
+  /** On a phone the theme choice stands over the list it changes, and there is no folder to pick (mobile browsers offer none). */
+  const phone = useIsPhone()
+  const themeSelect = !!decks?.length && <ViewThemeSelect value={view} onChange={setView} defaultLabel={t('slides.themeOfDeck')} />
 
   const load = () => api.listDecks().then(setDecks, () => setDecks([]))
   useEffect(() => {
@@ -145,21 +148,34 @@ export default function DecksPage() {
           title={t('slides.pool')}
           subtitle={t('slides.poolSubtitle')}
           right={
-            <>
-              {!!decks?.length && <ViewThemeSelect value={view} onChange={setView} defaultLabel={t('slides.themeOfDeck')} />}
-              <Button size="sm" variant="ghost" onClick={() => downloadText(DECK_SKILL_FILE, deckSkill())}>
-                <FileDown size={13} />
-                {t('slides.aiSkill')}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => input.current?.click()} disabled={!!progress}>
-                <FolderUp size={13} />
-                {t('slides.uploadFolder')}
-              </Button>
-              <Button size="sm" onClick={() => fileInput.current?.click()} disabled={!!progress}>
-                <Upload size={13} />
-                {t('slides.uploadFile')}
-              </Button>
-            </>
+            phone ? (
+              <>
+                <Button size="sm" onClick={() => fileInput.current?.click()} disabled={!!progress}>
+                  <Upload size={13} />
+                  {t('slides.uploadFile')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => downloadText(DECK_SKILL_FILE, deckSkill())}>
+                  <FileDown size={13} />
+                  {t('slides.aiSkill')}
+                </Button>
+              </>
+            ) : (
+              <>
+                {themeSelect}
+                <Button size="sm" variant="ghost" onClick={() => downloadText(DECK_SKILL_FILE, deckSkill())}>
+                  <FileDown size={13} />
+                  {t('slides.aiSkill')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => input.current?.click()} disabled={!!progress}>
+                  <FolderUp size={13} />
+                  {t('slides.uploadFolder')}
+                </Button>
+                <Button size="sm" onClick={() => fileInput.current?.click()} disabled={!!progress}>
+                  <Upload size={13} />
+                  {t('slides.uploadFile')}
+                </Button>
+              </>
+            )
           }
         />
         <input
@@ -186,7 +202,7 @@ export default function DecksPage() {
             if (file) void chooseFile(file)
           }}
         />
-        <p className="mb-2 text-[13px] text-ink-3">{t('slides.uploadHint')}</p>
+        {!phone && <p className="mb-2 text-[13px] text-ink-3">{t('slides.uploadHint')}</p>}
         <p className="mb-6 text-[13px] text-ink-3">{t('slides.aiSkillHint')}</p>
         {notice && (
           <div className="mb-4 rounded-lg bg-accent-soft px-4 py-2 text-[13px]">
@@ -220,6 +236,7 @@ export default function DecksPage() {
             </div>
           </div>
         )}
+        {phone && themeSelect && <div className="mb-3">{themeSelect}</div>}
         {decks && !decks.length && !found && <Empty title={t('slides.poolEmpty')} body={t('slides.poolEmptyHint')} />}
         <ul className="space-y-3">
           {decks?.map((d) => (

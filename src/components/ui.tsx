@@ -183,7 +183,7 @@ export function PageHeader({ title, subtitle, right }: { title: ReactNode; subti
         <h1 className="app-title text-[26px] leading-[1.08] md:text-[30px]">{title}</h1>
         {subtitle && <p className="mt-1 text-[14px] text-ink-2">{subtitle}</p>}
       </div>
-      {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
+      {right && <div className="flex max-w-full flex-wrap items-center gap-2">{right}</div>}
     </header>
   )
 }
