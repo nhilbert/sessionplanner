@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, apiTarget, assetHashes, belongsTo, isAppPage, pickKept, precacheable, touchRecent } from './policy'
+import { addDays, apiTarget, assetHashes, belongsTo, isAppPage, isAppRoute, pickKept, precacheable, touchRecent } from './policy'
 
 describe('what the offline copy holds', () => {
   it('holds a workshop and its pictures, under the workshop', () => {
@@ -29,6 +29,18 @@ describe('what the offline copy holds', () => {
   it('takes only the app’s own page for the app', () => {
     expect(isAppPage('<html><body><div id="root"></div><script type="module" crossorigin src="/assets/index.js"></script></body></html>')).toBe(true)
     expect(isAppPage('<html><body><form>Choose a workspace</form></body></html>')).toBe(false)
+  })
+
+  it('stands in with the kept page only for pages of an app whose workshops are kept', () => {
+    // The core at the root of its host.
+    for (const path of ['/', '/w/w1', '/w/w1/present', '/w/w1/print/plan', '/settings']) expect(isAppRoute(path, [''])).toBe(true)
+    // Never for files, exports and downloads, the agents' endpoint and its sign-in.
+    for (const path of ['/api/attachments/a1', '/api/export/data', '/api/workshops/w1/export', '/api', '/mcp', '/oauth/authorize', '/oauth-consent', '/.well-known/oauth-authorization-server', '/sw.js']) expect(isAppRoute(path, [''])).toBe(false)
+    // A build with workspaces: only inside a kept one; the login and the choice of workspaces in front go to the server.
+    const bases = ['/spaces/a']
+    for (const path of ['/spaces/a', '/spaces/a/', '/spaces/a/w/w1/presenter']) expect(isAppRoute(path, bases)).toBe(true)
+    for (const path of ['/', '/auth/callback', '/oauth2/sign_out', '/spaces/b/w/w1', '/spaces/ab', '/spaces/a/api/export/data']) expect(isAppRoute(path, bases)).toBe(false)
+    expect(isAppRoute('/w/w1', [])).toBe(false)
   })
 
   it('keeps the code, styles and fonts of the build, not the CJK subsets or the page itself', () => {

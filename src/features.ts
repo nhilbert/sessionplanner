@@ -6,6 +6,14 @@ let workshopTool: ((workshopId: string) => ReactNode) | undefined
 let settingsSection: (() => ReactNode) | undefined
 let ownerOnly: ((section: ReactNode) => ReactNode) | undefined
 let product = 'Session Planner'
+let offlineSignOut = false
+
+export const setOfflineSignOut = (on: boolean): void => {
+  offlineSignOut = on
+}
+
+/** Whether signing out deletes the offline copy: only in a build with a sign-out that does (the core alone has none). */
+export const offlineClearsOnSignOut = (): boolean => offlineSignOut
 
 export const setProduct = (name = 'Session Planner'): void => {
   product = name

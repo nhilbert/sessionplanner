@@ -60,6 +60,24 @@ export function apiTarget(pathname: string): ApiTarget | null {
   return SHARED.some((r) => r.test(path)) ? { base, path } : null
 }
 
+/** Addresses beside the app's pages that a server of the core answers itself: the agents' endpoint and its sign-in. */
+const NOT_PAGES = ['/mcp', '/oauth', '/.well-known']
+
+/**
+ * Whether a navigation to `pathname` opens a page of an app whose workshops are kept (`bases`, '' for the root), so
+ * the kept page may stand in for it. Not the API (files, exports, downloads), not what the server answers beside the
+ * app (agents, sign-in), and nothing outside those apps (a login or a choice of workspaces in front of them).
+ */
+export function isAppRoute(pathname: string, bases: string[]): boolean {
+  return bases.some((base) => {
+    if (base && pathname !== base && !pathname.startsWith(`${base}/`)) return false
+    const rest = pathname.slice(base.length) || '/'
+    if (rest === API_ROOT || rest.startsWith(`${API_ROOT}/`)) return false
+    if (rest === '/sw.js') return false
+    return !NOT_PAGES.some((p) => rest === p || rest.startsWith(`${p}/`) || rest.startsWith(`${p}-`))
+  })
+}
+
 /** Whether a stored answer belongs to the app at `base`: its API, not that of another workspace under the same host. */
 export const belongsTo = (pathname: string, base: string): boolean => pathname.startsWith(`${base}${API_ROOT}/`)
 

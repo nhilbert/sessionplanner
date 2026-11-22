@@ -36,6 +36,7 @@ export function offlineWorker(): Plugin {
         define: {
           __SP_PRECACHE__: JSON.stringify(files.map((f) => `${base}${f}`)),
           __SP_VERSION__: JSON.stringify(version.digest('hex').slice(0, 12)),
+          __SP_BASE__: JSON.stringify(base),
         },
         build: {
           outDir,

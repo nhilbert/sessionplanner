@@ -1570,7 +1570,8 @@
       "holds_one": "{{count}} Workshop aufbewahrt, Stand {{at}}",
       "holds_other": "{{count}} Workshops aufbewahrt, Stand {{at}}",
       "failed": "Das hat nicht geklappt. Mit Verbindung noch einmal versuchen.",
-      "hint": "Bricht die Verbindung ab oder gibt es keine, zeigt dieses Gerät die Workshops von vor zehn Tagen bis in dreißig Tagen und die letzten zehn, die hier geöffnet wurden: Ablauf, Moderationsplan, Präsentieren mit der Moderationsansicht. Nur lesen: Änderungen warten auf die Verbindung. Die Kopie bleibt in diesem Browser und wird gelöscht, wenn du das ausschaltest oder dich abmeldest. Schalte es nur auf deinem eigenen Gerät ein.",
+      "hint": "Bricht die Verbindung ab oder gibt es keine, zeigt dieses Gerät die Workshops von vor zehn Tagen bis in dreißig Tagen und die letzten zehn, die hier geöffnet wurden: Ablauf, Moderationsplan, Präsentieren mit der Moderationsansicht. Nur lesen: Änderungen warten auf die Verbindung. Die Kopie bleibt in diesem Browser, bis du das ausschaltest. Schalte es nur auf deinem eigenen Gerät ein.",
+    "hintSignOut": "Bricht die Verbindung ab oder gibt es keine, zeigt dieses Gerät die Workshops von vor zehn Tagen bis in dreißig Tagen und die letzten zehn, die hier geöffnet wurden: Ablauf, Moderationsplan, Präsentieren mit der Moderationsansicht. Nur lesen: Änderungen warten auf die Verbindung. Die Kopie bleibt in diesem Browser, bis du das ausschaltest oder dich abmeldest. Schalte es nur auf deinem eigenen Gerät ein.",
       "bar": "Keine Verbindung zum Server. Du siehst die Offline-Kopie, Stand {{at}}; ändern lässt sich wieder, sobald die Verbindung zurück ist.",
       "short": "Offline · Stand {{at}}",
       "notKept": "Keine Verbindung, und dieser Workshop ist nicht in der Offline-Kopie dieses Geräts."

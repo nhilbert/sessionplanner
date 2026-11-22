@@ -11,11 +11,13 @@
  * Built by scripts/offlineWorker.ts into dist/sw.js, with the list of files and the build's version filled in.
  */
 import { API_ROOT } from '../domain/addresses'
-import { apiTarget, belongsTo, DATA_CACHE, isAppPage, keepKey, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
+import { apiTarget, belongsTo, DATA_CACHE, isAppPage, isAppRoute, keepKey, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
 
 declare const self: ServiceWorkerGlobalScope
 declare const __SP_PRECACHE__: string[]
 declare const __SP_VERSION__: string
+/** The build's base ('/' at the root), where its files lie. */
+declare const __SP_BASE__: string
 
 const SHELL = `${SHELL_PREFIX}${__SP_VERSION__}`
 const PRECACHE = new Set(__SP_PRECACHE__)
@@ -50,40 +52,59 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
-  if (request.mode === 'navigate') return event.respondWith(page(request))
-  if (PRECACHE.has(url.pathname) || url.pathname.startsWith('/assets/')) return event.respondWith(builtFile(request))
+  if (request.mode === 'navigate') {
+    // A file, an export or a download from the API is never answered with the page.
+    if (!url.pathname.includes(`${API_ROOT}/`)) event.respondWith(page(event, url.pathname))
+    return
+  }
+  if (PRECACHE.has(url.pathname) || url.pathname.startsWith(`${__SP_BASE__}assets/`)) return event.respondWith(builtFile(event))
   const target = apiTarget(url.pathname)
-  if (target) event.respondWith(api(request, target))
+  if (target) event.respondWith(api(event, target))
 })
 
-/** A file of the build: from the cache, else from the server (a CJK font subset, say), and kept. */
-async function builtFile(request: Request): Promise<Response> {
+/** A file of the build: from the cache, else from the server (a CJK font subset, say), and kept while the switch is on. */
+async function builtFile(event: FetchEvent): Promise<Response> {
   const cache = await caches.open(SHELL)
-  const kept = await cache.match(request)
+  const kept = await cache.match(event.request)
   if (kept) return kept
-  const res = await fetch(request)
-  if (res.ok) await cache.put(request, res.clone()).catch(() => undefined)
+  const res = await fetch(event.request)
+  if (res.ok) {
+    const copy = res.clone()
+    event.waitUntil(switchedOn().then((on) => (on ? cache.put(event.request, copy) : undefined)).catch(() => undefined))
+  }
   return res
 }
 
-/** Keeps `res` as the app's page when it is that page. */
+/** Keeps `res` as the app's page when it is that page (and the switch is still on). */
 async function keepPage(res: Response): Promise<boolean> {
   if (res.status !== 200 || !res.headers.get('content-type')?.startsWith('text/html')) return false
-  const html = await res.clone().text()
-  if (!isAppPage(html)) return false
+  const html = await res.text()
+  if (!isAppPage(html) || !(await switchedOn())) return false
   const cache = await caches.open(SHELL)
   await cache.put(PAGE_KEY, new Response(html, { status: 200, headers: res.headers }))
   return true
 }
 
-/** The app's page: from the server, kept for later; without the server the kept one. */
-async function page(request: Request): Promise<Response> {
-  const cache = await caches.open(SHELL)
-  const kept = await cache.match(PAGE_KEY)
-  const network = fetch(request).then(async (res) => {
-    await keepPage(res).catch(() => false)
-    return res
-  })
+/** The base paths whose workshops are kept, among those `pathname` could lie under ('' for the root, then each step down). */
+async function keptBases(cache: Cache, pathname: string): Promise<string[]> {
+  const parts = pathname.split('/').filter(Boolean)
+  const candidates = ['', ...parts.map((_, i) => `/${parts.slice(0, i + 1).join('/')}`)]
+  const found: string[] = []
+  for (const base of candidates) if (await cache.match(keepKey(base))) found.push(base)
+  return found
+}
+
+/**
+ * A page: from the server, kept for later when it is the app's; without the server the kept one, but only for a page
+ * of an app whose workshops are kept. Anything else (a sign-in, a choice of workspaces) goes to the server as before.
+ */
+async function page(event: FetchEvent, pathname: string): Promise<Response> {
+  const cache = await switchedOn()
+  const network = fetch(event.request)
+  if (!cache || !isAppRoute(pathname, await keptBases(cache, pathname))) return network
+  // The page goes to the browser as soon as it starts to arrive; keeping it happens beside.
+  event.waitUntil(network.then((res) => keepPage(res.clone())).catch(() => false))
+  const kept = await (await caches.open(SHELL)).match(PAGE_KEY)
   return firstOf(network, kept, PAGE_WAIT_MS, (r) => r)
 }
 
@@ -102,14 +123,14 @@ async function keeps(cache: Cache, target: ApiTarget): Promise<boolean> {
 }
 
 /** An answer of the API the copy may hold. */
-async function api(request: Request, target: ApiTarget): Promise<Response> {
+async function api(event: FetchEvent, target: ApiTarget): Promise<Response> {
+  const request = event.request
   const cache = await switchedOn()
   if (!cache || !(await keeps(cache, target))) return fetch(request)
   const kept = await cache.match(request)
-  const network = fetch(request).then(async (res) => {
-    await store(cache, request, target, res).catch(() => undefined)
-    return res
-  })
+  const network = fetch(request)
+  // The answer counts as soon as it starts to arrive; storing it happens beside, so a slow line is not taken for none.
+  event.waitUntil(network.then((res) => store(cache, request, target, res.clone())).catch(() => undefined))
   return firstOf(network, kept, NETWORK_WAIT_MS, served)
 }
 

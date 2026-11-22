@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SectionLabel, Segmented } from '@/components/ui'
+import { offlineClearsOnSignOut } from '@/features'
 import { formatStamp } from './OfflineNotice'
 import { clearOfflineCopy, offlineOn, offlineSummary, offlineSupported, turnOfflineOn } from './client'
 
@@ -63,7 +64,7 @@ export default function OfflineSection() {
         <span className="text-[13px] text-ink-3">{busy ? t('offline.working') : on ? (summary ? t('offline.holds', { count: summary.workshops, at: summary.at ? formatStamp(summary.at) : '–' }) : '…') : t('offline.offHint')}</span>
       </div>
       {failed && <p className="mt-2 text-[13px] text-rose">{t('offline.failed')}</p>}
-      <p className="mt-3 text-[13px] text-ink-3">{t('offline.hint')}</p>
+      <p className="mt-3 text-[13px] text-ink-3">{t(offlineClearsOnSignOut() ? 'offline.hintSignOut' : 'offline.hint')}</p>
     </section>
   )
 }

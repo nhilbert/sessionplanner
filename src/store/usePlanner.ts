@@ -106,14 +106,16 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       const fresh = await api.loadWorkshop(id)
       if (get().id !== id) return
       const stamp = offlineStamp(fresh)
-      if (stamp !== null && sync && !get().offlineAt) {
-        // The connection broke while the workshop was open: what is shown is newer than the copy, so it stays, read-only.
-        set({ status: 'ready', offlineAt: liveAt ?? stamp, past: [], future: [] })
-        return
-      }
-      if (stamp === null) liveAt = new Date().toISOString()
-      // The copy answered a slow server while the stream is up: the server is there, so read again in a moment.
-      else if (get().live) setTimeout(() => get().id === id && get().offlineAt && reload(), RETRY_COPY_MS)
+      if (stamp !== null) {
+        // The copy answered while the stream is up: the server is there but was slow, so read again in a moment.
+        if (get().live) setTimeout(() => get().id === id && get().offlineAt && reload(), RETRY_COPY_MS)
+        if (sync) {
+          // What is shown is never older than the copy (read from the server, or from the copy itself): it stays, read-only,
+          // as of when the server last confirmed it.
+          if (!get().offlineAt) set({ status: 'ready', offlineAt: liveAt ?? stamp, past: [], future: [] })
+          return
+        }
+      } else liveAt = new Date().toISOString()
       // Read before a change the stream has brought: it would take that back. Read again, as it was asked for because something may be missing.
       if (stamp === null && sync && fresh.revision !== undefined && fresh.revision < heard) return reload()
       show(fromSnapshot(sync, fresh))

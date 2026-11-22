@@ -40,6 +40,7 @@ export default function PlannerPage() {
   const phone = useIsPhone()
   const { data, status, live, offlineAt, syncError, past, future, open, close, change, undo, redo, addAttachment, removeAttachment, dismissSyncError } = usePlanner()
   const offline = useOffline((s) => s.since !== null)
+  const copyOn = useOffline((s) => s.enabled)
   const settings = useSettings((s) => s.settings)
   const mayChangeLibrary = useLibraryEdit()
   const library = useLibrary()
@@ -394,7 +395,7 @@ export default function PlannerPage() {
   if (status === 'login' || !data)
     return (
       <Centered>
-        <p>{status === 'login' ? t('common.login') : offline || !navigator.onLine ? t('offline.notKept') : t('common.error')}</p>
+        <p>{status === 'login' ? t('common.login') : copyOn && (offline || !navigator.onLine) ? t('offline.notKept') : t('common.error')}</p>
         <Button className="mt-4" onClick={() => window.location.reload()}>
           {t('common.reload')}
         </Button>

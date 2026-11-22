@@ -1555,7 +1555,8 @@
       "holds_one": "{{count}} workshop kept, as of {{at}}",
       "holds_other": "{{count}} workshops kept, as of {{at}}",
       "failed": "That did not work. Try again with a connection.",
-      "hint": "When the connection breaks or there is none, this device shows the workshops from ten days ago to thirty days ahead and the last ten opened here: the agenda, the moderation plan, presenting with the presenter view. Read-only: changes wait for the connection. The copy stays in this browser and is deleted when you turn this off or sign out. Switch it on only on your own device.",
+      "hint": "When the connection breaks or there is none, this device shows the workshops from ten days ago to thirty days ahead and the last ten opened here: the agenda, the moderation plan, presenting with the presenter view. Read-only: changes wait for the connection. The copy stays in this browser until you turn this off. Switch it on only on your own device.",
+    "hintSignOut": "When the connection breaks or there is none, this device shows the workshops from ten days ago to thirty days ahead and the last ten opened here: the agenda, the moderation plan, presenting with the presenter view. Read-only: changes wait for the connection. The copy stays in this browser until you turn this off or sign out. Switch it on only on your own device.",
       "bar": "No connection to the server. This is the offline copy as of {{at}}; changes are possible again once the connection is back.",
       "short": "Offline · as of {{at}}",
       "notKept": "No connection, and this workshop is not in the offline copy of this device."

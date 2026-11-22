@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App, { type Extensions } from './App'
 import { cleanBasePath, setBasePath } from './domain/addresses'
-import { setOwnerOnly, setProduct, setSettingsSection, setWorkshopSharing, setWorkshopTool } from './features'
+import { setOfflineSignOut, setOwnerOnly, setProduct, setSettingsSection, setWorkshopSharing, setWorkshopTool } from './features'
 import { initialLocale, setupI18n } from './i18n'
 import { applyAppearance, initialAppearance } from './appearance'
 import { startOffline } from './offline/client'
@@ -17,6 +17,7 @@ export function startApp(extensions: Extensions = {}): void {
   setWorkshopTool(extensions.workshopTool)
   setSettingsSection(extensions.settingsSection)
   setOwnerOnly(extensions.ownerOnly)
+  setOfflineSignOut(extensions.offlineSignOut === true)
   setupI18n(initialLocale())
   applyAppearance(initialAppearance())
   createRoot(document.getElementById('root')!).render(

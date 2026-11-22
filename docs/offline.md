@@ -21,8 +21,9 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
   they did before when the server was out of reach. Following on a phone needs the server.
 - **Read-only, by decision.** Editing offline would mean merging changes made apart; co-editing matters more
   (section 7 of the concept). A change on its way when the connection broke is not kept for later.
-- **Signing out deletes the copy** (in a build with a sign-out), as does turning the switch off. Someone else signing
-  in at the same app on the device deletes what was kept for the one before.
+- **Turning the switch off deletes the copy**, and so does signing out in a build that has a sign-out and says so
+  (`offlineSignOut`, it calls `clearOfflineCopy` first; the settings' hint names it only then). The core alone has no
+  sign-out of its own. Someone else signing in at the same app on the device deletes what was kept for the one before.
 
 ## How it works
 
@@ -32,20 +33,27 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
   - The build's code, styles and fonts are kept per build (not the CJK font subsets, which come when used). A new
     build installs itself and drops the files of the one before.
   - The app's page is kept as the server last sent it, with its security policy; only a page that is the app's
-    (`isAppPage`), not one of a login or workspace choice in front of it.
+    (`isAppPage`), not one of a login or workspace choice in front of it. It stands in only for a page of an app whose
+    workshops are kept (`isAppRoute`): never for an address of the API (a file, an export, a download), the agents'
+    endpoint and its sign-in, or anything in front of the app; those go to the server as before.
   - The API answers the copy holds (`src/offline/policy.ts`): who is signed in, the settings and their logo, the list
     of workshops, the themes with their stylesheets, files and pools, and per kept workshop the workshop and its
     pictures. Nothing else: not the library, decks, members, exports or the live stream. These go to the server first;
-    what comes back is kept with the time it came. With no answer (no network, a gateway error, or nothing within five
-    seconds) the kept one answers, marked with the header `x-sp-offline` and that time.
+    what comes back is kept with the time it came. With no answer (no network, a gateway error, or no first answer
+    within five seconds) the kept one answers, marked with the header `x-sp-offline` and that time. The time counts to
+    the server's first answer, not to the end of the download: storing happens beside, so a slow line that answers is
+    not taken for none.
   - Everything that changes data goes to the server as before; the worker never answers it.
 - **The keeper** (`src/offline/client.ts`) runs in the page while the switch is on: on start, every fifteen minutes and
   when the network returns it reads the list, decides what is kept (`pickKept`), fetches each kept workshop with its
   theme, the pictures of its slides and worksheets and the theme pool's pictures (for the generated slides), and lets
   go of workshops no longer kept. The open workshop is read again a few seconds after changes rest, so the copy follows
-  the work.
+  the work. Its reads go beside the API client, so a background answer from the copy never puts up the bar. Switching
+  off stops a round on its way (a generation count) before it writes anything more.
 - **The app** learns from the header that an answer came from the copy (`src/api.ts`, `offline/state.ts`). The open
-  workshop then carries `offlineAt` (`store/usePlanner.ts`); changes, undo and redo are refused while it does.
+  workshop then carries `offlineAt` (`store/usePlanner.ts`); changes, undo and redo are refused while it does. Once a
+  workshop is shown, an answer from the copy never replaces it (it is never older than the copy). When the copy answered
+  while the live stream is up, the server was only slow: the workshop is read again after five seconds.
 
 ## Privacy
 

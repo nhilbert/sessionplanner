@@ -1,11 +1,12 @@
 import { api, assetUrl } from '@/api'
 import { apiUrl, basePath, localName, themeUrl } from '@/domain/addresses'
-import type { WorkshopSummary } from '@/domain/types'
+import type { PoolAsset, ThemeInfo } from '@/domain/theme'
+import type { Me, Settings, WorkshopState, WorkshopSummary } from '@/domain/types'
 import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { inlineThemeFiles } from '@/slides/themeFiles'
-import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, pickKept, SHELL_PREFIX, SWITCH_KEY, touchRecent } from './policy'
-import { offlineStamp } from './state'
+import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, OFFLINE_HEADER, pickKept, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent } from './policy'
+import { useOffline } from './state'
 
 /**
  * The offline copy, the page's side (docs/offline.md): the switch on this device, the service worker it registers,
@@ -32,7 +33,9 @@ export async function offlineOn(): Promise<boolean> {
 /** Turns the copy on in this browser: from now on what the app shows is kept, and the coming workshops are fetched. */
 export async function turnOfflineOn(): Promise<void> {
   if (!offlineSupported()) return
+  generation++
   await (await caches.open(DATA_CACHE)).put(SWITCH_KEY, new Response('1'))
+  useOffline.setState({ enabled: true })
   await navigator.serviceWorker.register(WORKER)
   // Only what passes the worker is kept: the round waits until it is in charge of this page.
   await controlled()
@@ -58,9 +61,21 @@ function controlled(): Promise<void> {
  * a build that has a sign-out calls before it signs out, so the copy never outlives the one who made it.
  */
 export async function clearOfflineCopy(): Promise<void> {
+  // A round still on its way stops at its next step and writes nothing more.
+  generation++
   stopKeeper()
-  if (typeof caches !== 'undefined') for (const name of await caches.keys()) if (name === DATA_CACHE || name.startsWith(SHELL_PREFIX)) await caches.delete(name)
-  if ('serviceWorker' in navigator) for (const r of await navigator.serviceWorker.getRegistrations()) if (r.active?.scriptURL.endsWith(WORKER) || r.installing?.scriptURL.endsWith(WORKER) || r.waiting?.scriptURL.endsWith(WORKER)) await r.unregister()
+  useOffline.setState({ enabled: false })
+  const pending = running
+  const sweep = async () => {
+    if (typeof caches !== 'undefined') for (const name of await caches.keys()) if (name === DATA_CACHE || name.startsWith(SHELL_PREFIX)) await caches.delete(name)
+  }
+  await sweep()
+  if ('serviceWorker' in navigator) for (const r of await navigator.serviceWorker.getRegistrations()) if ([r.active, r.installing, r.waiting].some((w) => w?.scriptURL.endsWith(WORKER))) await r.unregister()
+  // What that round may have written between its last check and its write goes too.
+  if (pending) {
+    await pending.catch(() => undefined)
+    await sweep()
+  }
   try {
     localStorage.removeItem(localName(RECENT))
   } catch {
@@ -72,6 +87,7 @@ export async function clearOfflineCopy(): Promise<void> {
 export async function startOffline(): Promise<void> {
   if (!offlineSupported()) return
   if (await offlineOn()) {
+    useOffline.setState({ enabled: true })
     await navigator.serviceWorker.register(WORKER).catch(() => undefined)
     startKeeper()
     setTimeout(() => void controlled().then(refreshKept), 3000)
@@ -90,7 +106,7 @@ export async function offlineSummary(): Promise<{ workshops: number; at: string 
     const res = await cache.match(new URL(apiUrl(`/workshops/${id}`), location.origin).href)
     if (!res) continue
     stored++
-    const when = res.headers.get('x-sp-stored-at')
+    const when = res.headers.get(STORED_AT)
     if (when && (!at || when < at)) at = when
   }
   return { workshops: stored, at }
@@ -118,6 +134,18 @@ let timer: number | null = null
 let settle: number | null = null
 let unsubscribe: (() => void) | null = null
 let running: Promise<void> | null = null
+/** Counts switching on and off: a round started before the last switch writes nothing. */
+let generation = 0
+
+/**
+ * Reads from the API for the copy, beside the app: the worker keeps what passes, and nothing here tells the app it is
+ * offline (src/api.ts would put up the bar for a background request answered from the copy).
+ */
+async function read<T>(path: string): Promise<{ value: T; fromCopy: boolean }> {
+  const res = await fetch(apiUrl(path), { headers: { 'x-sp': '1' } })
+  if (!res.ok) throw new Error(`${res.status}`)
+  return { value: (await res.json()) as T, fromCopy: res.headers.has(OFFLINE_HEADER) }
+}
 /** The settings' theme, for workshops that follow it; read with the list, else from the app's settings. */
 let defaultTheme: string | null = null
 
@@ -161,9 +189,11 @@ const writeKept = (cache: Cache, ids: string[]) => cache.put(keepKey(basePath())
 
 /** A workshop just opened is kept at once, before the next round. */
 async function addKept(id: string) {
-  if (!(await offlineOn())) return
+  const gen = generation
+  if (!(await offlineOn()) || gen !== generation) return
   const cache = await caches.open(DATA_CACHE)
   const ids = await readKept(cache)
+  if (gen !== generation) return
   if (!ids.includes(id)) await writeKept(cache, [...ids, id])
   await refreshWorkshop(id)
 }
@@ -175,29 +205,30 @@ export function refreshKept(): Promise<void> {
 }
 
 async function round(): Promise<void> {
+  const gen = generation
   if (!(await offlineOn()) || !navigator.onLine || !navigator.serviceWorker.controller) return
   let list: WorkshopSummary[]
   try {
     // What the rest of the app needs to show a workshop without the server, kept on the way.
-    const [workshops, settings] = await Promise.all([api.listWorkshops(), api.getSettings(), api.me(), api.listThemes()])
-    list = workshops
-    defaultTheme = settings.theme
-    await fetchLogo(settings)
+    const [workshops, settings] = await Promise.all([read<WorkshopSummary[]>('/workshops'), read<Settings>('/settings'), read<Me>('/me'), read<ThemeInfo[]>('/themes')])
+    // Read from the copy: the server is out of reach, nothing to decide now.
+    if (workshops.fromCopy || settings.fromCopy) return
+    list = workshops.value
+    defaultTheme = settings.value.theme
+    const logo = api.logoUrl(settings.value)
+    if (logo) await fetch(logo).catch(() => undefined)
   } catch {
     return
   }
-  // Read from the copy: the server is out of reach, nothing to decide now.
-  if (offlineStamp(list) !== null) return
+  if (gen !== generation) return
   const cache = await caches.open(DATA_CACHE)
   const kept = pickKept(list, readRecent(), new Date().toLocaleDateString('sv'))
   await writeKept(cache, kept)
-  for (const id of kept) await refreshWorkshop(id)
-  await letGo(cache, new Set(kept))
-}
-
-async function fetchLogo(settings: Awaited<ReturnType<typeof api.getSettings>>) {
-  const logo = api.logoUrl(settings)
-  if (logo) await fetch(logo).catch(() => undefined)
+  for (const id of kept) {
+    if (gen !== generation) return
+    await refreshWorkshop(id)
+  }
+  if (gen === generation) await letGo(cache, new Set(kept))
 }
 
 /** Deletes what the copy holds of workshops no longer kept. */
@@ -213,37 +244,40 @@ async function letGo(cache: Cache, kept: Set<string>) {
 
 /** Fetches one workshop for the copy (the worker keeps what passes), with its theme and the pictures its slides and worksheets show. */
 async function refreshWorkshop(id: string): Promise<void> {
+  const gen = generation
   if (!(await offlineOn()) || !navigator.onLine || !navigator.serviceWorker.controller) return
-  let state: Awaited<ReturnType<typeof api.loadWorkshop>>
+  let state: WorkshopState
   try {
-    state = await api.loadWorkshop(id)
+    const got = await read<WorkshopState>(`/workshops/${encodeURIComponent(id)}`)
+    if (got.fromCopy) return
+    state = got.value
   } catch {
     return
   }
-  if (offlineStamp(state) !== null) return
   const theme = state.workshop.theme || (defaultTheme ?? useSettings.getState().settings.theme) || 'default'
   const scope = { workshopId: id }
   const hashes = assetHashes(JSON.stringify(state))
   let dark = false
   if (theme !== 'default') {
     try {
-      const themes = await api.listThemes()
-      const info = themes.find((t) => t.id === theme)
+      const info = (await read<ThemeInfo[]>('/themes')).value.find((t) => t.id === theme)
       dark = !!info?.dark
       const css = await fetch(api.themeCssUrl(theme, info?.updatedAt)).then((r) => (r.ok ? r.text() : ''))
       if (css) await inlineThemeFiles(css, themeUrl(theme), (url) => fetch(url).then(() => null, () => null))
       // The slides' logos come with the stylesheet; the worksheets' one is the printout logo.
       if (info?.printLogo) await fetch(info.printLogo).catch(() => undefined)
       // The generated slides (title, agenda, breaks) take their pictures from the theme's pool.
-      const pool = await api.getPool(theme)
+      const pool = (await read<PoolAsset[]>(`/themes/${encodeURIComponent(theme)}/pool`)).value
       for (const e of pool) if (e.kind === 'picture') hashes.push(e.hash)
     } catch {
       // the theme stays as the app last showed it
     }
   }
+  if (gen !== generation) return
   const cache = await caches.open(DATA_CACHE)
   const urls = [...new Set(hashes)].flatMap((h) => [assetUrl(scope, h), ...(dark ? [assetUrl(scope, h, 'dark')] : [])])
   for (const url of urls) {
+    if (gen !== generation) return
     if (await cache.match(new URL(url, location.origin).href)) continue
     await fetch(url).catch(() => undefined)
   }

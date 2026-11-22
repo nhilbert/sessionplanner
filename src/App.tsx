@@ -33,6 +33,8 @@ export interface Extensions {
   settingsSection?: () => ReactNode
   /** Decides whether the parts for the real owner alone show (the export of all data and media, a theme's own CSS); it gets the part and answers what to show. */
   ownerOnly?: (section: ReactNode) => ReactNode
+  /** Its sign-out deletes the offline copy first (src/offline/client.ts, clearOfflineCopy); the settings then say so. */
+  offlineSignOut?: true
 }
 
 /** The owner's pages (slides area, pictures): a guest who types their address lands on the workshops shared with them. */

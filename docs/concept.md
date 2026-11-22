@@ -159,7 +159,7 @@ The app needs the server for everything; at a venue without Wi-Fi, or when the c
 - Kept: the workshops with a day from ten days back to thirty days ahead, and the last ten opened on the device.
 - Without the server the app opens as usual and shows a kept workshop read-only, with the moderation plan, printing, the presenter view and presenting; a bar says as of when. When the connection breaks while a workshop is open, what is shown stays and turns read-only.
 - Read-only by decision: editing offline would mean merging changes made apart, and co-editing still matters more. Following a presentation on a phone needs the server.
-- Signing out and the switch delete the copy; another person signing in on the device deletes what was kept for the one before.
+- The switch deletes the copy, and so does signing out in a build with a sign-out; another person signing in on the device deletes what was kept for the one before.
 - A service worker built with the app; the rules of what it keeps are in `src/offline/policy.ts`, the whole in [offline.md](offline.md). A single offline file per workshop (a snapshot to save by hand) was proposed first and set aside for this.
 
 **2026-11-19, the workshops by time and by client** (revises the workshops list of 2026-10-29 and its sort of 2026-11-06)
