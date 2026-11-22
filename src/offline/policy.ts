@@ -17,10 +17,12 @@ export const PAGE_KEY = '/__sp-offline/page'
 export const STORED_AT = 'x-sp-stored-at'
 /** The header an answer from the copy carries instead of the server's: when it was stored. */
 export const OFFLINE_HEADER = 'x-sp-offline'
-/** How long the server's first answer may take before the copy answers instead, when there is one. */
-export const NETWORK_WAIT_MS = 4000
+/** How long the server's first answer may take before the copy answers instead, when there is one (Workbox's example: three). */
+export const NETWORK_WAIT_MS = 3000
 /** How long the page may take before the stored one is shown. */
-export const PAGE_WAIT_MS = 4000
+export const PAGE_WAIT_MS = 3000
+/** A request with this parameter is the app asking whether the server is back: the worker lets it through untouched. */
+export const PROBE_PARAM = 'sp-probe'
 /** After a request got no answer, how long the copy answers at once (unless the server answers sooner). */
 export const DOWN_MS = 30_000
 

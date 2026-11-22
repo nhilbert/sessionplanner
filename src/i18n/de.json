@@ -1574,6 +1574,10 @@
     "hintSignOut": "Bricht die Verbindung ab oder gibt es keine, zeigt dieses Gerät die Workshops von vor zehn Tagen bis in dreißig Tagen und die letzten zehn, die hier geöffnet wurden: Ablauf, Moderationsplan, Präsentieren mit der Moderationsansicht. Nur lesen: Änderungen warten auf die Verbindung. Die Kopie bleibt in diesem Browser, bis du das ausschaltest oder dich abmeldest. Schalte es nur auf deinem eigenen Gerät ein.",
       "bar": "Keine Verbindung zum Server. Du siehst die Offline-Kopie, Stand {{at}}; ändern lässt sich wieder, sobald die Verbindung zurück ist.",
       "short": "Offline · Stand {{at}}",
-      "notKept": "Keine Verbindung, und dieser Workshop ist nicht in der Offline-Kopie dieses Geräts."
+      "notKept": "Keine Verbindung, und dieser Workshop ist nicht in der Offline-Kopie dieses Geräts.",
+      "needsConnection": "Geht wieder mit Verbindung",
+      "onDevice": "Auf diesem Gerät, auch offline",
+      "onlyOnline": "Nur mit Verbindung",
+      "notOnDevice": "„{{title}}“ ist nicht auf diesem Gerät gespeichert und öffnet sich wieder mit Verbindung."
     }
 }

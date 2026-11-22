@@ -12,14 +12,22 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
   when any of them is in there) and the last ten opened on this device. The settings say how many are kept and as of
   when.
 - **Without the server** the app opens as usual, also after a reload or in a new window, and looks as it always does.
-  The list of workshops shows the ones the copy holds. A workshop of the copy opens in the planner as always, with its
+  The list of workshops shows them all: those the copy holds with a small mark (also online, so one can check before
+  leaving), the others dimmed and labelled "needs a connection"; opening one of those says why it does not open, and a
+  workshop's actions stay in their menu, disabled. Grey alone would read as "disabled", so it always comes with the
+  label (as Google Drive, Notion and Spotify do it; the web.dev guidelines). A workshop of the copy opens in the planner as always, with its
   details, slides, worksheets, printing, the presenter view and presenting, but nothing in it can be changed: nothing
-  moves, fields take no typing, the slide and sheet editors open to look (`offline/readOnly.ts`). A bar over every page
+  moves, fields take no typing, the slide and sheet editors open to look (`offline/readOnly.ts`). The buttons that add
+  or change something stay in place but are disabled and say that they need the connection; the places to insert and
+  the handle that changes a length do not show. A bar over every page
   and the workshop's header say that this is the copy and as of when. (A first version showed the guests' read-only
   agenda instead; it looked like another app, and the planner is what one knows.)
 - **It answers at once.** Once a request got no answer, the copy answers every request straight away for half a
   minute, and what it does not hold fails straight away, instead of each waiting in turn (a list, a theme, its fonts,
-  every picture). The server is still asked beside; its first answer ends this.
+  every picture). The server is still asked beside; its first answer ends this. Meanwhile the app asks every ten
+  seconds (with a little jitter) whether the server is back, with a request the worker lets through (`sp-probe`); on an
+  answer the worker stops answering from the copy, the bar goes and the list reads again. The first wait for an
+  answer is three seconds, as in Workbox's example.
 - **The connection breaks while a workshop is open**: what is shown stays (it is newer than the copy) and turns
   read-only. When the live stream is back, the workshop is read from the server again and can be changed.
 - **Presenting**: the windows on one device keep in step over the browser's channel (`slides/presentChannel.ts`), as
@@ -58,8 +66,8 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
 - **The app** learns from the header that an answer came from the copy (`src/api.ts`, `offline/state.ts`). The open
   workshop then carries `offlineAt` (`store/usePlanner.ts`); changes, undo and redo are refused while it does. Once a
   workshop is shown, an answer from the copy never replaces it (it is never older than the copy). When the copy answered
-  while the live stream is up, the server was only slow: the workshop is read again after five seconds. The list of
-  workshops from the copy is cut to what the copy holds (`onlyKept`).
+  while the live stream is up, the server was only slow: the workshop is read again after five seconds. The list
+  knows what the copy holds from `keptHere` and hears `sp:offline-kept` when that changes.
 
 ## Privacy
 

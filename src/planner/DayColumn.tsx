@@ -16,6 +16,7 @@ import { Inline, runClass, type RunPart, SortableItem } from './ItemCard'
 import { TimeField } from './fields'
 import { flatIds, inner, type Lists } from './board'
 import { type InsertKind, InsertPoint } from './Insert'
+import { usePlanner } from '@/store/usePlanner'
 import type { TimeMode } from './TimeEditor'
 
 /** What every list on the board needs; provided once by the planner. */
@@ -38,6 +39,8 @@ export interface BoardCtx {
   onOpenTime: (id: string, mode: TimeMode, anchor: DOMRect) => void
   /** Adds an entry at `index` of list `list` (a day, the parking lot, the inside of a group); absent for read-only. */
   onInsert?: (list: string, index: number, kind: InsertKind) => void
+  /** Shown from the offline copy (docs/offline.md): no handle to change a length. */
+  readOnly?: boolean
   /** Something is dragged or resized: the ⊕ marks step aside. */
   busy: boolean
   /** A screen without a pointer that hovers: the ⊕ marks stay away until inserting is switched on. */
@@ -177,8 +180,8 @@ export function Entries({ list, ids, schedule }: { list: string; ids: string[]; 
         onSelect={(e) => ctx.onSelect(id, e)}
         onEdit={(fields) => ctx.onEditItem(id, fields)}
         onOpenTime={schedule ? (mode, anchor) => ctx.onOpenTime(id, mode, anchor) : undefined}
-        onResize={schedule && ((m) => ctx.onResize(id, m))}
-        onResizeEnd={schedule && ((m) => ctx.onResizeEnd(id, m))}
+        onResize={schedule && !ctx.readOnly ? (m) => ctx.onResize(id, m) : undefined}
+        onResizeEnd={schedule && !ctx.readOnly ? (m) => ctx.onResizeEnd(id, m) : undefined}
       />
     )
   }
@@ -472,11 +475,15 @@ export function List({ id, ids, empty, compact, emptyInsert, children }: { id: s
 /** The kinds to add at the end of a list. In an empty day (`first`) the first unit is the view's main action. */
 export function AddBar({ onAdd, first }: { onAdd: (kind: ItemKind | 'group') => void; first?: boolean }) {
   const { t } = useTranslation()
+  // From the offline copy the buttons stay where they are, but say that they need the connection (docs/offline.md).
+  const offline = usePlanner((s) => !!s.offlineAt)
   const button = (kind: ItemKind | 'group', icon: ReactNode) => (
     <button
       type="button"
+      disabled={offline}
+      title={offline ? t('offline.needsConnection') : undefined}
       onClick={() => onAdd(kind)}
-      className={cx('inline-flex h-8 items-center gap-1 rounded-full px-3 text-[13px] font-semibold pointer-coarse:h-9', first && kind === 'block' ? 'bg-accent text-accent-ink hover:opacity-90' : 'border border-dashed border-line-2 text-brand-ink hover:bg-surface-2')}
+      className={cx('inline-flex h-8 items-center gap-1 rounded-full px-3 text-[13px] font-semibold pointer-coarse:h-9 disabled:cursor-not-allowed disabled:opacity-40', first && kind === 'block' ? 'bg-accent text-accent-ink enabled:hover:opacity-90' : 'border border-dashed border-line-2 text-brand-ink enabled:hover:bg-surface-2')}
     >
       {icon}
       {kind === 'group' ? t('group.new') : t(`kinds.${kind}`)}

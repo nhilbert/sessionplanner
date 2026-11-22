@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { Check, Copy } from 'lucide-react'
+import { Check, CircleCheck, Copy } from 'lucide-react'
 import { api, reportFailure } from '@/api'
 import type { WorkshopSummary } from '@/domain/types'
 import { formatDuration } from '@/domain/time'
@@ -65,6 +65,31 @@ export interface RowContext {
   /** A workshop's own actions (duplicate, archive, delete); none for who may not change the list. */
   actions: (w: WorkshopSummary) => MenuItem[]
   onDuplicate: (w: WorkshopSummary) => void
+  /**
+   * The offline copy (docs/offline.md): the workshops it holds on this device (marked as such), and whether the list
+   * itself came from it, the server being out of reach. Then the others are dimmed, say they need a connection, and
+   * opening one says why it does not open.
+   */
+  offline?: { kept: Set<string>; away: boolean; onUnavailable: (w: WorkshopSummary) => void }
+}
+
+/** Whether a workshop is on this device, and whether it cannot be opened now. */
+export function offlineState(w: WorkshopSummary, ctx: RowContext): { onDevice: boolean; unavailable: boolean } {
+  const onDevice = !!ctx.offline?.kept.has(w.id)
+  return { onDevice, unavailable: !!ctx.offline?.away && !onDevice }
+}
+
+/** The mark of a workshop the offline copy holds on this device, after its title; or, without the server, of one it does not. */
+export function OfflineMark({ onDevice, unavailable }: { onDevice: boolean; unavailable: boolean }) {
+  const { t } = useTranslation()
+  if (onDevice)
+    return (
+      <span title={t('offline.onDevice')} className="inline-flex shrink-0 items-center text-ink-3">
+        <CircleCheck size={13} aria-hidden />
+        <span className="sr-only">{t('offline.onDevice')}</span>
+      </span>
+    )
+  return unavailable ? <Chip className="shrink-0">{t('offline.onlyOnline')}</Chip> : null
 }
 
 /** A client's name as the way to everything done for them; plain text where that way is closed. */
@@ -120,12 +145,14 @@ export function WorkshopRow({ w, ctx, dates, column = dates, client = true, unti
   const title = titleOf(w, t)
   const date = dates === 'short' ? shortSpan(w, t) : fullSpan(w, t)
   const away = until ? untilText(w, ctx.today, t) : ''
+  const { onDevice, unavailable } = offlineState(w, ctx)
   const body = (link: ReactNode) => (
     <>
       <span className={cx('hidden shrink-0 text-[14px] md:block', column === 'short' ? 'w-[5.75rem]' : 'w-[8.75rem]', w.firstDate ? 'font-bold text-brand-ink tnum' : 'text-ink-2')}>{date}</span>
       <span className="min-w-0 flex-1 md:flex md:items-center md:gap-4">
         <span className="flex min-w-0 items-center gap-2 md:flex-1">
           {link}
+          <OfflineMark onDevice={onDevice} unavailable={unavailable} />
           {w.archived && <Chip>{t('workshops.archived')}</Chip>}
         </span>
         <span className={cx('block truncate text-[13px] text-ink-2 md:shrink-0 md:text-[14px]', client ? 'md:w-[48%]' : 'md:w-[44%]')}>
@@ -162,12 +189,18 @@ export function WorkshopRow({ w, ctx, dates, column = dates, client = true, unti
       </li>
     )
   return (
-    <li className="group relative flex items-center border-b border-line transition-colors last:border-b-0 hover:bg-surface-2/60">
+    <li className={cx('group relative flex items-center border-b border-line transition-colors last:border-b-0 hover:bg-surface-2/60', unavailable && 'text-ink-3 [&_*]:!text-ink-3')}>
       <div className="flex min-h-12 min-w-0 flex-1 items-center gap-3 py-2 pl-3 pr-2 md:pl-4 pointer-coarse:min-h-[60px]">
         {body(
-          <Link to={workshopPath(w.id)} className="truncate font-semibold after:absolute after:inset-0">
-            {title}
-          </Link>,
+          unavailable ? (
+            <button type="button" onClick={() => ctx.offline?.onUnavailable(w)} className="truncate text-left font-semibold after:absolute after:inset-0">
+              {title}
+            </button>
+          ) : (
+            <Link to={workshopPath(w.id)} className="truncate font-semibold after:absolute after:inset-0">
+              {title}
+            </Link>
+          ),
         )}
       </div>
       <RowActions w={w} ctx={ctx} quick={quick} className="pr-1.5 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100 pointer-fine:has-[[aria-expanded=true]]:opacity-100" />

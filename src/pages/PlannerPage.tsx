@@ -432,11 +432,15 @@ export default function PlannerPage() {
     onEditItem: (itemId, fields) => change([{ op: 'set', entity: 'item', id: itemId, fields }]),
     onResize: (itemId, minutes) => setPreview(minutes === null ? null : { id: itemId, fields: { duration: minutes } }),
     onOpenTime: (itemId, mode, anchor) => setTimeEdit({ id: itemId, mode, anchor }),
-    onInsert: (list, index, kind) => {
-      setInserting(false)
-      insertAt(list, index, kind)
-    },
+    // From the offline copy there is nowhere to insert (docs/offline.md).
+    onInsert: offlineAt
+      ? undefined
+      : (list, index, kind) => {
+          setInserting(false)
+          insertAt(list, index, kind)
+        },
     busy: !!board.activeId || !!preview,
+    readOnly: !!offlineAt,
     touch,
     inserting: touch && inserting,
     onResizeEnd: (itemId, duration) => change([{ op: 'set', entity: 'item', id: itemId, fields: { duration } }]),

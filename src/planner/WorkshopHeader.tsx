@@ -115,7 +115,7 @@ export default function WorkshopHeader(p: Props) {
     { label: t('output.presentFull'), hint: t('output.presentFullHint'), icon: <Play size={14} />, onSelect: () => open('present') },
     { label: t('slides.presenter'), hint: t('output.presenterHint'), icon: <MonitorSpeaker size={14} />, onSelect: () => open('presenter') },
   ]
-  const workshop: MenuItem[] = [
+  const own: MenuItem[] = [
     { label: t('planner.addDay'), icon: <CalendarPlus size={14} />, onSelect: p.onAddDay },
     ...(p.owner
       ? [
@@ -129,6 +129,8 @@ export default function WorkshopHeader(p: Props) {
         ]
       : []),
   ]
+  // From the offline copy the workshop's own actions stay in the menu, but say that they need the connection.
+  const workshop: MenuItem[] = p.offlineAt ? own.map((it) => ({ ...it, disabled: true, hint: t('offline.needsConnection') })) : own
   const exporting = progress && (progress.kind === 'html' ? t('output.exportingHtml') : t('slides.exporting', progress))
 
   const title = (

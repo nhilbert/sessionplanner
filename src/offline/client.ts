@@ -5,8 +5,8 @@ import type { Me, Settings, WorkshopState, WorkshopSummary } from '@/domain/type
 import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { inlineThemeFiles } from '@/slides/themeFiles'
-import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, OFFLINE_HEADER, pickKept, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent } from './policy'
-import { offlineStamp, useOffline } from './state'
+import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, OFFLINE_HEADER, pickKept, PROBE_PARAM, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent, unreachable } from './policy'
+import { markOnline, useOffline } from './state'
 
 /**
  * The offline copy, the page's side (docs/offline.md): the switch on this device, the service worker it registers,
@@ -36,6 +36,7 @@ export async function turnOfflineOn(): Promise<void> {
   generation++
   await (await caches.open(DATA_CACHE)).put(SWITCH_KEY, new Response('1'))
   useOffline.setState({ enabled: true })
+  startProbe()
   await navigator.serviceWorker.register(WORKER)
   // Only what passes the worker is kept: the round waits until it is in charge of this page.
   await controlled()
@@ -70,6 +71,7 @@ export async function clearOfflineCopy(): Promise<void> {
     if (typeof caches !== 'undefined') for (const name of await caches.keys()) if (name === DATA_CACHE || name.startsWith(SHELL_PREFIX)) await caches.delete(name)
   }
   await sweep()
+  keptChanged()
   if ('serviceWorker' in navigator) for (const r of await navigator.serviceWorker.getRegistrations()) if ([r.active, r.installing, r.waiting].some((w) => w?.scriptURL.endsWith(WORKER))) await r.unregister()
   // What that round may have written between its last check and its write goes too.
   if (pending) {
@@ -88,23 +90,28 @@ export async function startOffline(): Promise<void> {
   if (!offlineSupported()) return
   if (await offlineOn()) {
     useOffline.setState({ enabled: true })
+    startProbe()
     await navigator.serviceWorker.register(WORKER).catch(() => undefined)
     startKeeper()
     setTimeout(() => void controlled().then(refreshKept), 3000)
   } else if ((await navigator.serviceWorker.getRegistrations()).some((r) => r.active?.scriptURL.endsWith(WORKER))) await clearOfflineCopy()
 }
 
-/**
- * The workshops a list from the offline copy can open: those the copy holds. The list itself is kept whole (it decides
- * what is kept), so without the server it would show workshops that cannot be opened.
- */
-export async function onlyKept<T extends { id: string }>(list: T[]): Promise<T[]> {
-  if (offlineStamp(list) === null || typeof caches === 'undefined') return list
-  const cache = await caches.open(DATA_CACHE)
+/** Said on the window whenever what the copy holds may have changed (a round done, a workshop added, the switch). */
+export const KEPT_CHANGED = 'sp:offline-kept'
+/** Said on the window when the server answers again after the app showed the copy. */
+export const BACK_ONLINE = 'sp:back-online'
+
+/** The workshops the copy holds on this device, for the list (docs/offline.md); empty with the switch off. */
+export async function keptHere(): Promise<Set<string>> {
   const held = new Set<string>()
+  if (!(await offlineOn())) return held
+  const cache = await caches.open(DATA_CACHE)
   for (const id of await readKept(cache)) if (await cache.match(new URL(apiUrl(`/workshops/${encodeURIComponent(id)}`), location.origin).href)) held.add(id)
-  return list.filter((w) => held.has(w.id))
+  return held
 }
+
+const keptChanged = () => window.dispatchEvent(new Event(KEPT_CHANGED))
 
 /** What the copy holds now, for the settings. */
 export async function offlineSummary(): Promise<{ workshops: number; at: string | null }> {
@@ -208,6 +215,7 @@ async function addKept(id: string) {
   if (gen !== generation) return
   if (!ids.includes(id)) await writeKept(cache, [...ids, id])
   await refreshWorkshop(id)
+  if (gen === generation) keptChanged()
 }
 
 /** Reads the list of workshops, decides which are kept, fetches them for the copy and lets go of the others. One round at a time. */
@@ -240,7 +248,9 @@ async function round(): Promise<void> {
     if (gen !== generation) return
     await refreshWorkshop(id)
   }
-  if (gen === generation) await letGo(cache, new Set(kept))
+  if (gen !== generation) return
+  await letGo(cache, new Set(kept))
+  keptChanged()
 }
 
 /** Deletes what the copy holds of workshops no longer kept. */
@@ -293,4 +303,51 @@ async function refreshWorkshop(id: string): Promise<void> {
     if (await cache.match(new URL(url, location.origin).href)) continue
     await fetch(url).catch(() => undefined)
   }
+}
+
+/** How often, while the app shows the copy, it asks whether the server is back; a little jitter, so windows do not ask together. */
+const PROBE_MS = 10_000
+const PROBE_WAIT_MS = 3_000
+let probing: number | null = null
+let probeWatch: (() => void) | null = null
+
+/**
+ * While the app shows the copy, asks the server every ten seconds whether it is back, with a request the worker lets
+ * through (PROBE_PARAM). On an answer the worker stops answering from the copy, the bar goes, the list reads again and
+ * an open workshop is read from the server (it also is when its live stream returns).
+ */
+function startProbe() {
+  if (probeWatch) return
+  const offline = () => useOffline.getState().since !== null || usePlanner.getState().offlineAt !== null
+  const schedule = () => {
+    if (probing !== null || !offline()) return
+    probing = window.setTimeout(() => void probe(), PROBE_MS + Math.random() * 2000)
+  }
+  const probe = async () => {
+    probing = null
+    if (!offline()) return
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), PROBE_WAIT_MS)
+    const res = await fetch(`${apiUrl('/me')}?${PROBE_PARAM}=${Date.now()}`, { cache: 'no-store', headers: { 'x-sp': '1' }, signal: abort.signal }).catch(() => null)
+    clearTimeout(timer)
+    if (res && !unreachable(res.status)) backOnline()
+    else schedule()
+  }
+  const unsubscribeOffline = useOffline.subscribe(schedule)
+  const unsubscribePlanner = usePlanner.subscribe(schedule)
+  window.addEventListener('online', schedule)
+  probeWatch = () => {
+    unsubscribeOffline()
+    unsubscribePlanner()
+    window.removeEventListener('online', schedule)
+  }
+  schedule()
+}
+
+/** The server answers again: the worker, the bar and the pages hear it. */
+function backOnline() {
+  navigator.serviceWorker.controller?.postMessage({ type: 'online' })
+  markOnline()
+  window.dispatchEvent(new Event(BACK_ONLINE))
+  void refreshKept()
 }

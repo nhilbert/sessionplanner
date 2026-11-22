@@ -146,7 +146,10 @@ No strip of marks beside the agenda.
   appearance, as those are per device too; beside it how many workshops are kept and as of when.
 - Without the server the app looks as it always does: one amber bar over the page says that this is the copy and as of
   when; nothing else changes its place. A workshop of the copy is the planner as always, read-only; its header and the
-  presenter view's say "Offline · as of …" in place of "Reconnecting…". The list of workshops shows what the copy holds.
+  presenter view's say "Offline · as of …" in place of "Reconnecting…". Buttons that would change something stay in
+  place, disabled, and say that they need the connection.
+- In the list of workshops a small check-in-a-circle after the title marks what the copy holds on this device (also
+  online). Without the server the others are dimmed and carry the chip "Needs a connection"; never grey alone.
 
 ## The workshops
 

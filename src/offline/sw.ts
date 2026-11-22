@@ -11,7 +11,7 @@
  * Built by scripts/offlineWorker.ts into dist/sw.js, with the list of files and the build's version filled in.
  */
 import { API_ROOT } from '../domain/addresses'
-import { apiTarget, belongsTo, DATA_CACHE, isAppPage, isAppRoute, keepKey, DOWN_MS, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
+import { apiTarget, belongsTo, DATA_CACHE, isAppPage, isAppRoute, keepKey, DOWN_MS, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PROBE_PARAM, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
 
 declare const self: ServiceWorkerGlobalScope
 declare const __SP_PRECACHE__: string[]
@@ -52,6 +52,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
+  // The app asking whether the server is back: only the server can answer that.
+  if (url.searchParams.has(PROBE_PARAM)) return
   if (request.mode === 'navigate') {
     // A file, an export or a download from the API is never answered with the page.
     if (!url.pathname.includes(`${API_ROOT}/`)) event.respondWith(page(event, url.pathname))
@@ -171,6 +173,11 @@ function served(kept: Response): Response {
  * answer from it ends this.
  */
 let downUntil = 0
+
+// The app heard the server again (src/offline/client.ts, its probe): the copy stops answering at once.
+self.addEventListener('message', (event) => {
+  if ((event.data as { type?: string } | null)?.type === 'online') downUntil = 0
+})
 
 const serverGone = (): boolean => self.navigator.onLine === false || Date.now() < downUntil
 

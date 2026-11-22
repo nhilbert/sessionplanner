@@ -14,8 +14,9 @@ import { newId } from '@/domain/ops'
 import { historyViews } from '@/store/listViews'
 import { useSettings } from '@/store/useSettings'
 import { DuplicateDialog, type DuplicateSource } from '@/planner/panels'
-import { onlyKept } from '@/offline/client'
-import { ClientAndPlace, fullSpan, lengthOf, NewWorkshop, PartHead, RowActions, type RowContext, RowList, titleOf, untilText, WorkshopRow, workshopPath } from '@/workshops/parts'
+import { BACK_ONLINE, KEPT_CHANGED, keptHere } from '@/offline/client'
+import { offlineStamp } from '@/offline/state'
+import { ClientAndPlace, fullSpan, lengthOf, NewWorkshop, OfflineMark, offlineState, PartHead, RowActions, type RowContext, RowList, titleOf, untilText, WorkshopRow, workshopPath } from '@/workshops/parts'
 
 /** What the list showed, for the way back from a workshop (store/listViews.ts). */
 interface ListView {
@@ -62,16 +63,31 @@ export default function WorkshopsPage() {
   /** Lines too narrow for a second thing to press beside the title. */
   const narrow = useMediaQuery('(max-width: 767px)')
 
+  // The offline copy (docs/offline.md): which workshops it holds here, and whether the list came from it.
+  const [kept, setKept] = useState<Set<string>>(() => new Set())
+  const [away, setAway] = useState(false)
+  const take = (next: WorkshopSummary[]) => {
+    setAway(offlineStamp(next) !== null)
+    setList(next)
+  }
   useEffect(() => {
-    // From the offline copy only what it holds: the others cannot be opened without the server (docs/offline.md).
-    api.listWorkshops().then(onlyKept).then(setList, () => setFailed(true))
+    api.listWorkshops().then(take, () => setFailed(true))
+    const held = () => void keptHere().then(setKept, () => undefined)
+    const back = () => void api.listWorkshops().then(take, () => undefined)
+    held()
+    window.addEventListener(KEPT_CHANGED, held)
+    window.addEventListener(BACK_ONLINE, back)
+    return () => {
+      window.removeEventListener(KEPT_CHANGED, held)
+      window.removeEventListener(BACK_ONLINE, back)
+    }
   }, [])
   // The trash is the owner's: deleted workshops wait there TRASH_DAYS days before they go for good.
   const [trash, setTrash] = useState<TrashedWorkshop[]>([])
   const { notice, show, close } = useNotice()
   /** The lists as the server has them now, after a change here (or one that failed half-way). */
   const reload = async () => {
-    setList(await onlyKept(await api.listWorkshops()))
+    take(await api.listWorkshops())
     if (me.owner) setTrash(await api.listTrash())
   }
   useEffect(() => {
@@ -191,7 +207,9 @@ export default function WorkshopsPage() {
     setDuplicating({ id: w.id, title: w.title, firstDate: w.firstDate ?? '', days: w.days })
     setCopyOpen(true)
   }
-  const actions = (w: WorkshopSummary): MenuItem[] =>
+  // Without the server a workshop's actions stay where they are, but say that they need it.
+  const actions = (w: WorkshopSummary): MenuItem[] => (away ? ownActions(w).map((it) => ({ ...it, disabled: true, hint: t('offline.needsConnection') })) : ownActions(w))
+  const ownActions = (w: WorkshopSummary): MenuItem[] =>
     me.owner
       ? [
           { label: t('workshop.duplicate'), icon: <Copy size={14} />, onSelect: () => duplicate(w) },
@@ -212,7 +230,14 @@ export default function WorkshopsPage() {
     selection.clear()
     if (asked !== null) void navigate({ search: '' })
   }
-  const ctx: RowContext = { today, selection: me.owner && selecting ? selection : null, onClient: selecting || narrow ? null : (key) => openClient(key), actions, onDuplicate: duplicate }
+  const ctx: RowContext = {
+    today,
+    selection: me.owner && selecting ? selection : null,
+    onClient: selecting || narrow ? null : (key) => openClient(key),
+    actions,
+    onDuplicate: duplicate,
+    offline: { kept, away, onUnavailable: (w) => show({ text: t('offline.notOnDevice', { title: titleOf(w, t) }) }) },
+  }
   /** In a client's history the name is no way to go: one is there already. */
   const inHistory: RowContext = { ...ctx, onClient: null }
   const toggleYear = (year: number) => setYears(openYears.includes(year) ? openYears.filter((y) => y !== year) : [...openYears, year])
@@ -229,7 +254,7 @@ export default function WorkshopsPage() {
           subtitle={me.owner ? undefined : t('guest.shared')}
           right={
             me.owner && (
-              <Button variant="primary" onClick={() => setCreating({ client: '' })}>
+              <Button variant="primary" disabled={away} title={away ? t('offline.needsConnection') : undefined} onClick={() => setCreating({ client: '' })}>
                 <Plus size={16} />
                 {t('workshops.new')}
               </Button>
@@ -240,7 +265,7 @@ export default function WorkshopsPage() {
         {empty &&
           (me.owner ? (
             <Empty title={t('workshops.empty')} body={t('workshops.emptyBody')}>
-              <Button variant="primary" onClick={() => setCreating({ client: '' })}>
+              <Button variant="primary" disabled={away} title={away ? t('offline.needsConnection') : undefined} onClick={() => setCreating({ client: '' })}>
                 <Plus size={16} />
                 {t('workshops.new')}
               </Button>
@@ -460,8 +485,9 @@ function NextCard({ w, ctx }: { w: WorkshopSummary; ctx: RowContext }) {
   const { t } = useTranslation()
   const several = !!w.lastDate && w.lastDate !== w.firstDate
   const facts = [lengthOf(w, t), w.itemCount > 0 && t('workshops.items', { count: w.itemCount }), w.updatedAt && t('workshops.changed', { date: shortDate(w.updatedAt) })].filter(Boolean).join(' · ')
+  const { onDevice, unavailable } = offlineState(w, ctx)
   return (
-    <div className="card group relative flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-4 transition-colors hover:bg-surface-2/60 sm:flex-nowrap md:gap-x-6 md:px-6">
+    <div className={cx('card group relative flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-4 transition-colors hover:bg-surface-2/60 sm:flex-nowrap md:gap-x-6 md:px-6', unavailable && 'text-ink-3 [&_*]:!text-ink-3')}>
       {w.firstDate && (
         <div className="hidden min-w-[6.5rem] shrink-0 text-center text-brand-ink sm:block">
           <div className="text-[12px] font-semibold">{formatDateRange(w.firstDate, w.lastDate, { weekday: several ? 'short' : 'long' })}</div>
@@ -471,9 +497,18 @@ function NextCard({ w, ctx }: { w: WorkshopSummary; ctx: RowContext }) {
       )}
       <div className="order-1 min-w-0 flex-1 text-[13px] font-bold text-brand-ink tnum sm:hidden">{fullSpan(w, t)}</div>
       <div className="order-4 min-w-0 max-sm:w-full sm:order-1 sm:flex-1">
-        <Link to={workshopPath(w.id)} className="app-title block text-[21px] leading-tight after:absolute after:inset-0 md:text-[23px]">
-          {titleOf(w, t)}
-        </Link>
+        <div className="flex min-w-0 items-center gap-2">
+          {unavailable ? (
+            <button type="button" onClick={() => ctx.offline?.onUnavailable(w)} className="app-title block text-left text-[21px] leading-tight after:absolute after:inset-0 md:text-[23px]">
+              {titleOf(w, t)}
+            </button>
+          ) : (
+            <Link to={workshopPath(w.id)} className="app-title block text-[21px] leading-tight after:absolute after:inset-0 md:text-[23px]">
+              {titleOf(w, t)}
+            </Link>
+          )}
+          <OfflineMark onDevice={onDevice} unavailable={unavailable} />
+        </div>
         {(w.client.trim() || w.location) && (
           <div className="mt-0.5 truncate text-ink-2">
             <ClientAndPlace w={w} onClient={ctx.onClient} />
