@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, ExternalLink, Keyboard, Pencil, X } from 'lu
 import { itemsIn, sortedDays } from '@/domain/order'
 import { clockIn, formatTime, scheduleDay } from '@/domain/time'
 import { usePlanner } from '@/store/usePlanner'
+import { formatStamp } from '@/offline/OfflineNotice'
 import { useSettings } from '@/store/useSettings'
 import { Button, cx, IconButton, isTyping } from '@/components/ui'
 import { overlayOpen } from '@/components/overlay'
@@ -27,7 +28,7 @@ export default function PresenterPage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { data, status, live, open, close } = usePlanner()
+  const { data, status, live, offlineAt, open, close } = usePlanner()
   const { loaded, load } = useSettings()
   const [now, setNow] = useState(() => new Date())
   const { deck, theme } = useDeck(data)
@@ -94,7 +95,8 @@ export default function PresenterPage() {
   const slide = deck[n]
   const next = deck[n + 1]
   const owner = !data.access
-  const canEdit = owner || data.access?.role === 'edit'
+  // The offline copy is read-only (docs/offline.md): presenting works, editing waits for the server.
+  const canEdit = !offlineAt && (owner || data.access?.role === 'edit')
   // Opens the editor on the whole deck at that slide; generated slides show their note there, as everywhere.
   const edit = (key: string) => useSlideEditing.getState().open({ kind: 'deck', key, mode: 'edit' })
   // The clock in the workshop's time zone, like its agenda.
@@ -111,7 +113,7 @@ export default function PresenterPage() {
         <span className="text-ink-3">·</span>
         <span className="tnum text-ink-2">{formatTime(minutesNow)}</span>
         <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-[var(--c-sage)]' : 'bg-amber')} />
-        {!live && <span className="text-[12px] text-amber">{t('planner.offline')}</span>}
+        {!live && <span className="text-[12px] text-amber">{offlineAt ? t('offline.short', { at: formatStamp(offlineAt) }) : t('planner.offline')}</span>}
         <span className="flex-1" />
         <IconButton label={t('slides.keys')} aria-pressed={keys} onClick={() => setKeys(!keys)} className={cx('max-md:hidden', keys && 'bg-surface-2 text-ink')}>
           <Keyboard size={15} />

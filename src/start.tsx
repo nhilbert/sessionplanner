@@ -6,6 +6,7 @@ import { cleanBasePath, setBasePath } from './domain/addresses'
 import { setOwnerOnly, setProduct, setSettingsSection, setWorkshopSharing, setWorkshopTool } from './features'
 import { initialLocale, setupI18n } from './i18n'
 import { applyAppearance, initialAppearance } from './appearance'
+import { startOffline } from './offline/client'
 
 /** Starts the app in the page. Called with nothing here (main.tsx); a build that adds to the app passes its extensions. */
 export function startApp(extensions: Extensions = {}): void {
@@ -23,4 +24,6 @@ export function startApp(extensions: Extensions = {}): void {
       <App extensions={{ ...extensions, basePath }} />
     </StrictMode>,
   )
+  // The offline copy, when switched on on this device (docs/offline.md).
+  void startOffline().catch(() => undefined)
 }

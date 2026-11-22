@@ -20,6 +20,12 @@ export function setBasePath(path: string): void {
   current = cleanBasePath(path)
 }
 
+/** The browser's base path ('' at the root): where its API and what it keeps start (src/offline). */
+export const basePath = (): string => current
+
+/** Where the API starts under a base path, for code that reads addresses instead of writing them (the offline copy's worker). */
+export const API_ROOT = API
+
 /** A name for what this browser keeps per app: apps under one host share its storage and its channels. Unchanged at the root. */
 export const localName = (name: string): string => (current ? `${current}:${name}` : name)
 

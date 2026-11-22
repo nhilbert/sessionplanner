@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { BookMarked, CalendarDays, Ellipsis, Images, type LucideIcon, PanelLeftClose, PanelLeftOpen, Presentation, Settings } from 'lucide-react'
 import { useSettings } from '@/store/useSettings'
 import { LOGIN_REQUIRED } from '@/api'
+import { OfflineBar } from '@/offline/OfflineNotice'
 import { productName } from '@/features'
 import { cx, Sheet, useLocalState } from './ui'
 
@@ -134,6 +135,7 @@ export default function AppShell({ navigation }: { navigation?: NavExtensions })
         {wide && navigation?.account && <div className="mt-3 border-t border-line pt-2">{navigation.account({ form })}</div>}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] md:pb-0">
+        <OfflineBar />
         {loginExpired && (
           <div className="no-print flex items-center justify-between gap-3 bg-amber-soft px-4 py-2 text-[13px] text-amber md:px-6">
             {t('common.login')}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Eye, FileText, Flag, Package, Paperclip, Printer, StickyNote } from 'lucide-react'
+import { Eye, FileText, Flag, MonitorSpeaker, Package, Paperclip, Play, Printer, StickyNote, WifiOff } from 'lucide-react'
 import { api } from '@/api'
 import type { Item, Worksheet, WorkshopState } from '@/domain/types'
 import { SheetViewer } from '@/worksheets/WorksheetList'
@@ -12,15 +12,24 @@ import { itemColor, useSettings } from '@/store/useSettings'
 import { Button, Chip, cx } from '@/components/ui'
 import Markdown from '@/components/Markdown'
 import { pageUrl } from '@/domain/addresses'
+import { formatStamp } from '@/offline/OfflineNotice'
 
-/** The read-only agenda for guests with view access: times, groups, descriptions, material, files (and notes if shared). */
-export default function AgendaView({ data }: { data: WorkshopState }) {
+/**
+ * The read-only agenda for guests with view access: times, groups, descriptions, material, files (and notes if
+ * shared). Also the agenda of the offline copy (docs/offline.md, `offlineAt`), for everyone: with presenting and the
+ * moderation plan, as far as the one who sees it may.
+ */
+export default function AgendaView({ data, offlineAt }: { data: WorkshopState; offlineAt?: string | null }) {
   const { t } = useTranslation()
   const categories = useSettings((s) => s.settings.categories)
   const days = sortedDays(data.days)
   const w = data.workshop
   const dates = days.length ? (days.length === 1 ? formatDate(days[0].date) : `${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`) : ''
   const print = (variant: 'agenda' | 'plan') => window.open(pageUrl(`/w/${w.id}/print/${variant}`), '_blank', 'noopener')
+  const show = (path: 'present' | 'presenter') => window.open(pageUrl(`/w/${w.id}/${path}`), '_blank', 'noopener')
+  // The owner and editing guests see the notes, so their printout is the moderation plan; a view guest's as shared.
+  const notes = !data.access || data.access.role === 'edit' || data.access.showNotes
+  const canPresent = !!offlineAt && (!data.access || data.access.role === 'edit')
 
   return (
     <div className="h-full overflow-y-auto">
@@ -32,15 +41,34 @@ export default function AgendaView({ data }: { data: WorkshopState }) {
             {w.goal && <p className="mt-2 whitespace-pre-line text-[14px] text-ink-2">{w.goal}</p>}
             {w.notes && <Markdown text={w.notes} className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-[13px] text-ink-2" />}
           </div>
-          <div className="flex items-center gap-2">
-            <Chip>
-              <Eye size={12} />
-              {t('guest.viewOnly')}
-            </Chip>
-            <Button size="sm" variant="ghost" onClick={() => print(data.access?.showNotes ? 'plan' : 'agenda')}>
+          <div className="flex flex-wrap items-center gap-2">
+            {offlineAt ? (
+              <Chip tone="amber">
+                <WifiOff size={12} />
+                {t('offline.short', { at: formatStamp(offlineAt) })}
+              </Chip>
+            ) : (
+              <Chip>
+                <Eye size={12} />
+                {t('guest.viewOnly')}
+              </Chip>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => print(notes ? 'plan' : 'agenda')}>
               <Printer size={14} />
               {t('guest.print')}
             </Button>
+            {canPresent && (
+              <>
+                <Button size="sm" variant="ghost" onClick={() => show('presenter')}>
+                  <MonitorSpeaker size={14} />
+                  {t('slides.presenter')}
+                </Button>
+                <Button size="sm" onClick={() => show('present')}>
+                  <Play size={14} />
+                  {t('slides.present')}
+                </Button>
+              </>
+            )}
           </div>
         </header>
         {days.map((d) => {

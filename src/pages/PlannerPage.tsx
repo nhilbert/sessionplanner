@@ -7,6 +7,7 @@ import { FolderOpen, Plus, X } from 'lucide-react'
 import { productName } from '@/features'
 import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
+import { useOffline } from '@/offline/state'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
 import { entriesIn, itemsIn, placeIn, positionAtEnd, sortedDays } from '@/domain/order'
@@ -37,7 +38,8 @@ export default function PlannerPage() {
   const { id = '' } = useParams()
   const { t } = useTranslation()
   const phone = useIsPhone()
-  const { data, status, live, syncError, past, future, open, close, change, undo, redo, addAttachment, removeAttachment, dismissSyncError } = usePlanner()
+  const { data, status, live, offlineAt, syncError, past, future, open, close, change, undo, redo, addAttachment, removeAttachment, dismissSyncError } = usePlanner()
+  const offline = useOffline((s) => s.since !== null)
   const settings = useSettings((s) => s.settings)
   const mayChangeLibrary = useLibraryEdit()
   const library = useLibrary()
@@ -392,14 +394,16 @@ export default function PlannerPage() {
   if (status === 'login' || !data)
     return (
       <Centered>
-        <p>{status === 'login' ? t('common.login') : t('common.error')}</p>
+        <p>{status === 'login' ? t('common.login') : offline || !navigator.onLine ? t('offline.notKept') : t('common.error')}</p>
         <Button className="mt-4" onClick={() => window.location.reload()}>
           {t('common.reload')}
         </Button>
       </Centered>
     )
 
-  // Guests with view access get the read-only agenda; editing guests the planner without the owner's tools.
+  // Guests with view access get the read-only agenda; editing guests the planner without the owner's tools. The offline
+  // copy is read-only for everyone (docs/offline.md): the same agenda, with presenting and the printouts.
+  if (offlineAt) return <AgendaView data={data} offlineAt={offlineAt} />
   if (data.access?.role === 'view') return <AgendaView data={data} />
   const owner = !data.access
 

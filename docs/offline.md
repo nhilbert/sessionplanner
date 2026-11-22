@@ -1,0 +1,55 @@
+# The offline copy
+
+A fallback for when the connection breaks or there is none (a venue without Wi-Fi, a train): the device shows the
+workshops of the coming weeks read-only, with the agenda, the moderation plan and presenting with the presenter view.
+Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the workshop is run from.
+
+## What the person sees
+
+- **A switch per device** in the settings, "Offline on this device", off by default. Clients' workshops must not stay
+  on a shared laptop unasked, so it is switched on where it is wanted, once; after that nothing is to be done.
+- **Kept** are the workshops with a day from ten days back to thirty days ahead (one that runs over several days counts
+  when any of them is in there) and the last ten opened on this device. The settings say how many are kept and as of
+  when.
+- **Without the server** the app opens as usual, also after a reload or in a new window. A workshop of the copy shows
+  as the read-only agenda (the one view guests get, `pages/AgendaView.tsx`) with the notes, printing (moderation plan),
+  the presenter view and presenting. A bar over every page says that this is the copy and as of when. A workshop not
+  in the copy says so.
+- **The connection breaks while a workshop is open**: what is shown stays (it is newer than the copy) and turns
+  read-only. When the live stream is back, the workshop is read from the server again and can be changed.
+- **Presenting**: the windows on one device keep in step over the browser's channel (`slides/presentChannel.ts`), as
+  they did before when the server was out of reach. Following on a phone needs the server.
+- **Read-only, by decision.** Editing offline would mean merging changes made apart; co-editing matters more
+  (section 7 of the concept). A change on its way when the connection broke is not kept for later.
+- **Signing out deletes the copy** (in a build with a sign-out), as does turning the switch off. Someone else signing
+  in at the same app on the device deletes what was kept for the one before.
+
+## How it works
+
+- **A service worker** (`src/offline/sw.ts`, built by `scripts/offlineWorker.ts` into `dist/sw.js` with the list of
+  the build's files and a version that changes with them). It is registered only while the switch is on, at the root
+  of the host, so one worker serves every app under it; workspaces keep apart by their base path in every address.
+  - The build's code, styles and fonts are kept per build (not the CJK font subsets, which come when used). A new
+    build installs itself and drops the files of the one before.
+  - The app's page is kept as the server last sent it, with its security policy; only a page that is the app's
+    (`isAppPage`), not one of a login or workspace choice in front of it.
+  - The API answers the copy holds (`src/offline/policy.ts`): who is signed in, the settings and their logo, the list
+    of workshops, the themes with their stylesheets, files and pools, and per kept workshop the workshop and its
+    pictures. Nothing else: not the library, decks, members, exports or the live stream. These go to the server first;
+    what comes back is kept with the time it came. With no answer (no network, a gateway error, or nothing within five
+    seconds) the kept one answers, marked with the header `x-sp-offline` and that time.
+  - Everything that changes data goes to the server as before; the worker never answers it.
+- **The keeper** (`src/offline/client.ts`) runs in the page while the switch is on: on start, every fifteen minutes and
+  when the network returns it reads the list, decides what is kept (`pickKept`), fetches each kept workshop with its
+  theme, the pictures of its slides and worksheets and the theme pool's pictures (for the generated slides), and lets
+  go of workshops no longer kept. The open workshop is read again a few seconds after changes rest, so the copy follows
+  the work.
+- **The app** learns from the header that an answer came from the copy (`src/api.ts`, `offline/state.ts`). The open
+  workshop then carries `offlineAt` (`store/usePlanner.ts`); changes, undo and redo are refused while it does.
+
+## Privacy
+
+The copy holds workshop content (including facilitation notes) in the browser's storage of the device, nowhere else,
+and only where someone switched it on. It is deleted by the switch, by signing out, and for a different person
+signing in. A device that is lost or shared while it holds a copy holds that content; the hint beside the switch says
+to switch it on only on one's own device.

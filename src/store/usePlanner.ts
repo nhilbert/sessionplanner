@@ -3,6 +3,7 @@ import { api, ApiError } from '@/api'
 import { inverseOps, type Op, type PresentPosition, type ServerEvent } from '@/domain/ops'
 import { addLocal, applyRemote, fromSnapshot, markSent, patchConfirmed, settle, type Sync, syncView } from '@/domain/sync'
 import type { Attachment, WorkshopState } from '@/domain/types'
+import { offlineStamp } from '@/offline/state'
 
 /**
  * The open workshop (docs/concept.md, section 7): changes apply here at once and go to the server in
@@ -14,6 +15,8 @@ const WINDOW_ID = crypto.randomUUID()
 const MAX_UNDO = 200
 /** A broken stream retries every few seconds; asking the API what is going on once in a while is enough. */
 const ERROR_RELOAD_MS = 10_000
+/** How soon a workshop the offline copy answered for, while the live stream is up, is read again from the server. */
+const RETRY_COPY_MS = 5_000
 
 /** A file new to the workshop joins the list; a known one (renamed, replaced) takes its place there. */
 const withAttachment = (s: WorkshopState, a: Attachment): WorkshopState => ({
@@ -41,6 +44,11 @@ interface PlannerStore {
   data: WorkshopState | null
   status: Status
   live: boolean
+  /**
+   * Shown from the offline copy (docs/offline.md): as of when. The workshop is then read-only; it is read again from
+   * the server as soon as the live stream is back.
+   */
+  offlineAt: string | null
   /** Only for those who can edit; a new object for every message, so listeners see each one. */
   presenting: PresentNews | null
   /** A change the server refused; the workshop was reloaded. */
@@ -83,6 +91,8 @@ let snapshotAt = 0
 let heard = 0
 /** The open session whose changes share one undo entry (beginGroup). */
 let group: string | null = null
+/** When the server last confirmed what is shown: a snapshot it sent, or the live stream. */
+let liveAt: string | null = null
 
 export const usePlanner = create<PlannerStore>((set, get) => {
   /** Shows the synced state. */
@@ -95,14 +105,23 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     try {
       const fresh = await api.loadWorkshop(id)
       if (get().id !== id) return
+      const stamp = offlineStamp(fresh)
+      if (stamp !== null && sync && !get().offlineAt) {
+        // The connection broke while the workshop was open: what is shown is newer than the copy, so it stays, read-only.
+        set({ status: 'ready', offlineAt: liveAt ?? stamp, past: [], future: [] })
+        return
+      }
+      if (stamp === null) liveAt = new Date().toISOString()
+      // The copy answered a slow server while the stream is up: the server is there, so read again in a moment.
+      else if (get().live) setTimeout(() => get().id === id && get().offlineAt && reload(), RETRY_COPY_MS)
       // Read before a change the stream has brought: it would take that back. Read again, as it was asked for because something may be missing.
-      if (sync && fresh.revision !== undefined && fresh.revision < heard) return reload()
+      if (stamp === null && sync && fresh.revision !== undefined && fresh.revision < heard) return reload()
       show(fromSnapshot(sync, fresh))
       snapshotAt = fresh.revision ?? 0
       const waiting = early
       early = []
       for (const event of waiting) receive(event)
-      set({ status: 'ready' })
+      set({ status: 'ready', offlineAt: stamp, ...(stamp !== null ? { past: [], future: [] } : {}) })
     } catch (err) {
       if (get().id !== id) return
       if (err instanceof ApiError && err.status === 404) {
@@ -180,14 +199,15 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     source = new EventSource(api.eventsUrl(id))
     source.addEventListener('hello', (e: MessageEvent<string>) => {
       set({ live: true })
+      liveAt = new Date().toISOString()
       try {
         const hello = e.data ? (JSON.parse(e.data) as { present?: PresentPosition | null }) : {}
         if (hello.present !== undefined && get().id === id) set({ presenting: { position: hello.present, hello: true } })
       } catch {
         // an older server says hello without data
       }
-      // Back after a lost connection: changes may have been missed meanwhile.
-      if (connectedBefore) reload()
+      // Back after a lost connection: changes may have been missed meanwhile, and the offline copy gives way to the server's.
+      if (connectedBefore || get().offlineAt) reload()
       connectedBefore = true
     })
     source.onerror = () => {
@@ -209,6 +229,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
         return
       }
       if (get().id !== id) return
+      liveAt = new Date().toISOString()
       if (sync) receive(event)
       else early.push(event)
     }
@@ -219,6 +240,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     data: null,
     status: 'idle',
     live: false,
+    offlineAt: null,
     presenting: null,
     syncError: false,
     past: [],
@@ -233,7 +255,8 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       early = []
       snapshotAt = 0
       heard = 0
-      set({ id, data: null, status: 'loading', live: false, presenting: null, past: [], future: [], syncError: failedAway })
+      liveAt = null
+      set({ id, data: null, status: 'loading', live: false, offlineAt: null, presenting: null, past: [], future: [], syncError: failedAway })
       failedAway = false
       // Changes from a moment ago may still be on their way: the workshop is read after them, so it shows them.
       void queue.then(() => (mine === opening ? load(id) : undefined))
@@ -245,12 +268,13 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       source?.close()
       source = null
       sync = null
-      set({ id: null, data: null, status: 'idle', live: false, presenting: null, past: [], future: [] })
+      set({ id: null, data: null, status: 'idle', live: false, offlineAt: null, presenting: null, past: [], future: [] })
     },
 
     change: (ops) => {
       const data = get().data
-      if (!data || !ops.length) return
+      // The offline copy is read-only: a change could not reach the server, and the copy would be taken for it.
+      if (!data || !ops.length || get().offlineAt) return
       const undo = inverseOps(data, ops)
       const past = get().past
       const last = past.at(-1)
@@ -269,14 +293,14 @@ export const usePlanner = create<PlannerStore>((set, get) => {
 
     undo: () => {
       const entry = get().past.at(-1)
-      if (!entry || !get().data) return
+      if (!entry || !get().data || get().offlineAt) return
       set({ past: get().past.slice(0, -1), future: [...get().future, entry] })
       send(entry.undo)
     },
 
     redo: () => {
       const entry = get().future.at(-1)
-      if (!entry || !get().data) return
+      if (!entry || !get().data || get().offlineAt) return
       set({ future: get().future.slice(0, -1), past: [...get().past, entry] })
       send(entry.redo)
     },

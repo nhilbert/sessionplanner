@@ -140,6 +140,15 @@ No strip of marks beside the agenda.
   navigation is the name, the pages and the settings.
 - What is needed rarely (the other workspaces, signing out, the legal pages) is in the menu of its place, not a row.
 
+## Offline
+
+- The offline copy ([offline.md](offline.md)) is one switch per device in the settings, beside language and
+  appearance, as those are per device too; beside it how many workshops are kept and as of when.
+- Without the server one amber bar over the page says that this is the copy and as of when; nothing else changes its
+  place. A workshop of the copy shows as the read-only agenda, its chip saying "Offline · as of …" where a guest's says
+  "View only", with Print, Presenter view and Present beside it. The presenter view's header says the same in place of
+  "Reconnecting…".
+
 ## The workshops
 
 - **Time orders the page.** Today divides it: "Next" is the nearest coming workshop as a card of its own (its days as

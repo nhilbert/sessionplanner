@@ -3,6 +3,8 @@ import type { Op, PresentPosition } from './domain/ops'
 import { apiUrl, themeUrl } from './domain/addresses'
 import { type PoolAsset, type PoolKind, type Theme, type ThemeInfo, themeLogoUrl, type ThemeTokens } from './domain/theme'
 import i18n from './i18n'
+import { OFFLINE_HEADER } from './offline/policy'
+import { markOffline, markOnline } from './offline/state'
 
 /** Thin client for the server API (server/app.ts). Changes carry the app's header (server/guard.ts). Paths here start after the API's own address (domain/addresses.ts). */
 
@@ -75,7 +77,12 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
     throw new ApiError(res.status, body.error ?? res.statusText)
   }
-  return (await res.json()) as T
+  const value = (await res.json()) as T
+  // From the offline copy (docs/offline.md): the service worker says when it was stored.
+  const offline = res.headers.get(OFFLINE_HEADER)
+  if (offline !== null) markOffline(value, offline)
+  else markOnline()
+  return value
 }
 
 export const api = {

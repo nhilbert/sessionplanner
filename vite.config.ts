@@ -2,10 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
+import { offlineWorker } from './scripts/offlineWorker.ts'
 
 // The dev server is bound to 127.0.0.1 so the app (and the data in it) is never exposed on the local network by accident.
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), offlineWorker()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

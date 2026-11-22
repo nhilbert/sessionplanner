@@ -82,6 +82,7 @@ Print views (`/w/:id/print/:variant`, browser print, also to PDF), all on A4 por
 - The server is the source of truth. Every change is a small operation (set these fields of this item, create, delete); each window applies its own changes at once and sends them; the server stores them and passes them, as stored, to every open window of the workshop, the sender's included (server-sent events). Each window builds the server's state from that stream in the server's order and shows its own changes still on their way on top of it (`src/domain/sync.ts`).
 - Changes are per field, so two people editing different items or different fields never collide. On the same field, the change the server stored last wins, in every window; a field you are typing in is not overwritten by someone else's change while you type, and a field you only visited does not write back what it showed.
 - After a lost connection the window reloads the workshop from the server, once the changes it was sending are through. No offline editing in the first stages (co-editing matters more than offline use).
+- Without the server a device can show an offline copy, read-only, when the switch is on there (2026-11-22, [offline.md](offline.md)).
 - Undo works on your own changes in this window.
 
 ## 8. Access model
@@ -149,6 +150,17 @@ On the owner's retired instance there was no public access, so no share links: e
 - The trash removes files before their records, so a file that cannot go is tried again. A workshop in the trash stays as it went in. The exports of all data and media hold it too, apart and marked.
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
+
+**2026-11-22, an offline copy** (revises "no offline mode for now" of 2026-10-29, for reading and presenting only)
+
+The app needs the server for everything; at a venue without Wi-Fi, or when the connection breaks during a workshop, the agenda and the slides were gone. The PDF and HTML exports helped only if made beforehand, and the HTML deck has no presenter view.
+
+- A device keeps a copy when the switch is on there (settings, off by default: partners may work on shared laptops). After that it works by itself: no saving beforehand, no file to keep up to date.
+- Kept: the workshops with a day from ten days back to thirty days ahead, and the last ten opened on the device.
+- Without the server the app opens as usual and shows a kept workshop read-only, with the moderation plan, printing, the presenter view and presenting; a bar says as of when. When the connection breaks while a workshop is open, what is shown stays and turns read-only.
+- Read-only by decision: editing offline would mean merging changes made apart, and co-editing still matters more. Following a presentation on a phone needs the server.
+- Signing out and the switch delete the copy; another person signing in on the device deletes what was kept for the one before.
+- A service worker built with the app; the rules of what it keeps are in `src/offline/policy.ts`, the whole in [offline.md](offline.md). A single offline file per workshop (a snapshot to save by hand) was proposed first and set aside for this.
 
 **2026-11-19, the workshops by time and by client** (revises the workshops list of 2026-10-29 and its sort of 2026-11-06)
 

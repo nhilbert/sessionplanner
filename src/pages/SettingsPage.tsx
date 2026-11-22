@@ -11,6 +11,7 @@ import { Button, DownloadButton, IconButton, PageHeader, SectionLabel, Segmented
 import Swatches from '@/components/Swatches'
 import AgentConnections from '@/components/AgentConnections'
 import StorageSection from '@/components/StorageSection'
+import OfflineSection from '@/offline/OfflineSection'
 import { TextField, TimeField } from '@/planner/fields'
 import { ManageThemes, ThemeSelect } from '@/slides/ThemeSelect'
 
@@ -74,6 +75,8 @@ export default function SettingsPage() {
             <span className="text-[13px] text-ink-3">{t('settings.languageHint')}</span>
           </div>
         </section>
+
+        <OfflineSection />
 
         {me.owner && (
           <>
