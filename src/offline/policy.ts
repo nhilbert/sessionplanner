@@ -102,18 +102,28 @@ export function addDays(day: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/** Why a workshop is kept: its days are near, it was opened here lately, or someone said to keep it on this device. */
+export type KeepReason = 'dated' | 'recent' | 'pinned'
+
 /**
- * The workshops this device keeps: those with a day from ten days back to thirty days ahead (a workshop that runs
- * over several days counts when any of them is in there), and the last ones opened here.
+ * The workshops this device keeps, each with its reasons: those with a day from ten days back to thirty days ahead (a
+ * workshop that runs over several days counts when any of them is in there), the last ones opened here, and the ones
+ * pinned here. A workshop stays as long as one reason holds (Notion keeps its offline pages the same way).
  */
-export function pickKept(workshops: { id: string; firstDate: string | null; lastDate: string | null }[], recent: string[], today: string): string[] {
+export function keepReasons(workshops: { id: string; firstDate: string | null; lastDate: string | null }[], recent: string[], today: string, pinned: string[] = []): Map<string, KeepReason[]> {
   const from = addDays(today, -KEEP_DAYS_BEFORE)
   const to = addDays(today, KEEP_DAYS_AFTER)
   const known = new Set(workshops.map((w) => w.id))
-  const dated = workshops.filter((w) => w.firstDate && w.firstDate <= to && (w.lastDate ?? w.firstDate) >= from).map((w) => w.id)
-  const opened = recent.filter((id) => known.has(id)).slice(0, KEEP_RECENT)
-  return [...new Set([...dated, ...opened])]
+  const out = new Map<string, KeepReason[]>()
+  const add = (id: string, reason: KeepReason) => out.set(id, [...(out.get(id) ?? []), reason])
+  for (const w of workshops) if (w.firstDate && w.firstDate <= to && (w.lastDate ?? w.firstDate) >= from) add(w.id, 'dated')
+  for (const id of recent.filter((x) => known.has(x)).slice(0, KEEP_RECENT)) add(id, 'recent')
+  for (const id of pinned) if (known.has(id)) add(id, 'pinned')
+  return out
 }
+
+/** The ids of the workshops this device keeps (keepReasons). */
+export const pickKept = (workshops: { id: string; firstDate: string | null; lastDate: string | null }[], recent: string[], today: string, pinned: string[] = []): string[] => [...keepReasons(workshops, recent, today, pinned).keys()]
 
 /** The list of the last workshops opened, with `id` now the first. */
 export const touchRecent = (recent: string[], id: string): string[] => [id, ...recent.filter((x) => x !== id)].slice(0, KEEP_RECENT)

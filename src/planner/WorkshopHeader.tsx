@@ -15,6 +15,7 @@ import {
   FileText,
   FileCode,
   FileStack,
+  HardDriveDownload,
   MonitorSpeaker,
   PanelRight,
   Play,
@@ -33,7 +34,7 @@ import type { WorkshopState } from '@/domain/types'
 import { PRINT_VARIANTS } from '@/domain/print'
 import { pageUrl } from '@/domain/addresses'
 import { formatDate } from '@/i18n'
-import { api } from '@/api'
+import { api, reportFailure } from '@/api'
 import { VARIANT_LABEL } from '@/print/options'
 import { hasWorkshopSharing, workshopToolFor } from '@/features'
 import { cx, IconButton, Modal } from '@/components/ui'
@@ -43,6 +44,8 @@ import { TextField } from './fields'
 import { AccessPanel, deleteWorkshop, DuplicateDialog } from './panels'
 import { sortedDays } from '@/domain/order'
 import { formatStamp } from '@/offline/OfflineNotice'
+import { useOffline } from '@/offline/state'
+import { setPinned } from '@/offline/client'
 import { PrintPackageDialog } from './PrintPackageDialog'
 
 /** The trigger of a labelled menu or button in the header: quiet, with its label where the header has room. */
@@ -77,6 +80,8 @@ interface Props {
  */
 export default function WorkshopHeader(p: Props) {
   const { t } = useTranslation()
+  const copyOn = useOffline((s) => s.enabled)
+  const pinned = useOffline((s) => s.pins.includes(p.data.workshop.id))
   const navigate = useNavigate()
   const w = p.data.workshop
   const [sharing, setSharing] = useState(false)
@@ -117,6 +122,8 @@ export default function WorkshopHeader(p: Props) {
   ]
   const own: MenuItem[] = [
     { label: t('planner.addDay'), icon: <CalendarPlus size={14} />, onSelect: p.onAddDay },
+    // With the offline copy on this device: keep this workshop here whatever its dates (docs/offline.md).
+    ...(copyOn ? [{ label: t('offline.pin'), hint: t('offline.pinHint'), icon: <HardDriveDownload size={14} />, checked: pinned, onSelect: () => void setPinned(w.id, !pinned).catch(reportFailure) }] : []),
     ...(p.owner
       ? [
           { label: t('workshop.duplicate'), icon: <Copy size={14} />, onSelect: () => setDuplicating(true) },

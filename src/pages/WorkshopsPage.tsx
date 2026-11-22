@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, ChevronRight, Copy, Plus, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, ChevronRight, Copy, HardDriveDownload, Plus, Trash2 } from 'lucide-react'
 import { api, reportFailure } from '@/api'
 import { TRASH_DAYS, type TrashedWorkshop, type WorkshopSummary } from '@/domain/types'
 import { type ClientGroup, clientNames, type ClientsView, clientsView, monthsOf, NO_CLIENT, searchView, SINGLES, timeView, type YearSection } from '@/domain/workshopsView'
@@ -14,8 +14,8 @@ import { newId } from '@/domain/ops'
 import { historyViews } from '@/store/listViews'
 import { useSettings } from '@/store/useSettings'
 import { DuplicateDialog, type DuplicateSource } from '@/planner/panels'
-import { BACK_ONLINE, KEPT_CHANGED, keptHere } from '@/offline/client'
-import { offlineStamp } from '@/offline/state'
+import { BACK_ONLINE, KEPT_CHANGED, keptHere, setPinned } from '@/offline/client'
+import { offlineStamp, useOffline } from '@/offline/state'
 import { ClientAndPlace, fullSpan, lengthOf, NewWorkshop, OfflineMark, offlineState, PartHead, RowActions, type RowContext, RowList, titleOf, untilText, WorkshopRow, workshopPath } from '@/workshops/parts'
 
 /** What the list showed, for the way back from a workshop (store/listViews.ts). */
@@ -65,6 +65,8 @@ export default function WorkshopsPage() {
 
   // The offline copy (docs/offline.md): which workshops it holds here, and whether the list came from it.
   const [kept, setKept] = useState<Set<string>>(() => new Set())
+  const copyOn = useOffline((s) => s.enabled)
+  const pins = useOffline((s) => s.pins)
   const [away, setAway] = useState(false)
   const take = (next: WorkshopSummary[]) => {
     setAway(offlineStamp(next) !== null)
@@ -209,7 +211,15 @@ export default function WorkshopsPage() {
   }
   // Without the server a workshop's actions stay where they are, but say that they need it.
   const actions = (w: WorkshopSummary): MenuItem[] => (away ? ownActions(w).map((it) => ({ ...it, disabled: true, hint: t('offline.needsConnection') })) : ownActions(w))
-  const ownActions = (w: WorkshopSummary): MenuItem[] =>
+  // With the offline copy on this device anyone may keep a workshop here, whatever its dates (docs/offline.md).
+  const pinItem = (w: WorkshopSummary): MenuItem[] =>
+    copyOn ? [{ label: t('offline.pin'), hint: t('offline.pinHint'), icon: <HardDriveDownload size={14} />, checked: pins.includes(w.id), separated: true, onSelect: () => void setPinned(w.id, !pins.includes(w.id)).catch(reportFailure) }] : []
+  // Keeping it here stands before deleting, which stays last.
+  const ownActions = (w: WorkshopSummary): MenuItem[] => {
+    const owners = ownerActions(w)
+    return [...owners.filter((it) => !it.danger), ...pinItem(w), ...owners.filter((it) => it.danger)]
+  }
+  const ownerActions = (w: WorkshopSummary): MenuItem[] =>
     me.owner
       ? [
           { label: t('workshop.duplicate'), icon: <Copy size={14} />, onSelect: () => duplicate(w) },

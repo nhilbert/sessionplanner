@@ -9,8 +9,12 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
 - **A switch per device** in the settings, "Offline on this device", off by default. Clients' workshops must not stay
   on a shared laptop unasked, so it is switched on where it is wanted, once; after that nothing is to be done.
 - **Kept** are the workshops with a day from ten days back to thirty days ahead (one that runs over several days counts
-  when any of them is in there) and the last ten opened on this device. The settings say how many are kept and as of
-  when.
+  when any of them is in there) and the last ten opened on this device. Any workshop can also be pinned on the device
+  ("Keep on this device", in its ⋯ menu in the planner and in the list), whatever its dates. A workshop stays as long
+  as one of its reasons holds (near dates, opened lately, pinned), as Notion keeps its offline pages (`keepReasons`).
+  Pins are per device and go with the copy.
+- **The settings** list what the copy holds, the soonest first: dates, title, why it is kept and as of when, and for a
+  pinned one the way to let go of the pin (as Notion's Offline tab and Google Drive's offline preview).
 - **Without the server** the app opens as usual, also after a reload or in a new window, and looks as it always does.
   The list of workshops shows them all: those the copy holds with a small mark (also online, so one can check before
   leaving), the others dimmed and labelled "needs a connection"; opening one of those says why it does not open, and a

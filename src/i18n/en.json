@@ -1555,14 +1555,25 @@
       "holds_one": "{{count}} workshop kept, as of {{at}}",
       "holds_other": "{{count}} workshops kept, as of {{at}}",
       "failed": "That did not work. Try again with a connection.",
-      "hint": "When the connection breaks or there is none, this device shows the workshops from ten days ago to thirty days ahead and the last ten opened here: the agenda, the moderation plan, presenting with the presenter view. Read-only: changes wait for the connection. The copy stays in this browser until you turn this off. Switch it on only on your own device.",
-    "hintSignOut": "When the connection breaks or there is none, this device shows the workshops from ten days ago to thirty days ahead and the last ten opened here: the agenda, the moderation plan, presenting with the presenter view. Read-only: changes wait for the connection. The copy stays in this browser until you turn this off or sign out. Switch it on only on your own device.",
+      "hint": "When the connection breaks or there is none, this device shows the workshops from ten days ago to thirty days ahead the last ten opened here, and those you keep here with “Keep on this device” in a workshop’s ⋯ menu: the agenda, the moderation plan, presenting with the presenter view. Read-only: changes wait for the connection. The copy stays in this browser until you turn this off. Switch it on only on your own device.",
+    "hintSignOut": "When the connection breaks or there is none, this device shows the workshops from ten days ago to thirty days ahead the last ten opened here, and those you keep here with “Keep on this device” in a workshop’s ⋯ menu: the agenda, the moderation plan, presenting with the presenter view. Read-only: changes wait for the connection. The copy stays in this browser until you turn this off or sign out. Switch it on only on your own device.",
       "bar": "No connection to the server. This is the offline copy as of {{at}}; changes are possible again once the connection is back.",
       "short": "Offline · as of {{at}}",
       "notKept": "No connection, and this workshop is not in the offline copy of this device.",
       "needsConnection": "Available again once connected",
       "onDevice": "On this device, also offline",
       "onlyOnline": "Needs a connection",
-      "notOnDevice": "“{{title}}” is not stored on this device; it opens again once connected."
+      "notOnDevice": "“{{title}}” is not stored on this device; it opens again once connected.",
+      "pin": "Keep on this device",
+      "pinHint": "Available offline whatever its dates",
+      "keptTitle": "On this device",
+      "keptEmpty": "Nothing kept yet.",
+      "asOf": "as of {{at}}",
+      "release": "Stop keeping",
+      "reasons": {
+        "dated": "dates within these weeks",
+        "recent": "opened recently",
+        "pinned": "kept by you"
+      }
     }
 }

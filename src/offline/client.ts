@@ -5,7 +5,7 @@ import type { Me, Settings, WorkshopState, WorkshopSummary } from '@/domain/type
 import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { inlineThemeFiles } from '@/slides/themeFiles'
-import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, OFFLINE_HEADER, pickKept, PROBE_PARAM, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent, unreachable } from './policy'
+import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, type KeepReason, keepReasons, OFFLINE_HEADER, pickKept, PROBE_PARAM, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent, unreachable } from './policy'
 import { markOnline, useOffline } from './state'
 
 /**
@@ -14,6 +14,8 @@ import { markOnline, useOffline } from './state'
  */
 
 const RECENT = 'sp.offline.recent'
+/** The workshops pinned on this device ("keep on this device"). */
+const PINS = 'sp.offline.pins'
 /** How often the kept workshops are read again while the app is open. */
 const REFRESH_MS = 15 * 60_000
 /** A workshop being changed is read again for the copy once the changes rest this long. */
@@ -78,8 +80,10 @@ export async function clearOfflineCopy(): Promise<void> {
     await pending.catch(() => undefined)
     await sweep()
   }
+  useOffline.setState({ pins: [] })
   try {
     localStorage.removeItem(localName(RECENT))
+    localStorage.removeItem(localName(PINS))
   } catch {
     // nothing remembered
   }
@@ -89,7 +93,7 @@ export async function clearOfflineCopy(): Promise<void> {
 export async function startOffline(): Promise<void> {
   if (!offlineSupported()) return
   if (await offlineOn()) {
-    useOffline.setState({ enabled: true })
+    useOffline.setState({ enabled: true, pins: readPins() })
     startProbe()
     await navigator.serviceWorker.register(WORKER).catch(() => undefined)
     startKeeper()
@@ -113,40 +117,67 @@ export async function keptHere(): Promise<Set<string>> {
 
 const keptChanged = () => window.dispatchEvent(new Event(KEPT_CHANGED))
 
-/** What the copy holds now, for the settings. */
-export async function offlineSummary(): Promise<{ workshops: number; at: string | null }> {
-  if (!(await offlineOn())) return { workshops: 0, at: null }
-  const cache = await caches.open(DATA_CACHE)
-  const kept = await cache.match(keepKey(basePath()))
-  const ids = kept ? ((await kept.json()) as string[]) : []
-  let stored = 0
-  let at: string | null = null
-  for (const id of ids) {
-    const res = await cache.match(new URL(apiUrl(`/workshops/${id}`), location.origin).href)
-    if (!res) continue
-    stored++
-    const when = res.headers.get(STORED_AT)
-    if (when && (!at || when < at)) at = when
-  }
-  return { workshops: stored, at }
-}
 
 
-const readRecent = (): string[] => {
+const readIds = (key: string): string[] => {
   try {
-    const raw = JSON.parse(localStorage.getItem(localName(RECENT)) ?? '[]') as unknown
+    const raw = JSON.parse(localStorage.getItem(localName(key)) ?? '[]') as unknown
     return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
   } catch {
     return []
   }
 }
 
-const writeRecent = (ids: string[]) => {
+const writeIds = (key: string, ids: string[]) => {
   try {
-    localStorage.setItem(localName(RECENT), JSON.stringify(ids))
+    localStorage.setItem(localName(key), JSON.stringify(ids))
   } catch {
     // not remembered
   }
+}
+
+const readRecent = () => readIds(RECENT)
+const writeRecent = (ids: string[]) => writeIds(RECENT, ids)
+const readPins = () => readIds(PINS)
+
+/**
+ * Pins a workshop on this device, or lets go of the pin ("keep on this device", docs/offline.md). Pinned, it is fetched
+ * at once; let go, it goes at the next round unless another reason keeps it (its days are near, it was opened lately).
+ */
+export async function setPinned(id: string, on: boolean): Promise<void> {
+  const pins = readPins().filter((x) => x !== id)
+  const next = on ? [...pins, id] : pins
+  writeIds(PINS, next)
+  useOffline.setState({ pins: next })
+  if (on) await addKept(id)
+  else await refreshKept()
+  keptChanged()
+}
+
+/** A workshop the copy holds, for the list in the settings: why it is kept and as of when. */
+export interface KeptWorkshop {
+  id: string
+  title: string
+  firstDate: string | null
+  lastDate: string | null
+  reasons: KeepReason[]
+  at: string | null
+}
+
+/** What the copy holds on this device, the soonest first. */
+export async function keptDetails(): Promise<KeptWorkshop[]> {
+  if (!(await offlineOn())) return []
+  const held = await keptHere()
+  const list = (await read<WorkshopSummary[]>('/workshops').catch(() => null))?.value ?? []
+  const reasons = keepReasons(list, readRecent(), new Date().toLocaleDateString('sv'), readPins())
+  const cache = await caches.open(DATA_CACHE)
+  const out: KeptWorkshop[] = []
+  for (const w of list) {
+    if (!held.has(w.id)) continue
+    const res = await cache.match(new URL(apiUrl(`/workshops/${encodeURIComponent(w.id)}`), location.origin).href)
+    out.push({ id: w.id, title: w.title, firstDate: w.firstDate, lastDate: w.lastDate, reasons: reasons.get(w.id) ?? [], at: res?.headers.get(STORED_AT) ?? null })
+  }
+  return out.sort((a, b) => (a.firstDate ?? '9999').localeCompare(b.firstDate ?? '9999'))
 }
 
 let timer: number | null = null
@@ -242,7 +273,7 @@ async function round(): Promise<void> {
   }
   if (gen !== generation) return
   const cache = await caches.open(DATA_CACHE)
-  const kept = pickKept(list, readRecent(), new Date().toLocaleDateString('sv'))
+  const kept = pickKept(list, readRecent(), new Date().toLocaleDateString('sv'), readPins())
   await writeKept(cache, kept)
   for (const id of kept) {
     if (gen !== generation) return

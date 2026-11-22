@@ -3,9 +3,9 @@ import { create } from 'zustand'
 /**
  * Whether the app is showing the offline copy (docs/offline.md): the time the last answer from the copy was stored,
  * or null once the server answers again. Set by the API client (src/api.ts) from the header the service worker adds.
- * `enabled`: whether the switch is on in this browser (src/offline/client.ts).
+ * `enabled`: whether the switch is on in this browser; `pins`: the workshops pinned on it (src/offline/client.ts).
  */
-export const useOffline = create<{ since: string | null; enabled: boolean }>(() => ({ since: null, enabled: false }))
+export const useOffline = create<{ since: string | null; enabled: boolean; pins: string[] }>(() => ({ since: null, enabled: false, pins: [] }))
 
 const stamps = new WeakMap<object, string>()
 

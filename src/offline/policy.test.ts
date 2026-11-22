@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, apiTarget, assetHashes, belongsTo, isAppPage, isAppRoute, pickKept, precacheable, touchRecent } from './policy'
+import { addDays, apiTarget, assetHashes, belongsTo, isAppPage, isAppRoute, keepReasons, pickKept, precacheable, touchRecent } from './policy'
 
 describe('what the offline copy holds', () => {
   it('holds a workshop and its pictures, under the workshop', () => {
@@ -72,6 +72,12 @@ describe('which workshops a device keeps', () => {
   it('also keeps the last ten opened here, if they still exist', () => {
     const list = [w('a', '2025-01-01'), w('b', null), w('c', '2026-11-25')]
     expect(pickKept(list, ['b', 'gone', 'a'], today)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('also keeps the ones pinned here, whatever their dates, and says why each one is kept', () => {
+    const list = [w('soon', '2026-11-25'), w('later', '2027-03-01'), w('old', '2025-01-01')]
+    expect(pickKept(list, ['soon'], today, ['later', 'gone'])).toEqual(['soon', 'later'])
+    expect(Object.fromEntries(keepReasons(list, ['soon', 'old'], today, ['later', 'soon']))).toEqual({ soon: ['dated', 'recent', 'pinned'], later: ['pinned'], old: ['recent'] })
   })
 
   it('remembers the last ten opened, the newest first', () => {
