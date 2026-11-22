@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, apiTarget, assetHashes, belongsTo, isAppPage, isAppRoute, keepReasons, pickKept, precacheable, touchRecent } from './policy'
+import { addDays, apiTarget, assetHashes, belongsTo, frontFallback, isAppPage, isAppRoute, keepReasons, pickKept, precacheable, touchRecent } from './policy'
 
 describe('what the offline copy holds', () => {
   it('holds a workshop and its pictures, under the workshop', () => {
@@ -41,6 +41,15 @@ describe('what the offline copy holds', () => {
     for (const path of ['/spaces/a', '/spaces/a/', '/spaces/a/w/w1/presenter']) expect(isAppRoute(path, bases)).toBe(true)
     for (const path of ['/', '/auth/callback', '/oauth2/sign_out', '/spaces/b/w/w1', '/spaces/ab', '/spaces/a/api/export/data']) expect(isAppRoute(path, bases)).toBe(false)
     expect(isAppRoute('/w/w1', [])).toBe(false)
+  })
+
+  it('leads the host\'s root into the app used last here when the server is out of reach', () => {
+    expect(frontFallback('/', '/spaces/a', ['/spaces/a'])).toBe('/spaces/a/')
+    // Not without kept workshops there, not for another address, not for an app at the root (that answers itself).
+    expect(frontFallback('/', '/spaces/a', [])).toBeNull()
+    expect(frontFallback('/auth/callback', '/spaces/a', ['/spaces/a'])).toBeNull()
+    expect(frontFallback('/', '', [''])).toBeNull()
+    expect(frontFallback('/', null, ['/spaces/a'])).toBeNull()
   })
 
   it('keeps the code, styles and fonts of the build, not the CJK subsets or the page itself', () => {

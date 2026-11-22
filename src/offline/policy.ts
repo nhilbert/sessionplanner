@@ -32,6 +32,20 @@ export const KEEP_DAYS_AFTER = 30
 /** And the last ones opened on this device, whatever their dates. */
 export const KEEP_RECENT = 10
 
+/** The entry that names the app (its base path) used last on this device, for the address in front of the apps. */
+export const LAST_BASE_KEY = '/__sp-offline/last-base'
+
+/**
+ * Where a navigation to the host's root goes without the server: the app used last here, when it lies under a base
+ * path (a workspace) and keeps workshops. Online the server answers the root itself (a choice of workspaces, or the
+ * way into the only one); offline it cannot, and the browser, or the installed app that starts there, would show an
+ * error. Null for any other address, or with no such app.
+ */
+export function frontFallback(pathname: string, lastBase: string | null, keptBases: string[]): string | null {
+  if (pathname !== '/' || !lastBase || !keptBases.includes(lastBase)) return null
+  return `${lastBase}/`
+}
+
 /** The entry with the ids kept for the app at `base` (workspaces under one host keep apart). */
 export const keepKey = (base: string): string => `${base}/__sp-offline/keep`
 

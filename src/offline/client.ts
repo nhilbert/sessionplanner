@@ -5,7 +5,7 @@ import type { Me, Settings, WorkshopState, WorkshopSummary } from '@/domain/type
 import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { inlineThemeFiles } from '@/slides/themeFiles'
-import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, type KeepReason, keepReasons, OFFLINE_HEADER, pickKept, PROBE_PARAM, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent, unreachable } from './policy'
+import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, LAST_BASE_KEY, type KeepReason, keepReasons, OFFLINE_HEADER, pickKept, PROBE_PARAM, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent, unreachable } from './policy'
 import { markOnline, useOffline } from './state'
 
 /**
@@ -37,6 +37,7 @@ export async function turnOfflineOn(): Promise<void> {
   if (!offlineSupported()) return
   generation++
   await (await caches.open(DATA_CACHE)).put(SWITCH_KEY, new Response('1'))
+  await rememberApp()
   useOffline.setState({ enabled: true })
   startProbe()
   await navigator.serviceWorker.register(WORKER)
@@ -44,6 +45,11 @@ export async function turnOfflineOn(): Promise<void> {
   await controlled()
   startKeeper()
   await refreshKept()
+}
+
+/** Notes this app (its base path) as the one used last here: without the server the host's root leads into it. */
+async function rememberApp(): Promise<void> {
+  await (await caches.open(DATA_CACHE)).put(LAST_BASE_KEY, new Response(JSON.stringify({ base: basePath() }), { headers: { 'content-type': 'application/json' } }))
 }
 
 /** Resolves once a worker controls this page (at once when one does), or after a while without. */
@@ -94,6 +100,7 @@ export async function startOffline(): Promise<void> {
   if (!offlineSupported()) return
   if (await offlineOn()) {
     useOffline.setState({ enabled: true, pins: readPins() })
+    await rememberApp().catch(() => undefined)
     startProbe()
     await navigator.serviceWorker.register(WORKER).catch(() => undefined)
     startKeeper()

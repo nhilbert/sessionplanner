@@ -11,7 +11,7 @@
  * Built by scripts/offlineWorker.ts into dist/sw.js, with the list of files and the build's version filled in.
  */
 import { API_ROOT } from '../domain/addresses'
-import { apiTarget, belongsTo, DATA_CACHE, isAppPage, isAppRoute, keepKey, DOWN_MS, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PROBE_PARAM, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
+import { apiTarget, belongsTo, DATA_CACHE, frontFallback, isAppPage, isAppRoute, keepKey, LAST_BASE_KEY, DOWN_MS, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PROBE_PARAM, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
 
 declare const self: ServiceWorkerGlobalScope
 declare const __SP_PRECACHE__: string[]
@@ -104,11 +104,24 @@ async function keptBases(cache: Cache, pathname: string): Promise<string[]> {
 async function page(event: FetchEvent, pathname: string): Promise<Response> {
   const cache = await switchedOn()
   const network = fetch(event.request)
-  if (!cache || !isAppRoute(pathname, await keptBases(cache, pathname))) return network
+  if (!cache) return network
+  if (!isAppRoute(pathname, await keptBases(cache, pathname))) {
+    // The address in front of the apps: without the server, the way into the app used last here.
+    const last = await lastBase(cache)
+    const into = frontFallback(pathname, last, last ? await keptBases(cache, `${last}/`) : [])
+    return into ? firstOf(network, Response.redirect(new URL(into, self.location.origin).href, 302), PAGE_WAIT_MS, (r) => r) : network
+  }
   // The page goes to the browser as soon as it starts to arrive; keeping it happens beside.
   event.waitUntil(network.then((res) => keepPage(res.clone())).catch(() => false))
   const kept = await (await caches.open(SHELL)).match(PAGE_KEY)
   return firstOf(network, kept, PAGE_WAIT_MS, (r) => r)
+}
+
+/** The base path of the app used last on this device, as the page wrote it (src/offline/client.ts). */
+async function lastBase(cache: Cache): Promise<string | null> {
+  const res = await cache.match(LAST_BASE_KEY)
+  const base = res ? ((await res.json().catch(() => null)) as { base?: unknown } | null)?.base : null
+  return typeof base === 'string' ? base : null
 }
 
 /** Whether the switch is (still) on: turning it off deletes the cache, so nothing is kept from then on. */
