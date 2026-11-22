@@ -79,6 +79,8 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
   const target = useSlideEditing((s) => s.target)
   const close = useSlideEditing((s) => s.close)
   const data = usePlanner((s) => s.data)
+  // From the offline copy the deck opens to be looked at, not changed (docs/offline.md).
+  const readOnly = usePlanner((s) => !!s.offlineAt)
   const settings = useSettings((s) => s.settings)
   const theme = useTheme(data ? themeOf(data.workshop, settings) : 'default')
   usePool(theme) // the generated slides of the deck source take the pool's pictures
@@ -160,5 +162,5 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
     label,
   }
   const source = { ...base, ...presenting, transfer }
-  return <SlideEditor key={session.current.id} source={source} start={target.key} mode={target.mode} onClose={close} theme={theme} scope={{ workshopId: data.workshop.id }} owner={owner} canEdit known={known} onNotice={onNotice} />
+  return <SlideEditor key={session.current.id} source={source} start={target.key} mode={target.mode} onClose={close} theme={theme} scope={{ workshopId: data.workshop.id }} owner={owner} canEdit={!readOnly} known={known} onNotice={onNotice} />
 }

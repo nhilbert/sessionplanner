@@ -98,6 +98,8 @@ export default function ItemPanel({
 }) {
   const { t } = useTranslation()
   const settings = useSettings((s) => s.settings)
+  // From the offline copy the slides and sheets open to be looked at, not changed (docs/offline.md).
+  const readOnly = usePlanner((s) => !!s.offlineAt)
   const brand = useSheetBrand(data.workshop.theme)
   const stepFacts = useStepFacts()
   // who may change the library copies a sheet into an entry
@@ -269,7 +271,7 @@ export default function ItemPanel({
       onOpen={(key, mode) => useSlideEditing.getState().open({ kind: 'step', itemId: item.id, key, mode })}
       scope={{ workshopId: data.workshop.id }}
       theme={themeOf(data.workshop, settings)}
-      canEdit
+      canEdit={!readOnly}
       owner={owner}
       onMove={(slideId) => useSlideMoving.getState().ask(item.id, slideId)}
       onRemoved={() => onNotice(t('slides.removed'))}
@@ -283,7 +285,7 @@ export default function ItemPanel({
         onCopiedToLibrary={libraryEdit ? (title) => onNotice(t('sheets.copiedToLibrary', { title })) : undefined}
         sheets={item.worksheets ?? []}
         // a removed sheet takes its print rule along; a new one is printed once until said otherwise
-        onChange={(worksheets) => set({ worksheets, printRules: rulesOfLinked(rulesWithNewSheets(item.printRules, item.worksheets, worksheets), printKeys({ attachmentIds: item.attachmentIds, worksheets })) })}
+        onChange={readOnly ? undefined : (worksheets) => set({ worksheets, printRules: rulesOfLinked(rulesWithNewSheets(item.printRules, item.worksheets, worksheets), printKeys({ attachmentIds: item.attachmentIds, worksheets })) })}
         printing={{
           rules: item.printRules ?? {},
           groups: item.groups ?? 1,

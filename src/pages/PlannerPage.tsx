@@ -8,6 +8,7 @@ import { productName } from '@/features'
 import { api, ApiError, reportFailure } from '@/api'
 import { usePlanner } from '@/store/usePlanner'
 import { useOffline } from '@/offline/state'
+import { blockEditing } from '@/offline/readOnly'
 import { itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import { useLibrary } from '@/store/useLibrary'
 import { entriesIn, itemsIn, placeIn, positionAtEnd, sortedDays } from '@/domain/order'
@@ -158,8 +159,9 @@ export default function PlannerPage() {
     // Space picks an entry up and puts it down; Enter is left to the entry itself, where it opens the details.
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates, keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space', 'Enter'] } }),
   )
-  // While inserting on a touch screen a long press must not pick an entry up.
+  // While inserting on a touch screen a long press must not pick an entry up; from the offline copy nothing moves.
   const noSensors = useSensors()
+  useEffect(() => (offlineAt ? blockEditing() : undefined), [offlineAt])
 
   // ---- actions ---------------------------------------------------------------------------------
   const add = (dayId: string | null, kind: ItemKind | 'group') => {
@@ -403,8 +405,7 @@ export default function PlannerPage() {
     )
 
   // Guests with view access get the read-only agenda; editing guests the planner without the owner's tools. The offline
-  // copy is read-only for everyone (docs/offline.md): the same agenda, with presenting and the printouts.
-  if (offlineAt) return <AgendaView data={data} offlineAt={offlineAt} />
+  // copy shows the planner as always, read-only (docs/offline.md).
   if (data.access?.role === 'view') return <AgendaView data={data} />
   const owner = !data.access
 
@@ -514,7 +515,7 @@ export default function PlannerPage() {
   }
   return (
     <BoardContext.Provider value={ctx}>
-      <DndContext sensors={touch && inserting ? noSensors : sensors} accessibility={{ announcements, screenReaderInstructions: { draggable: t('planner.dragHelp') } }} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
+      <DndContext sensors={(touch && inserting) || offlineAt ? noSensors : sensors} accessibility={{ announcements, screenReaderInstructions: { draggable: t('planner.dragHelp') } }} collisionDetection={board.collision} onDragStart={board.onDragStart} onDragOver={board.onDragOver} onDragEnd={board.onDragEnd} onDragCancel={board.onDragCancel}>
         <div className={cx('flex h-full min-h-0', touch && inserting && 'inserting')}>
           {/* Behind the large details the agenda stays as it is (its scroll position too); a slim list stands in for it. */}
           {showWide && detailsItem && <DayList title={data.workshop.title || t('workshops.untitled')} days={days} lists={board.order} items={items} groups={groups} schedules={schedules} categories={settings.categories} currentId={detailsItem.id} onSelect={openDetails} />}
@@ -524,6 +525,7 @@ export default function PlannerPage() {
               owner={owner}
               phone={phone}
               live={live}
+              offlineAt={offlineAt}
               canUndo={past.length > 0}
               canRedo={future.length > 0}
               undo={undo}

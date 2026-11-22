@@ -11,10 +11,15 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
 - **Kept** are the workshops with a day from ten days back to thirty days ahead (one that runs over several days counts
   when any of them is in there) and the last ten opened on this device. The settings say how many are kept and as of
   when.
-- **Without the server** the app opens as usual, also after a reload or in a new window. A workshop of the copy shows
-  as the read-only agenda (the one view guests get, `pages/AgendaView.tsx`) with the notes, printing (moderation plan),
-  the presenter view and presenting. A bar over every page says that this is the copy and as of when. A workshop not
-  in the copy says so.
+- **Without the server** the app opens as usual, also after a reload or in a new window, and looks as it always does.
+  The list of workshops shows the ones the copy holds. A workshop of the copy opens in the planner as always, with its
+  details, slides, worksheets, printing, the presenter view and presenting, but nothing in it can be changed: nothing
+  moves, fields take no typing, the slide and sheet editors open to look (`offline/readOnly.ts`). A bar over every page
+  and the workshop's header say that this is the copy and as of when. (A first version showed the guests' read-only
+  agenda instead; it looked like another app, and the planner is what one knows.)
+- **It answers at once.** Once a request got no answer, the copy answers every request straight away for half a
+  minute, and what it does not hold fails straight away, instead of each waiting in turn (a list, a theme, its fonts,
+  every picture). The server is still asked beside; its first answer ends this.
 - **The connection breaks while a workshop is open**: what is shown stays (it is newer than the copy) and turns
   read-only. When the live stream is back, the workshop is read from the server again and can be changed.
 - **Presenting**: the windows on one device keep in step over the browser's channel (`slides/presentChannel.ts`), as
@@ -40,7 +45,7 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
     of workshops, the themes with their stylesheets, files and pools, and per kept workshop the workshop and its
     pictures. Nothing else: not the library, decks, members, exports or the live stream. These go to the server first;
     what comes back is kept with the time it came. With no answer (no network, a gateway error, or no first answer
-    within five seconds) the kept one answers, marked with the header `x-sp-offline` and that time. The time counts to
+    within four seconds, or straight away while the server counts as gone) the kept one answers, marked with the header `x-sp-offline` and that time. The time counts to
     the server's first answer, not to the end of the download: storing happens beside, so a slow line that answers is
     not taken for none.
   - Everything that changes data goes to the server as before; the worker never answers it.
@@ -53,7 +58,8 @@ Decided on 2026-11-22 (docs/concept.md, section 10). Mainly for the laptop the w
 - **The app** learns from the header that an answer came from the copy (`src/api.ts`, `offline/state.ts`). The open
   workshop then carries `offlineAt` (`store/usePlanner.ts`); changes, undo and redo are refused while it does. Once a
   workshop is shown, an answer from the copy never replaces it (it is never older than the copy). When the copy answered
-  while the live stream is up, the server was only slow: the workshop is read again after five seconds.
+  while the live stream is up, the server was only slow: the workshop is read again after five seconds. The list of
+  workshops from the copy is cut to what the copy holds (`onlyKept`).
 
 ## Privacy
 

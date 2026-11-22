@@ -144,10 +144,9 @@ No strip of marks beside the agenda.
 
 - The offline copy ([offline.md](offline.md)) is one switch per device in the settings, beside language and
   appearance, as those are per device too; beside it how many workshops are kept and as of when.
-- Without the server one amber bar over the page says that this is the copy and as of when; nothing else changes its
-  place. A workshop of the copy shows as the read-only agenda, its chip saying "Offline · as of …" where a guest's says
-  "View only", with Print, Presenter view and Present beside it. The presenter view's header says the same in place of
-  "Reconnecting…".
+- Without the server the app looks as it always does: one amber bar over the page says that this is the copy and as of
+  when; nothing else changes its place. A workshop of the copy is the planner as always, read-only; its header and the
+  presenter view's say "Offline · as of …" in place of "Reconnecting…". The list of workshops shows what the copy holds.
 
 ## The workshops
 

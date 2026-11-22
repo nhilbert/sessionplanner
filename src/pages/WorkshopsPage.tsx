@@ -14,6 +14,7 @@ import { newId } from '@/domain/ops'
 import { historyViews } from '@/store/listViews'
 import { useSettings } from '@/store/useSettings'
 import { DuplicateDialog, type DuplicateSource } from '@/planner/panels'
+import { onlyKept } from '@/offline/client'
 import { ClientAndPlace, fullSpan, lengthOf, NewWorkshop, PartHead, RowActions, type RowContext, RowList, titleOf, untilText, WorkshopRow, workshopPath } from '@/workshops/parts'
 
 /** What the list showed, for the way back from a workshop (store/listViews.ts). */
@@ -62,14 +63,15 @@ export default function WorkshopsPage() {
   const narrow = useMediaQuery('(max-width: 767px)')
 
   useEffect(() => {
-    api.listWorkshops().then(setList, () => setFailed(true))
+    // From the offline copy only what it holds: the others cannot be opened without the server (docs/offline.md).
+    api.listWorkshops().then(onlyKept).then(setList, () => setFailed(true))
   }, [])
   // The trash is the owner's: deleted workshops wait there TRASH_DAYS days before they go for good.
   const [trash, setTrash] = useState<TrashedWorkshop[]>([])
   const { notice, show, close } = useNotice()
   /** The lists as the server has them now, after a change here (or one that failed half-way). */
   const reload = async () => {
-    setList(await api.listWorkshops())
+    setList(await onlyKept(await api.listWorkshops()))
     if (me.owner) setTrash(await api.listTrash())
   }
   useEffect(() => {

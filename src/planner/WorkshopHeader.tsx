@@ -42,6 +42,7 @@ import { useDeckExport } from '@/slides/useDeckExport'
 import { TextField } from './fields'
 import { AccessPanel, deleteWorkshop, DuplicateDialog } from './panels'
 import { sortedDays } from '@/domain/order'
+import { formatStamp } from '@/offline/OfflineNotice'
 import { PrintPackageDialog } from './PrintPackageDialog'
 
 /** The trigger of a labelled menu or button in the header: quiet, with its label where the header has room. */
@@ -52,6 +53,8 @@ interface Props {
   owner: boolean
   phone: boolean
   live: boolean
+  /** Shown from the offline copy, as of when (docs/offline.md). */
+  offlineAt?: string | null
   canUndo: boolean
   canRedo: boolean
   undo: () => void
@@ -140,7 +143,7 @@ export default function WorkshopHeader(p: Props) {
       />
       <div className="flex items-center gap-1.5 text-[13px] text-ink-2">
         <span title={p.live ? t('planner.live') : t('planner.offline')} className={cx('h-1.5 w-1.5 shrink-0 rounded-full', p.live ? 'bg-[var(--c-sage)]' : 'bg-amber')} />
-        {!p.live && <span className="shrink-0 text-amber">{t('planner.offline')}</span>}
+        {!p.live && <span className="shrink-0 text-amber">{p.offlineAt ? t('offline.short', { at: formatStamp(p.offlineAt) }) : t('planner.offline')}</span>}
         <span className="truncate">{[w.client, w.location, dates].filter(Boolean).join(' · ')}</span>
       </div>
     </div>

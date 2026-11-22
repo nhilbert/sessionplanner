@@ -11,7 +11,7 @@
  * Built by scripts/offlineWorker.ts into dist/sw.js, with the list of files and the build's version filled in.
  */
 import { API_ROOT } from '../domain/addresses'
-import { apiTarget, belongsTo, DATA_CACHE, isAppPage, isAppRoute, keepKey, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
+import { apiTarget, belongsTo, DATA_CACHE, isAppPage, isAppRoute, keepKey, DOWN_MS, NETWORK_WAIT_MS, OFFLINE_HEADER, PAGE_KEY, PAGE_WAIT_MS, SHELL_PREFIX, STORED_AT, SWITCH_KEY, unreachable, type ApiTarget } from './policy'
 
 declare const self: ServiceWorkerGlobalScope
 declare const __SP_PRECACHE__: string[]
@@ -67,6 +67,7 @@ async function builtFile(event: FetchEvent): Promise<Response> {
   const cache = await caches.open(SHELL)
   const kept = await cache.match(event.request)
   if (kept) return kept
+  if (serverGone()) return Response.error()
   const res = await fetch(event.request)
   if (res.ok) {
     const copy = res.clone()
@@ -164,10 +165,31 @@ function served(kept: Response): Response {
 }
 
 /**
- * The server's answer; the kept one instead when the server gives none (no network, out of reach, too slow). The
- * request to the server goes on meanwhile, so a late answer is still kept.
+ * Whether the server counts as out of reach: the browser says it is offline, or a request lately got no answer. Then
+ * the copy answers at once instead of after waiting for each request in turn (a list, a theme, its fonts, every
+ * picture), and what the copy does not hold fails at once. Every request still goes to the server beside; the first
+ * answer from it ends this.
+ */
+let downUntil = 0
+
+const serverGone = (): boolean => self.navigator.onLine === false || Date.now() < downUntil
+
+function heard(res: Response): void {
+  if (unreachable(res.status)) downUntil = Date.now() + DOWN_MS
+  else downUntil = 0
+}
+
+/**
+ * The server's answer; the kept one instead when the server gives none (no network, out of reach, no first answer in
+ * time). The request to the server goes on meanwhile, so a late answer is still kept.
  */
 function firstOf(network: Promise<Response>, kept: Response | undefined, wait: number, fallback: (kept: Response) => Response): Promise<Response> {
+  const gone = serverGone()
+  // Settles what the server's state is, whichever answer the page gets.
+  void network.then(heard, () => {
+    downUntil = Date.now() + DOWN_MS
+  })
+  if (gone) return Promise.resolve(kept ? fallback(kept) : Response.error())
   if (!kept) return network.catch(() => Response.error())
   return new Promise((resolve) => {
     let done = false
@@ -177,7 +199,10 @@ function firstOf(network: Promise<Response>, kept: Response | undefined, wait: n
       clearTimeout(timer)
       resolve(res)
     }
-    const timer = setTimeout(() => finish(fallback(kept)), wait)
+    const timer = setTimeout(() => {
+      downUntil = Date.now() + DOWN_MS
+      finish(fallback(kept))
+    }, wait)
     network.then(
       (res) => finish(unreachable(res.status) ? fallback(kept) : res),
       () => finish(fallback(kept)),

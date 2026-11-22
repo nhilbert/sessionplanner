@@ -6,7 +6,7 @@ import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { inlineThemeFiles } from '@/slides/themeFiles'
 import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, OFFLINE_HEADER, pickKept, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent } from './policy'
-import { useOffline } from './state'
+import { offlineStamp, useOffline } from './state'
 
 /**
  * The offline copy, the page's side (docs/offline.md): the switch on this device, the service worker it registers,
@@ -92,6 +92,18 @@ export async function startOffline(): Promise<void> {
     startKeeper()
     setTimeout(() => void controlled().then(refreshKept), 3000)
   } else if ((await navigator.serviceWorker.getRegistrations()).some((r) => r.active?.scriptURL.endsWith(WORKER))) await clearOfflineCopy()
+}
+
+/**
+ * The workshops a list from the offline copy can open: those the copy holds. The list itself is kept whole (it decides
+ * what is kept), so without the server it would show workshops that cannot be opened.
+ */
+export async function onlyKept<T extends { id: string }>(list: T[]): Promise<T[]> {
+  if (offlineStamp(list) === null || typeof caches === 'undefined') return list
+  const cache = await caches.open(DATA_CACHE)
+  const held = new Set<string>()
+  for (const id of await readKept(cache)) if (await cache.match(new URL(apiUrl(`/workshops/${encodeURIComponent(id)}`), location.origin).href)) held.add(id)
+  return list.filter((w) => held.has(w.id))
 }
 
 /** What the copy holds now, for the settings. */
