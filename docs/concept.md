@@ -204,7 +204,7 @@ Functions had been placed one by one as they came: printing in the header, prese
 - **The sidebar has two modes.** Its tabs are the workshop's tools, labelled under their icons: parking lot ("Speicher" on the tab), library, material (the packing list and the files together), the slides (the deck: its options and sorting) and the details (the theme is chosen there only). A step opened from the agenda is an inspector over them, headed by what it is and when ("Einheit · 10:00–10:30"), with ⋯ and ×; no tab is marked while it is open and choosing a tab closes it. The back button that named the last tab, whatever the step had to do with it, is gone. On a phone, details opened from the agenda show without the tabs and × returns to the agenda.
 - **Every object's actions are in its ⋯, in one order**: duplicate, keep in the library, move to the parking lot, then apart and in red: delete. Steps, groups (which can now go to the parking lot from the menu too), days (showing one day alone, deleting it) and slides follow it.
 - **The slides area in the navigation is "Folienpool"** (Slide pool), so it is not mistaken for the workshop's Slides tab.
-- **Presenter view**: one "Edit slide", next to the current slide; the keys behind a keyboard button instead of across the top bar.
+- **Presenter view**: one "Edit slide", next to the current slide; the keys behind a keyboard button instead of across the top bar; "All slides" (G) shows the deck as a grid to jump to any slide, as PowerPoint's presenter view does (added 2026-11-23).
 
 **2026-11-17, slides are edited on the slide** (revises "no contentEditable on the slide" of 2026-11-01)
 

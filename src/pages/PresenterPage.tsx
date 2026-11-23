@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, ExternalLink, Keyboard, Pencil, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Keyboard, LayoutGrid, Pencil, X } from 'lucide-react'
 import { itemsIn, sortedDays } from '@/domain/order'
 import { clockIn, formatTime, scheduleDay } from '@/domain/time'
 import { usePlanner } from '@/store/usePlanner'
@@ -11,6 +11,7 @@ import { Button, cx, IconButton, isTyping } from '@/components/ui'
 import { overlayOpen } from '@/components/overlay'
 import Markdown from '@/components/Markdown'
 import { SlideView } from '@/slides/SlideView'
+import { SlideOverview } from '@/slides/SlideOverview'
 import { useDeck } from '@/slides/useDeck'
 import { usePresentSync } from '@/slides/presentSync'
 import { useWakeLock } from '@/slides/useWakeLock'
@@ -21,7 +22,8 @@ import { pageUrl } from '@/domain/addresses'
  * The presenter view (docs/slides.md): the facilitator's screen while the workshop runs, on the laptop or on a phone
  * as remote. The current slide large, the next one small, the step's planned time against the clock, its notes. Every
  * window of the presentation pages together, here and on other devices; a slide edited from here (or anywhere) shows
- * at once, while the audience stays on the slide shown.
+ * at once, while the audience stays on the slide shown. "All slides" (G) shows the deck at a glance in place of the
+ * current and next slide; a click there moves the presentation to that slide.
  */
 export default function PresenterPage() {
   const { id = '' } = useParams()
@@ -37,6 +39,7 @@ export default function PresenterPage() {
   const touchX = useRef<number | null>(null)
   // The keys that page and leave: behind a button, not across the top bar.
   const [keys, setKeys] = useState(false)
+  const [overview, setOverview] = useState(false)
   useWakeLock()
 
   useEffect(() => {
@@ -59,8 +62,13 @@ export default function PresenterPage() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       // The slide editor pages its own slides; the audience stays where it is.
-      if (isTyping(e.target) || overlayOpen() || e.defaultPrevented) return
-      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(n + 1)
+      if (isTyping(e.target) || overlayOpen() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return
+      // G (or -, as in PowerPoint) shows all slides; there Escape and G go back, Tab and Enter pick a slide.
+      if (e.key === 'g' || e.key === 'G' || (e.key === '-' && !overview)) setOverview(!overview)
+      else if (overview) {
+        if (e.key !== 'Escape') return
+        setOverview(false)
+      } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(n + 1)
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(n - 1)
       else if (e.key === 'Home') go(0)
       else if (e.key === 'End') go(deck.length - 1)
@@ -115,6 +123,9 @@ export default function PresenterPage() {
         <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-[var(--c-sage)]' : 'bg-amber')} />
         {!live && <span className="text-[12px] text-amber">{offlineAt ? t('offline.short', { at: formatStamp(offlineAt) }) : t('planner.offline')}</span>}
         <span className="flex-1" />
+        <IconButton label={t('slides.overview')} title={`${t('slides.overview')} (G)`} aria-pressed={overview} onClick={() => setOverview(!overview)} className={cx(overview && 'bg-surface-2 text-ink')}>
+          <LayoutGrid size={15} />
+        </IconButton>
         <IconButton label={t('slides.keys')} aria-pressed={keys} onClick={() => setKeys(!keys)} className={cx('max-md:hidden', keys && 'bg-surface-2 text-ink')}>
           <Keyboard size={15} />
         </IconButton>
@@ -127,72 +138,88 @@ export default function PresenterPage() {
         </IconButton>
       </header>
       {keys && <p className="border-b border-line bg-surface-2/60 px-4 py-1.5 text-right text-[12px] text-ink-2 max-md:hidden">{t('slides.presenterHint')}</p>}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-[2fr_1fr] md:overflow-visible">
-        <div className="flex min-h-0 min-w-0 flex-col gap-3">
-          {slide ? (
-            <div
-              onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
-              onTouchEnd={(e) => {
-                // On a phone the slide pages with a swipe, as in the presentation.
-                if (touchX.current === null) return
-                const dx = e.changedTouches[0].clientX - touchX.current
-                touchX.current = null
-                if (Math.abs(dx) > 40) go(dx < 0 ? n + 1 : n - 1)
-              }}
-            >
-              <SlideView html={slide.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} className="w-full shadow-[var(--shadow)]" />
-            </div>
-          ) : (
-            <p className="text-ink-3">{t('slides.deckEmpty')}</p>
-          )}
-          <div className="flex items-center gap-2">
-            <IconButton label={t('slides.prev')} onClick={() => go(n - 1)} disabled={n === 0} className="max-md:hidden">
-              <ChevronLeft size={18} />
-            </IconButton>
-            <span className="tnum text-[13px] text-ink-2">
-              {n + 1} / {deck.length}
-            </span>
-            <IconButton label={t('slides.next')} onClick={() => go(n + 1)} disabled={n >= deck.length - 1} className="max-md:hidden">
-              <ChevronRight size={18} />
-            </IconButton>
-            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{slide?.caption}</span>
-            {slide && canEdit && (
-              <Button size="sm" onClick={() => edit(slide.key)}>
-                <Pencil size={13} />
-                {t('slides.edit')}
-              </Button>
-            )}
-          </div>
+      {overview ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <SlideOverview
+            deck={deck}
+            at={n}
+            theme={theme}
+            scope={scope}
+            title={title}
+            onPick={(at) => {
+              go(at)
+              setOverview(false)
+            }}
+          />
         </div>
-        <aside className="flex min-h-0 min-w-0 flex-col gap-4 md:overflow-y-auto">
-          <div>
-            <div className="mb-1 text-[12px] font-semibold text-brand-ink">{t('slides.nextSlide')}</div>
-            {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2, part: next.part && t('slides.part', next.part) }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
-            {next && <div className="mt-1 truncate text-[12px] text-ink-3">{next.caption}</div>}
-          </div>
-          {timing ? (
-            <div className="card p-4">
-              <div className="text-[15px] font-semibold">{timing.item.title || t(`kinds.${timing.item.kind}`)}</div>
-              {timing.start !== null && timing.end !== null && (
-                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[13px] text-ink-2">
-                  <span className="tnum">
-                    {t('slides.planned')} {formatTime(timing.start)}–{formatTime(timing.end)}
-                  </span>
-                  {left !== null && (
-                    <span className={cx('tnum font-medium', left < 0 ? 'text-rose' : left <= 5 ? 'text-amber' : 'text-ink')}>
-                      {notStarted ? t('slides.notYet', { time: formatTime(timing.start) }) : left >= 0 ? t('slides.remaining', { count: left }) : t('slides.over', { count: -left })}
-                    </span>
-                  )}
-                </div>
+      ) : (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-[2fr_1fr] md:overflow-visible">
+          <div className="flex min-h-0 min-w-0 flex-col gap-3">
+            {slide ? (
+              <div
+                onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+                onTouchEnd={(e) => {
+                  // On a phone the slide pages with a swipe, as in the presentation.
+                  if (touchX.current === null) return
+                  const dx = e.changedTouches[0].clientX - touchX.current
+                  touchX.current = null
+                  if (Math.abs(dx) > 40) go(dx < 0 ? n + 1 : n - 1)
+                }}
+              >
+                <SlideView html={slide.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} className="w-full shadow-[var(--shadow)]" />
+              </div>
+            ) : (
+              <p className="text-ink-3">{t('slides.deckEmpty')}</p>
+            )}
+            <div className="flex items-center gap-2">
+              <IconButton label={t('slides.prev')} onClick={() => go(n - 1)} disabled={n === 0} className="max-md:hidden">
+                <ChevronLeft size={18} />
+              </IconButton>
+              <span className="tnum text-[13px] text-ink-2">
+                {n + 1} / {deck.length}
+              </span>
+              <IconButton label={t('slides.next')} onClick={() => go(n + 1)} disabled={n >= deck.length - 1} className="max-md:hidden">
+                <ChevronRight size={18} />
+              </IconButton>
+              <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{slide?.caption}</span>
+              {slide && canEdit && (
+                <Button size="sm" onClick={() => edit(slide.key)}>
+                  <Pencil size={13} />
+                  {t('slides.edit')}
+                </Button>
               )}
-              {(timing.item.method || timing.item.lead) && <div className="mt-1 text-[13px] text-ink-2">{[timing.item.method, timing.item.lead].filter(Boolean).join(' · ')}</div>}
-              <div className="mt-3 border-t border-line pt-3 text-[14px] leading-relaxed">{timing.item.notes.trim() ? <Markdown text={timing.item.notes} /> : <span className="text-ink-3">{t('slides.noNotes')}</span>}</div>
             </div>
-          ) : (
-            slide && <p className="text-[13px] text-ink-3">{t('slides.generatedSlide')}</p>
-          )}
-        </aside>
-      </div>
+          </div>
+          <aside className="flex min-h-0 min-w-0 flex-col gap-4 md:overflow-y-auto">
+            <div>
+              <div className="mb-1 text-[12px] font-semibold text-brand-ink">{t('slides.nextSlide')}</div>
+              {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2, part: next.part && t('slides.part', next.part) }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
+              {next && <div className="mt-1 truncate text-[12px] text-ink-3">{next.caption}</div>}
+            </div>
+            {timing ? (
+              <div className="card p-4">
+                <div className="text-[15px] font-semibold">{timing.item.title || t(`kinds.${timing.item.kind}`)}</div>
+                {timing.start !== null && timing.end !== null && (
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[13px] text-ink-2">
+                    <span className="tnum">
+                      {t('slides.planned')} {formatTime(timing.start)}–{formatTime(timing.end)}
+                    </span>
+                    {left !== null && (
+                      <span className={cx('tnum font-medium', left < 0 ? 'text-rose' : left <= 5 ? 'text-amber' : 'text-ink')}>
+                        {notStarted ? t('slides.notYet', { time: formatTime(timing.start) }) : left >= 0 ? t('slides.remaining', { count: left }) : t('slides.over', { count: -left })}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {(timing.item.method || timing.item.lead) && <div className="mt-1 text-[13px] text-ink-2">{[timing.item.method, timing.item.lead].filter(Boolean).join(' · ')}</div>}
+                <div className="mt-3 border-t border-line pt-3 text-[14px] leading-relaxed">{timing.item.notes.trim() ? <Markdown text={timing.item.notes} /> : <span className="text-ink-3">{t('slides.noNotes')}</span>}</div>
+              </div>
+            ) : (
+              slide && <p className="text-[13px] text-ink-3">{t('slides.generatedSlide')}</p>
+            )}
+          </aside>
+        </div>
+      )}
       {/* On a phone the remote's buttons: large, at the thumb. */}
       <div className="grid grid-cols-2 gap-3 border-t border-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
         <Button onClick={() => go(n - 1)} disabled={n === 0} className="h-14! text-base!">
