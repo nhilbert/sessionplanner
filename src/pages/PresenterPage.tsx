@@ -109,10 +109,11 @@ export default function PresenterPage() {
     if (!item || !day) return null
     const items = itemsIn(data, day.id)
     const plan = scheduleDay(day.startMin, day.endMin, items).slots[item.id]
-    const slot = liveSchedule(day, items, liveTimes, data.workshop.timezone).slots[item.id]
+    // With the clock: a break put in live with an end that has not begun counts the minutes left to it.
+    const slot = liveSchedule(day, items, liveTimes, data.workshop.timezone, now.getTime()).slots[item.id]
     if (!slot || !plan) return { item, day, start: null, end: null, moved: false, planStart: null, planEnd: null }
     return { item, day, start: slot.start, end: slot.end, moved: slot.start !== plan.start || slot.end !== plan.end, planStart: plan.start, planEnd: plan.end }
-  }, [data, deck, n, liveTimes])
+  }, [data, deck, n, liveTimes, now])
 
   if (status === 'missing') return <p className="p-8 text-rose">{t('common.missing')}</p>
   if (status === 'login' || status === 'error') return <p className="p-8 text-rose">{status === 'login' ? t('common.login') : t('common.error')}</p>
@@ -166,6 +167,7 @@ export default function PresenterPage() {
           theme={theme}
           scope={scope}
           title={title}
+          htmlOf={(s) => withLiveBreak(s, liveTimes, now.getTime(), data.workshop.timezone, labels)}
           onPick={(at) => {
             go(at)
             showOverview(false, true)

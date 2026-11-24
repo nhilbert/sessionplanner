@@ -9,6 +9,7 @@ import { itemsIn, sortedDays } from '@/domain/order'
 import { clockIn, durationOf, formatTime, parseTime, scheduleDay } from '@/domain/time'
 import type { Day, Item, WorkshopState } from '@/domain/types'
 import { usePlanner } from '@/store/usePlanner'
+import { ApiError } from '@/api'
 import { Button, cx, IconButton, Modal, Sheet, useIsPhone } from '@/components/ui'
 import { useDeck } from './useDeck'
 
@@ -65,13 +66,19 @@ export function nextBreak(data: WorkshopState, deck: DeckSlideRef[], n: number, 
   if (extraAt === -1) return planned
   const plannedAt = planned ? deck.findIndex((s, i) => i >= n && s.itemId === planned.item.id) : -1
   if (planned && plannedAt !== -1 && plannedAt < extraAt) return planned
-  const id = deck[extraAt].itemId!
+  return extraBreak(data, deck, n, live, deck[extraAt].itemId!) ?? planned
+}
+
+/** A break put in live, by its id, as the chip and the dialog take it; null once its slide is gone. */
+function extraBreak(data: WorkshopState, deck: DeckSlideRef[], n: number, live: LiveTimes, id: string): NextBreak | null {
+  const at = deck.findIndex((s) => s.itemId === id)
+  if (at === -1) return null
   const entry = live[id]
   const step = entry?.step ? data.items.find((i) => i.id === entry.step) : undefined
-  const day = (step?.dayId && data.days.find((d) => d.id === step.dayId)) || planned?.day || sortedDays(data.days)[0]
-  if (!day) return planned
+  const day = (step?.dayId && data.days.find((d) => d.id === step.dayId)) || sortedDays(data.days)[0]
+  if (!day) return null
   const item = { id, kind: 'break', title: '', duration: entry?.minutes ?? EXTRA_MINUTES, fixedStart: null } as Item
-  return { item, day, extra: true, hasSlide: true, shown: extraAt === n }
+  return { item, day, extra: true, hasSlide: true, shown: at === n }
 }
 
 /** The plan's break shown now, else its next one of the day after the slide shown. */
@@ -115,7 +122,9 @@ function useBreakActions(b: NextBreak, entry: LiveBreak | undefined, timeZone: s
   }
   const setEnd = (clock: number) => {
     const now = Date.now()
-    run(setLive(b.item.id, momentAt(now, clockIn(new Date(now), timeZone).minutes, clock), null))
+    const nowMin = clockIn(new Date(now), timeZone).minutes
+    // An end half a day before the clock is meant for after midnight (00:10 typed at 23:50).
+    run(setLive(b.item.id, momentAt(now, nowMin, clock < nowMin - 720 ? clock + 1440 : clock), null))
   }
   const reset = () => run(setLive(b.item.id, null, null))
   return { setMinutes, setEnd, reset, failed }
@@ -141,7 +150,10 @@ export function BreakChip({ data, deck, n, canEdit, now }: { data: WorkshopState
   const phone = useIsPhone()
   const [open, setOpen] = useState(false)
   const [failed, setFailed] = useState(false)
-  const b = nextBreak(data, deck, n, live)
+  // The break just put in: its dialog edits it, also while a planned break is on screen before it.
+  const [editing, setEditing] = useState<string | null>(null)
+  const next = nextBreak(data, deck, n, live)
+  const b = (open && editing && extraBreak(data, deck, n, live, editing)) || next
   const tz = data.workshop.timezone
   // Break now: a break as the next slide. One that has not begun yet moves here instead of a second one.
   const breakNow = () => {
@@ -150,13 +162,30 @@ export function BreakChip({ data, deck, n, canEdit, now }: { data: WorkshopState
     const waiting = Object.entries(live).find(([id, e]) => isExtra(id) && e.from === null)
     const id = waiting?.[0] ?? `${EXTRA}${newId()}`
     const entry = waiting?.[1]
+    const place = { after: slide.key, step: stepAt(deck, n, live) }
+    const opened = (id: string) => {
+      setEditing(id)
+      setOpen(true)
+    }
     setFailed(false)
-    setLive(id, entry?.until ?? null, entry?.until != null ? null : (entry?.minutes ?? EXTRA_MINUTES), { after: slide.key, step: stepAt(deck, n, live) }).then(
-      () => setOpen(true),
-      () => setFailed(true),
+    setLive(id, entry?.until ?? null, entry?.until != null ? null : (entry?.minutes ?? EXTRA_MINUTES), place).then(
+      () => opened(id),
+      (err: unknown) => {
+        // The waiting one began meanwhile (its slide was shown in another window): a new one instead.
+        if (!(err instanceof ApiError && err.status === 409)) return setFailed(true)
+        const fresh = `${EXTRA}${newId()}`
+        setLive(fresh, null, EXTRA_MINUTES, place).then(
+          () => opened(fresh),
+          () => setFailed(true),
+        )
+      },
     )
   }
-  const nowButton = canEdit && deck[n] && !(b?.extra && !b.shown && deck[n + 1]?.itemId === b.item.id) && (
+  const closeDialog = () => {
+    setOpen(false)
+    setEditing(null)
+  }
+  const nowButton = canEdit && deck[n] && !(next?.extra && !next.shown && deck[n + 1]?.itemId === next.item.id) && (
     <button type="button" onClick={breakNow} title={t('slides.breakNowHint')} aria-label={t('slides.breakNow')} className={cx('tap inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-line-2 px-2.5 text-[12px] font-semibold text-ink-2 transition-colors hover:text-ink pointer-coarse:h-8', failed && 'border-rose text-rose')}>
       <Plus size={13} className="shrink-0" />
       <span className="max-md:hidden">{t('slides.breakNow')}</span>
@@ -167,7 +196,7 @@ export function BreakChip({ data, deck, n, canEdit, now }: { data: WorkshopState
   const entry = live[b.item.id]
   const label = chipLabel(t, data, b, entry, live, now.getTime(), tz)
   const set = !!entry
-  const editor = <BreakEditor b={b} entry={entry} now={now} timeZone={tz} items={itemsIn(data, b.day.id)} onClose={() => setOpen(false)} />
+  const editor = <BreakEditor b={b} entry={entry} now={now} timeZone={tz} items={itemsIn(data, b.day.id)} onClose={closeDialog} />
   return (
     <>
       <button
@@ -185,11 +214,11 @@ export function BreakChip({ data, deck, n, canEdit, now }: { data: WorkshopState
       </button>
       {nowButton}
       {phone ? (
-        <Sheet open={open} onClose={() => setOpen(false)} label={t('slides.breakSet')}>
+        <Sheet open={open} onClose={closeDialog} label={t('slides.breakSet')}>
           {editor}
         </Sheet>
       ) : (
-        <Modal open={open} onClose={() => setOpen(false)} width="max-w-md">
+        <Modal open={open} onClose={closeDialog} width="max-w-md">
           {editor}
         </Modal>
       )}

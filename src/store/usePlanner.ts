@@ -94,6 +94,8 @@ let early: ServerEvent[] = []
 let snapshotAt = 0
 /** The highest revision the stream has brought: a snapshot older than that must not replace what is shown. */
 let heard = 0
+/** Counts the live-time messages of the stream: an answer to setLive older than the last one is not applied. */
+let liveHeard = 0
 /** The open session whose changes share one undo entry (beginGroup). */
 let group: string | null = null
 /** When the server last confirmed what is shown: a snapshot it sent, or the live stream. */
@@ -237,6 +239,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
         return
       }
       if (event.type === 'live') {
+        liveHeard++
         if (get().id === id) set({ liveTimes: event.times })
         return
       }
@@ -332,8 +335,10 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     setLive: async (itemId, until, minutes, place) => {
       const id = get().id
       if (!id) return
+      const before = liveHeard
       const res = await api.live(id, { itemId, until, minutes, ...place })
-      if (get().id === id) set({ liveTimes: res.times })
+      // The stream told every window already, perhaps of a newer change by another one: the answer counts only without it.
+      if (get().id === id && liveHeard === before) set({ liveTimes: res.times })
     },
   }
 })

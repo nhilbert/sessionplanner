@@ -218,6 +218,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const id = c.req.param('id')!
     if (!repo.trashWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     positions.delete(id)
+    lives.delete(id)
     hub.publish(id, { type: 'workshop-deleted' })
     // The guests' open streams end here, or a restore would find them still listening.
     hub.publish(id, { type: 'members-changed' })
@@ -313,15 +314,19 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     if (!repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     const { itemId, until, minutes, after, step } = validateLive(await jsonBody(c))
     const extra = isExtra(itemId)
-    const { [itemId]: before, ...rest } = liveOf(id)
+    const current = liveOf(id)
+    const { [itemId]: before, ...rest } = current
     if (after !== undefined && !extra) throw new BadRequest('only a break put in live follows a slide')
     if (extra && !before && after === undefined && (until !== null || minutes !== null)) throw new BadRequest('a break put in live needs its place')
+    // A break that began stays where it was shown: moving it is refused, and the window puts in a new one.
+    if (extra && after !== undefined && before && before.from !== null) return c.json({ error: 'started' }, 409)
     let times: LiveTimes = rest
     if (until !== null || minutes !== null) {
       if (!before && Object.keys(rest).length >= LIVE_MAX) throw new BadRequest('too many live times')
       let entry = until !== null ? withEnd(before, until) : withMinutes(before, minutes!)
-      if (extra && after !== undefined && before?.from == null) entry = { ...entry, after, step: step ?? null }
-      times = { ...rest, [itemId]: entry }
+      if (extra && after !== undefined) entry = { ...entry, after, step: step ?? null }
+      // A change keeps the break in its place among the others: breaks put in live after the same slide keep their order.
+      times = { ...current, [itemId]: entry }
       times = startShown(times, positionOf(id)?.key)
     }
     lives.set(id, { times, at: Date.now() })

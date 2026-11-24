@@ -125,6 +125,9 @@ describe('a break put in live (Break now)', () => {
     expect(deck).toHaveLength(5)
     expect(withExtraBreaks(deck, { 'now-3': placed('gone:s1', null) }, 'Pause')).toBe(deck)
     expect(withExtraBreaks(deck, {}, 'Pause')).toBe(deck)
+    // one that follows another put in live finds it, whatever their order
+    const chain: LiveTimes = { 'now-2': placed('break:now-1', 'a'), 'now-1': placed('a:s1', 'a') }
+    expect(withExtraBreaks(deck, chain, 'Pause').map((s) => s.key)).toEqual(['title:d1', 'a:s1', 'break:now-1', 'break:now-2', 'a:s2', 'break:coffee', 'b:s1'])
   })
 
   it('keeps its place through a new length, a new end and its start', () => {

@@ -1630,12 +1630,19 @@ describe('guests', () => {
 
     // its slide goes on screen: it begins, and from then on stays where it was shown
     await post('present', { key: 'break:now-1', n: 5, tag: 'w1.1' })
-    res = await post('live', { itemId: 'now-1', until: null, minutes: 25, after: 'c:s1', step: 'c' })
+    expect((await post('live', { itemId: 'now-1', until: null, minutes: 25, after: 'c:s1', step: 'c' })).status).toBe(409)
+    res = await post('live', { itemId: 'now-1', until: null, minutes: 25 })
     const began = (await times(res))['now-1']
     expect(began).toMatchObject({ after: 'b:s1', step: 'b', minutes: null })
     expect((began.until as number) - (began.from as number)).toBe(25 * 60_000)
 
+    // a second one after it; changing the first keeps their order
+    await post('live', { itemId: 'now-2', until: null, minutes: 10, after: 'break:now-1', step: 'b' })
+    res = await post('live', { itemId: 'now-1', until: null, minutes: 30 })
+    expect(Object.keys(await times(res))).toEqual(['now-1', 'now-2'])
+
     // removed
+    await post('live', { itemId: 'now-2', until: null, minutes: null })
     res = await post('live', { itemId: 'now-1', until: null, minutes: null })
     expect(await times(res)).toEqual({})
 

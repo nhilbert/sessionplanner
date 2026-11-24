@@ -143,20 +143,30 @@ export function withExtraBreaks(deck: DeckSlideRef[], live: LiveTimes, title: st
   if (!extras.length) return deck
   const out = [...deck]
   let put = 0
-  for (const [id, entry] of extras) {
-    const n = out.findIndex((s) => s.key === entry.after)
-    if (n === -1) continue
-    put++
-    let place = n + 1
-    while (place < out.length && isExtra(out[place].itemId)) place++
-    out.splice(place, 0, {
-      key: `break:${id}`,
-      itemId: id,
-      generated: 'break',
-      caption: title,
-      part: out[n].part,
-      html: `<section class="slide break"><div class="text"><h1>${esc(title)}</h1><p class="until"></p></div>${picture(id)}</section>`,
-    })
+  // A break may follow another one put in live: placed in rounds, until a round places none.
+  let waiting = extras
+  while (waiting.length) {
+    const left: typeof extras = []
+    for (const [id, entry] of waiting) {
+      const n = out.findIndex((s) => s.key === entry.after)
+      if (n === -1) {
+        left.push([id, entry])
+        continue
+      }
+      put++
+      let place = n + 1
+      while (place < out.length && isExtra(out[place].itemId)) place++
+      out.splice(place, 0, {
+        key: `break:${id}`,
+        itemId: id,
+        generated: 'break',
+        caption: title,
+        part: out[n].part,
+        html: `<section class="slide break"><div class="text"><h1>${esc(title)}</h1><p class="until"></p></div>${picture(id)}</section>`,
+      })
+    }
+    if (left.length === waiting.length) break
+    waiting = left
   }
   return put ? out : deck
 }

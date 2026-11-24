@@ -12,7 +12,7 @@ import { SlideView } from './SlideView'
  * first and last), a click or Enter on a slide moves the presentation there. The overview scrolls only its own box,
  * never the page around it, so nothing stays scrolled once it closes.
  */
-export function SlideOverview({ deck, at, theme, scope, title, onPick }: { deck: DeckSlideRef[]; at: number; theme: string; scope: AssetScope; title: string; onPick: (n: number) => void }) {
+export function SlideOverview({ deck, at, theme, scope, title, onPick, htmlOf = (s) => s.html }: { deck: DeckSlideRef[]; at: number; theme: string; scope: AssetScope; title: string; onPick: (n: number) => void; /** The slide as shown, e.g. a break with its live line. */ htmlOf?: (s: DeckSlideRef) => string }) {
   const { t } = useTranslation()
   const box = useRef<HTMLDivElement>(null)
   const grid = useRef<HTMLOListElement>(null)
@@ -60,7 +60,7 @@ export function SlideOverview({ deck, at, theme, scope, title, onPick }: { deck:
           const on = i === at
           return (
             <li key={s.key} aria-current={on ? 'true' : undefined} className={cx('min-w-0 rounded-[10px] p-1.5', on && 'bg-accent-soft')}>
-              <SlideView html={s.html} theme={theme} scope={scope} chrome={{ label: title, n: i + 1, part: s.part && t('slides.part', s.part) }} onClick={() => onPick(i)} label={t('slides.slide', { n: i + 1 })} className="w-full" />
+              <SlideView html={htmlOf(s)} theme={theme} scope={scope} chrome={{ label: title, n: i + 1, part: s.part && t('slides.part', s.part) }} onClick={() => onPick(i)} label={t('slides.slide', { n: i + 1 })} className="w-full" />
               <div className={cx('mt-1 flex gap-1 truncate text-[12px]', on ? 'font-medium text-accent-strong' : s.generated ? 'text-ink-3' : 'text-ink-2')}>
                 <span className="tnum">{i + 1}</span>
                 <span className="truncate">{s.generated ? t(`slides.generated.${s.generated}`, { n: '' }).trim() : s.caption}</span>
