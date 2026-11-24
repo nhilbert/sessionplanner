@@ -146,7 +146,7 @@ export const api = {
   /** Pages the presentation of a workshop: every window that presents or leads it follows (docs/slides.md, Presenting). */
   present: (id: string, position: PresentPosition) => call<{ ok: true }>(`/workshops/${id}/present`, { method: 'POST', body: JSON.stringify(position) }),
   /** A break set live in the presenter view (src/domain/live.ts): its end, its length, or neither (back to the plan). */
-  live: (id: string, body: { itemId: string; until: number | null; minutes: number | null }) => call<{ ok: true; times: LiveTimes }>(`/workshops/${id}/live`, { method: 'POST', body: JSON.stringify(body) }),
+  live: (id: string, body: { itemId: string; until: number | null; minutes: number | null; after?: string; step?: string | null }) => call<{ ok: true; times: LiveTimes }>(`/workshops/${id}/live`, { method: 'POST', body: JSON.stringify(body) }),
   /** A picture for slides, stored once by its content (docs/slides.md). */
   uploadAsset: (scope: AssetScope, file: File) => {
     const form = new FormData()

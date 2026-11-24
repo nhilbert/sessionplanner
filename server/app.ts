@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { newId, type PresentPosition } from '../src/domain/ops.ts'
-import { type LiveTimes, slideOf, started, withEnd, withMinutes } from '../src/domain/live.ts'
+import { isExtra, type LiveTimes, slideOf, started, withEnd, withMinutes } from '../src/domain/live.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, sameToken } from './guard.ts'
@@ -306,16 +306,22 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   })
 
   // A break set live in the presenter view: its end or its length, or back to the plan. Those who lead the
-  // presentation set it, and all their windows show it (docs/slides.md, Presenting).
+  // presentation set it, and all their windows show it (docs/slides.md, Presenting). A break put in live ("Break
+  // now", an id starting with now-) also says which slide it follows; until it has begun it moves when said again.
   app.post('/api/workshops/:id/live', allow('workshop-edit'), async (c) => {
     const id = c.req.param('id')!
     if (!repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
-    const { itemId, until, minutes } = validateLive(await jsonBody(c))
+    const { itemId, until, minutes, after, step } = validateLive(await jsonBody(c))
+    const extra = isExtra(itemId)
     const { [itemId]: before, ...rest } = liveOf(id)
+    if (after !== undefined && !extra) throw new BadRequest('only a break put in live follows a slide')
+    if (extra && !before && after === undefined && (until !== null || minutes !== null)) throw new BadRequest('a break put in live needs its place')
     let times: LiveTimes = rest
     if (until !== null || minutes !== null) {
       if (!before && Object.keys(rest).length >= LIVE_MAX) throw new BadRequest('too many live times')
-      times = { ...rest, [itemId]: until !== null ? withEnd(before, until) : withMinutes(before, minutes!) }
+      let entry = until !== null ? withEnd(before, until) : withMinutes(before, minutes!)
+      if (extra && after !== undefined && before?.from == null) entry = { ...entry, after, step: step ?? null }
+      times = { ...rest, [itemId]: entry }
       times = startShown(times, positionOf(id)?.key)
     }
     lives.set(id, { times, at: Date.now() })

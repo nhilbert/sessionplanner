@@ -54,8 +54,8 @@ interface PlannerStore {
   presenting: PresentNews | null
   /** The breaks set live in the presenter view (src/domain/live.ts); only for those who can edit, empty for others. */
   liveTimes: LiveTimes
-  /** Sets a break live, or back to the plan (both null); what the server answers shows in every window. */
-  setLive: (itemId: string, until: number | null, minutes: number | null) => Promise<void>
+  /** Sets a break live, or back to the plan (both null); what the server answers shows in every window. A break put in live ("Break now") also gives its place. */
+  setLive: (itemId: string, until: number | null, minutes: number | null, place?: { after: string; step: string | null }) => Promise<void>
   /** A change the server refused; the workshop was reloaded. */
   syncError: boolean
   past: Entry[]
@@ -329,10 +329,10 @@ export const usePlanner = create<PlannerStore>((set, get) => {
 
     dismissSyncError: () => set({ syncError: false }),
 
-    setLive: async (itemId, until, minutes) => {
+    setLive: async (itemId, until, minutes, place) => {
       const id = get().id
       if (!id) return
-      const res = await api.live(id, { itemId, until, minutes })
+      const res = await api.live(id, { itemId, until, minutes, ...place })
       if (get().id === id) set({ liveTimes: res.times })
     },
   }

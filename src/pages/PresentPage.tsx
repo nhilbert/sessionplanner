@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { SlideStage } from '@/slides/SlideView'
-import { useDeck } from '@/slides/useDeck'
 import { usePresentSync } from '@/slides/presentSync'
 import { useWakeLock } from '@/slides/useWakeLock'
-import { useNow } from '@/slides/BreakControl'
+import { usePresentedDeck, useNow } from '@/slides/BreakControl'
 import { breakLabels } from '@/slides/deckLabels'
 import { withLiveBreak } from '@/domain/live'
 
@@ -28,7 +27,7 @@ export default function PresentPage() {
   const [hint, setHint] = useState(true)
   const hintTimer = useRef<number | null>(null)
   const touchX = useRef<number | null>(null)
-  const { deck, theme } = useDeck(data)
+  const { deck, theme } = usePresentedDeck(data)
   // ?from=N presents from that slide ("Present from here"); ?n=N is where this window was, for a reload.
   const [from] = useState(() => params.get('from'))
   const { at: n, go: page } = usePresentSync(id, deck, parseInt(from ?? params.get('n') ?? '1', 10) || 1, from !== null)

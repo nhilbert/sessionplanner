@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DeckSlideRef } from './deck.ts'
-import { breakLine, liveSchedule, MINUTE, minutesLeft, momentAt, slideOf, started, withEnd, withLiveBreak, withMinutes, type BreakLabels, type LiveTimes } from './live.ts'
+import { breakLine, liveSchedule, MINUTE, minutesLeft, momentAt, slideOf, started, withEnd, withExtraBreaks, withLiveBreak, withMinutes, type BreakLabels, type LiveBreak, type LiveTimes } from './live.ts'
 import type { TimedItem } from './time.ts'
 
 const TZ = 'Europe/Berlin'
@@ -95,6 +95,8 @@ describe('the break slide', () => {
     expect(breakLine(entry, at('11:18'), TZ, labels)).toBe('noch 12 Minuten · <strong>bis 11:30</strong>')
     expect(breakLine(entry, at('11:31'), TZ, labels)).toBe('<strong>Es geht weiter</strong>')
     expect(breakLine({ from: null, until: null, minutes: 20 }, at('11:00'), TZ, labels)).toBe('20 Minuten')
+    // a clock a few seconds behind the start reads the start, not a minute more
+    expect(breakLine({ from: at('11:10'), until: at('11:30'), minutes: null }, at('11:10') - 4000, TZ, labels)).toBe('noch 20 Minuten · <strong>bis 11:30</strong>')
   })
 
   it('takes the live line in place of the planned one, and leaves every other slide alone', () => {
@@ -103,5 +105,57 @@ describe('the break slide', () => {
     expect(withLiveBreak(slide, {}, at('11:18'), TZ, labels)).toBe(slide.html)
     const own = { ...slide, key: 'coffee:s1', generated: undefined }
     expect(withLiveBreak(own, live, at('11:18'), TZ, labels)).toBe(slide.html)
+  })
+})
+
+describe('a break put in live (Break now)', () => {
+  const slide = (key: string, itemId?: string): DeckSlideRef => ({ key, itemId, caption: key, html: `<section class="slide">${key}</section>` })
+  const deck = [slide('title:d1'), slide('a:s1', 'a'), slide('a:s2', 'a'), slide('break:coffee', 'coffee'), slide('b:s1', 'b')]
+  const placed = (after: string, step: string | null, entry: Pick<LiveBreak, 'from' | 'until' | 'minutes'> = { from: null, until: null, minutes: 15 }): LiveBreak => ({ ...entry, after, step })
+
+  it('gets a generated break slide right after the slide it follows, the later ones after the earlier', () => {
+    const live: LiveTimes = { 'now-1': placed('a:s1', 'a'), coffee: { from: null, until: null, minutes: 20 }, 'now-2': placed('a:s1', 'a') }
+    const out = withExtraBreaks(deck, live, 'Pause', (id) => `<figure>${id}</figure>`)
+    expect(out.map((s) => s.key)).toEqual(['title:d1', 'a:s1', 'break:now-1', 'break:now-2', 'a:s2', 'break:coffee', 'b:s1'])
+    expect(out[2]).toMatchObject({ itemId: 'now-1', generated: 'break', caption: 'Pause' })
+    expect(out[2].html).toBe('<section class="slide break"><div class="text"><h1>Pause</h1><p class="until"></p></div><figure>now-1</figure></section>')
+    // its line is the live one, as on every break slide
+    expect(withLiveBreak(out[2], live, at('11:00'), TZ, labels)).toContain('<p class="until">15 Minuten</p>')
+    // the deck itself is left alone, and a break whose slide is gone has none
+    expect(deck).toHaveLength(5)
+    expect(withExtraBreaks(deck, { 'now-3': placed('gone:s1', null) }, 'Pause')).toBe(deck)
+    expect(withExtraBreaks(deck, {}, 'Pause')).toBe(deck)
+  })
+
+  it('keeps its place through a new length, a new end and its start', () => {
+    const entry = placed('a:s1', 'a')
+    expect(withMinutes(entry, 20)).toEqual({ from: null, until: null, minutes: 20, after: 'a:s1', step: 'a' })
+    const began = started(entry, at('10:00'))
+    expect(began).toEqual({ from: at('10:00'), until: at('10:15'), minutes: null, after: 'a:s1', step: 'a' })
+    expect(withEnd(began, at('10:20'))).toMatchObject({ after: 'a:s1', step: 'a' })
+    expect(withMinutes(undefined, 20)).toEqual({ from: null, until: null, minutes: 20 })
+  })
+
+  it('lengthens the step it interrupts, as set or as it ran, and moves what follows', () => {
+    // in the middle of a (9:00–10:30): a ends 15 minutes later, coffee and the rest move by them
+    let s = liveSchedule(day, items, { 'now-1': placed('a:s1', 'a') }, TZ, at('10:00'))
+    expect(s.slots.a).toMatchObject({ start: 540, end: 645 })
+    expect(s.slots.coffee.start).toBe(645)
+    expect(s.slots.b.start).toBe(660)
+    // it ran from 10:00 to 10:20
+    s = liveSchedule(day, items, { 'now-1': placed('a:s1', 'a', { from: at('10:00'), until: at('10:20'), minutes: null }) }, TZ, at('10:30'))
+    expect(s.slots.coffee.start).toBe(650)
+    // an end set before it began: the minutes left from now
+    s = liveSchedule(day, items, { 'now-1': placed('a:s1', 'a', { from: null, until: at('10:10'), minutes: null }) }, TZ, at('10:00'))
+    expect(s.slots.coffee.start).toBe(640)
+    // after the planned break: a break of its own after it, the planned one keeps its live length
+    s = liveSchedule(day, items, { coffee: { from: null, until: null, minutes: 20 }, 'now-1': placed('break:coffee', 'coffee') }, TZ, at('10:00'))
+    expect(s.slots.coffee).toMatchObject({ start: 630, end: 650 })
+    expect(s.slots['now-1']).toMatchObject({ start: 650, end: 665 })
+    expect(s.slots.b.start).toBe(665)
+    // without a step, of another day, or a step not on this day: no change
+    for (const live of [{ 'now-1': placed('title:d1', null) }, { 'now-1': placed('x:s1', 'x') }, { 'now-1': placed('a:s1', 'a', { from: at('10:00') - 24 * 60 * MINUTE, until: at('10:15') - 24 * 60 * MINUTE, minutes: null }) }]) {
+      expect(liveSchedule(day, items, live, TZ, at('10:00')).slots.coffee.start).toBe(630)
+    }
   })
 })

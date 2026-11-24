@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Coffee, Minus, Plus } from 'lucide-react'
-import type { DeckSlideRef } from '@/domain/deck'
-import { liveSchedule, MINUTE, minutesLeft, momentAt, type LiveBreak, type LiveTimes } from '@/domain/live'
-import { itemsIn } from '@/domain/order'
+import { seedOf, type DeckSlideRef } from '@/domain/deck'
+import { EXTRA, isExtra, liveSchedule, MINUTE, minutesLeft, momentAt, withExtraBreaks, type LiveBreak, type LiveTimes } from '@/domain/live'
+import { newId } from '@/domain/ops'
+import { itemsIn, sortedDays } from '@/domain/order'
 import { clockIn, durationOf, formatTime, parseTime, scheduleDay } from '@/domain/time'
 import type { Day, Item, WorkshopState } from '@/domain/types'
 import { usePlanner } from '@/store/usePlanner'
 import { Button, cx, IconButton, Modal, Sheet, useIsPhone } from '@/components/ui'
+import { useDeck } from './useDeck'
 
 /**
  * Setting the next break live from the presenter view (docs/slides.md, Presenting): a chip in the header names it,
@@ -26,18 +28,55 @@ export function useNow(ms: number): Date {
   return now
 }
 
+/**
+ * The deck as presented (presenter view and presentation alike, so their slides and numbers agree): the workshop's
+ * deck with a slide for every break put in live (withExtraBreaks).
+ */
+export function usePresentedDeck(data: WorkshopState | null) {
+  const { t } = useTranslation()
+  const live = usePlanner((s) => s.liveTimes)
+  const { deck, theme, options, pictures } = useDeck(data)
+  const presented = useMemo(() => {
+    const picture = (id: string) => (options.pictures && pictures.length ? `<figure><img src="asset:${pictures[seedOf(id) % pictures.length]}" alt=""></figure>` : '')
+    return withExtraBreaks(deck, live, t('slides.generated.break'), picture)
+  }, [deck, live, t, options.pictures, pictures])
+  return { deck: presented, theme }
+}
+
+/** The length a break put in live starts with; the dialog that opens with it changes it. */
+const EXTRA_MINUTES = 15
+
 export interface NextBreak {
+  /** For a break put in live, a stand-in with its id and length: it is in no agenda. */
   item: Item
   day: Day
+  /** A break put in live ("Break now"), not in the plan. */
+  extra: boolean
   /** Whether the deck shows it (its generated slide or slides of its own): a length can then wait for the slide. */
   hasSlide: boolean
   /** Whether the presentation shows it now. */
   shown: boolean
 }
 
-/** The break shown now, else the next one of the day after the slide shown (in agenda order, slides or not). */
-export function nextBreak(data: WorkshopState, deck: DeckSlideRef[], n: number): NextBreak | null {
-  const anchorAt = deck.findIndex((s, i) => i >= n && !!s.itemId)
+/** The break shown now, else the next one after the slide shown: a break put in live when its slide comes first, else the plan's next of the day (in agenda order, slides or not). */
+export function nextBreak(data: WorkshopState, deck: DeckSlideRef[], n: number, live: LiveTimes = {}): NextBreak | null {
+  const planned = plannedBreak(data, deck, n)
+  const extraAt = deck.findIndex((s, i) => i >= n && isExtra(s.itemId))
+  if (extraAt === -1) return planned
+  const plannedAt = planned ? deck.findIndex((s, i) => i >= n && s.itemId === planned.item.id) : -1
+  if (planned && plannedAt !== -1 && plannedAt < extraAt) return planned
+  const id = deck[extraAt].itemId!
+  const entry = live[id]
+  const step = entry?.step ? data.items.find((i) => i.id === entry.step) : undefined
+  const day = (step?.dayId && data.days.find((d) => d.id === step.dayId)) || planned?.day || sortedDays(data.days)[0]
+  if (!day) return planned
+  const item = { id, kind: 'break', title: '', duration: entry?.minutes ?? EXTRA_MINUTES, fixedStart: null } as Item
+  return { item, day, extra: true, hasSlide: true, shown: extraAt === n }
+}
+
+/** The plan's break shown now, else its next one of the day after the slide shown. */
+function plannedBreak(data: WorkshopState, deck: DeckSlideRef[], n: number): NextBreak | null {
+  const anchorAt = deck.findIndex((s, i) => i >= n && !!s.itemId && !isExtra(s.itemId))
   if (anchorAt === -1) return null
   const anchor = data.items.find((i) => i.id === deck[anchorAt].itemId)
   const day = anchor?.dayId ? data.days.find((d) => d.id === anchor.dayId) : undefined
@@ -45,7 +84,19 @@ export function nextBreak(data: WorkshopState, deck: DeckSlideRef[], n: number):
   const items = itemsIn(data, day.id)
   const item = items.slice(Math.max(0, items.findIndex((i) => i.id === anchor.id))).find((i) => i.kind === 'break')
   if (!item) return null
-  return { item, day, hasSlide: deck.some((s) => s.itemId === item.id), shown: deck[n]?.itemId === item.id }
+  return { item, day, extra: false, hasSlide: deck.some((s) => s.itemId === item.id), shown: deck[n]?.itemId === item.id }
+}
+
+/** The step the slide shown belongs to, else the nearest one before it: the step a break put in live interrupts. */
+function stepAt(deck: DeckSlideRef[], n: number, live: LiveTimes): string | null {
+  for (let i = n; i >= 0; i--) {
+    const id = deck[i]?.itemId
+    if (!id) continue
+    if (!isExtra(id)) return id
+    // After a break put in live: the step that one interrupts.
+    if (live[id]?.step) return live[id].step!
+  }
+  return null
 }
 
 /** Setting a break: its length or its end, or back to the plan. A length waits for the slide when there is one to wait for. */
@@ -86,11 +137,33 @@ function breakNow(b: NextBreak, entry: LiveBreak | undefined, now: number, timeZ
 export function BreakChip({ data, deck, n, canEdit, now }: { data: WorkshopState; deck: DeckSlideRef[]; n: number; canEdit: boolean; now: Date }) {
   const { t } = useTranslation()
   const live = usePlanner((s) => s.liveTimes)
+  const setLive = usePlanner((s) => s.setLive)
   const phone = useIsPhone()
   const [open, setOpen] = useState(false)
-  const b = nextBreak(data, deck, n)
-  if (!b) return null
+  const [failed, setFailed] = useState(false)
+  const b = nextBreak(data, deck, n, live)
   const tz = data.workshop.timezone
+  // Break now: a break as the next slide. One that has not begun yet moves here instead of a second one.
+  const breakNow = () => {
+    const slide = deck[n]
+    if (!slide) return
+    const waiting = Object.entries(live).find(([id, e]) => isExtra(id) && e.from === null)
+    const id = waiting?.[0] ?? `${EXTRA}${newId()}`
+    const entry = waiting?.[1]
+    setFailed(false)
+    setLive(id, entry?.until ?? null, entry?.until != null ? null : (entry?.minutes ?? EXTRA_MINUTES), { after: slide.key, step: stepAt(deck, n, live) }).then(
+      () => setOpen(true),
+      () => setFailed(true),
+    )
+  }
+  const nowButton = canEdit && deck[n] && !(b?.extra && !b.shown && deck[n + 1]?.itemId === b.item.id) && (
+    <button type="button" onClick={breakNow} title={t('slides.breakNowHint')} aria-label={t('slides.breakNow')} className={cx('tap inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-line-2 px-2.5 text-[12px] font-semibold text-ink-2 transition-colors hover:text-ink pointer-coarse:h-8', failed && 'border-rose text-rose')}>
+      <Plus size={13} className="shrink-0" />
+      <span className="max-md:hidden">{t('slides.breakNow')}</span>
+      <Coffee size={13} className="shrink-0 md:hidden" />
+    </button>
+  )
+  if (!b) return nowButton || null
   const entry = live[b.item.id]
   const label = chipLabel(t, data, b, entry, live, now.getTime(), tz)
   const set = !!entry
@@ -110,6 +183,7 @@ export function BreakChip({ data, deck, n, canEdit, now }: { data: WorkshopState
         <Coffee size={13} className="shrink-0" />
         <span className="truncate">{label}</span>
       </button>
+      {nowButton}
       {phone ? (
         <Sheet open={open} onClose={() => setOpen(false)} label={t('slides.breakSet')}>
           {editor}
@@ -125,8 +199,9 @@ export function BreakChip({ data, deck, n, canEdit, now }: { data: WorkshopState
 
 function chipLabel(t: TFunction, data: WorkshopState, b: NextBreak, entry: LiveBreak | undefined, live: LiveTimes, now: number, tz: string): string {
   if (entry?.until != null) {
-    if (entry.from != null && now >= entry.from) {
-      const left = minutesLeft(entry.until, now)
+    // A start is only ever set once the break began; the clock, a few seconds behind, reads the start.
+    if (entry.from != null) {
+      const left = minutesLeft(entry.until, Math.max(now, entry.from))
       return left > 0 ? t('slides.breakChipLeft', { count: left }) : t('slides.breakChipOver')
     }
     return t('slides.breakChipUntil', { time: formatTime(clockIn(new Date(entry.until), tz).minutes) })
@@ -148,7 +223,7 @@ function BreakEditor({ b, entry, now, timeZone, items, onClose }: { b: NextBreak
 
   const status =
     entry?.until != null
-      ? entry.from != null && ms >= entry.from
+      ? entry.from != null
         ? t('slides.breakRunning', { time: clock(entry.from), end: clock(entry.until) })
         : t('slides.breakUntil', { time: clock(entry.until) })
       : entry?.minutes != null
@@ -174,7 +249,7 @@ function BreakEditor({ b, entry, now, timeZone, items, onClose }: { b: NextBreak
   return (
     <div className="grid gap-4">
       <div>
-        <div className="app-title text-[20px] leading-tight">{b.item.title || t('slides.generated.break')}</div>
+        <div className="app-title text-[20px] leading-tight">{b.extra ? t('slides.breakNow') : b.item.title || t('slides.generated.break')}</div>
         {planned && <div className="tnum text-[13px] text-ink-2">{t('slides.breakPlanned', { from: formatTime(planned.start), to: formatTime(planned.end) })}</div>}
       </div>
       <p className="text-[14px] text-ink">{status}</p>
@@ -228,10 +303,18 @@ function BreakEditor({ b, entry, now, timeZone, items, onClose }: { b: NextBreak
       </div>
       <QuickMinutes current={entry ? state.minutes : null} onPick={setMinutes} />
       {failed && <p className="text-[13px] text-rose">{t('slides.breakFailed')}</p>}
-      <p className="text-[12px] text-ink-3">{t('slides.breakHint')}</p>
+      <p className="text-[12px] text-ink-3">{b.extra ? t('slides.breakNowNote') : t('slides.breakHint')}</p>
       <div className="flex items-center justify-between gap-2">
-        <Button variant="ghost" onClick={reset} disabled={!entry}>
-          {t('slides.breakReset')}
+        <Button
+          variant="ghost"
+          onClick={() => {
+            reset()
+            // A break put in live is gone with it: nothing is left to set.
+            if (b.extra) onClose()
+          }}
+          disabled={!entry}
+        >
+          {b.extra ? t('slides.breakRemove') : t('slides.breakReset')}
         </Button>
         <Button onClick={onClose}>{t('common.close')}</Button>
       </div>
@@ -266,7 +349,7 @@ function QuickMinutes({ current, onPick, className }: { current: number | null; 
 /** Under the next slide when that is the break: its length in one tap. */
 export function BreakQuick({ data, deck, n, now, canEdit }: { data: WorkshopState; deck: DeckSlideRef[]; n: number; now: Date; canEdit: boolean }) {
   const live = usePlanner((s) => s.liveTimes)
-  const b = nextBreak(data, deck, n + 1)
+  const b = nextBreak(data, deck, n + 1, live)
   const ok = !!b && deck[n + 1]?.itemId === b.item.id
   const entry = b ? live[b.item.id] : undefined
   const tz = data.workshop.timezone

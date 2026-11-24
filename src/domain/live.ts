@@ -19,6 +19,13 @@ export interface LiveBreak {
   until: number | null
   /** A length that starts when the break's slide goes on screen; null once the end is fixed. */
   minutes: number | null
+  /**
+   * A break put in live ("Break now"), not in the plan: the deck key of the slide it follows. Its slide is generated
+   * there in every window of the presentation; its id starts with EXTRA.
+   */
+  after?: string
+  /** The step a break put in live interrupts (the item of the slide it follows): the re-forecast counts it after that step. */
+  step?: string | null
 }
 
 /** By item id. */
@@ -26,22 +33,29 @@ export type LiveTimes = Record<string, LiveBreak>
 
 export const MINUTE = 60_000
 
+/** The id of a break put in live starts with this; the ids of the plan are UUIDs. */
+export const EXTRA = 'now-'
+export const isExtra = (id: string | undefined): boolean => !!id?.startsWith(EXTRA)
+
+/** Where a break put in live stands, kept through every change of its times. */
+const placeOf = (entry: LiveBreak | undefined): Pick<LiveBreak, 'after' | 'step'> => (entry?.after !== undefined ? { after: entry.after, step: entry.step ?? null } : {})
+
 /** A length set live: counted from the start once the break has begun, else from when its slide goes on screen. */
 export function withMinutes(entry: LiveBreak | undefined, minutes: number): LiveBreak {
   const from = entry?.from ?? null
-  return from !== null ? { from, until: from + minutes * MINUTE, minutes: null } : { from: null, until: null, minutes }
+  return from !== null ? { from, until: from + minutes * MINUTE, minutes: null, ...placeOf(entry) } : { from: null, until: null, minutes, ...placeOf(entry) }
 }
 
 /** An end set live: it holds from now on, whenever the slide goes on screen. */
 export function withEnd(entry: LiveBreak | undefined, until: number): LiveBreak {
-  return { from: entry?.from ?? null, until, minutes: null }
+  return { from: entry?.from ?? null, until, minutes: null, ...placeOf(entry) }
 }
 
 /** The break went on screen at `now`: a length becomes an end, and a set end learns when the break began. */
 export function started(entry: LiveBreak, now: number): LiveBreak {
   if (entry.from !== null) return entry
-  if (entry.minutes !== null) return { from: now, until: now + entry.minutes * MINUTE, minutes: null }
-  if (entry.until !== null) return { from: Math.min(now, entry.until), until: entry.until, minutes: null }
+  if (entry.minutes !== null) return { from: now, until: now + entry.minutes * MINUTE, minutes: null, ...placeOf(entry) }
+  if (entry.until !== null) return { from: Math.min(now, entry.until), until: entry.until, minutes: null, ...placeOf(entry) }
   return entry
 }
 
@@ -59,17 +73,40 @@ export function momentAt(now: number, nowMin: number, minutes: number): number {
 /** The whole minutes left until `until`, rounded up: one minute shows until the end has come. */
 export const minutesLeft = (until: number, now: number): number => Math.ceil((until - now) / MINUTE)
 
+/** The length a break put in live takes in the re-forecast: as it ran or runs, else as set. */
+function extraMinutes(entry: LiveBreak, now: number): number {
+  if (entry.until === null) return entry.minutes ?? 0
+  if (entry.from !== null) return Math.max(0, Math.round((entry.until - entry.from) / MINUTE))
+  return Math.max(0, minutesLeft(entry.until, now))
+}
+
 /**
  * The items of a day with the live times worked in, for scheduleDay: a break that began keeps its real start and
  * end, a break with an agreed end ends then (it starts where the plan has it, or earlier if the end comes before
- * that), and a length waiting for its slide counts as the break's length. Moments of another day are left out.
+ * that), and a length waiting for its slide counts as the break's length. A break put in live lengthens the step it
+ * interrupts by its length, so that step's minutes left stay true and what follows moves; after an item that is not
+ * a step (a planned break, a marker) it comes as a break of its own. Moments of another day are left out.
  */
-export function liveItems(day: Pick<Day, 'date' | 'startMin' | 'endMin'>, items: TimedItem[], live: LiveTimes, timeZone: string): TimedItem[] {
+export function liveItems(day: Pick<Day, 'date' | 'startMin' | 'endMin'>, items: TimedItem[], live: LiveTimes, timeZone: string, now = Date.now()): TimedItem[] {
   const at = (ms: number) => clockIn(new Date(ms), timeZone)
   const out = items.map((i) => ({ ...i }))
+  for (const [id, entry] of Object.entries(live)) {
+    if (entry.after === undefined || !entry.step) continue
+    if (entry.from !== null && at(entry.from).date !== day.date) continue
+    const n = out.findIndex((i) => i.id === entry.step)
+    if (n === -1) continue
+    if (out[n].kind === 'block') {
+      out[n].duration += extraMinutes(entry, now)
+      continue
+    }
+    // After the item and after the breaks put in live after it before this one.
+    let place = n + 1
+    while (place < out.length && isExtra(out[place].id)) place++
+    out.splice(place, 0, { id, kind: 'break', duration: extraMinutes(entry, now), fixedStart: null })
+  }
   out.forEach((item, n) => {
     const entry = live[item.id]
-    if (!entry || item.kind !== 'break') return
+    if (!entry || item.kind !== 'break' || entry.after !== undefined) return
     if (entry.until === null) {
       if (entry.minutes !== null) item.duration = entry.minutes
       return
@@ -91,8 +128,37 @@ export function liveItems(day: Pick<Day, 'date' | 'startMin' | 'endMin'>, items:
 }
 
 /** The day computed from the plan and the live times: the re-forecast of the presenter view. */
-export function liveSchedule(day: Pick<Day, 'date' | 'startMin' | 'endMin'>, items: TimedItem[], live: LiveTimes, timeZone: string): DaySchedule {
-  return scheduleDay(day.startMin, day.endMin, liveItems(day, items, live, timeZone))
+export function liveSchedule(day: Pick<Day, 'date' | 'startMin' | 'endMin'>, items: TimedItem[], live: LiveTimes, timeZone: string, now = Date.now()): DaySchedule {
+  return scheduleDay(day.startMin, day.endMin, liveItems(day, items, live, timeZone, now))
+}
+
+/**
+ * The deck as presented: the breaks put in live get a generated break slide after the slide they follow (one after
+ * the other in the order they were put in), with a picture of the pool when there is one. Its key is the break's
+ * generated key, so paging to it starts the break as any other; the line under its title is the live line
+ * (withLiveBreak). A break whose slide is gone from the deck is left out.
+ */
+export function withExtraBreaks(deck: DeckSlideRef[], live: LiveTimes, title: string, picture: (id: string) => string = () => ''): DeckSlideRef[] {
+  const extras = Object.entries(live).filter(([id, e]) => isExtra(id) && e.after !== undefined)
+  if (!extras.length) return deck
+  const out = [...deck]
+  let put = 0
+  for (const [id, entry] of extras) {
+    const n = out.findIndex((s) => s.key === entry.after)
+    if (n === -1) continue
+    put++
+    let place = n + 1
+    while (place < out.length && isExtra(out[place].itemId)) place++
+    out.splice(place, 0, {
+      key: `break:${id}`,
+      itemId: id,
+      generated: 'break',
+      caption: title,
+      part: out[n].part,
+      html: `<section class="slide break"><div class="text"><h1>${esc(title)}</h1><p class="until"></p></div>${picture(id)}</section>`,
+    })
+  }
+  return put ? out : deck
 }
 
 export interface BreakLabels {
@@ -109,7 +175,8 @@ export interface BreakLabels {
 /** The line under a break slide's title with the live times: the minutes left and the end, or the end come. */
 export function breakLine(entry: LiveBreak, now: number, timeZone: string, labels: BreakLabels): string {
   if (entry.until === null) return entry.minutes !== null ? esc(labels.minutes(entry.minutes)) : ''
-  const left = minutesLeft(entry.until, now)
+  // A clock that ticks every few seconds may still stand before the start the server set: it reads the start.
+  const left = minutesLeft(entry.until, entry.from !== null ? Math.max(now, entry.from) : now)
   if (left <= 0) return `<strong>${esc(labels.over)}</strong>`
   return `${esc(labels.left(left))} · <strong>${esc(labels.until(formatTime(clockIn(new Date(entry.until), timeZone).minutes)))}</strong>`
 }

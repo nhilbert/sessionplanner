@@ -1613,6 +1613,38 @@ describe('guests', () => {
     expect((await post('live', OWNER, { itemId: 'brk', minutes: 10 })).status).toBe(400)
   })
 
+  it('put a break in live: it follows a slide, moves until it began, keeps its place once it did, and goes when removed', async () => {
+    const { app, id } = await prepared()
+    const post = (path: string, body: object) => app.request(`${pub}/api/workshops/${id}/${path}`, { method: 'POST', headers: OWNER, body: JSON.stringify(body) })
+    const times = async (res: Response) => ((await res.json()) as { times: Record<string, Record<string, unknown>> }).times
+
+    let res = await post('live', { itemId: 'now-1', until: null, minutes: 15, after: 'a:s1', step: 'a' })
+    expect(res.status).toBe(200)
+    expect((await times(res))['now-1']).toEqual({ from: null, until: null, minutes: 15, after: 'a:s1', step: 'a' })
+    // said again before it began: it moves
+    res = await post('live', { itemId: 'now-1', until: null, minutes: 20, after: 'b:s1', step: 'b' })
+    expect((await times(res))['now-1']).toEqual({ from: null, until: null, minutes: 20, after: 'b:s1', step: 'b' })
+    // a length alone keeps the place
+    res = await post('live', { itemId: 'now-1', until: null, minutes: 10 })
+    expect((await times(res))['now-1']).toMatchObject({ minutes: 10, after: 'b:s1', step: 'b' })
+
+    // its slide goes on screen: it begins, and from then on stays where it was shown
+    await post('present', { key: 'break:now-1', n: 5, tag: 'w1.1' })
+    res = await post('live', { itemId: 'now-1', until: null, minutes: 25, after: 'c:s1', step: 'c' })
+    const began = (await times(res))['now-1']
+    expect(began).toMatchObject({ after: 'b:s1', step: 'b', minutes: null })
+    expect((began.until as number) - (began.from as number)).toBe(25 * 60_000)
+
+    // removed
+    res = await post('live', { itemId: 'now-1', until: null, minutes: null })
+    expect(await times(res)).toEqual({})
+
+    // a new one needs its place, and only a break put in live has one
+    expect((await post('live', { itemId: 'now-2', until: null, minutes: 15 })).status).toBe(400)
+    expect((await post('live', { itemId: 'brk', until: null, minutes: 15, after: 'a:s1', step: 'a' })).status).toBe(400)
+    expect((await post('live', { itemId: 'now-2', until: null, minutes: 15, after: '', step: null })).status).toBe(400)
+  })
+
   it('lose access at once when removed, also on an open live-update stream', async () => {
     const { app, hub, id } = await prepared()
     await share(app, id, 'anna@example.com', 'view', false)

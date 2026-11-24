@@ -239,6 +239,9 @@ const liveBody = z
     itemId: text(100).refine((v) => v.length > 0),
     until: z.number().int().min(0).max(8_640_000_000_000_000).nullable(),
     minutes: z.number().int().min(1).max(600).nullable(),
+    // A break put in live ("Break now"): the deck key of the slide it follows and the step it interrupts.
+    after: text(300).refine((v) => v.length > 0).optional(),
+    step: text(100).nullable().optional(),
   })
   .refine((b) => b.until === null || b.minutes === null)
 

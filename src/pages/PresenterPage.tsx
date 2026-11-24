@@ -12,13 +12,12 @@ import { overlayOpen } from '@/components/overlay'
 import Markdown from '@/components/Markdown'
 import { SlideView } from '@/slides/SlideView'
 import { SlideOverview } from '@/slides/SlideOverview'
-import { useDeck } from '@/slides/useDeck'
 import { usePresentSync } from '@/slides/presentSync'
 import { useWakeLock } from '@/slides/useWakeLock'
 import { PlannerSlideEditor, useSlideEditing } from '@/slides/PlannerSlides'
-import { BreakChip, BreakQuick, useNow } from '@/slides/BreakControl'
+import { BreakChip, BreakQuick, usePresentedDeck, useNow } from '@/slides/BreakControl'
 import { breakLabels } from '@/slides/deckLabels'
-import { liveSchedule, withLiveBreak } from '@/domain/live'
+import { isExtra, liveSchedule, withLiveBreak } from '@/domain/live'
 import { pageUrl } from '@/domain/addresses'
 
 /**
@@ -37,7 +36,7 @@ export default function PresenterPage() {
   const { loaded, load } = useSettings()
   // The clock: the step's minutes left and the break's countdown.
   const now = useNow(5_000)
-  const { deck, theme } = useDeck(data)
+  const { deck, theme } = usePresentedDeck(data)
   const [start] = useState(() => parseInt(params.get('n') ?? '1', 10) || 1)
   const { at: n, go } = usePresentSync(id, deck, start, false)
   const touchX = useRef<number | null>(null)
@@ -202,7 +201,7 @@ export default function PresenterPage() {
                 <ChevronRight size={18} />
               </IconButton>
               <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{slide?.caption}</span>
-              {slide && canEdit && (
+              {slide && canEdit && !isExtra(slide.itemId) && (
                 <Button size="sm" onClick={() => edit(slide.key)}>
                   <Pencil size={13} />
                   {t('slides.edit')}
