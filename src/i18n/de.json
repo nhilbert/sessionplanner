@@ -1095,7 +1095,7 @@
     "over_other": "{{count}} Minuten über",
     "notYet": "beginnt {{time}}",
     "generatedSlide": "Generierte Folie",
-    "presenterHint": "← → blättern · G alle Folien · Esc beenden · alle Fenster der Präsentation blättern mit",
+    "presenterHint": "← → blättern · G alle Folien (Pfeile und Enter wählen) · Esc beenden · alle Fenster der Präsentation blättern mit",
     "liveSync": "Verbunden: Präsentation, Moderationsansicht und Handy blättern gemeinsam, Änderungen erscheinen sofort",
     "noNotes": "Keine Notizen.",
     "layoutUse": {

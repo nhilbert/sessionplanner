@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, ExternalLink, Keyboard, LayoutGrid, Pencil, X } from 'lucide-react'
@@ -40,6 +40,23 @@ export default function PresenterPage() {
   // The keys that page and leave: behind a button, not across the top bar.
   const [keys, setKeys] = useState(false)
   const [overview, setOverview] = useState(false)
+  // Where the view stood when all slides opened: closing goes back there, picking a slide goes to the top.
+  const view = useRef<HTMLDivElement>(null)
+  const scrolled = useRef({ page: 0, view: 0 })
+  const restore = useRef<{ page: number; view: number } | null>(null)
+  const showOverview = (on: boolean, picked = false) => {
+    if (on === overview) return
+    if (on) scrolled.current = { page: document.scrollingElement?.scrollTop ?? 0, view: view.current?.scrollTop ?? 0 }
+    else restore.current = picked ? { page: 0, view: 0 } : scrolled.current
+    setOverview(on)
+  }
+  useLayoutEffect(() => {
+    if (overview || !restore.current) return
+    const { page, view: top } = restore.current
+    restore.current = null
+    document.scrollingElement?.scrollTo({ top: page })
+    view.current?.scrollTo({ top })
+  }, [overview])
   useWakeLock()
 
   useEffect(() => {
@@ -63,11 +80,11 @@ export default function PresenterPage() {
     const key = (e: KeyboardEvent) => {
       // The slide editor pages its own slides; the audience stays where it is.
       if (isTyping(e.target) || overlayOpen() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return
-      // G (or -, as in PowerPoint) shows all slides; there Escape and G go back, Tab and Enter pick a slide.
-      if (e.key === 'g' || e.key === 'G' || (e.key === '-' && !overview)) setOverview(!overview)
+      // G (or -, as in PowerPoint) shows all slides; there Escape and G go back, the arrows and Enter pick a slide.
+      if (e.key === 'g' || e.key === 'G' || (e.key === '-' && !overview)) showOverview(!overview)
       else if (overview) {
         if (e.key !== 'Escape') return
-        setOverview(false)
+        showOverview(false)
       } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(n + 1)
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(n - 1)
       else if (e.key === 'Home') go(0)
@@ -123,7 +140,7 @@ export default function PresenterPage() {
         <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-[var(--c-sage)]' : 'bg-amber')} />
         {!live && <span className="text-[12px] text-amber">{offlineAt ? t('offline.short', { at: formatStamp(offlineAt) }) : t('planner.offline')}</span>}
         <span className="flex-1" />
-        <IconButton label={t('slides.overview')} title={`${t('slides.overview')} (G)`} aria-pressed={overview} onClick={() => setOverview(!overview)} className={cx(overview && 'bg-surface-2 text-ink')}>
+        <IconButton label={t('slides.overview')} title={`${t('slides.overview')} (G)`} aria-pressed={overview} onClick={() => showOverview(!overview)} className={cx(overview && 'bg-surface-2 text-ink')}>
           <LayoutGrid size={15} />
         </IconButton>
         <IconButton label={t('slides.keys')} aria-pressed={keys} onClick={() => setKeys(!keys)} className={cx('max-md:hidden', keys && 'bg-surface-2 text-ink')}>
@@ -139,21 +156,19 @@ export default function PresenterPage() {
       </header>
       {keys && <p className="border-b border-line bg-surface-2/60 px-4 py-1.5 text-right text-[12px] text-ink-2 max-md:hidden">{t('slides.presenterHint')}</p>}
       {overview ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <SlideOverview
-            deck={deck}
-            at={n}
-            theme={theme}
-            scope={scope}
-            title={title}
-            onPick={(at) => {
-              go(at)
-              setOverview(false)
-            }}
-          />
-        </div>
+        <SlideOverview
+          deck={deck}
+          at={n}
+          theme={theme}
+          scope={scope}
+          title={title}
+          onPick={(at) => {
+            go(at)
+            showOverview(false, true)
+          }}
+        />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-[2fr_1fr] md:overflow-visible">
+        <div ref={view} className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-[2fr_1fr] md:overflow-visible">
           <div className="flex min-h-0 min-w-0 flex-col gap-3">
             {slide ? (
               <div
