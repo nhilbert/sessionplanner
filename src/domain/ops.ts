@@ -61,6 +61,8 @@ export type ServerEvent = (
   | { type: 'revoked' }
   /** The slide a presentation of this workshop shows now, for every window that presents or leads it (docs/slides.md). */
   | ({ type: 'present' } & PresentPosition)
+  /** The live times of the presentation (src/domain/live.ts), all of them, whenever one changes. */
+  | { type: 'live'; times: import('./live.ts').LiveTimes }
 ) & {
   /** The revision of the workshop once this happened, on the live stream: what puts it in order with a snapshot. */
   revision?: number

@@ -1534,10 +1534,10 @@ describe('guests', () => {
     }
     const stream = (headers: Record<string, string>) => app.request(`${pub}/api/workshops/${id}/events`, { headers })
 
-    expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":null}')
+    expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":null,"live":{}}')
     expect((await present(OWNER, { key: 'title:d1', n: 1, tag: 'w1.1' })).status).toBe(200)
     expect((await present(BEN, { key: 'a:s1', n: 3, tag: 'w2.1' })).status).toBe(200)
-    expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w2.1"}}')
+    expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w2.1"},"live":{}}')
 
     const owner = await stream(OWNER)
     const anna = await stream(ANNA)
@@ -1558,10 +1558,59 @@ describe('guests', () => {
     const now = Date.now()
     const later = vi.spyOn(Date, 'now').mockReturnValue(now + (PRESENT_HOURS + 1) * 3_600_000)
     try {
-      expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":null}')
+      expect(await read(await stream(OWNER), 'event: hello')).toContain('data: {"present":null,"live":{}}')
     } finally {
       later.mockRestore()
     }
+  })
+
+  it('set a break live: a length waits for its slide, an end holds, every leading window hears it, view guests nothing', async () => {
+    const { app, id } = await prepared()
+    await share(app, id, 'anna@example.com', 'view', false)
+    await share(app, id, 'ben@example.com', 'edit', false)
+    const post = (path: string, headers: Record<string, string>, body: object) => app.request(`${pub}/api/workshops/${id}/${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
+    const read = async (res: Response, until: string) => {
+      const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader()
+      let text = ''
+      while (!text.includes(until)) text += (await reader.read()).value ?? ''
+      await reader.cancel()
+      return text
+    }
+    const stream = (headers: Record<string, string>) => app.request(`${pub}/api/workshops/${id}/events`, { headers })
+
+    const ben = await stream(BEN)
+    const anna = await stream(ANNA)
+    let res = await post('live', BEN, { itemId: 'brk', until: null, minutes: 20 })
+    expect(res.status).toBe(200)
+    expect((await res.json()).times).toEqual({ brk: { from: null, until: null, minutes: 20 } })
+    expect(await read(ben, '"type":"live"')).toContain('data: {"type":"live","times":{"brk":{"from":null,"until":null,"minutes":20}}}')
+
+    // the break's slide goes on screen: the length counts from now
+    const now = Date.now()
+    await post('present', OWNER, { key: 'break:brk', n: 7, tag: 'w1.1' })
+    const hello = await read(await stream(OWNER), 'event: hello')
+    const live = JSON.parse(/data: (\{.*\})/.exec(hello.slice(hello.indexOf('event: hello')))![1]).live
+    expect(live.brk.minutes).toBeNull()
+    expect(live.brk.from).toBeGreaterThanOrEqual(now)
+    expect(live.brk.until - live.brk.from).toBe(20 * 60_000)
+
+    // a new length counts from the break's start; an end is taken as it is
+    res = await post('live', OWNER, { itemId: 'brk', until: null, minutes: 25 })
+    expect((await res.json()).times.brk.until).toBe(live.brk.from + 25 * 60_000)
+    res = await post('live', OWNER, { itemId: 'other', until: 1_800_000_000_000, minutes: null })
+    expect((await res.json()).times.other).toEqual({ from: null, until: 1_800_000_000_000, minutes: null })
+    // back to the plan
+    res = await post('live', OWNER, { itemId: 'other', until: null, minutes: null })
+    expect(Object.keys((await res.json()).times)).toEqual(['brk'])
+
+    await app.request(`${pub}/api/workshops/${id}/ops`, { method: 'POST', headers: OWNER, body: JSON.stringify({ clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'a', fields: { duration: 45 } }] }) })
+    expect(await read(anna, '"type":"changed"')).not.toContain('live')
+
+    expect((await post('live', ANNA, { itemId: 'brk', until: null, minutes: 10 })).status).toBe(403)
+    expect((await post('live', OWNER, { itemId: 'brk', until: 1, minutes: 10 })).status).toBe(400)
+    expect((await post('live', OWNER, { itemId: 'brk', until: null, minutes: 0 })).status).toBe(400)
+    expect((await post('live', OWNER, { itemId: '', until: null, minutes: 10 })).status).toBe(400)
+    expect((await post('live', OWNER, { itemId: 'brk', minutes: 10 })).status).toBe(400)
   })
 
   it('lose access at once when removed, also on an open live-update stream', async () => {

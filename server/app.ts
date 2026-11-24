@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { newId, type PresentPosition } from '../src/domain/ops.ts'
+import { type LiveTimes, slideOf, started, withEnd, withMinutes } from '../src/domain/live.ts'
 import type { Repo } from './repo.ts'
 import type { Hub } from './hub.ts'
 import { bearerToken, type Env, guard, type GuardOptions, sameToken } from './guard.ts'
@@ -13,7 +14,7 @@ import { eventFor, forGuest, libraryAccess, libraryForGuest, libraryPictures, ma
 import type { Asset } from '../src/domain/types.ts'
 import type { Context } from 'hono'
 import { listThemes, THEME_NAME } from './themes.ts'
-import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryBatch, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validatePresent, validatePrintPackage, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
+import { BadRequest, isThemeId, parseTags, safeMime, validateDeck, validateDeckPatch, validateDuplicate, validateFileName, validateLibraryBatch, validateLibraryEntry, validateMember, validateNewWorkshop, validateOps, validatePoolEntry, validatePoolKind, validatePoolPatch, validateLive, validatePresent, validatePrintPackage, validateSettings, validateSlideTemplate, validateTheme, validateThemeFilePath, validateThemePatch, validEmail } from './validate.ts'
 import { DARK_TOKENS, DEFAULT_TOKENS, type PoolKind, themeCss, themeFileUrls, themeIdFrom, themeLogoUrl } from '../src/domain/theme.ts'
 import { cutoutPng, darkCutoutPng } from './cutout.ts'
 import { StorageBudget, StorageFull } from './budget.ts'
@@ -127,6 +128,26 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const p = positions.get(id)
     if (!p || Date.now() - p.at > PRESENT_HOURS * 3_600_000) return null
     return { key: p.key, n: p.n, tag: p.tag }
+  }
+  // The live times of each workshop's presentation (src/domain/live.ts): the breaks set in the presenter view. Kept
+  // like the slide shown, for PRESENT_HOURS after the last paging or change, and never stored.
+  const lives = new Map<string, { times: LiveTimes; at: number }>()
+  /** A workshop holds no more live breaks than this (a day has a handful). */
+  const LIVE_MAX = 100
+  const liveOf = (id: string): LiveTimes => {
+    const l = lives.get(id)
+    if (!l || Date.now() - l.at > PRESENT_HOURS * 3_600_000) return {}
+    return l.times
+  }
+  /** A break whose slide is on screen now has begun: a length set for it becomes its end. */
+  const startShown = (times: LiveTimes, key: string | undefined): LiveTimes => {
+    if (!key) return times
+    let out = times
+    for (const [itemId, entry] of Object.entries(times)) {
+      if (entry.from !== null || !slideOf(key, itemId)) continue
+      out = { ...out, [itemId]: started(entry, Date.now()) }
+    }
+    return out
   }
 
   app.use('*', async (c, next) => {
@@ -275,7 +296,31 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     const position = validatePresent(await jsonBody(c))
     positions.set(id, { ...position, at: Date.now() })
     hub.publish(id, { type: 'present', ...position })
+    const times = liveOf(id)
+    if (Object.keys(times).length) {
+      const now = startShown(times, position.key)
+      lives.set(id, { times: now, at: Date.now() })
+      if (now !== times) hub.publish(id, { type: 'live', times: now })
+    }
     return c.json({ ok: true })
+  })
+
+  // A break set live in the presenter view: its end or its length, or back to the plan. Those who lead the
+  // presentation set it, and all their windows show it (docs/slides.md, Presenting).
+  app.post('/api/workshops/:id/live', allow('workshop-edit'), async (c) => {
+    const id = c.req.param('id')!
+    if (!repo.hasWorkshop(id)) return c.json({ error: 'not_found' }, 404)
+    const { itemId, until, minutes } = validateLive(await jsonBody(c))
+    const { [itemId]: before, ...rest } = liveOf(id)
+    let times: LiveTimes = rest
+    if (until !== null || minutes !== null) {
+      if (!before && Object.keys(rest).length >= LIVE_MAX) throw new BadRequest('too many live times')
+      times = { ...rest, [itemId]: until !== null ? withEnd(before, until) : withMinutes(before, minutes!) }
+      times = startShown(times, positionOf(id)?.key)
+    }
+    lives.set(id, { times, at: Date.now() })
+    hub.publish(id, { type: 'live', times })
+    return c.json({ ok: true, times })
   })
 
   app.get('/api/workshops/:id/events', allow('workshop-view'), (c) => {
@@ -307,7 +352,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
         }
         const shown = eventFor(access, event)
         // Paging through a presentation changes nothing in the workshop, so it has no place in its order.
-        if (shown) void stream.writeSSE({ data: JSON.stringify(shown.type === 'present' ? shown : { ...shown, revision }) })
+        if (shown) void stream.writeSSE({ data: JSON.stringify(shown.type === 'present' || shown.type === 'live' ? shown : { ...shown, revision }) })
       })
       let released = false
       const release = () => {
@@ -321,8 +366,9 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       }
       stream.onAbort(release)
       try {
-        // Those who lead presentations learn where one stands as they connect (null: none yet since the server started).
-        await stream.writeSSE({ event: 'hello', data: mayEdit(access) ? JSON.stringify({ present: positionOf(id) }) : '' })
+        // Those who lead presentations learn where one stands as they connect (null: none yet since the server started),
+        // and the breaks set live.
+        await stream.writeSSE({ event: 'hello', data: mayEdit(access) ? JSON.stringify({ present: positionOf(id), live: liveOf(id) }) : '' })
         while (!stream.aborted && !stream.closed) {
           await stream.sleep(pingSeconds * 1000)
           if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: '' })

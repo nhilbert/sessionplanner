@@ -15,6 +15,9 @@ import { useDeck } from '@/slides/useDeck'
 import { usePresentSync } from '@/slides/presentSync'
 import { useWakeLock } from '@/slides/useWakeLock'
 import { PlannerSlideEditor, useSlideEditing } from '@/slides/PlannerSlides'
+import { BreakChip, BreakQuick, useNow } from '@/slides/BreakControl'
+import { breakLabels } from '@/slides/deckLabels'
+import { liveSchedule, withLiveBreak } from '@/domain/live'
 import { pageUrl } from '@/domain/addresses'
 
 /**
@@ -28,9 +31,10 @@ export default function PresenterPage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { data, status, live, offlineAt, open, close } = usePlanner()
+  const { data, status, live, offlineAt, open, close, liveTimes } = usePlanner()
   const { loaded, load } = useSettings()
-  const [now, setNow] = useState(() => new Date())
+  // The clock: the step's minutes left and the break's countdown.
+  const now = useNow(5_000)
   const { deck, theme } = useDeck(data)
   const [start] = useState(() => parseInt(params.get('n') ?? '1', 10) || 1)
   const { at: n, go } = usePresentSync(id, deck, start, false)
@@ -49,10 +53,6 @@ export default function PresenterPage() {
   useEffect(() => {
     if (!loaded) void load()
   }, [loaded, load])
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 10_000)
-    return () => window.clearInterval(timer)
-  }, [])
   useEffect(() => {
     if (deck.length) setParams({ n: String(n + 1) }, { replace: true })
   }, [n, deck.length, setParams])
@@ -75,7 +75,7 @@ export default function PresenterPage() {
     if (data) document.title = `${data.workshop.title || t('workshops.untitled')} – ${t('slides.presenter')}`
   }, [data, t])
 
-  // The planned times of the step the current slide belongs to.
+  // The times of the step the current slide belongs to: as planned, and as the breaks set live move them (the re-forecast).
   const timing = useMemo(() => {
     if (!data) return null
     const slide = deck[n]
@@ -83,9 +83,12 @@ export default function PresenterPage() {
     const item = data.items.find((i) => i.id === slide.itemId)
     const day = item?.dayId ? data.days.find((d) => d.id === item.dayId) : undefined
     if (!item || !day) return null
-    const slot = scheduleDay(day.startMin, day.endMin, itemsIn(data, day.id)).slots[item.id]
-    return slot ? { item, day, start: slot.start, end: slot.end } : { item, day, start: null, end: null }
-  }, [data, deck, n])
+    const items = itemsIn(data, day.id)
+    const plan = scheduleDay(day.startMin, day.endMin, items).slots[item.id]
+    const slot = liveSchedule(day, items, liveTimes, data.workshop.timezone).slots[item.id]
+    if (!slot || !plan) return { item, day, start: null, end: null, moved: false, planStart: null, planEnd: null }
+    return { item, day, start: slot.start, end: slot.end, moved: slot.start !== plan.start || slot.end !== plan.end, planStart: plan.start, planEnd: plan.end }
+  }, [data, deck, n, liveTimes])
 
   if (status === 'missing') return <p className="p-8 text-rose">{t('common.missing')}</p>
   if (status === 'login' || status === 'error') return <p className="p-8 text-rose">{status === 'login' ? t('common.login') : t('common.error')}</p>
@@ -97,6 +100,7 @@ export default function PresenterPage() {
   const owner = !data.access
   // The offline copy is read-only (docs/offline.md): presenting works, editing waits for the server.
   const canEdit = !offlineAt && (owner || data.access?.role === 'edit')
+  const labels = breakLabels(t)
   // Opens the editor on the whole deck at that slide; generated slides show their note there, as everywhere.
   const edit = (key: string) => useSlideEditing.getState().open({ kind: 'deck', key, mode: 'edit' })
   // The clock in the workshop's time zone, like its agenda.
@@ -113,6 +117,7 @@ export default function PresenterPage() {
         <span className="text-ink-3">·</span>
         <span className="tnum text-ink-2">{formatTime(minutesNow)}</span>
         <span title={live ? t('slides.liveSync') : t('planner.offline')} className={cx('h-2 w-2 shrink-0 rounded-full', live ? 'bg-[var(--c-sage)]' : 'bg-amber')} />
+        <BreakChip data={data} deck={deck} n={n} canEdit={canEdit} now={now} />
         {!live && <span className="text-[12px] text-amber">{offlineAt ? t('offline.short', { at: formatStamp(offlineAt) }) : t('planner.offline')}</span>}
         <span className="flex-1" />
         <IconButton label={t('slides.keys')} aria-pressed={keys} onClick={() => setKeys(!keys)} className={cx('max-md:hidden', keys && 'bg-surface-2 text-ink')}>
@@ -140,7 +145,7 @@ export default function PresenterPage() {
                 if (Math.abs(dx) > 40) go(dx < 0 ? n + 1 : n - 1)
               }}
             >
-              <SlideView html={slide.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} className="w-full shadow-[var(--shadow)]" />
+              <SlideView html={withLiveBreak(slide, liveTimes, now.getTime(), data.workshop.timezone, labels)} theme={theme} scope={scope} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} className="w-full shadow-[var(--shadow)]" />
             </div>
           ) : (
             <p className="text-ink-3">{t('slides.deckEmpty')}</p>
@@ -167,8 +172,9 @@ export default function PresenterPage() {
         <aside className="flex min-h-0 min-w-0 flex-col gap-4 md:overflow-y-auto">
           <div>
             <div className="mb-1 text-[12px] font-semibold text-brand-ink">{t('slides.nextSlide')}</div>
-            {next ? <SlideView html={next.html} theme={theme} scope={scope} chrome={{ label: title, n: n + 2, part: next.part && t('slides.part', next.part) }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
+            {next ? <SlideView html={withLiveBreak(next, liveTimes, now.getTime(), data.workshop.timezone, labels)} theme={theme} scope={scope} chrome={{ label: title, n: n + 2, part: next.part && t('slides.part', next.part) }} className="w-full max-md:mx-auto max-md:w-1/2" /> : <p className="text-[13px] text-ink-3">{t('slides.lastSlide')}</p>}
             {next && <div className="mt-1 truncate text-[12px] text-ink-3">{next.caption}</div>}
+            <BreakQuick data={data} deck={deck} n={n} now={now} canEdit={canEdit} />
           </div>
           {timing ? (
             <div className="card p-4">
@@ -176,8 +182,13 @@ export default function PresenterPage() {
               {timing.start !== null && timing.end !== null && (
                 <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[13px] text-ink-2">
                   <span className="tnum">
-                    {t('slides.planned')} {formatTime(timing.start)}–{formatTime(timing.end)}
+                    {timing.moved ? t('slides.forecast') : t('slides.planned')} {formatTime(timing.start)}–{formatTime(timing.end)}
                   </span>
+                  {timing.moved && timing.planStart !== null && timing.planEnd !== null && (
+                    <span className="tnum text-ink-3">
+                      {t('slides.plan')} {formatTime(timing.planStart)}–{formatTime(timing.planEnd)}
+                    </span>
+                  )}
                   {left !== null && (
                     <span className={cx('tnum font-medium', left < 0 ? 'text-rose' : left <= 5 ? 'text-amber' : 'text-ink')}>
                       {notStarted ? t('slides.notYet', { time: formatTime(timing.start) }) : left >= 0 ? t('slides.remaining', { count: left }) : t('slides.over', { count: -left })}

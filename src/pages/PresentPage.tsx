@@ -7,6 +7,9 @@ import { SlideStage } from '@/slides/SlideView'
 import { useDeck } from '@/slides/useDeck'
 import { usePresentSync } from '@/slides/presentSync'
 import { useWakeLock } from '@/slides/useWakeLock'
+import { useNow } from '@/slides/BreakControl'
+import { breakLabels } from '@/slides/deckLabels'
+import { withLiveBreak } from '@/domain/live'
 
 /**
  * Presenting from the app (docs/slides.md): the deck full screen, arrow keys, space and clicks to page, Escape to leave.
@@ -17,7 +20,9 @@ export default function PresentPage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { data, status, open, close } = usePlanner()
+  const { data, status, open, close, liveTimes } = usePlanner()
+  // The break slide counts down (src/domain/live.ts): a few seconds late at most.
+  const now = useNow(5_000)
   const { loaded, load } = useSettings()
   const [scale, setScale] = useState(1)
   const [hint, setHint] = useState(true)
@@ -98,7 +103,7 @@ export default function PresentPage() {
     >
       {slide && (
         <div className="absolute left-1/2 top-1/2" style={{ width: 1280 * scale, height: 720 * scale, transform: 'translate(-50%, -50%)' }}>
-          <SlideStage html={slide.html} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} scale={scale} />
+          <SlideStage html={withLiveBreak(slide, liveTimes, now.getTime(), data.workshop.timezone, breakLabels(t))} theme={theme} scope={{ workshopId: data.workshop.id }} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} scale={scale} />
         </div>
       )}
       <div className={`pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-4 text-[12px] text-white/60 transition-opacity tnum ${hint ? 'opacity-100' : 'opacity-0'}`}>

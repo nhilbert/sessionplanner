@@ -179,7 +179,7 @@ export function mayDownload(access: WorkshopAccess, attachmentId: string, worksh
 /** What the live-update stream passes on of an event; null: nothing. A change of who has access is the stream's to handle. */
 export function eventFor(access: WorkshopAccess, event: ServerEvent): ServerEvent | { type: 'changed' } | null {
   if (event.type === 'members-changed') return null
-  if (event.type === 'present' && !mayEdit(access)) return null
+  if ((event.type === 'present' || event.type === 'live') && !mayEdit(access)) return null
   // Without the notes, guests only learn that something changed and load their filtered copy again.
   const filtered = access !== 'owner' && access.role === 'view' && !access.showNotes && event.type !== 'workshop-deleted'
   return filtered ? { type: 'changed' } : event

@@ -131,7 +131,7 @@ On the owner's retired instance there was no public access, so no share links: e
 - Day variants: a snapshot before a rework, and going back to it.
 - Minimum duration and "optional" per item, with fit suggestions for a stretch that is over.
 - Asking before saving the same item to the library twice.
-- Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Rarely needed so far. The presentation view is its seed; a break slide could show the re-forecast end.
+- Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Its first slice is done (2026-11-24): breaks set live in the presenter view, the re-forecast there and the countdown on the break slide. Still open: actual times of other steps, a now line, and keeping planned against actual beyond the day (for real durations in the library).
 - Slides: updating placed copies from the library; themes and templates through the connector; moving a slide between items through the connector; selecting several slides to move or remove at once.
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
 - Logos named by their ground instead of by place: "on a light ground" and "on a dark ground" for each theme, chosen by the app by the brightness of what they stand on (slide background, field, white paper), so a dark partner theme can bring its colour logo for the printouts. Existing logos would move by the brightness of their theme's background. Wait for the first dark partner theme.
@@ -150,6 +150,15 @@ On the owner's retired instance there was no public access, so no share links: e
 - The trash removes files before their records, so a file that cannot go is tried again. A workshop in the trash stays as it went in. The exports of all data and media hold it too, apart and marked.
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
+
+**2026-11-24, breaks set live: the first slice of live mode**
+
+- In the presenter view a chip in the header names the break shown or the next one of the day ("Pause 10:30", "Pause bis 11:30", "Pause · noch 12 Min"); a tap opens its length and end (a sheet on a phone, a dialog on a large screen), with 10, 15, 20 and 30 minutes as one tap, which also stand under the next slide when that is the break. Set one, the other follows. A header chip rather than a card in the side column, because the presenter view mostly runs on a phone, where the column with the notes is short of room anyway.
+- The end is kept as a moment, not as a clock time, so every device reads the same one. A length set before the break waits for its slide: the server starts it when the slide goes on screen (a break without a slide starts at once). An end set by hand holds as it is; ± on the end goes to full five minutes, as agreed ends are round.
+- Live times are not part of the plan. The server keeps them in memory beside the slide shown (src/domain/live.ts, `POST /api/workshops/:id/live`), for six hours after the last paging or change, and passes them to those who lead the presentation; view guests are not told. The agenda, the agenda slides, the printouts and the exports keep the planned times: participants see the end of their break, not how far the day is behind.
+- The presenter view computes the day from the plan and the live times (the re-forecast, the same scheduleDay with the break's real start and end), so the steps after a long break show their new times, the plan beside them, instead of all reading "over". The generated break slide shows the minutes left and the end, then "Es geht weiter"; a break with slides of its own keeps them as they are.
+- Without the server nothing can be set (the offline copy is read-only); what was set before shows on.
+- Counter-argument considered: keeping actual times only in memory means a restart of the server forgets them, and planned against actual cannot be learned from them later. Accepted for now: they matter for one day; keeping them is the next slice, with the same shape.
 
 **2026-11-22, an offline copy** (revises "no offline mode for now" of 2026-10-29, for reading and presenting only)
 

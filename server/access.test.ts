@@ -153,6 +153,10 @@ describe('what guests get', () => {
     expect(eventFor(viewWithNotes, present)).toBeNull()
     expect(eventFor(edit, present)).toEqual(present)
     expect(eventFor('owner', present)).toEqual(present)
+    const live = { type: 'live', times: {} } as ServerEvent
+    expect(eventFor(view, live)).toBeNull()
+    expect(eventFor(viewWithNotes, live)).toBeNull()
+    expect(eventFor(edit, live)).toEqual(live)
     expect(eventFor('owner', { type: 'members-changed' })).toBeNull()
   })
 })

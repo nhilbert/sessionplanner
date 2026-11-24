@@ -4,6 +4,7 @@ import { inverseOps, type Op, type PresentPosition, type ServerEvent } from '@/d
 import { addLocal, applyRemote, fromSnapshot, markSent, patchConfirmed, settle, type Sync, syncView } from '@/domain/sync'
 import type { Attachment, WorkshopState } from '@/domain/types'
 import { offlineStamp } from '@/offline/state'
+import type { LiveTimes } from '@/domain/live'
 
 /**
  * The open workshop (docs/concept.md, section 7): changes apply here at once and go to the server in
@@ -51,6 +52,10 @@ interface PlannerStore {
   offlineAt: string | null
   /** Only for those who can edit; a new object for every message, so listeners see each one. */
   presenting: PresentNews | null
+  /** The breaks set live in the presenter view (src/domain/live.ts); only for those who can edit, empty for others. */
+  liveTimes: LiveTimes
+  /** Sets a break live, or back to the plan (both null); what the server answers shows in every window. */
+  setLive: (itemId: string, until: number | null, minutes: number | null) => Promise<void>
   /** A change the server refused; the workshop was reloaded. */
   syncError: boolean
   past: Entry[]
@@ -203,8 +208,9 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       set({ live: true })
       liveAt = new Date().toISOString()
       try {
-        const hello = e.data ? (JSON.parse(e.data) as { present?: PresentPosition | null }) : {}
+        const hello = e.data ? (JSON.parse(e.data) as { present?: PresentPosition | null; live?: LiveTimes }) : {}
         if (hello.present !== undefined && get().id === id) set({ presenting: { position: hello.present, hello: true } })
+        if (hello.live && get().id === id) set({ liveTimes: hello.live })
       } catch {
         // an older server says hello without data
       }
@@ -230,6 +236,10 @@ export const usePlanner = create<PlannerStore>((set, get) => {
         if (get().id === id) set({ presenting: { position: { key: event.key, n: event.n, tag: event.tag }, hello: false } })
         return
       }
+      if (event.type === 'live') {
+        if (get().id === id) set({ liveTimes: event.times })
+        return
+      }
       if (get().id !== id) return
       liveAt = new Date().toISOString()
       if (sync) receive(event)
@@ -244,6 +254,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     live: false,
     offlineAt: null,
     presenting: null,
+    liveTimes: {},
     syncError: false,
     past: [],
     future: [],
@@ -258,7 +269,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       snapshotAt = 0
       heard = 0
       liveAt = null
-      set({ id, data: null, status: 'loading', live: false, offlineAt: null, presenting: null, past: [], future: [], syncError: failedAway })
+      set({ id, data: null, status: 'loading', live: false, offlineAt: null, presenting: null, liveTimes: {}, past: [], future: [], syncError: failedAway })
       failedAway = false
       // Changes from a moment ago may still be on their way: the workshop is read after them, so it shows them.
       void queue.then(() => (mine === opening ? load(id) : undefined))
@@ -270,7 +281,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       source?.close()
       source = null
       sync = null
-      set({ id: null, data: null, status: 'idle', live: false, offlineAt: null, presenting: null, past: [], future: [] })
+      set({ id: null, data: null, status: 'idle', live: false, offlineAt: null, presenting: null, liveTimes: {}, past: [], future: [] })
     },
 
     change: (ops) => {
@@ -317,5 +328,12 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     },
 
     dismissSyncError: () => set({ syncError: false }),
+
+    setLive: async (itemId, until, minutes) => {
+      const id = get().id
+      if (!id) return
+      const res = await api.live(id, { itemId, until, minutes })
+      if (get().id === id) set({ liveTimes: res.times })
+    },
   }
 })

@@ -233,6 +233,21 @@ export function validatePresent(body: unknown): z.infer<typeof presentBody> {
   return parsed.data
 }
 
+/** A break set live in the presenter view (src/domain/live.ts): its end as a moment, or a length; neither clears it. */
+const liveBody = z
+  .strictObject({
+    itemId: text(100).refine((v) => v.length > 0),
+    until: z.number().int().min(0).max(8_640_000_000_000_000).nullable(),
+    minutes: z.number().int().min(1).max(600).nullable(),
+  })
+  .refine((b) => b.until === null || b.minutes === null)
+
+export function validateLive(body: unknown): z.infer<typeof liveBody> {
+  const parsed = liveBody.safeParse(body)
+  if (!parsed.success) throw new BadRequest('invalid live time')
+  return parsed.data
+}
+
 const memberBody = z.strictObject({ role: z.enum(['view', 'edit']), showNotes: z.boolean(), library: z.boolean().optional() })
 
 export function validateMember(body: unknown): z.infer<typeof memberBody> {
