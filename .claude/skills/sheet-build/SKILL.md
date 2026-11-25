@@ -37,7 +37,7 @@ The catalogue is the whole vocabulary; what it does not offer is not possible. I
 - Steps (`ol.block.steps`) and numbered questions count across the page; never number by hand.
 - Frames: `box` (one field), `grid` (`g-2`, `g-3`, `g-2x2`, `g-wide`; `ruled` for topics side by side without frames), `rows` (label and field), `criteria` (a value and notes). Two columns of blocks: `pair`.
 - Nothing flows to the next page. Write what fits, and make a second page where it does not.
-- Pictures only as assets the workshop or library already shows (or the theme's pool); no drawings written by hand.
+- Pictures only as assets the workshop or library already shows, or the theme's pool (`theme_pool` with `kind: illustration` and a `query`: paper shows a picture whole, so the pool's illustrations suit it); no drawings written by hand.
 
 ## 3. Check and look
 

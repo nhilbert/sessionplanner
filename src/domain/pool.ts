@@ -61,6 +61,15 @@ export function cardPictureKind(doc: Pick<SlideDoc, 'options'>): PoolKind {
   return 'icon'
 }
 
+/**
+ * Whether a pool entry answers a search: every word of the query begins one of its tags, or a word of one. The picker,
+ * the pool's lists and the connector's theme_pool find pictures the same way.
+ */
+export function matchesTags(entry: Pick<PoolAsset, 'tags'>, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  return words.every((w) => entry.tags.some((tag) => tag.startsWith(w) || tag.split(/\s+/).some((part) => part.startsWith(w))))
+}
+
 /** The kinds in the order a picker shows them for a place: the place's own first, then what is nearest to it. */
 export const kindsFirst = (prefer: PoolKind): PoolKind[] => (prefer === 'icon' ? ['icon', 'illustration', 'picture'] : prefer === 'illustration' ? ['illustration', 'picture', 'icon'] : ['picture', 'illustration', 'icon'])
 

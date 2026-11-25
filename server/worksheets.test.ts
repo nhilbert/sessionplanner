@@ -76,6 +76,22 @@ describe('worksheets of a step', () => {
     expect(repo.sweepAssets()).not.toContain(hash)
   })
 
+  it('take a picture of the theme\'s pool: an illustration never uploaded to the workshop is shown on the sheet, to guests too', async () => {
+    const { app, repo } = setup()
+    const ws = await workshop(app)
+    const theme = (await (await app.request(`${BASE}/api/themes`, { method: 'POST', headers: H(), body: JSON.stringify({ name: 'Pool' }) })).json()) as { id: string }
+    const form = new FormData()
+    form.append('file', new File([PNG], 'team.png', { type: 'image/png' }))
+    form.append('kind', 'illustration')
+    form.append('tags', 'team')
+    const pooled = (await (await app.request(`${BASE}/api/themes/${theme.id}/pool`, { method: 'POST', headers: { 'x-sp': '1', 'x-auth-request-email': OWNER }, body: form })).json()) as { hash: string; kind: string }
+    expect(pooled.kind).toBe('illustration')
+    await ops(app, ws.workshop.id, [{ op: 'create', entity: 'item', record: item(ws.workshop.id, ws.days[0].id, [sheet(`<section class="sheet"><figure class="block picture"><img src="asset:${pooled.hash}" alt=""></figure></section>`)]) }])
+    repo.setMember(ws.workshop.id, GUEST, 'view', false)
+    expect((await app.request(`${BASE}/api/workshops/${ws.workshop.id}/assets/${pooled.hash}`, { headers: H(GUEST) })).status).toBe(200)
+    expect(repo.sweepAssets()).not.toContain(pooled.hash)
+  })
+
   it('are shown to guests as slides are, also to guests without the notes', async () => {
     const { app, repo } = setup()
     const ws = await workshop(app)

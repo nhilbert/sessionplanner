@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Upload } from 'lucide-react'
 import { api, assetUrl } from '@/api'
 import { POOL_KINDS, type PoolAsset, type PoolKind } from '@/domain/theme'
+import { matchesTags } from '@/domain/pool'
 import { usePool, useThemes } from '@/store/useThemes'
 import { Button, cx } from '@/components/ui'
 import Menu from '@/components/Menu'
@@ -70,9 +71,7 @@ function PoolKindList({ kind, entries, onUpload, onTags, onMove, onRemove, large
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [shown, setShown] = useState(kind === 'icon' ? 60 : 24)
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-  const matches = (e: PoolAsset) => words.every((w) => e.tags.some((tag) => tag.startsWith(w) || tag.split(/\s+/).some((part) => part.startsWith(w))))
-  const sorted = [...entries].filter((e) => !words.length || matches(e)).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+  const sorted = [...entries].filter((e) => matchesTags(e, query)).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
   const page = sorted.slice(0, shown)
   const [over, setOver] = useState(false)
   const take = async (files: File[]) => {

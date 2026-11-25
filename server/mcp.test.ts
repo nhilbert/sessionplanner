@@ -119,6 +119,9 @@ describe('MCP endpoint', () => {
     repo.addAsset({ hash: 'b'.repeat(64), mime: 'image/png', size: 1 })
     repo.addPoolAsset('sr', { hash: 'b'.repeat(64), kind: 'illustration', tags: ['zuhören'] })
     expect(json(await client.callTool({ name: 'theme_pool', arguments: { theme: 'sr' } }))).toEqual({ theme: 'sr', pictures: [], illustrations: [{ asset: 'b'.repeat(64), tags: ['zuhören'] }], icons: [{ asset: 'a'.repeat(64), tags: ['team', 'gespräch'] }] })
+    // narrowed to a kind and a search: that list, what the tags answer, and how much the pool holds
+    expect(json(await client.callTool({ name: 'theme_pool', arguments: { theme: 'sr', kind: 'icon', query: 'gesp' } }))).toEqual({ theme: 'sr', icons: [{ asset: 'a'.repeat(64), tags: ['team', 'gespräch'] }], total: { pictures: 0, illustrations: 1, icons: 1 } })
+    expect((await client.callTool({ name: 'theme_pool', arguments: { theme: 'sr', kind: 'drawing' } })).isError).toBe(true)
     await client.close()
   })
 

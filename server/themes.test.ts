@@ -402,6 +402,32 @@ describe('photos, illustrations and icons in the pool', () => {
     expect(ops.themePool('school')).toEqual({ theme: 'school', pictures: [{ asset: 'b'.repeat(64), tags: [] }], illustrations: [{ asset: 'a'.repeat(64), tags: ['lernen'] }], icons: [] })
   })
 
+  it('narrows the connector\'s answer to a kind and to the entries a search finds, and says how much there is', () => {
+    const { repo, themesDir } = setup()
+    const ops = new Ops(repo, { themesDir })
+    repo.createTheme({ id: 'calm', name: 'Calm', tokens: DEFAULT_TOKENS })
+    repo.addPoolAsset('calm', { hash: asset(repo, 'a'), kind: 'picture', tags: ['luftbild', 'team', 'boot'] })
+    repo.addPoolAsset('calm', { hash: asset(repo, 'b'), kind: 'illustration', tags: ['team', 'gutes team', 'good team'] })
+    repo.addPoolAsset('calm', { hash: asset(repo, 'c'), kind: 'illustration', tags: ['zeit', 'kalender', 'schedule'] })
+    repo.addPoolAsset('calm', { hash: asset(repo, 'd'), kind: 'icon', tags: ['gruppe', 'team'] })
+    const total = { pictures: 1, illustrations: 2, icons: 1 }
+    const hashes = (list: unknown) => (list as { asset: string }[]).map((e) => e.asset[0])
+    // one kind: that list alone
+    const drawn = ops.themePool('calm', { kind: 'illustration' })
+    expect(Object.keys(drawn)).toEqual(['theme', 'illustrations', 'total'])
+    expect(hashes(drawn.illustrations)).toEqual(['b', 'c'])
+    expect(drawn.total).toEqual(total)
+    // a search goes over every kind, as the picker's does
+    const team = ops.themePool('calm', { query: 'Team' })
+    expect([hashes(team.pictures), hashes(team.illustrations), hashes(team.icons)]).toEqual([['a'], ['b'], ['d']])
+    expect(hashes(ops.themePool('calm', { kind: 'illustration', query: 'gut team' }).illustrations)).toEqual(['b'])
+    // nothing found is told from nothing there
+    expect(ops.themePool('calm', { kind: 'illustration', query: 'pferd' })).toEqual({ theme: 'calm', illustrations: [], total })
+    // unnarrowed: the whole pool, as before, without the count
+    expect(Object.keys(ops.themePool('calm'))).toEqual(['theme', 'pictures', 'illustrations', 'icons'])
+    expect(() => ops.themePool('calm', { kind: 'drawing' as never })).toThrow(/kind/)
+  })
+
   it('migrates the pictures of a playful theme to illustrations and leaves the other themes\' pools alone', () => {
     // a database as it was before the migration: every migration up to 0019
     const all = path.join(path.dirname(new URL(import.meta.url).pathname), 'db', 'migrations')

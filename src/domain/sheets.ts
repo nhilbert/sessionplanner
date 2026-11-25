@@ -178,7 +178,7 @@ export const SHEET_FORMAT = {
   inline: 'A blank inside a sentence: <span class="blank"></span> (short, long); a line of its own: <p class="fill-in">Label: <span class="blank"></span></p>. Hints under a heading: <p class="hint">. Prompts in frames: <p class="prompt">. Quiet text: class quiet.',
   formatting: 'By hand, as on slides: span or heading classes fs-xs fs-s fs-l fs-xl, accent, muted, fw-normal; strong, em.',
   host: 'Do not write the logo, the footer, the date or page numbers: the app adds them. Do not number steps or questions by hand: steps and question.numbered count across the page.',
-  forbidden: 'As on slides: no style, id, script, event attributes, external addresses. Pictures only as asset:<hash> the workshop or library already shows.',
+  forbidden: 'As on slides: no style, id, script, event attributes, external addresses. Pictures only as asset:<hash>: one the workshop or library already shows, or one of the theme\'s pool (theme_pool with kind illustration and a query: paper shows a picture whole, so the pool\'s illustrations suit it, a photo only where the sheet is about that photo). Pictures cannot be uploaded.',
   fit: 'Nothing flows to the next page: content that does not fit is cut. Keep a page to what fits on paper; split long material into pages yourself.',
 } as const
 

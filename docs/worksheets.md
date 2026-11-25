@@ -149,7 +149,7 @@ Stage 2a, built 2026-11-18:
 - A print view (`/w/:id/print/sheets`, Output → "Print worksheets", or one sheet with `?sheet=<id>`): the sheets of placed units in agenda order, each page on a named page of its paper and orientation, printed by the browser into a vector PDF, as the accepted test print of stage 1 was.
 - The library filters by "with worksheet".
 - Guests see a workshop's sheets as they see its slides: they are participants' material, not facilitation notes (decided 2026-11-18). Guests who may edit can edit them.
-- The connector: `worksheet_format`, `worksheet_list`, `worksheet_get`, `worksheet_add`, `worksheet_update`, `worksheet_remove`; and, closing a gap of stage 0, `workshop_update` sets the participants, `item_update` a step's groups, `print_rule` the rule of a step's PDF. The project skill `sheet-build` carries the workflow with the check script.
+- The connector: `worksheet_format`, `worksheet_list`, `worksheet_get`, `worksheet_add`, `worksheet_update`, `worksheet_remove` (a picture on a sheet is one the workshop or library already shows, or one of the theme's pool, which `theme_pool` finds by kind and tags: the pool's illustrations suit paper; a guest loads it through the workshop while a sheet shows it); and, closing a gap of stage 0, `workshop_update` sets the participants, `item_update` a step's groups, `print_rule` the rule of a step's PDF. The project skill `sheet-build` carries the workflow with the check script.
 
 Stage 2b, built 2026-11-18: sheets in the print package (section 3).
 

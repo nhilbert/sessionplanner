@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardPictureKind, deckPoolOf, DEFAULT_KIND_CONTEXT, familyShowsWhole, figureKind, kindContextOf, kindsFirst, missingKind, titlePictureKind } from './pool.ts'
+import { cardPictureKind, deckPoolOf, DEFAULT_KIND_CONTEXT, familyShowsWhole, figureKind, kindContextOf, kindsFirst, matchesTags, missingKind, titlePictureKind } from './pool.ts'
 import { parseSlide as parse } from './slideDoc.ts'
 import type { PoolAsset, ThemeInfo } from './theme.ts'
 import { TITLE_VARIANTS } from './titleVariants.ts'
@@ -97,5 +97,17 @@ describe('which pool a place pulls from', () => {
     expect(missingKind({ pictures: ['p'], illustrations: ['i'], whole: false }, ['picture', 'illustration'])).toBeNull()
     // a pool with neither is empty as it always could be: nothing stands in for nothing
     expect(missingKind({ pictures: [], illustrations: [], whole: false }, ['picture', 'illustration'])).toBeNull()
+  })
+
+  it('finds a pool entry by its tags: every word of the search begins a tag or a word of one', () => {
+    const entry = { tags: ['team', 'team bilden', 'zusammenstellen', 'build a team'] }
+    expect(matchesTags(entry, 'team')).toBe(true)
+    expect(matchesTags(entry, 'Bild')).toBe(true)
+    expect(matchesTags(entry, 'team zusammen')).toBe(true)
+    expect(matchesTags(entry, 'build team')).toBe(true)
+    expect(matchesTags(entry, '')).toBe(true)
+    expect(matchesTags(entry, 'team zeit')).toBe(false)
+    expect(matchesTags(entry, 'eam')).toBe(false)
+    expect(matchesTags({ tags: [] }, 'team')).toBe(false)
   })
 })

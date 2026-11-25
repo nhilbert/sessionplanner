@@ -17,8 +17,8 @@ import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, rulesWithNewShee
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
 import { slideText as pageText } from '../src/domain/slides.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
-import { type PoolKind, type ThemeInfo, titleOfTheme } from '../src/domain/theme.ts'
-import { deckPoolOf } from '../src/domain/pool.ts'
+import { POOL_KINDS, type PoolKind, type ThemeInfo, titleOfTheme } from '../src/domain/theme.ts'
+import { deckPoolOf, matchesTags } from '../src/domain/pool.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
 
@@ -1127,14 +1127,24 @@ export class Ops {
   /**
    * The pool of a theme (the settings' default without one), by kind, each entry with its tags: photos for the places
    * that crop a picture, illustrations for those that show it whole, icons for cards (src/domain/pool.ts). `pictures`
-   * are the photos, under the name the list had before there were illustrations.
+   * are the photos, under the name the list had before there were illustrations. `kind` answers with that list alone,
+   * `query` with the entries whose tags begin with every word of it, as the picker finds them; the answer then says how
+   * many the pool holds in all.
    */
-  themePool(ref?: string) {
+  themePool(ref?: string, filter: { kind?: PoolKind; query?: string } = {}) {
     const theme = this.theme(ref) ?? this.repo.getSettings().theme ?? ''
     const id = theme || 'default'
     const pool = this.repo.listPool(id)
-    const entries = (kind: PoolKind) => pool.filter((e) => e.kind === kind).map((e) => ({ asset: e.hash, tags: e.tags }))
-    return { theme: id, pictures: entries('picture'), illustrations: entries('illustration'), icons: entries('icon') }
+    if (filter.kind !== undefined && !POOL_KINDS.includes(filter.kind)) throw new BadRequest(`kind is one of ${POOL_KINDS.join(', ')}`)
+    const query = filter.query?.trim() ?? ''
+    const list = { picture: 'pictures', illustration: 'illustrations', icon: 'icons' } as const
+    const all = (kind: PoolKind) => pool.filter((e) => e.kind === kind)
+    const out: Record<string, unknown> = { theme: id }
+    // a pool can hold hundreds of entries: a kind narrows the answer to one list, a query to what its tags answer
+    for (const kind of filter.kind ? [filter.kind] : POOL_KINDS) out[list[kind]] = all(kind).filter((e) => !query || matchesTags(e, query)).map((e) => ({ asset: e.hash, tags: e.tags }))
+    // narrowed: how much the pool holds of each kind, so nothing found is told from nothing there
+    if (filter.kind || query) out.total = { pictures: all('picture').length, illustrations: all('illustration').length, icons: all('icon').length }
+    return out
   }
 
   /** What a theme says about its title slides, as the app reads it from the list of themes (a folder theme offers the column and no picture). */

@@ -6,8 +6,8 @@ import { Button, cx, IconButton, Modal, Segmented } from '@/components/ui'
 import { fieldId } from './fields'
 import { uploadProblem } from '@/planner/upload'
 import { usePool } from '@/store/useThemes'
-import type { PoolAsset, PoolKind } from '@/domain/theme'
-import { kindsFirst } from '@/domain/pool'
+import type { PoolKind } from '@/domain/theme'
+import { kindsFirst, matchesTags } from '@/domain/pool'
 import { KindHint } from './KindHint'
 
 /** A picture field of the slide: the thumbnail of the asset it shows, and the way to choose or remove one. */
@@ -62,12 +62,6 @@ export function usePair(scope: AssetScope, hash: string): AssetInfo | null {
 }
 
 const POOL_LABELS = { picture: 'editor.poolPictures', illustration: 'editor.poolIllustrations', icon: 'editor.poolIcons' } as const satisfies Record<PoolKind, string>
-
-/** Whether a pool entry answers a search: every word of the query starts one of its tags. */
-export const matchesTags = (entry: PoolAsset, query: string): boolean => {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-  return words.every((w) => entry.tags.some((tag) => tag.split(/\s+/).some((part) => part.startsWith(w)) || tag.startsWith(w)))
-}
 
 /**
  * Pick a picture: from the theme's pool (photos, illustrations and icons, found by their tags; the kind the place takes
