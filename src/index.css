@@ -334,6 +334,11 @@
 .md-row .md-table {
   margin-block: 0;
 }
+/* Cut, a table's rows are lines like the others (no space, no rule), so the cut falls between two of them. */
+.md-row:not(.md-full) :is(th, td) {
+  padding-block: 0;
+  border-width: 0;
+}
 /* Shown in full, nothing is counted: its parts stand a little apart, as they read. */
 .md-row.md-full > * + * {
   margin-top: 4px;

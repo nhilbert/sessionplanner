@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { oneLine, parseBlocks, plainLine, sourceOffset } from '@/domain/markdown'
+import { oneLine, parseBlocks, plainLine, sourceOffset, tablesAsLines } from '@/domain/markdown'
 import Markdown, { NoteText } from './Markdown'
 
 const html = (text: string) => renderToStaticMarkup(<Markdown text={text} />)
@@ -46,6 +46,10 @@ describe('Markdown', () => {
     // a word that also stands in a link's address, which is not shown: the place is in the text
     const linked = 'Mehr im [Wiki](https://example.com/wiki/moderation), heute *moderation* üben'
     expect(sourceOffset(linked, 'Mehr im Wiki, heute ', 'moderation', 3)).toBe(linked.lastIndexOf('moderation') + 3)
+    // a bar in a table's cell is typed with a backslash: the place moves by it
+    const barred = '| A | B |\n|---|---|\n| Raum 1 \\| 2 | x |'
+    expect(sourceOffset(barred, 'AB', 'Raum 1 | 2', 3)).toBe(barred.indexOf('Raum') + 3)
+    expect(sourceOffset(barred, 'AB', 'Raum 1 | 2', 9)).toBe(barred.indexOf(' 2 | x') + 1)
     expect(plainLine('\n## **Ablauf** mit [Link](https://example.com)\nmehr')).toBe('Ablauf mit Link')
     expect(plainLine('- [ ] `eins`')).toBe('eins')
     expect(plainLine('*Liebe* Kolleg*innen, __alle__ ins Raum_2_OG')).toBe('Liebe Kolleg*innen, alle ins Raum_2_OG')
@@ -74,7 +78,32 @@ describe('Markdown', () => {
     expect(parseBlocks('A | B\n---').map((b) => b.type)).toEqual(['p'])
     expect(parseBlocks('| A |\n|---|\n| eins |')[0]).toEqual({ type: 'table', head: ['A'], align: [null], rows: [['eins']] })
     expect(plainLine('| Wann | Thema |\n|---|---|')).toBe('Wann · Thema')
-    expect(plainLine('|---|---|\n| eins | zwei |')).toBe('eins · zwei')
+    // a head of empty cells says nothing: the first row does
+    expect(plainLine('| | |\n|---|---|\n| eins | zwei |')).toBe('eins · zwei')
+    // bars outside a table are the text's, and a bar typed in a cell is a bar
+    expect(plainLine('Entweder | oder')).toBe('Entweder | oder')
+    expect(plainLine('`a || b`')).toBe('a || b')
+    expect(plainLine('| Raum 1 \\| 2 | x |\n|---|---|')).toBe('Raum 1 | 2 · x')
+  })
+
+  it('keeps every cell of a row, and ends a table where something else begins', () => {
+    // a row longer than the head widens the table
+    expect(parseBlocks('| Zeit | Was |\n|---|---|\n| 9:00 | Start | Raum 2 |')[0]).toEqual({ type: 'table', head: ['Zeit', 'Was', ''], align: [null, null, null], rows: [['9:00', 'Start', 'Raum 2']] })
+    expect(html('| Zeit | Was |\n|---|---|\n| 9:00 | Start | Raum 2 |')).toContain('Raum 2')
+    // a heading, a list and a quote under a table are themselves, also with a bar in them
+    const parsed = parseBlocks('| A | B |\n|---|---|\n| 1 | 2 |\n## Weiter | hier\n- punkt | zwei\n> gesagt | so')
+    expect(parsed.map((b) => b.type)).toEqual(['table', 'h', 'ul', 'quote'])
+    expect(parsed[0]).toMatchObject({ rows: [['1', '2']] })
+    // the head stands on its rule, the cells at the top of their row
+    const out = html('| A | B |\n|---|---|\n| 1 | 2 |')
+    expect(out).toMatch(/<th[^>]*class="[^"]*align-bottom/)
+    expect(out).not.toMatch(/<th[^>]*class="[^"]*align-top/)
+    expect(out).toMatch(/<td[^>]*class="[^"]*align-top/)
+  })
+
+  it('gives a table as lines where no table can stand', () => {
+    expect(tablesAsLines('Kern\n| Wann | **Was** |\n|---|---|\n| 9:00 | Start \\| Raum |\n|  | allein |\nDanach | so')).toBe('Kern\n**Wann · Was**\n9:00 · Start | Raum\nallein\nDanach · so')
+    expect(tablesAsLines('Ohne | Tabelle\n- [ ] bleibt')).toBe('Ohne | Tabelle\n- [ ] bleibt')
   })
 
   it('reads a quote, and what it holds as notes again', () => {
@@ -88,6 +117,18 @@ describe('Markdown', () => {
     expect(out).not.toContain('&gt;')
     // a quote is not one plain line: a note sets it below its title
     expect(oneLine('> zitiert')).toBe(null)
+    // "more than" stays as typed: no space after the sign, or a number after it
+    expect(parseBlocks('>5 Personen: teilen\n\n> 10 Minuten\n\n>ohne Abstand')).toEqual([{ type: 'p', lines: ['>5 Personen: teilen'] }, { type: 'p', lines: ['> 10 Minuten'] }, { type: 'p', lines: ['>ohne Abstand'] }])
+    expect(html('> 10 Minuten')).toContain('&gt; 10 Minuten')
+    // inside a quote that has begun, a line with a number goes on with it
+    expect(parseBlocks('> Drei Dinge:\n> 3 Fragen, 2 Antworten\n>\n> Ende')).toEqual([{ type: 'quote', blocks: [{ type: 'p', lines: ['Drei Dinge:', '3 Fragen, 2 Antworten'] }, { type: 'p', lines: ['Ende'] }] }])
+    // thousands of signs in one line are text below the depth that is read, not a crash
+    const deep = parseBlocks('> '.repeat(20000) + 'tief')
+    let levels = 0
+    for (let b = deep[0]; b?.type === 'quote'; b = b.blocks[0]) levels++
+    expect(levels).toBe(4)
+    expect(() => html('>'.repeat(20000) + ' x')).not.toThrow()
+    expect(plainLine('> > **gesagt**')).toBe('gesagt')
   })
 
   it('never lets HTML or script links through', () => {

@@ -2,7 +2,7 @@ import type { Category, Day, Item, Material, WorkshopState } from './types.ts'
 import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { type DaySchedule, durationOf, formatDuration, formatTime, scheduleDay } from './time.ts'
 import { workshopPacking } from './packing.ts'
-import { oneLine } from './markdown.ts'
+import { oneLine, tablesAsLines } from './markdown.ts'
 
 /**
  * Print views and their Markdown twin (docs/concept.md, section 6). One set of switches drives both the printed
@@ -201,8 +201,8 @@ export interface PrintLabels {
   categoryOf: (item: Item) => string | null
 }
 
-/** A table cell: pipes escaped, line breaks kept as <br>. */
-const cell = (text: string): string => text.trim().replace(/\|/g, '\\|').replace(/\r?\n+/g, '<br>')
+/** A table cell: pipes escaped, line breaks kept as <br>; a table typed in the text stands as its rows, a cell holds none. */
+const cell = (text: string): string => tablesAsLines(text.trim()).replace(/\|/g, '\\|').replace(/\r?\n+/g, '<br>')
 
 /** Headings inside notes move below the heading they sit under (notes may use #, ## and ###). */
 const demote = (markdown: string, by: number): string => markdown.replace(/^(#{1,6})(\s)/gm, (_m, h: string, s: string) => '#'.repeat(Math.min(6, h.length + by)) + s)

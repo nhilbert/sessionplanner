@@ -153,6 +153,9 @@ describe('workshopMarkdown', () => {
     expect(md).not.toMatch(/Goal|NH|Say hello|Photo|Projector/)
     expect(workshopMarkdown(state, 'overview', PRINT_DEFAULTS.overview, labels, date)).toContain('| 09:00–09:20 | 20 min | **Welcome** | Everyone knows the plan | Input | NH |')
     expect(workshopMarkdown(state, 'overview', { ...PRINT_DEFAULTS.overview, notes: true }, labels, date)).toContain('| ## Steps<br>1. Say hello<br>2. Show the \\| agenda |')
+    // a table typed in the notes stands in the file's cell as its rows
+    const tabled = { ...state, items: state.items.map((i) => (i.id === 'welcome' ? { ...i, notes: 'First\n| When | What |\n|---|---|\n| 9:00 | Start |' } : i)) }
+    expect(workshopMarkdown(tabled, 'overview', { ...PRINT_DEFAULTS.overview, notes: true }, labels, date)).toContain('| First<br>**When · What**<br>9:00 · Start |')
     const piped = { ...state, groups: [{ ...state.groups[0], title: 'Part 1 | Arrival' }] }
     expect(workshopMarkdown(piped, 'agenda', PRINT_DEFAULTS.agenda, labels, date)).toContain('| 09:00–09:45 | **PART 1 \\| ARRIVAL** |')
   })

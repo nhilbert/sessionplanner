@@ -45,7 +45,7 @@ const LINE_STRONG = 'border-[color-mix(in_oklab,currentColor_45%,transparent)]'
 // A long word breaks (with a hyphen where the language is known) before the table grows wider than its place: the
 // details' sidebar is narrow, and German words are long. A column keeps the width of a short word, so the long
 // texts of one column do not press the others into single syllables; a table of many columns is moved sideways.
-const CELL = 'min-w-[5em] px-2.5 py-1 align-top first:pl-0 last:pr-0 hyphens-auto [overflow-wrap:anywhere]'
+const CELL = 'min-w-[5em] px-2.5 py-1 first:pl-0 last:pr-0 hyphens-auto [overflow-wrap:anywhere]'
 
 function blocks(parsed: Block[]): ReactNode {
   return parsed.map((b, i) => {
@@ -81,7 +81,7 @@ function blocks(parsed: Block[]): ReactNode {
               {b.rows.map((row, r) => (
                 <tr key={r}>
                   {row.map((cell, j) => (
-                    <td key={j} style={{ textAlign: b.align[j] ?? undefined }} className={`${CELL} border-b ${LINE}`}>
+                    <td key={j} style={{ textAlign: b.align[j] ?? undefined }} className={`${CELL} border-b align-top ${LINE}`}>
                       {inline(cell)}
                     </td>
                   ))}
