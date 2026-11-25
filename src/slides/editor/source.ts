@@ -1,3 +1,4 @@
+import type { ThemeTitle, TitleVariant } from '@/domain/titleVariants'
 import type { Deck, DeckSlide, Slide, SlideTemplate } from '@/domain/types'
 import type { DeckSlideRef, GeneratedKind } from '@/domain/deck'
 import type { SlideHomes } from '@/domain/slideMove'
@@ -42,6 +43,17 @@ export interface SlideTransfer {
   label(home: string): string
 }
 
+/** A generated title slide of a deck: its variant (src/domain/titleVariants.ts), chosen per slide, so per day. */
+export interface TitleControl {
+  /** What the workshop's theme says about title slides: its own variant and the ones on offer. */
+  theme(): ThemeTitle
+  /** The variant chosen by hand for the slide; '' = the theme's. */
+  chosen(key: string): TitleVariant | ''
+  set(key: string, variant: TitleVariant | ''): void
+  /** The slide as it would stand with that variant. */
+  preview(key: string, variant: TitleVariant): string
+}
+
 /** The generated slides a deck can do without. */
 export type HideableKind = Exclude<GeneratedKind, 'title'>
 
@@ -67,6 +79,8 @@ export interface SlideSource {
   /** Generated slides of a deck: the picture chosen by hand for a slide key, and the way to set it ('' = automatic). */
   setPicture?(key: string, hash: string): void
   pictureOf?(key: string): string
+  /** The deck's title slides: their variant. */
+  titleSlide?: TitleControl
   hide?(kind: HideableKind): void
   /** The planner: where a slide stands in the deck as presented (1-based), or null when it is not in it (a parked step). */
   presentAt?(key: string): number | null
@@ -129,6 +143,7 @@ export function deckSource(o: {
   /** The picture of a generated slide (by its key): '' = back to the pool's turn. */
   setPicture?(key: string, hash: string): void
   pictureOf?(key: string): string
+  titleSlide?: TitleControl
 }): SlideSource {
   const view = (deck: DeckSlideRef[]): EditorSlide[] =>
     deck.map((r) =>
@@ -150,6 +165,7 @@ export function deckSource(o: {
     hide: o.hide,
     setPicture: o.setPicture,
     pictureOf: o.pictureOf,
+    titleSlide: o.titleSlide,
     ...(o.editable
       ? {
           write: (key, html) => {

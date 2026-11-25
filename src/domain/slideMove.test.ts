@@ -33,7 +33,7 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
 })
 
 const state = (items: Item[]): WorkshopState => ({
-  workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, materials: [], participants: null, archived: false, createdAt: '', updatedAt: '' },
+  workshop: { id: 'w', title: 'W', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, variants: {}, materials: [], participants: null, archived: false, createdAt: '', updatedAt: '' },
   days: [
     { id: 'd2', workshopId: 'w', position: 2, date: '2026-03-03', startMin: 540, endMin: null },
     { id: 'd1', workshopId: 'w', position: 1, date: '2026-03-02', startMin: 540, endMin: null },

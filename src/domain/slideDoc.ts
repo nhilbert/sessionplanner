@@ -1,3 +1,4 @@
+import { isTitleVariant, TITLE_VARIANTS, titleVariantClass, titleVariantOf } from './titleVariants.ts'
 import { type El, type Node, classes, el, elements, hasClass, inlineToText, isBlank, isEl, parseTree, serializeNode, serializeNodes, textOf, textToInline, txt } from './slideTree.ts'
 import { DIAGRAM_CORE, type DiagramShape, diagramClass, diagramSvg, isDiagramShape } from './diagram.ts'
 import { normalizeSlideHtml } from './slides.ts'
@@ -13,7 +14,7 @@ import { normalizeSlideHtml } from './slides.ts'
  * offers the header, the footer and the source, so no slide is ever locked.
  */
 
-export type OptionValue = boolean | number
+export type OptionValue = boolean | number | string
 
 export interface Header {
   eyebrow: string
@@ -158,7 +159,7 @@ export interface SlideDoc {
 // ---- the catalogue as a schema ----------------------------------------------------------------------------------
 
 export type Part = 'header' | 'text' | 'points' | 'cards' | 'steps' | 'facts' | 'quote' | 'figure' | 'blocks' | 'rows' | 'matrix' | 'letters' | 'boxes' | 'table' | 'svg' | 'glyph' | 'logo' | 'source' | 'shape'
-export type OptionSpec = { key: string; kind: 'flag' } | { key: string; kind: 'choice'; values: number[]; default: number }
+export type OptionSpec = { key: string; kind: 'flag' } | { key: string; kind: 'choice'; values: number[]; default: number } | { key: string; kind: 'pick'; values: readonly string[] }
 export type LayoutGroup = 'opening' | 'text' | 'structure' | 'visual'
 
 export interface LayoutSpec {
@@ -176,9 +177,11 @@ export interface LayoutSpec {
 
 const flag = (key: string): OptionSpec => ({ key, kind: 'flag' })
 const choice = (key: string, values: number[], def: number): OptionSpec => ({ key, kind: 'choice', values, default: def })
+/** One of several named ways, or none of them: then the theme decides. */
+const pick = (key: string, values: readonly string[]): OptionSpec => ({ key, kind: 'pick', values })
 
 export const LAYOUTS: LayoutSpec[] = [
-  { id: 'title', group: 'opening', parts: ['figure', 'text'], textFields: ['eyebrow', 'title', 'subtitle', 'meta'], options: [], generated: true },
+  { id: 'title', group: 'opening', parts: ['figure', 'text'], textFields: ['eyebrow', 'title', 'subtitle', 'meta'], options: [pick('variant', TITLE_VARIANTS)], generated: true },
   { id: 'section', group: 'opening', parts: ['figure', 'text', 'points', 'glyph'], textFields: ['eyebrow', 'title', 'lead'], options: [], max: 5 },
   { id: 'agenda', group: 'opening', parts: ['header', 'rows'], options: [], max: 11, generated: true },
   { id: 'break', group: 'opening', parts: ['text', 'figure'], textFields: ['title', 'until'], options: [], generated: true },
@@ -292,7 +295,10 @@ function readFigure(f: El, doc: SlideDoc): boolean {
 type BodyReader = (body: El[], doc: SlideDoc, root: El) => boolean
 
 const readers: Record<string, BodyReader> = {
-  title: (body, doc) => {
+  title: (body, doc, root) => {
+    // where the picture stands (src/domain/titleVariants.ts); without the class the theme decides
+    const variant = titleVariantOf(classes(root))
+    if (variant) doc.options.variant = variant
     if (!onlyOf(body, tagIs('figure', 'div'))) return false
     const f = only(body, 'figure')
     const t = only(body, 'div', 'text')
@@ -837,7 +843,7 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
 /** The document as markup in the slide format: one section.slide with header, body and footer. */
 export function serializeSlide(doc: SlideDoc): string {
   const spec = layoutSpec(doc.layout)
-  const rootClass = doc.raw !== undefined && doc.root ? withLayout(doc.root, doc.layout) : cls('slide', doc.layout, doc.layout === 'figure' && doc.options.full && 'full')
+  const rootClass = doc.raw !== undefined && doc.root ? withLayout(doc.root, doc.layout) : cls('slide', doc.layout, doc.layout === 'figure' && doc.options.full && 'full', doc.layout === 'title' && isTitleVariant(doc.options.variant) && titleVariantClass(doc.options.variant))
   if (doc.raw !== undefined && doc.whole) return `<section class="${rootClass}">${doc.raw}</section>`
   const parts: string[] = []
   if (spec?.parts.includes('header') || (doc.raw !== undefined && doc.header)) parts.push(serializeNodes(writeHeader(doc.header, doc.layout === 'exercise')))

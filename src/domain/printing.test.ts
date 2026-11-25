@@ -35,7 +35,7 @@ const item = (id: string, over: Partial<Item> = {}): Item => ({
 const file = (id: string, name: string) => ({ id, workshopId: 'w', name, mime: 'application/pdf', size: 10, createdAt: '' })
 
 const state = (items: Item[], participants: number | null = 12): WorkshopState => ({
-  workshop: { id: 'w', title: 'Teamtag', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, materials: [], participants, archived: false, createdAt: '', updatedAt: '' },
+  workshop: { id: 'w', title: 'Teamtag', client: '', location: '', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, variants: {}, materials: [], participants, archived: false, createdAt: '', updatedAt: '' },
   days: [{ id: 'd1', workshopId: 'w', position: 1, date: '2026-12-01', startMin: 540, endMin: null }],
   groups: [],
   items,

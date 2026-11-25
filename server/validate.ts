@@ -5,6 +5,7 @@ import { normalizeTags } from '../src/domain/tags.ts'
 import { extensionOf } from '../src/domain/attachments.ts'
 import { normalizeSlideHtml, slideLayout } from '../src/domain/slides.ts'
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml } from '../src/domain/sheets.ts'
+import { TITLE_VARIANTS } from '../src/domain/titleVariants.ts'
 import { DERIVED_COLOR_KEYS, FAMILY_KEYS, PAPER_LOGOS, FONT_KEYS, POOL_KINDS, type PoolKind, THEME_COLOR_KEYS, THEME_FILE_PATH, THEME_ID, type ThemeTokens, withDefaults } from '../src/domain/theme.ts'
 
 export class BadRequest extends Error {}
@@ -47,6 +48,8 @@ const workshopFields = z.strictObject({
   materials: z.array(material).max(200),
   // generated slides with a picture chosen by hand: slide key → asset hash (docs/slides.md)
   pictures: z.record(z.string().max(80), z.string().regex(/^[0-9a-f]{64}$/, 'an asset hash')).refine((r) => Object.keys(r).length <= 200, 'at most 200 pictures'),
+  // generated title slides with a variant chosen by hand: slide key → variant (src/domain/titleVariants.ts)
+  variants: z.record(z.string().max(80), z.enum(TITLE_VARIANTS)).refine((r) => Object.keys(r).length <= 200, 'at most 200 variants'),
   archived: z.boolean(),
   theme,
   participants: z.number().int().min(1).max(10_000).nullable(),
@@ -287,7 +290,11 @@ const tokensBody = z.strictObject({
   displayWeight: z.union([z.literal(500), z.literal(600), z.literal(700), z.literal(800), z.literal(900)]).optional(),
   radius: z.number().int().min(0).max(40).optional(),
   chrome: z.boolean().optional(),
+  // from before the variants: on is the background (withDefaults)
   titleScrim: z.boolean().optional(),
+  titleVariant: z.enum(TITLE_VARIANTS).optional(),
+  titleChoices: z.array(z.enum(TITLE_VARIANTS)).min(1).max(TITLE_VARIANTS.length).nullable().optional(),
+  titlePicture: z.string().regex(/^(?:[0-9a-f]{64})?$/, 'an asset hash or nothing').optional(),
   logo: z.enum(['none', 'title', 'all']).optional(),
   mark: z.enum(['square', 'circle', 'none']).optional(),
   family: z.enum(FAMILY_KEYS).optional(),

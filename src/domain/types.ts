@@ -1,3 +1,5 @@
+import type { TitleVariant } from './titleVariants.ts'
+
 export type Locale = 'de' | 'en'
 
 export type ItemKind = 'block' | 'break' | 'marker' | 'note'
@@ -67,6 +69,8 @@ export interface Workshop {
   materials: Material[]
   /** Pictures chosen by hand for generated slides: the slide's key (title:<day>, agenda:<day>:<page>, break:<item>) → asset hash; the others take the pool's pictures in turn. */
   pictures: Record<string, string>
+  /** The variant chosen by hand for a generated title slide (src/domain/titleVariants.ts): the slide's key (title:<day>) → variant; the others take their theme's. */
+  variants: Record<string, TitleVariant>
   /** How many take part, for the print rule "per person" (docs/worksheets.md); null = not known yet. */
   participants: number | null
   archived: boolean

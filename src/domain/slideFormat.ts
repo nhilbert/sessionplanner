@@ -52,7 +52,7 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
   {
     layout: 'title',
     use: 'the first slide of a workshop or day',
-    structure: 'div.text > div.eyebrow + h1 + p.subtitle? + p.meta?; an optional figure > img before div.text, shown as a column at the right edge (a theme may fill the slide with it under a scrim)',
+    structure: 'div.text > div.eyebrow + h1 + p.subtitle? + p.meta?; an optional figure > img. Where the picture stands is the variant, a class beside "title": pic-column (a column at the right edge, cut to the slide\'s height), pic-background (the whole slide under a dark gradient, the text light), pic-whole (shown whole in the right half, nothing cut: a logo, an illustration), pic-band (a band at the top), pic-small (small above the title), pic-none (no picture). Without the class the theme decides; a theme that sets its own title slide may show only some of them',
     generated: true,
     fits: 'a title of up to about 40 characters on three lines (the text block is 600 px wide), a subtitle, a meta line',
     example: '<section class="slide title"><div class="text"><div class="eyebrow">Teamtag · 10. November 2026</div><h1>Zusammenarbeit im neuen Team</h1><p class="subtitle">Beispiel GmbH</p><p class="meta">Bonn</p></div></section>',

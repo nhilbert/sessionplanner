@@ -2,6 +2,7 @@ import type { WorkshopState } from './types.ts'
 import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { durationOf, formatTime, scheduleDay } from './time.ts'
 import { esc, slideLayout } from './slides.ts'
+import { DEFAULT_THEME_TITLE, isTitleVariant, resolveTitleVariant, titleVariantClass, type ThemeTitle } from './titleVariants.ts'
 
 /**
  * The deck of a workshop (docs/slides.md): the slides of its placed items in agenda order, with the slides the
@@ -64,9 +65,11 @@ export interface DeckSlideRef {
 /**
  * @param pool the pictures of the workshop's theme (asset hashes): the title, agenda and break slides take them in
  * turn, starting at a place the workshop id decides, so the same deck shows the same pictures every time.
+ * @param title what the workshop's theme says about title slides: the variant of those that chose none, the variants
+ * on offer, and a picture of the pool that stands on them instead of the pool's next.
  */
-export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: string[] = []): DeckSlideRef[] {
-  const out: DeckSlideRef[] = withParts(build(state, labels, options, pool))
+export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: string[] = [], title: ThemeTitle = DEFAULT_THEME_TITLE): DeckSlideRef[] {
+  const out: DeckSlideRef[] = withParts(build(state, labels, options, pool, title))
   return out
 }
 
@@ -86,16 +89,19 @@ function withParts(deck: DeckSlideRef[]): DeckSlideRef[] {
   return deck
 }
 
-function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: string[]): DeckSlideRef[] {
+function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: string[], theme: ThemeTitle): DeckSlideRef[] {
   const out: DeckSlideRef[] = []
   let taken = 0
-  /** The picture of a generated slide: chosen by hand for its key, else the pool's next in turn. */
-  const picture = (key: string): string => {
+  /**
+   * The picture of a generated slide: chosen by hand for its key, else the pool's next in turn. A slide with a picture
+   * `fixed` by the theme shows that one and still takes its turn, so the slides after it keep their pictures.
+   */
+  const picture = (key: string, fixed = ''): string => {
     const chosen = state.workshop.pictures?.[key]
     if (chosen) return `<figure><img src="asset:${chosen}" alt=""></figure>`
     if (!options.pictures || !pool.length) return ''
-    const hash = pool[(seedOf(state.workshop.id) + (options.shift ?? 0) + taken++) % pool.length]
-    return `<figure><img src="asset:${hash}" alt=""></figure>`
+    const next = pool[(seedOf(state.workshop.id) + (options.shift ?? 0) + taken++) % pool.length]
+    return `<figure><img src="asset:${fixed && pool.includes(fixed) ? fixed : next}" alt=""></figure>`
   }
   const days = sortedDays(state.days)
   const title = state.workshop.title || labels.untitled
@@ -104,11 +110,16 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
     const items = itemsIn(state, day.id)
     const schedule = scheduleDay(day.startMin, day.endMin, items)
     const eyebrow = days.length > 1 ? `${labels.day(n + 1)} · ${labels.date(day.date)}` : labels.date(day.date)
+    // The variant chosen for this day's title slide stands on it as a class where the theme offers it; without one the
+    // theme's stylesheet decides. A title without a picture has none in its markup, as themes ask whether there is one.
+    const chosen = state.workshop.variants?.[`title:${day.id}`]
+    const own = isTitleVariant(chosen) && theme.choices.includes(chosen) ? ` ${titleVariantClass(chosen)}` : ''
+    const figure = picture(`title:${day.id}`, theme.picture)
     out.push({
       key: `title:${day.id}`,
       generated: 'title',
       caption: days.length > 1 ? `${labels.day(n + 1)}` : title,
-      html: `<section class="slide title"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${picture(`title:${day.id}`)}</section>`,
+      html: `<section class="slide title${own}"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${resolveTitleVariant(chosen, theme) === 'none' ? '' : figure}</section>`,
     })
     if (options.agenda) {
       const rows = entriesIn(state, day.id)

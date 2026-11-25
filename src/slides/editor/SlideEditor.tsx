@@ -19,7 +19,8 @@ import { PictureField } from './PicturePicker'
 import { LayoutPicker } from './LayoutPicker'
 import { tr } from './fields'
 import { dropRedo, dropUndo, EMPTY_HISTORY, type History, lastStep, nextStep, record, recordEdit, redone, rekey, seal, undone } from './history'
-import type { EditorSlide, HideableKind, SlideSource } from './source'
+import type { EditorSlide, HideableKind, SlideSource, TitleControl } from './source'
+import { TitlePanel } from './TitlePanel'
 
 interface Props {
   source: SlideSource
@@ -592,6 +593,8 @@ export function SlideEditor(p: Props) {
       )}
     </>
   )
+  /** A generated title slide of a deck: its picture and variant are chosen in a panel of their own. */
+  const titleControl = slide.generated?.kind === 'title' ? src.current.titleSlide : undefined
   const panel = sourceView ? (
     <SourceView html={html} canEdit={editable} onDraft={(v) => (sourceDraft.current = v === html ? null : { key: slide.key, html: v })} onApply={() => commit()} />
   ) : editing ? (
@@ -601,6 +604,7 @@ export function SlideEditor(p: Props) {
       slide={slide}
       canEdit={p.canEdit}
       picture={src.current.setPicture && src.current.pictureOf ? { value: src.current.pictureOf(slide.key), set: (hash) => src.current.setPicture!(slide.key, hash), scope: p.scope, known: p.known, theme: p.theme } : undefined}
+      title={titleControl && { control: titleControl, theme: p.theme, scope: p.scope, several: slides.filter((s) => s.generated?.kind === 'title').length > 1 }}
       onDetails={
         src.current.openDetails &&
         (() => {
@@ -666,7 +670,9 @@ export function SlideEditor(p: Props) {
     />
   )
   /** Looking at a slide that is not edited here: what it is and what can be done, under the slide. */
-  const viewInfo = !editing && !editable && <div className="border-t border-line bg-surface px-4 py-3">{panel}</div>
+  // A title slide of the deck has more to choose than fits under the slide: on a wide screen its panel stands beside it.
+  const beside = !editing && !!titleControl && !phone
+  const viewInfo = !editing && !editable && !beside && <div className="border-t border-line bg-surface px-4 py-3">{panel}</div>
   const dialogLabel = editing ? t('slides.edit') : t('editor.viewing')
   /** Moves to a field; from a double-click on the slide the caret goes to the end of its text, ready to go on typing. */
   function focusField(path: string, atEnd = false) {
@@ -749,6 +755,14 @@ export function SlideEditor(p: Props) {
           {viewInfo}
           <Thumbs slides={slides} current={slide.key} groupAt={groupAt} theme={p.theme} scope={p.scope} onPick={goKey} />
         </div>
+        {beside && (
+          <aside className="flex w-[380px] shrink-0 flex-col border-l border-line lg:w-[420px]">
+            <div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
+              <span className="app-title text-[17px] leading-tight">{t('slides.generated.title')}</span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">{panel}</div>
+          </aside>
+        )}
         {editing && (
           <aside className="flex w-[380px] shrink-0 flex-col border-l border-line lg:w-[420px]">
             <div className="flex items-center gap-2 border-b border-line px-3 py-2">
@@ -811,7 +825,7 @@ function Thumbs({ slides, current, theme, scope, onPick }: { slides: EditorSlide
 }
 
 /** What a slide that is not edited here is, and what can be done instead. */
-function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, picture }: { slide: EditorSlide; canEdit: boolean; onDetails?: () => void; onHide?: (kind: HideableKind) => void; onAdopt?: () => void; onTemplate?: () => void; picture?: { value: string; set: (hash: string) => void; scope: AssetScope; known: string[]; theme: string } }) {
+function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, picture, title }: { slide: EditorSlide; canEdit: boolean; onDetails?: () => void; onHide?: (kind: HideableKind) => void; onAdopt?: () => void; onTemplate?: () => void; picture?: { value: string; set: (hash: string) => void; scope: AssetScope; known: string[]; theme: string }; title?: { control: TitleControl; theme: string; scope: AssetScope; several: boolean } }) {
   const { t } = useTranslation()
   const kind = slide.generated?.kind
   const text = kind ? tr(t, `editor.generated.${kind}`) : slide.pool ? t('editor.poolNote') : t('editor.viewOnly')
@@ -821,8 +835,10 @@ function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, pict
         <Info size={15} className="mt-0.5 shrink-0 text-ink-3" />
         <span>{text}</span>
       </div>
+      {kind === 'title' && onDetails && title && <Button size="sm" onClick={onDetails}>{t('editor.openDetails')}</Button>}
+      {kind === 'title' && title && <TitlePanel slideKey={slide.key} control={title.control} picture={picture} theme={title.theme} scope={title.scope} canEdit={canEdit} several={title.several} />}
       <div className="flex flex-col items-start gap-2">
-        {kind && picture && canEdit && (
+        {kind && picture && canEdit && !(kind === 'title' && title) && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[12px] text-ink-2">{t('editor.generatedPicture')}</span>
             <PictureField path={`picture.${slide.key}`} value={picture.value} onChange={picture.set} onFocus={() => undefined} scope={picture.scope} known={picture.known} theme={picture.theme} prefer="picture" label={t('editor.pickPicture')} />
@@ -833,7 +849,7 @@ function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, pict
             )}
           </div>
         )}
-        {kind === 'title' && onDetails && <Button size="sm" onClick={onDetails}>{t('editor.openDetails')}</Button>}
+        {kind === 'title' && onDetails && !title && <Button size="sm" onClick={onDetails}>{t('editor.openDetails')}</Button>}
         {kind === 'break' && onAdopt && canEdit && <Button size="sm" onClick={onAdopt}>{t('editor.adoptBreak')}</Button>}
         {kind && kind !== 'title' && onHide && canEdit && (
           <Button size="sm" variant="ghost" onClick={() => onHide(kind)}>

@@ -120,6 +120,29 @@ describe('slide themes as data', () => {
     expect((await list())?.printLogo).toBeNull()
   })
 
+  it('keeps what a theme says about its title slides and lists it; older data that says titleScrim is the background', async () => {
+    const { app, repo } = setup()
+    const made = (await (await post(app, '/api/themes', { name: 'Titel' })).json()) as Theme
+    expect(made.tokens).toMatchObject({ titleVariant: 'column', titleChoices: null, titlePicture: '' })
+    const put = (tokens: unknown) => post(app, `/api/themes/${made.id}`, { tokens }, OWNER, 'PUT')
+    expect((await put({ titleVariant: 'sideways' })).status).toBe(400)
+    expect((await put({ titleChoices: [] })).status).toBe(400)
+    expect((await put({ titlePicture: 'nope' })).status).toBe(400)
+    const changed = (await (await put({ titleVariant: 'band', titleChoices: ['column', 'band'], titlePicture: 'a'.repeat(64) })).json()) as Theme
+    expect(changed.tokens).toMatchObject({ titleVariant: 'band', titleChoices: ['column', 'band'], titlePicture: 'a'.repeat(64) })
+    const listed = ((await (await app.request(`${BASE}/api/themes`, { headers: H() })).json()) as ThemeInfo[]).find((x) => x.id === made.id)!
+    expect(listed.title).toEqual({ variant: 'band', choices: ['column', 'band'], picture: 'a'.repeat(64) })
+    // the stylesheet carries the theme's variant for the title slides that chose none
+    expect(await (await app.request(`${BASE}/api/themes/${made.id}/theme.css`, { headers: H() })).text()).toContain('.slide.title:where(:not([class*="pic-"])) > figure { left: 0; bottom: auto; width: auto; height: 320px; }')
+    // every variant on offer again
+    expect(((await (await put({ titleChoices: null })).json()) as Theme).tokens.titleChoices).toBeNull()
+    // an app from before the variants still sends the flag
+    expect(((await (await put({ titleScrim: true })).json()) as Theme).tokens.titleVariant).toBe('background')
+    // and a theme stored before them reads as the background
+    ;(repo as unknown as { db: { prepare(sql: string): { run(...values: unknown[]): unknown } } }).db.prepare('UPDATE themes SET tokens = ? WHERE id = ?').run(JSON.stringify({ titleScrim: true }), made.id)
+    expect(repo.getTheme(made.id)!.tokens.titleVariant).toBe('background')
+  })
+
   it('tells whether a theme folder sets a dark ground', async () => {
     const { app, themesDir } = setup()
     const list = async () => (await (await app.request(`${BASE}/api/themes`, { headers: H(GUEST) })).json()) as ThemeInfo[]

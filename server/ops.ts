@@ -17,6 +17,7 @@ import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, rulesWithNewShee
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
 import { slideText as pageText } from '../src/domain/slides.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
+import { themeTitle, type ThemeTitle } from '../src/domain/titleVariants.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
 
@@ -1131,13 +1132,19 @@ export class Ops {
     return { theme: id, pictures: entries('picture'), icons: entries('icon') }
   }
 
+  /** What a data theme says about its title slides; the others say nothing (the column, the pool in turn). */
+  private themeTitle(id: string): ThemeTitle | undefined {
+    const theme = this.repo.getTheme(id)
+    return theme ? themeTitle(theme.tokens) : undefined
+  }
+
   /** The deck of a workshop as it would be shown: generated slides and the items' own, in order; agenda and break slides can be left out and the groups' divider slides put in, as in the app. */
   deckOutline(ref: string, options: { agenda?: boolean; breaks?: boolean; groups?: boolean } = {}) {
     const s = this.state(ref)
     const labels = { untitled: 'Workshop', day: (n: number) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t: string) => `bis ${t}`, minutes: (n: number) => `${n} Minuten`, date: (d: string) => d }
     const theme = s.workshop.theme || this.repo.getSettings().theme || 'default'
     const pool = this.repo.listPool(theme).filter((e) => e.kind === 'picture').map((e) => e.hash)
-    const deck = deckOf(s, labels, { ...DECK_DEFAULTS, ...compact(options) }, pool)
+    const deck = deckOf(s, labels, { ...DECK_DEFAULTS, ...compact(options) }, pool, this.themeTitle(theme))
     return {
       theme,
       slides: deck.length,

@@ -39,7 +39,7 @@ const state: WorkshopState = {
     notes: '# Before\n- Projector',
     timezone: 'Europe/Berlin',
     theme: '',
-    packing: { 'flip chart': { checked: true } }, pictures: {},
+    packing: { 'flip chart': { checked: true } }, pictures: {}, variants: {},
     materials: [{ id: 'm0', label: 'Kit', qty: 1 }],
     participants: null,
     archived: false,

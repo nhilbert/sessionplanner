@@ -388,6 +388,18 @@ function Options({ spec, doc, onChange }: { spec: LayoutSpec; doc: SlideDoc; onC
             <Toggle key={o.key} checked={!!doc.options[o.key]} onChange={(v) => onChange(v ? { ...doc.options, [o.key]: true } : Object.fromEntries(Object.entries(doc.options).filter(([k]) => k !== o.key)))}>
               {label(o.key)}
             </Toggle>
+          ) : o.kind === 'pick' ? (
+            <label key={o.key} className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
+              {label(o.key)}
+              <Select value={String(doc.options[o.key] ?? '')} onChange={(e) => onChange(e.target.value ? { ...doc.options, [o.key]: e.target.value } : Object.fromEntries(Object.entries(doc.options).filter(([k]) => k !== o.key)))} className="h-8 w-auto text-[13px]">
+                <option value="">{tr(t, `editor.pick.${o.key}.auto`)}</option>
+                {o.values.map((v) => (
+                  <option key={v} value={v}>
+                    {tr(t, `editor.pick.${o.key}.${v}`)}
+                  </option>
+                ))}
+              </Select>
+            </label>
           ) : (
             <span key={o.key} className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
               {label(o.key)}

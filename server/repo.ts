@@ -24,6 +24,7 @@ const WORKSHOP_COLS: Columns = {
   packing: ['packing', 'json'],
   materials: ['materials', 'json'],
   pictures: ['pictures', 'json'],
+  variants: ['variants', 'json'],
   archived: ['archived', 'bool'],
   theme: ['theme', 'text'],
   participants: ['participants', 'num'],
@@ -83,6 +84,7 @@ const toWorkshop = (r: Row): Workshop => ({
   packing: JSON.parse(r.packing as string),
   materials: JSON.parse(r.materials as string),
   pictures: JSON.parse((r.pictures as string | null) ?? '{}'),
+  variants: JSON.parse((r.variants as string | null) ?? '{}'),
   participants: (r.participants as number | null) ?? null,
   archived: r.archived === 1,
   createdAt: r.created_at as string,
@@ -502,10 +504,20 @@ export class Repo {
     const files = Object.fromEntries(src.attachments.map((a) => [a.id, newId()]))
     const packing = Object.fromEntries(Object.entries(src.workshop.packing).map(([k, v]) => [k, { ...v, checked: false }]))
     const w = src.workshop
+    const itemIds = new Map(src.items.map((i) => [i.id, newId()]))
+    // What was chosen by hand for a generated slide is kept under the slide's key, which names a day, a step or a group: the copy's own.
+    const rekey = <T>(chosen: Record<string, T> | undefined): Record<string, T> =>
+      Object.fromEntries(
+        Object.entries(chosen ?? {}).map(([key, value]) => {
+          const [kind, id, ...rest] = key.split(':')
+          const to = dayIds.get(id) ?? itemIds.get(id) ?? groupIds.get(id)
+          return [to ? [kind, to, ...rest].join(':') : key, value]
+        }),
+      )
     this.tx(() => {
       this.db
-        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, theme, packing, materials, pictures, participants, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
-        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, w.theme, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), JSON.stringify(w.pictures ?? {}), w.participants, t, t)
+        .prepare('INSERT INTO workshops (id, title, client, location, goal, notes, timezone, theme, packing, materials, pictures, variants, participants, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
+        .run(newWs, input.title, w.client, w.location, w.goal, w.notes, w.timezone, w.theme, JSON.stringify(packing), JSON.stringify(w.materials.map((m) => ({ ...m, id: newId() }))), JSON.stringify(rekey(w.pictures)), JSON.stringify(rekey(w.variants)), w.participants, t, t)
       for (const d of days) this.insert('days', DAY_COLS, { ...d, id: dayIds.get(d.id)!, workshopId: newWs, date: moved(d.date) })
       for (const g of src.groups) this.insert('groups', GROUP_COLS, { ...g, id: groupIds.get(g.id)!, workshopId: newWs, dayId: g.dayId ? (dayIds.get(g.dayId) ?? null) : null })
       for (const a of src.attachments)
@@ -513,7 +525,7 @@ export class Repo {
       for (const i of src.items)
         this.insert('items', ITEM_COLS, {
           ...i,
-          id: newId(),
+          id: itemIds.get(i.id)!,
           workshopId: newWs,
           dayId: i.dayId ? (dayIds.get(i.dayId) ?? null) : null,
           groupId: i.groupId ? (groupIds.get(i.groupId) ?? null) : null,

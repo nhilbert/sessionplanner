@@ -5,7 +5,7 @@ import type { Item, WorkshopState } from './types.ts'
 const labels: DeckLabels = { untitled: 'Ohne Titel', day: (n) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t) => `bis ${t}`, minutes: (n) => `${n} Minuten`, date: (d) => d }
 const item = (id: string, over: Partial<Item>): Item => ({ id, workshopId: 'w', dayId: 'd1', position: 1, groupId: null, kind: 'block', title: id, description: '', duration: 30, fixedStart: null, goal: '', method: '', lead: '', notes: '', materials: [], attachmentIds: [], printRules: {}, groups: 1, slides: [], worksheets: [], categoryId: null, color: null, ...over })
 const state: WorkshopState = {
-  workshop: { id: 'w', title: 'Teamtag <A&B>', client: 'Example Ltd', location: 'Bonn', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, materials: [], participants: null, archived: false, createdAt: '', updatedAt: '' },
+  workshop: { id: 'w', title: 'Teamtag <A&B>', client: 'Example Ltd', location: 'Bonn', goal: '', notes: '', timezone: 'Europe/Berlin', theme: '', packing: {}, pictures: {}, variants: {}, materials: [], participants: null, archived: false, createdAt: '', updatedAt: '' },
   days: [{ id: 'd1', workshopId: 'w', position: 1, date: '2026-11-10', startMin: 540, endMin: 1020 }],
   groups: [{ id: 'g', workshopId: 'w', dayId: 'd1', position: 2, title: 'Block A' }],
   items: [
@@ -117,5 +117,51 @@ describe('pictures chosen by hand', () => {
     const off = deckOf(chosen, labels, { agenda: true, breaks: true, groups: false, pictures: false, shift: 0 }, pool)
     expect(off[0].html).toContain(`asset:${'c'.repeat(64)}`)
     expect(off.slice(1).some((s) => s.html.includes('asset:'))).toBe(false)
+  })
+})
+
+describe('the variant of a title slide', () => {
+  const pool = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)]
+  const on = { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }
+  const two: WorkshopState = { ...state, days: [...state.days, { id: 'd2', workshopId: 'w', position: 2, date: '2026-11-11', startMin: 540, endMin: 1020 }] }
+  const pictureOf = (deck: ReturnType<typeof deckOf>, key: string) => /asset:([0-9a-f]{64})/.exec(deck.find((s) => s.key === key)!.html)?.[1]
+
+  it('stands on the slide as a class, per day; a slide without a choice carries none and follows its theme', () => {
+    const chosen = { ...two, workshop: { ...two.workshop, variants: { 'title:d2': 'band' as const } } }
+    const deck = deckOf(chosen, labels, on, pool)
+    expect(deck.find((s) => s.key === 'title:d1')!.html).toMatch(/^<section class="slide title"><div class="text">/)
+    expect(deck.find((s) => s.key === 'title:d2')!.html).toMatch(/^<section class="slide title pic-band"><div class="text">/)
+    expect(deck.find((s) => s.key === 'title:d2')!.html).toContain('<figure>')
+  })
+
+  it('without a picture has no figure in its markup, and the slides after it keep their pictures', () => {
+    const plain = deckOf(two, labels, on, pool)
+    const none = deckOf({ ...two, workshop: { ...two.workshop, variants: { 'title:d1': 'none' as const } } }, labels, on, pool)
+    expect(none[0].html).toBe(plain[0].html.replace('class="slide title"', 'class="slide title pic-none"').replace(/<figure>.*<\/figure>/, ''))
+    expect(none.slice(1).map((s) => s.html)).toEqual(plain.slice(1).map((s) => s.html))
+  })
+
+  it('takes the theme\'s variant where none is chosen, and what the theme does not offer is not written', () => {
+    const noPicture = { variant: 'none' as const, choices: ['none' as const], picture: '' }
+    const deck = deckOf({ ...state, workshop: { ...state.workshop, variants: { 'title:d1': 'band' as const } } }, labels, on, pool, noPicture)
+    expect(deck[0].html).toMatch(/^<section class="slide title"><div class="text">/)
+    expect(deck[0].html).not.toContain('<figure>')
+    const playful = { variant: 'column' as const, choices: ['none' as const, 'column' as const], picture: '' }
+    expect(deckOf({ ...state, workshop: { ...state.workshop, variants: { 'title:d1': 'none' as const } } }, labels, on, pool, playful)[0].html).toContain('pic-none')
+  })
+
+  it('shows the theme\'s title picture on every title slide without one of its own; the other slides keep theirs', () => {
+    const fixed = { variant: 'column' as const, choices: ['none' as const, 'column' as const, 'background' as const], picture: 'c'.repeat(64) }
+    const plain = deckOf(two, labels, on, pool)
+    const deck = deckOf(two, labels, on, pool, fixed)
+    expect(pictureOf(deck, 'title:d1')).toBe('c'.repeat(64))
+    expect(pictureOf(deck, 'title:d2')).toBe('c'.repeat(64))
+    expect(deck.filter((s) => s.generated !== 'title').map((s) => s.html)).toEqual(plain.filter((s) => s.generated !== 'title').map((s) => s.html))
+    // a picture chosen for a day's slide stands before the theme's
+    const own = deckOf({ ...two, workshop: { ...two.workshop, pictures: { 'title:d2': 'd'.repeat(64) } } }, labels, on, pool, fixed)
+    expect(pictureOf(own, 'title:d1')).toBe('c'.repeat(64))
+    expect(pictureOf(own, 'title:d2')).toBe('d'.repeat(64))
+    // a title picture that left the pool gives way to the pool's turn
+    expect(pictureOf(deckOf(two, labels, on, pool, { ...fixed, picture: 'e'.repeat(64) }), 'title:d1')).toBe(pictureOf(plain, 'title:d1'))
   })
 })

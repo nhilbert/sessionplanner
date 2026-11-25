@@ -1,6 +1,7 @@
 import { themeUrl } from './addresses.ts'
 import { contrast, isDark, isHex, mixHex, parseHex } from './color.ts'
 import { familyCss, type FamilyKey } from './families.ts'
+import { DEFAULT_THEME_TITLE, logoOnPicture, themeTitle, themeTitleCss, type ThemeTitle, type TitleVariant } from './titleVariants.ts'
 
 export { FAMILY_KEYS, type FamilyKey } from './families.ts'
 
@@ -47,8 +48,12 @@ export interface ThemeTokens {
   radius: number
   /** The host's footer line (deck name, slide number). */
   chrome: boolean
-  /** A picture on the title slide fills the slide under a dark gradient with light text, instead of standing as a column at the right edge. */
-  titleScrim: boolean
+  /** The variant of the title slides that chose none (src/domain/titleVariants.ts): where the picture stands. */
+  titleVariant: TitleVariant
+  /** The variants a workshop may choose for its title slides; null = all that the family shows. A theme whose own rules set the title names the ones they hold for. */
+  titleChoices: TitleVariant[] | null
+  /** A picture of the theme's pool (its asset hash) that stands on every title slide without a picture of its own; '' = the pool's pictures in turn. */
+  titlePicture: string
   /** Where the host shows the theme's logo besides the closing slide. */
   logo: LogoPlacement
   /** The mark before an unnumbered point. */
@@ -122,7 +127,12 @@ export interface ThemeInfo {
   paperAccent?: string | null
   /** Whether the slides' ground is dark: the host then asks for the cut-outs made for a dark ground (docs/slides.md, section 5). */
   dark?: boolean
+  /** The theme's title slides: the default variant, the variants on offer, its title picture; absent = the column, every variant, the pool in turn. */
+  title?: ThemeTitle
 }
+
+/** What a listed theme says about its title slides. A folder theme is a stylesheet written for the column, so it offers that and the title without a picture. */
+export const titleOfTheme = (info: ThemeInfo | undefined): ThemeTitle => info?.title ?? (info?.kind === 'folder' ? { variant: 'column', choices: ['none', 'column'], picture: '' } : DEFAULT_THEME_TITLE)
 
 /**
  * The branding of a workshop: the theme it is set to ('' follows the settings), the logo its printouts show – the
@@ -143,7 +153,9 @@ export const DEFAULT_TOKENS: ThemeTokens = {
   displayWeight: 800,
   radius: 8,
   chrome: false,
-  titleScrim: false,
+  titleVariant: 'column',
+  titleChoices: null,
+  titlePicture: '',
   logo: 'none',
   mark: 'square',
   family: 'calm',
@@ -178,7 +190,7 @@ export function derivedColors(tokens: ThemeTokens): Record<DerivedColorKey, stri
 }
 
 /** Fills a partial token set (older data, an agent's input) with the defaults. */
-export function withDefaults(tokens: Partial<ThemeTokens> | undefined, base: ThemeTokens = DEFAULT_TOKENS): ThemeTokens {
+export function withDefaults(tokens: (Partial<ThemeTokens> & { titleScrim?: boolean }) | undefined, base: ThemeTokens = DEFAULT_TOKENS): ThemeTokens {
   const t = tokens ?? {}
   return {
     colors: { ...base.colors, ...(t.colors ?? {}) },
@@ -188,7 +200,10 @@ export function withDefaults(tokens: Partial<ThemeTokens> | undefined, base: The
     displayWeight: t.displayWeight ?? base.displayWeight,
     radius: t.radius ?? base.radius,
     chrome: t.chrome ?? base.chrome,
-    titleScrim: t.titleScrim ?? base.titleScrim,
+    // older data and an app from before the variants say `titleScrim`: on is the background, off takes only that back
+    titleVariant: t.titleVariant ?? (t.titleScrim === true ? 'background' : t.titleScrim === false && base.titleVariant === 'background' ? 'column' : base.titleVariant),
+    titleChoices: t.titleChoices === undefined ? base.titleChoices : t.titleChoices,
+    titlePicture: t.titlePicture ?? base.titlePicture,
     logo: t.logo ?? base.logo,
     mark: t.mark ?? base.mark,
     family: t.family ?? base.family ?? 'calm',
@@ -219,7 +234,7 @@ export function scopeThemeCss(css: string, sel: string, fileUrls: Record<string,
 
 /**
  * The stylesheet of a theme: the tokens slides.css reads on [data-theme="id"], and the decorations the tokens
- * ask for (the scrim on a title picture, the logo on the slides). Literal colours, no color-mix, so the file prints
+ * ask for (the variant of its title slides, the logo on the slides). Literal colours, no color-mix, so the file prints
  * and exports the same everywhere.
  */
 export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptions = {}): string {
@@ -234,25 +249,23 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
     `--font-display: ${FONT_STACKS[tokens.fonts.display]}; --font-body: ${FONT_STACKS[tokens.fonts.body]}; --font-mono: ${FONT_STACKS.mono};`,
     `--display-weight: ${tokens.displayWeight}; --radius: ${tokens.radius}px; --chrome: ${tokens.chrome ? 'flex' : 'none'};`,
     `--mark-size: ${tokens.mark === 'none' ? '0px' : '9px'}; --mark-radius: ${tokens.mark === 'circle' ? '50%' : '0'};`,
+    // the gradient over a background picture takes a dark theme's own ground
+    isDark(c.bg) ? `--scrim: ${(parseHex(c.bg) ?? [31, 36, 40]).join(',')};` : '',
     options.logoUrl ? `--logo: url("${options.logoUrl}");` : '',
     options.logoLightUrl ? `--logo-light: url("${options.logoLightUrl}");` : options.logoUrl ? `--logo-light: url("${options.logoUrl}");` : '',
   ]
   const lines = [`${sel} { ${vars.filter(Boolean).join(' ')} }`]
-  if (tokens.titleScrim) {
-    const ink = isDark(c.bg) ? c.bg : '#1F2428'
-    const rgb = (parseHex(ink) ?? [31, 36, 40]).join(',')
-    lines.push(`${sel} .slide.title > figure { width: 100%; }`)
-    lines.push(`${sel} .slide.title > figure::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(${rgb},0.9) 0%, rgba(${rgb},0.7) 45%, rgba(${rgb},0.1) 100%); }`)
-    lines.push(`${sel} .slide.title:has(figure) { color: #FFFFFF; }`)
-    lines.push(`${sel} .slide.title:has(figure) h1, ${sel} .slide.title:has(figure) .subtitle, ${sel} .slide.title:has(figure) .meta { color: #FFFFFF; }`)
-    lines.push(`${sel} .slide.title:has(figure) .eyebrow { color: rgba(255,255,255,0.8); }`)
-  }
+  // the title slides that chose no variant take the theme's
+  const title = themeTitle(tokens)
+  lines.push(...themeTitleCss(sel, title.variant))
   if (options.logoUrl && tokens.logo !== 'none') {
     // content slides: top right, where nothing else sits; title and break: bottom right (on the picture, in the light variant)
     const where = tokens.logo === 'title' ? `${sel} .slide.title::after` : `${sel} .slide:not(.section):not(.closing):not(.figure.full)::after`
     lines.push(`${where} { content: ''; position: absolute; right: 64px; top: 56px; width: 150px; height: 40px; background: var(--logo) no-repeat right center / contain; pointer-events: none; z-index: 2; }`)
     lines.push(`${sel} .slide.title::after, ${sel} .slide.break::after { top: auto; bottom: 36px; height: 56px; width: 190px; }`)
-    lines.push(`${sel} .slide.title:has(figure)::after, ${sel} .slide.break:has(figure)::after { background-image: var(--logo-light, var(--logo)); }`)
+    // the light logo where it lies on the picture: on a break, and on a title whose variant puts the picture under it
+    const onPicture = `${sel} .slide.title:where(.pic-column, .pic-background${logoOnPicture(title.variant) ? ', :not([class*="pic-"])' : ''}):has(figure)::after`
+    lines.push(`${onPicture}, ${sel} .slide.break:has(figure)::after { background-image: var(--logo-light, var(--logo)); }`)
   }
   // the family's decoration after the tokens and the logo, so its rules win where they meet
   const family = familyCss(sel, tokens)

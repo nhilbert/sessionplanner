@@ -265,5 +265,23 @@ describe('pictures chosen for generated slides', () => {
     // the choice travels with a duplicate of the workshop
     const copy = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/duplicate`, { method: 'POST', headers: H(), body: JSON.stringify({ title: 'Kopie', firstDate: '2026-12-01' }) })).json()) as WorkshopState
     expect(Object.values(copy.workshop.pictures)).toEqual([asset.hash])
+    // under the copy's own day, so the copy's title slide shows it
+    expect(copy.workshop.pictures).toEqual({ [`title:${copy.days[0].id}`]: asset.hash })
+  })
+})
+
+describe('the variant chosen for a generated title slide', () => {
+  it('is kept on the workshop per slide, refused when it is no variant, and travels with a duplicate under the copy\'s day', async () => {
+    const { app } = setup()
+    const ws = await workshop(app)
+    const key = `title:${ws.days[0].id}`
+    const set = (variants: unknown) => app.request(`${BASE}/api/workshops/${ws.workshop.id}/ops`, { method: 'POST', headers: H(), body: JSON.stringify({ clientId: 'c', ops: [{ op: 'set', entity: 'workshop', id: ws.workshop.id, fields: { variants } }] }) })
+    expect(ws.workshop.variants).toEqual({})
+    expect((await set({ [key]: 'sideways' })).status).toBe(400)
+    expect((await set({ [key]: 'background' })).status).toBe(200)
+    expect(((await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}`, { headers: H() })).json()) as WorkshopState).workshop.variants).toEqual({ [key]: 'background' })
+    const copy = (await (await app.request(`${BASE}/api/workshops/${ws.workshop.id}/duplicate`, { method: 'POST', headers: H(), body: JSON.stringify({ title: 'Kopie', firstDate: '2026-12-01' }) })).json()) as WorkshopState
+    expect(copy.days[0].id).not.toBe(ws.days[0].id)
+    expect(copy.workshop.variants).toEqual({ [`title:${copy.days[0].id}`]: 'background' })
   })
 })

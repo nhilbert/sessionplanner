@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { isDark } from '@/domain/color'
 import { useSearchParams } from 'react-router'
 import { Copy, Moon, Plus, Trash2, Upload, X } from 'lucide-react'
-import { api } from '@/api'
+import { api, assetUrl } from '@/api'
 import { SLIDE_LAYOUTS } from '@/domain/slideFormat'
 import { contrastHex } from '@/domain/color'
 import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, PAPER_LOGOS, type PaperLogo, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, themeFileUrls, type ThemeTokens } from '@/domain/theme'
-import { themeLabel, useThemes } from '@/store/useThemes'
+import { themeLabel, usePool, useThemes } from '@/store/useThemes'
+import { familyTitleChoices, themeTitle, titleVariantClass, type TitleVariant } from '@/domain/titleVariants'
+import { VariantTiles, variantLabel } from '@/slides/editor/TitlePanel'
 import { PoolEditor } from '@/slides/PoolEditor'
 import { useSettings } from '@/store/useSettings'
 import { Button, Chip, cx, Field, IconButton, Input, PageHeader, SectionLabel, Segmented, Select, useIsPhone } from '@/components/ui'
@@ -156,6 +158,11 @@ function Samples({ theme }: { theme: string }) {
   )
 }
 
+/** The title slide of the samples in a variant, with a picture of the theme's pool where it has one. */
+const TITLE_SAMPLE = SLIDE_LAYOUTS.find((l) => l.layout === 'title')!.example
+const titleSample = (variant: TitleVariant, picture: string): string =>
+  TITLE_SAMPLE.replace('class="slide title"', `class="slide title ${titleVariantClass(variant)}"`).replace('</section>', `${picture && variant !== 'none' ? `<figure><img src="asset:${picture}" alt=""></figure>` : ''}</section>`)
+
 /** The editor of one data theme: draft tokens, previewed at once, saved a moment after a change. */
 function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () => void; onCopy: () => void }) {
   const { t } = useTranslation()
@@ -221,6 +228,16 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
     update({ overrides })
   }
   const derived = derivedColors(tokens)
+  // The title slide: the variants the family shows, the theme's own among them, the ones a workshop may choose.
+  const pool = usePool(theme.id)
+  const poolPictures = useMemo(() => pool.filter((e) => e.kind === 'picture').map((e) => e.hash), [pool])
+  const titleFamily = familyTitleChoices(tokens.family)
+  const title = themeTitle(tokens)
+  const titlePicture = poolPictures.includes(title.picture) ? title.picture : (poolPictures[0] ?? '')
+  const choicesWith = (variant: TitleVariant, on: boolean): TitleVariant[] | null => {
+    const next = titleFamily.filter((v) => (v === variant ? on : title.choices.includes(v)))
+    return next.length === titleFamily.length ? null : next
+  }
   const pairs = contrastPairs(tokens)
 
   return (
@@ -323,10 +340,6 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
               <input type="checkbox" checked={tokens.chrome} onChange={(e) => update({ chrome: e.target.checked })} />
               {t('themes.chrome')}
             </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={tokens.titleScrim} onChange={(e) => update({ titleScrim: e.target.checked })} />
-              {t('themes.titleScrim')}
-            </label>
           </div>
           <Field label={t('themes.mark')} className="mt-3">
             <Segmented
@@ -378,6 +391,43 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
           <Field label={t('themes.paperFooter')} hint={t('themes.paperFooterHint')} className="mt-3">
             <Input value={tokens.paper.footer} maxLength={120} onChange={(e) => update({ paper: { ...tokens.paper, footer: e.target.value } })} />
           </Field>
+        </section>
+
+        <section className="card p-5 lg:col-span-2">
+          <SectionLabel>{t('themes.titleSlide')}</SectionLabel>
+          <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.titleSlideHint')}</p>
+          {css.trim() && <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.titleOwnRules')}</p>}
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div>
+              <VariantTiles columns={3} choices={titleFamily} value={title.variant} html={(v) => titleSample(v, titlePicture)} theme={PREVIEW_THEME} scope="library" onPick={(v) => update({ titleVariant: v, titleChoices: choicesWith(v, true) })} />
+              {titleFamily.length > 1 && (
+                <Field label={t('themes.titleChoices')} hint={t('themes.titleChoicesHint')} className="mt-3">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px]">
+                    {titleFamily.map((v) => (
+                      <label key={v} className="flex items-center gap-2">
+                        <input type="checkbox" checked={title.choices.includes(v)} disabled={v === title.variant} onChange={(e) => update({ titleChoices: choicesWith(v, e.target.checked) })} />
+                        {variantLabel(t, v, titleFamily)}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+              )}
+            </div>
+            <Field label={t('themes.titlePicture')} hint={poolPictures.length ? t('themes.titlePictureHint') : t('themes.titlePictureEmpty')}>
+              {poolPictures.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button size="sm" variant={title.picture && poolPictures.includes(title.picture) ? 'ghost' : 'default'} aria-pressed={!poolPictures.includes(title.picture)} onClick={() => update({ titlePicture: '' })}>
+                    {t('themes.titlePictureTurn')}
+                  </Button>
+                  {poolPictures.map((hash) => (
+                    <button key={hash} type="button" aria-pressed={hash === title.picture} aria-label={t('themes.titlePicture')} onClick={() => update({ titlePicture: hash })} className={cx('h-11 w-[68px] rounded-lg p-0.5', hash === title.picture ? 'bg-accent' : 'bg-transparent')}>
+                      <img src={assetUrl('library', hash)} alt="" className="h-full w-full rounded-md object-cover" loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Field>
+          </div>
         </section>
 
         <section className="card p-5 lg:col-span-2">

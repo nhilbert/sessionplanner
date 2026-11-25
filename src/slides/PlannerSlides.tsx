@@ -11,7 +11,8 @@ import { useSettings } from '@/store/useSettings'
 import { themeOf, useTheme } from './SlideView'
 import { deckLabels } from './deckLabels'
 import { deckOptionsNow, updateDeckOptions, useDeckOptions } from './deckOptions'
-import { poolPicturesNow, usePool } from '@/store/useThemes'
+import { poolPicturesNow, themeTitleNow, usePool, useThemeTitle } from '@/store/useThemes'
+import { isTitleVariant } from '@/domain/titleVariants'
 import { SlideEditor } from './editor/SlideEditor'
 import { deckSource, listSource, type SlideTransfer } from './editor/source'
 import { MoveSlideDialog } from './SlideSort'
@@ -84,6 +85,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
   const settings = useSettings((s) => s.settings)
   const theme = useTheme(data ? themeOf(data.workshop, settings) : 'default')
   usePool(theme) // the generated slides of the deck source take the pool's pictures
+  useThemeTitle(theme) // and the title slides the theme's variant
   useDeckOptions() // follows the deck options, so hiding agenda or break slides shows at once
   // One planner undo step per opening of the editor.
   const session = useRef<{ id: string; target: SlideTarget | null }>({ id: newId(), target: null })
@@ -105,7 +107,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
   }
   const deckNow = () => {
     const state = now()
-    return state ? deckOf(state, deckLabels(t), deckOptionsNow(), poolPicturesNow(theme)) : []
+    return state ? deckOf(state, deckLabels(t), deckOptionsNow(), poolPicturesNow(theme), themeTitleNow(theme)) : []
   }
   // Present from here: the position in the deck as the presentation shows it; a parked step is not in it.
   const presenting = {
@@ -138,6 +140,27 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
             if (hash) pictures[key] = hash
             else delete pictures[key]
             usePlanner.getState().change([{ op: 'set', entity: 'workshop', id: state.workshop.id, fields: { pictures } }])
+          },
+          titleSlide: {
+            theme: () => themeTitleNow(theme),
+            chosen: (key) => {
+              const variant = now()?.workshop.variants?.[key]
+              return isTitleVariant(variant) ? variant : ''
+            },
+            set: (key, variant) => {
+              const state = now()
+              if (!state) return
+              const variants = { ...(state.workshop.variants ?? {}) }
+              if (variant) variants[key] = variant
+              else delete variants[key]
+              usePlanner.getState().change([{ op: 'set', entity: 'workshop', id: state.workshop.id, fields: { variants } }])
+            },
+            preview: (key, variant) => {
+              const state = now()
+              if (!state) return ''
+              const as = { ...state, workshop: { ...state.workshop, variants: { ...(state.workshop.variants ?? {}), [key]: variant } } }
+              return deckOf(as, deckLabels(t), deckOptionsNow(), poolPicturesNow(theme), themeTitleNow(theme)).find((r) => r.key === key)?.html ?? ''
+            },
           },
         })
   // Into another step: by the step's id and the slide's, so undo finds a slide that has left what the editor shows.

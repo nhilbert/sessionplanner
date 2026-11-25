@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { create } from 'zustand'
 import type { TFunction } from 'i18next'
 import { api } from '@/api'
-import type { PoolAsset, ThemeInfo } from '@/domain/theme'
+import { type PoolAsset, type ThemeInfo, titleOfTheme } from '@/domain/theme'
+import type { ThemeTitle } from '@/domain/titleVariants'
 import type { SlideTemplate } from '@/domain/types'
 import { slideLayout } from '@/domain/slides'
 import { inOrder } from '@/domain/inOrder'
@@ -103,6 +104,12 @@ export function usePool(theme: string): PoolAsset[] {
 const EMPTY_POOL: PoolAsset[] = []
 /** The pictures of a theme's pool now, outside React (the editor's deck source reads them when it is asked). */
 export const poolPicturesNow = (theme: string): string[] => (useThemes.getState().pools[theme] ?? EMPTY_POOL).filter((e) => e.kind === 'picture').map((e) => e.hash)
+/** What a theme says about its title slides (the variant, the variants on offer, its title picture), as the list of themes has it. */
+export const themeTitleNow = (theme: string): ThemeTitle => titleOfTheme(useThemes.getState().themes.find((x) => x.id === theme))
+export function useThemeTitle(theme: string): ThemeTitle {
+  const info = useThemes((s) => s.themes.find((x) => x.id === theme))
+  return useMemo(() => titleOfTheme(info), [info])
+}
 /** The theme editor's preview theme has no pool of its own. */
 const PREVIEW_THEME = 'preview-theme'
 
