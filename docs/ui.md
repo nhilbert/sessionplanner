@@ -67,6 +67,9 @@ hangs on the body and takes the page's colours.
 - **A group** is the app's real container: a title row on the ground's tint, its units indented below, no second
   frame. Folded, its rail shows its members' colours, each as long as the member lasts. A break inside a group does
   not split the card; the head then names the longest stretch.
+- **A note** is a quiet row on amber: its title, and its text cut after three lines. Where something is cut, a small
+  double arrow at the row's edge shows the note in full, and cuts it again; which notes stand in full is remembered
+  on the device, as folded groups are.
 - **The day strip** above the agenda shows the day to scale in the same colours, with the minutes per category below
   it as word and number. An overlap is drawn in the conflict colour.
 

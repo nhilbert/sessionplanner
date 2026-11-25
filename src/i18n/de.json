@@ -186,6 +186,8 @@
     "notes": "Notizen",
     "notesHint": "für die Moderation",
     "noteText": "Text",
+    "noteExpand": "Notiz ganz zeigen",
+    "noteCollapse": "Notiz kürzen",
     "materials": "Material",
     "addMaterial": "Material hinzufügen",
     "materialLabel": "Was",

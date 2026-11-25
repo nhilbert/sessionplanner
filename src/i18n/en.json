@@ -186,6 +186,8 @@
     "notes": "Notes",
     "notesHint": "for facilitating",
     "noteText": "Text",
+    "noteExpand": "Show the whole note",
+    "noteCollapse": "Show less of the note",
     "materials": "Material",
     "addMaterial": "Add material",
     "materialLabel": "What",

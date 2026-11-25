@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type ReactNode, type Ref } from 'react'
 import { oneLine, parseBlocks } from '@/domain/markdown'
 
 /**
@@ -6,8 +6,12 @@ import { oneLine, parseBlocks } from '@/domain/markdown'
  * *italic*, `code` and [links](https://…). Built from React elements only – never HTML – so nothing typed can
  * run as code, and links work only for http(s) and mailto (guests read notes too).
  */
-export default function Markdown({ text, className }: { text: string; className?: string }) {
-  return <div className={className}>{blocks(text)}</div>
+export default function Markdown({ text, className, ref }: { text: string; className?: string; ref?: Ref<HTMLDivElement> }) {
+  return (
+    <div ref={ref} className={className}>
+      {blocks(text)}
+    </div>
+  )
 }
 
 /**

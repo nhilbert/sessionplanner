@@ -332,6 +332,10 @@
 .md-row ol {
   margin-block: 0;
 }
+/* Shown in full, nothing is counted: its parts stand a little apart, as they read. */
+.md-row.md-full > * + * {
+  margin-top: 4px;
+}
 .md-row a {
   pointer-events: none;
 }

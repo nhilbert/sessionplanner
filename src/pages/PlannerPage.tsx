@@ -50,6 +50,7 @@ export default function PlannerPage() {
   const [toolboxOpen, setToolboxOpen] = useLocalState('sp.toolbox', '1')
   const [tab, setTab] = useLocalState('sp.tab', 'parking')
   const [collapsedRaw, setCollapsedRaw] = useLocalState('sp.collapsed', '[]')
+  const [openNotesRaw, setOpenNotesRaw] = useLocalState('sp.notes.open', '[]')
   const [mobileToolbox, setMobileToolbox] = useState(false)
   // Phones: the details were opened by a tap on the agenda, so closing them returns there (not to a sidebar tab).
   const [overlayForItem, setOverlayForItem] = useState(false)
@@ -74,6 +75,7 @@ export default function PlannerPage() {
   useEffect(() => setInserting(false), [id, mobileToolbox, tab, detailsId])
   const ppm = ZOOM[zoom] ?? ZOOM.m
   const collapsed = useMemo(() => new Set<string>(safeParse(collapsedRaw)), [collapsedRaw])
+  const openNotes = useMemo(() => new Set<string>(safeParse(openNotesRaw)), [openNotesRaw])
 
   useEffect(() => {
     open(id)
@@ -419,6 +421,7 @@ export default function PlannerPage() {
     phone,
     selected,
     collapsed,
+    openNotes,
     preview,
     onSelect: (itemId, e) => {
       if (e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -445,6 +448,7 @@ export default function PlannerPage() {
     inserting: touch && inserting,
     onResizeEnd: (itemId, duration) => change([{ op: 'set', entity: 'item', id: itemId, fields: { duration } }]),
     onToggleGroup: (gid) => setCollapsedRaw(JSON.stringify(collapsed.has(gid) ? [...collapsed].filter((x) => x !== gid) : [...collapsed, gid])),
+    onToggleNote: (nid) => setOpenNotesRaw(JSON.stringify(openNotes.has(nid) ? [...openNotes].filter((x) => x !== nid) : [...openNotes, nid])),
     onRenameGroup: (gid, title) => change([{ op: 'set', entity: 'group', id: gid, fields: { title } }]),
     onUngroup: ungroup,
     onDeleteGroup: deleteGroup,

@@ -31,6 +31,8 @@ export interface BoardCtx {
   phone: boolean
   selected: Set<string>
   collapsed: Set<string>
+  /** The notes shown in full in their rows. */
+  openNotes: Set<string>
   preview: Preview | null
   onSelect: (id: string, e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => void
   onEditItem: (id: string, fields: Partial<ItemFields>) => void
@@ -49,6 +51,7 @@ export interface BoardCtx {
   inserting: boolean
   onResizeEnd: (id: string, minutes: number) => void
   onToggleGroup: (id: string) => void
+  onToggleNote: (id: string) => void
   onRenameGroup: (id: string, title: string) => void
   onUngroup: (id: string) => void
   onDeleteGroup: (id: string) => void
@@ -173,6 +176,8 @@ export function Entries({ list, ids, schedule }: { list: string; ids: string[]; 
         category={schedule && category ? categoryName(category, t) : undefined}
         run={parts[id]}
         showDescription={ctx.showDescription}
+        expanded={ctx.openNotes.has(id)}
+        onExpand={item.kind === 'note' ? () => ctx.onToggleNote(id) : undefined}
         selected={ctx.selected.has(id)}
         duration={ctx.preview?.id === id ? ctx.preview.fields.duration : undefined}
         inlineTitle={!ctx.phone}

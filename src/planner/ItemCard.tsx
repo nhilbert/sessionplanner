@@ -1,8 +1,8 @@
-import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, type SyntheticEvent, useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SyntheticEvent, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { Coffee, Flag, NotebookPen, Package, Paperclip, Pin, Presentation, StickyNote } from 'lucide-react'
+import { ChevronsDownUp, ChevronsUpDown, Coffee, Flag, NotebookPen, Package, Paperclip, Pin, Presentation, StickyNote } from 'lucide-react'
 import type { Item, PaletteKey } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime, MAX_DURATION, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
@@ -53,6 +53,10 @@ export interface CardProps {
   run?: RunPart
   /** The category's name: the word that goes with the colour of the rail. */
   category?: string
+  /** A note shown in full in its row, not cut after a few lines. */
+  expanded?: boolean
+  /** Shows a note in full or cut again; absent where the row has no such switch (the card that is dragged). */
+  onExpand?: () => void
 }
 
 export function SortableItem({ after, ...props }: CardProps & { after?: React.ReactNode }) {
@@ -76,6 +80,54 @@ export function SortableItem({ after, ...props }: CardProps & { after?: React.Re
       <ItemCard {...props} />
       {after}
     </div>
+  )
+}
+
+/**
+ * A note's title and text in its row of the agenda: cut after two and three lines, or in full once it is unfolded.
+ * The double arrow that unfolds it shows only where something is cut (and, unfolded, to cut it again).
+ */
+function NoteWords({ title, titleText, text, expanded, onExpand }: { title: ReactNode; titleText: string; text: string; expanded: boolean; onExpand?: () => void }) {
+  const { t } = useTranslation()
+  const head = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  const [cut, setCut] = useState(false)
+  useLayoutEffect(() => {
+    // the title's own element carries the cut (Inline), the text's is the Markdown itself
+    const parts = () => [head.current?.firstElementChild, body.current].filter((el): el is Element => !!el)
+    const measure = () => setCut(parts().some((el) => el.scrollHeight > el.clientHeight + 1))
+    measure()
+    // the row's width decides where the lines break
+    const watch = new ResizeObserver(measure)
+    if (head.current) watch.observe(head.current)
+    return () => watch.disconnect()
+  }, [titleText, text, expanded])
+  const label = expanded ? t('item.noteCollapse') : t('item.noteExpand')
+  return (
+    <>
+      <div className="min-w-0 flex-1">
+        <div ref={head} className="italic">
+          {title}
+        </div>
+        {text && <Markdown ref={body} text={text} className={cx('md-row text-ink-2', expanded ? 'md-full' : 'line-clamp-3 max-h-[3lh]')} />}
+      </div>
+      {onExpand && (expanded || cut) && (
+        <button
+          type="button"
+          {...shield}
+          onClick={(e) => {
+            e.stopPropagation()
+            onExpand()
+          }}
+          aria-expanded={expanded}
+          aria-label={label}
+          title={label}
+          className="tap -mr-1.5 -mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface hover:text-ink"
+        >
+          {expanded ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+        </button>
+      )}
+    </>
   )
 }
 
@@ -186,7 +238,7 @@ function TimeButton({ label, onOpen, className, children }: { label: string; onO
   )
 }
 
-export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd, onOpenSlides, run, category }: CardProps) {
+export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription = true, selected, duration, inlineTitle = true, onSelect, onEdit, onOpenTime, onResize, onResizeEnd, onOpenSlides, run, category, expanded, onExpand }: CardProps) {
   const { t } = useTranslation()
   const minutes = duration ?? durationOf(item)
   const timed = slot !== undefined
@@ -253,10 +305,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
           {inside}
           <div data-row onClick={select} className={cx('my-0.5 flex cursor-pointer gap-2 rounded-[10px] px-3 py-1.5 text-[13px] transition-colors', selected ? 'bg-accent-soft' : 'bg-amber-soft/70 hover:bg-amber-soft')}>
             <StickyNote size={13} className="mt-0.5 shrink-0 text-amber" />
-            <div className="min-w-0 flex-1">
-              <div className="italic">{title('line-clamp-2')}</div>
-              {showDescription && item.description.trim() && <Markdown text={item.description} className="md-row line-clamp-3 max-h-[3lh] text-ink-2" />}
-            </div>
+            <NoteWords title={title(expanded ? undefined : 'line-clamp-2')} titleText={item.title} text={showDescription ? item.description.trim() : ''} expanded={!!expanded} onExpand={onExpand} />
           </div>
         </div>
       </div>
