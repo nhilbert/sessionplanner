@@ -1,7 +1,7 @@
 import { themeUrl } from './addresses.ts'
 import { contrast, isDark, isHex, mixHex, parseHex } from './color.ts'
 import { familyCss, type FamilyKey } from './families.ts'
-import { DEFAULT_THEME_TITLE, logoOnPicture, themeTitle, themeTitleCss, type ThemeTitle, type TitleVariant } from './titleVariants.ts'
+import { DEFAULT_THEME_TITLE, logoOnPicture, NO_VARIANT, themeTitle, themeTitleCss, type ThemeTitle, type TitleVariant } from './titleVariants.ts'
 
 export { FAMILY_KEYS, type FamilyKey } from './families.ts'
 
@@ -131,8 +131,13 @@ export interface ThemeInfo {
   title?: ThemeTitle
 }
 
-/** What a listed theme says about its title slides. A folder theme is a stylesheet written for the column, so it offers that and the title without a picture. */
-export const titleOfTheme = (info: ThemeInfo | undefined): ThemeTitle => info?.title ?? (info?.kind === 'folder' ? { variant: 'column', choices: ['none', 'column'], picture: '' } : DEFAULT_THEME_TITLE)
+/**
+ * What a listed theme says about its title slides. A folder theme is a stylesheet written for the column, so it offers
+ * that and the title without a picture. Undefined for a theme not in the list (not loaded yet, or the list failed): then
+ * the theme's stylesheet decides, as the deck writes no variant the workshop did not choose.
+ */
+export const titleOfTheme = (info: ThemeInfo | undefined): ThemeTitle | undefined =>
+  !info ? undefined : (info.title ?? (info.kind === 'folder' ? { variant: 'column', choices: ['none', 'column'], picture: '' } : DEFAULT_THEME_TITLE))
 
 /**
  * The branding of a workshop: the theme it is set to ('' follows the settings), the logo its printouts show – the
@@ -264,7 +269,7 @@ export function themeCss(id: string, tokens: ThemeTokens, options: ThemeCssOptio
     lines.push(`${where} { content: ''; position: absolute; right: 64px; top: 56px; width: 150px; height: 40px; background: var(--logo) no-repeat right center / contain; pointer-events: none; z-index: 2; }`)
     lines.push(`${sel} .slide.title::after, ${sel} .slide.break::after { top: auto; bottom: 36px; height: 56px; width: 190px; }`)
     // the light logo where it lies on the picture: on a break, and on a title whose variant puts the picture under it
-    const onPicture = `${sel} .slide.title:where(.pic-column, .pic-background${logoOnPicture(title.variant) ? ', :not([class*="pic-"])' : ''}):has(figure)::after`
+    const onPicture = `${sel} .slide.title:where(.pic-column, .pic-background${logoOnPicture(title.variant) ? `, ${NO_VARIANT}` : ''}):has(figure)::after`
     lines.push(`${onPicture}, ${sel} .slide.break:has(figure)::after { background-image: var(--logo-light, var(--logo)); }`)
   }
   // the family's decoration after the tokens and the logo, so its rules win where they meet

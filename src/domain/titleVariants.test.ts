@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_THEME_TITLE, familyTitleChoices, resolveTitleVariant, TITLE_VARIANTS, TITLE_VARIANTS_BEGIN, TITLE_VARIANTS_END, themeTitle, themeTitleCss, titleVariantOf, titleVariantsCss } from './titleVariants.ts'
+import { DEFAULT_THEME_TITLE, NO_VARIANT, familyTitleChoices, resolveTitleVariant, TITLE_VARIANTS, TITLE_VARIANTS_BEGIN, TITLE_VARIANTS_END, themeTitle, themeTitleCss, titleVariantOf, titleVariantsCss } from './titleVariants.ts'
 
 describe('the variants of a title slide', () => {
   it('slides.css carries the rules exactly as they are written here', () => {
@@ -17,7 +17,9 @@ describe('the variants of a title slide', () => {
     expect(rules.length).toBeGreaterThan(8)
     for (const rule of rules) expect(rule).toMatch(/^\.slide\.title:where\(\.pic-[a-z]+\)/)
     expect(titleVariantsCss()).not.toContain('pic-column')
-    for (const rule of themeTitleCss('[data-theme="x"]', 'whole')) expect(rule).toMatch(/^\[data-theme="x"\] \.slide\.title:where\(:not\(\[class\*="pic-"\]\)\)/)
+    for (const rule of themeTitleCss('[data-theme="x"]', 'whole')) expect(rule.startsWith(`[data-theme="x"] .slide.title:where(${NO_VARIANT})`)).toBe(true)
+    // only the variants' own classes count: a written slide with another class that contains "pic-" still takes the theme's
+    expect(NO_VARIANT).toBe(':not(.pic-none, .pic-column, .pic-background, .pic-whole, .pic-band, .pic-small)')
     expect(themeTitleCss('[data-theme="x"]', 'column')).toEqual([])
   })
 

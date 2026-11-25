@@ -12,7 +12,7 @@ import { themeOf, useTheme } from './SlideView'
 import { deckLabels } from './deckLabels'
 import { deckOptionsNow, updateDeckOptions, useDeckOptions } from './deckOptions'
 import { poolPicturesNow, themeTitleNow, usePool, useThemeTitle } from '@/store/useThemes'
-import { isTitleVariant } from '@/domain/titleVariants'
+import { DEFAULT_THEME_TITLE, isTitleVariant } from '@/domain/titleVariants'
 import { SlideEditor } from './editor/SlideEditor'
 import { deckSource, listSource, type SlideTransfer } from './editor/source'
 import { MoveSlideDialog } from './SlideSort'
@@ -142,7 +142,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
             usePlanner.getState().change([{ op: 'set', entity: 'workshop', id: state.workshop.id, fields: { pictures } }])
           },
           titleSlide: {
-            theme: () => themeTitleNow(theme),
+            theme: () => themeTitleNow(theme) ?? DEFAULT_THEME_TITLE,
             chosen: (key) => {
               const variant = now()?.workshop.variants?.[key]
               return isTitleVariant(variant) ? variant : ''

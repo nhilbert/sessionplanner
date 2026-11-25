@@ -2,7 +2,7 @@ import type { WorkshopState } from './types.ts'
 import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { durationOf, formatTime, scheduleDay } from './time.ts'
 import { esc, slideLayout } from './slides.ts'
-import { DEFAULT_THEME_TITLE, resolveTitleVariant, titleVariantClass, type ThemeTitle } from './titleVariants.ts'
+import { isTitleVariant, resolveTitleVariant, titleVariantClass, type ThemeTitle } from './titleVariants.ts'
 
 /**
  * The deck of a workshop (docs/slides.md): the slides of its placed items in agenda order, with the slides the
@@ -66,9 +66,10 @@ export interface DeckSlideRef {
  * @param pool the pictures of the workshop's theme (asset hashes): the title, agenda and break slides take them in
  * turn, starting at a place the workshop id decides, so the same deck shows the same pictures every time.
  * @param title what the workshop's theme says about title slides: the variant of those that chose none, the variants
- * on offer, and a picture of the pool that stands on them instead of the pool's next.
+ * on offer, and a picture of the pool that stands on them instead of the pool's next. Unknown (the list of themes has
+ * not come): a title slide carries only the variant chosen for it, and the theme's stylesheet decides the others.
  */
-export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: string[] = [], title: ThemeTitle = DEFAULT_THEME_TITLE): DeckSlideRef[] {
+export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: string[] = [], title?: ThemeTitle): DeckSlideRef[] {
   const out: DeckSlideRef[] = withParts(build(state, labels, options, pool, title))
   return out
 }
@@ -89,7 +90,7 @@ function withParts(deck: DeckSlideRef[]): DeckSlideRef[] {
   return deck
 }
 
-function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: string[], theme: ThemeTitle): DeckSlideRef[] {
+function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: string[], theme: ThemeTitle | undefined): DeckSlideRef[] {
   const out: DeckSlideRef[] = []
   let taken = 0
   /**
@@ -113,13 +114,14 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
     // The variant of this day's title slide stands on it as a class: the one chosen for it where the theme offers that,
     // else the theme's, so a theme's own rules can tell the variants apart. A title without a picture has none in its
     // markup, as themes ask whether there is one.
-    const variant = resolveTitleVariant(state.workshop.variants?.[`title:${day.id}`], theme)
-    const figure = picture(`title:${day.id}`, theme.picture)
+    const chosen = state.workshop.variants?.[`title:${day.id}`]
+    const variant = theme ? resolveTitleVariant(chosen, theme) : isTitleVariant(chosen) ? chosen : null
+    const figure = picture(`title:${day.id}`, theme?.picture)
     out.push({
       key: `title:${day.id}`,
       generated: 'title',
       caption: days.length > 1 ? `${labels.day(n + 1)}` : title,
-      html: `<section class="slide title ${titleVariantClass(variant)}"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${variant === 'none' ? '' : figure}</section>`,
+      html: `<section class="slide title${variant ? ` ${titleVariantClass(variant)}` : ''}"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${variant === 'none' ? '' : figure}</section>`,
     })
     if (options.agenda) {
       const rows = entriesIn(state, day.id)

@@ -17,7 +17,8 @@ import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, rulesWithNewShee
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
 import { slideText as pageText } from '../src/domain/slides.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
-import { themeTitle, type ThemeTitle } from '../src/domain/titleVariants.ts'
+import type { ThemeTitle } from '../src/domain/titleVariants.ts'
+import { titleOfTheme } from '../src/domain/theme.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
 
@@ -1132,10 +1133,9 @@ export class Ops {
     return { theme: id, pictures: entries('picture'), icons: entries('icon') }
   }
 
-  /** What a data theme says about its title slides; the others say nothing (the column, the pool in turn). */
+  /** What a theme says about its title slides, as the app reads it from the list of themes (a folder theme offers the column and no picture). */
   private themeTitle(id: string): ThemeTitle | undefined {
-    const theme = this.repo.getTheme(id)
-    return theme ? themeTitle(theme.tokens) : undefined
+    return titleOfTheme(listThemes(this.themesDir, this.repo.listThemes()).find((t) => t.id === id))
   }
 
   /** The deck of a workshop as it would be shown: generated slides and the items' own, in order; agenda and break slides can be left out and the groups' divider slides put in, as in the app. */

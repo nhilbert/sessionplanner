@@ -133,7 +133,7 @@ describe('slide themes as data', () => {
     const listed = ((await (await app.request(`${BASE}/api/themes`, { headers: H() })).json()) as ThemeInfo[]).find((x) => x.id === made.id)!
     expect(listed.title).toEqual({ variant: 'band', choices: ['column', 'band'], picture: 'a'.repeat(64) })
     // the stylesheet carries the theme's variant for the title slides that chose none
-    expect(await (await app.request(`${BASE}/api/themes/${made.id}/theme.css`, { headers: H() })).text()).toContain('.slide.title:where(:not([class*="pic-"])) > figure { left: 0; bottom: auto; width: auto; height: 320px; }')
+    expect(await (await app.request(`${BASE}/api/themes/${made.id}/theme.css`, { headers: H() })).text()).toContain('.slide.title:where(:not(.pic-none, .pic-column, .pic-background, .pic-whole, .pic-band, .pic-small)) > figure { left: 0; bottom: auto; width: auto; height: 320px; }')
     // every variant on offer again
     expect(((await (await put({ titleChoices: null })).json()) as Theme).tokens.titleChoices).toBeNull()
     // an app from before the variants still sends the flag

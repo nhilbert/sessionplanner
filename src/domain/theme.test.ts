@@ -71,14 +71,14 @@ describe('theme', () => {
     expect(withDefaults({}).family).toBe('calm')
     // the theme's variant of the title slide, for the slides that chose none; older data says it as `titleScrim`
     const scrim = themeCss('s', withDefaults({ titleScrim: true }))
-    expect(scrim).toContain('[data-theme="s"] .slide.title:where(:not([class*="pic-"])) > figure { width: 100%; }')
-    expect(scrim).toContain('.slide.title:where(:not([class*="pic-"])) > figure::after')
+    expect(scrim).toContain('[data-theme="s"] .slide.title:where(:not(.pic-none, .pic-column, .pic-background, .pic-whole, .pic-band, .pic-small)) > figure { width: 100%; }')
+    expect(scrim).toContain('.slide.title:where(:not(.pic-none, .pic-column, .pic-background, .pic-whole, .pic-band, .pic-small)) > figure::after')
     expect(withDefaults({ titleScrim: true }).titleVariant).toBe('background')
     expect(withDefaults({ titleScrim: false }).titleVariant).toBe('column')
     // an app from before the variants saves with the flag off: that takes the background back and nothing else
     expect(withDefaults({ titleScrim: false }, { ...DEFAULT_TOKENS, titleVariant: 'band' }).titleVariant).toBe('band')
     expect(withDefaults({ titleScrim: false }, { ...DEFAULT_TOKENS, titleVariant: 'background' }).titleVariant).toBe('column')
-    expect(themeCss('b', { ...DEFAULT_TOKENS, titleVariant: 'band' })).toContain('[data-theme="b"] .slide.title:where(:not([class*="pic-"])) > figure { left: 0; bottom: auto; width: auto; height: 320px; }')
+    expect(themeCss('b', { ...DEFAULT_TOKENS, titleVariant: 'band' })).toContain('[data-theme="b"] .slide.title:where(:not(.pic-none, .pic-column, .pic-background, .pic-whole, .pic-band, .pic-small)) > figure { left: 0; bottom: auto; width: auto; height: 320px; }')
     // a dark theme's gradient takes its own ground
     expect(themeCss('d', DARK_TOKENS)).toContain('--scrim: 21,24,27;')
     expect(css).not.toContain('--scrim')
@@ -86,7 +86,7 @@ describe('theme', () => {
     expect(themeCss('pb', { ...DEFAULT_TOKENS, family: 'playful', titleVariant: 'background' })).not.toContain('figure { width: 100%; }')
     const withLogo = themeCss('x', { ...DEFAULT_TOKENS, logo: 'all' }, { logoUrl: '/l' })
     // the light logo only where the logo lies on the picture
-    expect(withLogo).toContain('.slide.title:where(.pic-column, .pic-background, :not([class*="pic-"])):has(figure)::after')
+    expect(withLogo).toContain('.slide.title:where(.pic-column, .pic-background, :not(.pic-none, .pic-column, .pic-background, .pic-whole, .pic-band, .pic-small)):has(figure)::after')
     expect(themeCss('w', { ...DEFAULT_TOKENS, logo: 'all', titleVariant: 'whole' }, { logoUrl: '/l' })).toContain('.slide.title:where(.pic-column, .pic-background):has(figure)::after')
     expect(withLogo).toContain('.slide:not(.section):not(.closing)')
     expect(withLogo).not.toContain('figure::after')

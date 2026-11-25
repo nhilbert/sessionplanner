@@ -94,5 +94,8 @@ export function titleVariantsCss(): string {
   return [TITLE_VARIANTS_BEGIN, ...rules, TITLE_VARIANTS_END].join('\n')
 }
 
+/** A selector part for a title slide that carries none of the variants' classes (another class that merely contains "pic-" does not count). */
+export const NO_VARIANT = `:not(${TITLE_VARIANTS.map((v) => `.${titleVariantClass(v)}`).join(', ')})`
+
 /** The rules of a theme's default variant, for the title slides under `sel` that carry no variant's class. */
-export const themeTitleCss = (sel: string, variant: TitleVariant): string[] => titleVariantRules(variant, `${sel} .slide.title:where(:not([class*="pic-"]))`)
+export const themeTitleCss = (sel: string, variant: TitleVariant): string[] => titleVariantRules(variant, `${sel} .slide.title:where(${NO_VARIANT})`)

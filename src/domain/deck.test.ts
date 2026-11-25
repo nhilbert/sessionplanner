@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cjkCodePoints, DECK_DEFAULTS, deckOf, type DeckLabels } from './deck.ts'
+import { DEFAULT_THEME_TITLE } from './titleVariants.ts'
 import type { Item, WorkshopState } from './types.ts'
 
 const labels: DeckLabels = { untitled: 'Ohne Titel', day: (n) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t) => `bis ${t}`, minutes: (n) => `${n} Minuten`, date: (d) => d }
@@ -128,7 +129,7 @@ describe('the variant of a title slide', () => {
 
   it('stands on the slide as a class, per day; a slide without a choice carries its theme\'s', () => {
     const chosen = { ...two, workshop: { ...two.workshop, variants: { 'title:d2': 'band' as const } } }
-    const deck = deckOf(chosen, labels, on, pool)
+    const deck = deckOf(chosen, labels, on, pool, DEFAULT_THEME_TITLE)
     expect(deck.find((s) => s.key === 'title:d1')!.html).toMatch(/^<section class="slide title pic-column"><div class="text">/)
     expect(deckOf(chosen, labels, on, pool, { variant: 'whole', choices: ['column', 'whole', 'band'], picture: '' }).find((s) => s.key === 'title:d1')!.html).toMatch(/^<section class="slide title pic-whole">/)
     expect(deck.find((s) => s.key === 'title:d2')!.html).toMatch(/^<section class="slide title pic-band"><div class="text">/)
@@ -136,8 +137,8 @@ describe('the variant of a title slide', () => {
   })
 
   it('without a picture has no figure in its markup, and the slides after it keep their pictures', () => {
-    const plain = deckOf(two, labels, on, pool)
-    const none = deckOf({ ...two, workshop: { ...two.workshop, variants: { 'title:d1': 'none' as const } } }, labels, on, pool)
+    const plain = deckOf(two, labels, on, pool, DEFAULT_THEME_TITLE)
+    const none = deckOf({ ...two, workshop: { ...two.workshop, variants: { 'title:d1': 'none' as const } } }, labels, on, pool, DEFAULT_THEME_TITLE)
     expect(none[0].html).toBe(plain[0].html.replace('pic-column', 'pic-none').replace(/<figure>.*<\/figure>/, ''))
     expect(none.slice(1).map((s) => s.html)).toEqual(plain.slice(1).map((s) => s.html))
   })
@@ -149,6 +150,13 @@ describe('the variant of a title slide', () => {
     expect(deck[0].html).not.toContain('<figure>')
     const playful = { variant: 'column' as const, choices: ['none' as const, 'column' as const], picture: '' }
     expect(deckOf({ ...state, workshop: { ...state.workshop, variants: { 'title:d1': 'none' as const } } }, labels, on, pool, playful)[0].html).toContain('pic-none')
+  })
+
+  it('without the theme\'s word (its list has not come) carries only the variant chosen for it, so the theme\'s stylesheet decides the rest', () => {
+    const deck = deckOf({ ...two, workshop: { ...two.workshop, variants: { 'title:d2': 'none' as const } } }, labels, on, pool)
+    expect(deck.find((s) => s.key === 'title:d1')!.html).toMatch(/^<section class="slide title"><div class="text">.*<figure>/)
+    expect(deck.find((s) => s.key === 'title:d2')!.html).toMatch(/^<section class="slide title pic-none"><div class="text">/)
+    expect(deck.find((s) => s.key === 'title:d2')!.html).not.toContain('<figure>')
   })
 
   it('shows the theme\'s title picture on every title slide without one of its own; the other slides keep theirs', () => {
