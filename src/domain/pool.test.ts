@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardPictureKind, deckPoolOf, DEFAULT_KIND_CONTEXT, familyShowsWhole, figureKind, kindContextOf, kindsFirst, titlePictureKind } from './pool.ts'
+import { cardPictureKind, deckPoolOf, DEFAULT_KIND_CONTEXT, familyShowsWhole, figureKind, kindContextOf, kindsFirst, missingKind, titlePictureKind } from './pool.ts'
 import { parseSlide as parse } from './slideDoc.ts'
 import type { PoolAsset, ThemeInfo } from './theme.ts'
 import { TITLE_VARIANTS } from './titleVariants.ts'
@@ -77,5 +77,18 @@ describe('which pool a place pulls from', () => {
     expect(kindContextOf(playful)).toEqual({ whole: true, titleVariant: 'column' })
     expect(kindContextOf({ id: 'calm', name: 'Calm', kind: 'data', title: { variant: 'whole', choices: ['whole'], picture: '' } })).toEqual({ whole: false, titleVariant: 'whole' })
     expect(kindContextOf(undefined)).toEqual(DEFAULT_KIND_CONTEXT)
+  })
+
+  it('names the kind a place waits for in vain: none of it in the pool while the other kind is there', () => {
+    const photos = { pictures: ['p'], illustrations: [], whole: false }
+    const drawn = { pictures: [], illustrations: ['i'], whole: false }
+    expect(missingKind(photos, ['illustration'])).toBe('illustration')
+    expect(missingKind(photos, ['picture'])).toBeNull()
+    expect(missingKind(drawn, ['picture'])).toBe('picture')
+    // several places (the variants of a title slide): the first that goes without
+    expect(missingKind(photos, ['picture', 'illustration'])).toBe('illustration')
+    expect(missingKind({ pictures: ['p'], illustrations: ['i'], whole: false }, ['picture', 'illustration'])).toBeNull()
+    // a pool with neither is empty as it always could be: nothing stands in for nothing
+    expect(missingKind({ pictures: [], illustrations: [], whole: false }, ['picture', 'illustration'])).toBeNull()
   })
 })

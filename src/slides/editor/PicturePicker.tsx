@@ -8,6 +8,7 @@ import { uploadProblem } from '@/planner/upload'
 import { usePool } from '@/store/useThemes'
 import type { PoolAsset, PoolKind } from '@/domain/theme'
 import { kindsFirst } from '@/domain/pool'
+import { KindHint } from './KindHint'
 
 /** A picture field of the slide: the thumbnail of the asset it shows, and the way to choose or remove one. */
 export function PictureField({ path, value, onChange, onFocus, scope, known, label, theme, prefer = 'picture' }: { path: string; value: string; onChange: (hash: string) => void; onFocus: (path: string) => void; scope: AssetScope; known: string[]; label?: string; theme?: string; prefer?: PoolKind }) {
@@ -119,6 +120,7 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current, th
         />
       </div>
       {error && <p className="mb-2 text-[13px] text-rose">{error}</p>}
+      {prefer !== 'icon' && <KindHint theme={theme} wanted={[prefer]} onLeave={onClose} className="mb-3" />}
       {pool.length > 0 && (
         <div className="mb-3">
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('editor.searchPool')} aria-label={t('editor.searchPool')} className="field mb-2 h-8 w-full px-2 text-[13px]" autoFocus />

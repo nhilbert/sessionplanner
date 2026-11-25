@@ -1372,6 +1372,17 @@
     "titlePerDay": "Jeder Tag hat seine eigene Titelfolie. Bild und Variante gelten nur für diese.",
     "titleNoPicture": "Dieses Theme zeigt auf der Titelfolie kein Bild.",
     "pictureAuto": "Automatisch aus dem Pool",
+    "kindMissing": {
+      "title": {
+        "illustration": "Varianten, die das Bild ganz zeigen, bleiben ohne Bild: Der Bildpool dieses Themes hat noch keine Illustrationen, und ein Foto steht dort nicht ein. Von Hand lässt sich jedes Bild wählen.",
+        "picture": "Varianten, die das Bild zuschneiden, bleiben ohne Bild: Der Bildpool dieses Themes hat noch keine Fotos, und eine Illustration steht dort nicht ein. Von Hand lässt sich jedes Bild wählen."
+      },
+      "place": {
+        "illustration": "Dieser Platz zeigt das Bild ganz und nimmt deshalb Illustrationen. Der Bildpool dieses Themes hat noch keine; ein Foto steht hier nicht von selbst ein.",
+        "picture": "Dieser Platz schneidet das Bild zu und nimmt deshalb Fotos. Der Bildpool dieses Themes hat noch keine; eine Illustration steht hier nicht von selbst ein."
+      },
+      "toPool": "Zum Bildpool"
+    },
     "onSlide": {
       "toolbar": "Auf der Folie bearbeiten",
       "bold": "Fett (Strg+B)",

@@ -16,6 +16,7 @@ import { MoveSlideDialog } from '../SlideSort'
 import { EditPreview } from './EditPreview'
 import { Inspector } from './Inspector'
 import { PictureField } from './PicturePicker'
+import { KindHint } from './KindHint'
 import { LayoutPicker } from './LayoutPicker'
 import { tr } from './fields'
 import { dropRedo, dropUndo, EMPTY_HISTORY, type History, lastStep, nextStep, record, recordEdit, redone, rekey, seal, undone } from './history'
@@ -851,6 +852,7 @@ function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, pict
             )}
           </div>
         )}
+        {kind && kind !== 'title' && picture && !picture.value && <KindHint theme={picture.theme} wanted={[whole ? 'illustration' : 'picture']} />}
         {kind === 'title' && onDetails && !title && <Button size="sm" onClick={onDetails}>{t('editor.openDetails')}</Button>}
         {kind === 'break' && onAdopt && canEdit && <Button size="sm" onClick={onAdopt}>{t('editor.adoptBreak')}</Button>}
         {kind && kind !== 'title' && onHide && canEdit && (

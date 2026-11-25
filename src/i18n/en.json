@@ -1357,6 +1357,17 @@
     "titlePerDay": "Every day has its own title slide. Picture and variant apply to this one only.",
     "titleNoPicture": "This theme shows no picture on the title slide.",
     "pictureAuto": "Automatic from the pool",
+    "kindMissing": {
+      "title": {
+        "illustration": "Variants that show the picture whole stay without one: this theme's picture pool has no illustrations yet, and a photo does not stand in. By hand any picture can be chosen.",
+        "picture": "Variants that crop the picture stay without one: this theme's picture pool has no photos yet, and an illustration does not stand in. By hand any picture can be chosen."
+      },
+      "place": {
+        "illustration": "This place shows its picture whole, so it takes illustrations. This theme's picture pool has none yet; a photo does not stand in by itself.",
+        "picture": "This place crops its picture, so it takes photos. This theme's picture pool has none yet; an illustration does not stand in by itself."
+      },
+      "toPool": "To the picture pool"
+    },
     "onSlide": {
       "toolbar": "Edit on the slide",
       "bold": "Bold (Ctrl+B)",

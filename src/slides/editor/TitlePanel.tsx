@@ -6,6 +6,7 @@ import { useKindContext } from '@/store/useThemes'
 import { Button, cx } from '@/components/ui'
 import { type AssetScope, SlideView } from '../SlideView'
 import { PictureField } from './PicturePicker'
+import { KindHint } from './KindHint'
 import { tr } from './fields'
 import type { TitleControl } from './source'
 
@@ -47,6 +48,8 @@ export function TitlePanel({ slideKey, control, picture, theme, scope, canEdit, 
   const value = chosen && title.choices.includes(chosen) ? chosen : title.variant
   const pictures = title.choices.some((v) => v !== 'none')
   const { whole } = useKindContext(theme)
+  // the kinds the variants on offer take, this slide's first: a variant whose kind the pool lacks shows no picture
+  const kinds = [...new Set([value, ...title.choices].filter((v) => v !== 'none').map((v) => titlePictureKind(v, whole)))]
   return (
     <div className="space-y-4">
       {several && <p className="text-[12px] leading-snug text-ink-2">{t('editor.titlePerDay')}</p>}
@@ -64,6 +67,7 @@ export function TitlePanel({ slideKey, control, picture, theme, scope, canEdit, 
           </div>
         </div>
       )}
+      {pictures && <KindHint theme={theme} wanted={kinds} about="title" />}
       {title.choices.length > 1 && (
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">

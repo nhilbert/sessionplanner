@@ -71,5 +71,18 @@ const hashesOf = (pool: PoolAsset[], kind: PoolKind): string[] => pool.filter((e
 
 export const deckPoolOf = (pool: PoolAsset[], info: ThemeInfo | undefined): DeckPool => ({ pictures: hashesOf(pool, 'picture'), illustrations: hashesOf(pool, 'illustration'), whole: familyShowsWhole(info?.family) })
 
+/**
+ * The kind a place waits for in vain: the first of `wanted` the pool holds none of while it holds the other kind. That
+ * is where the rule shows as an empty place (a photo does not stand in for an illustration), so the app says why. A
+ * pool with neither is simply empty, as it always could be, and is no case for a hint.
+ */
+export function missingKind(pool: DeckPool, wanted: PictureKind[]): PictureKind | null {
+  for (const kind of wanted) {
+    const other: PictureKind = kind === 'illustration' ? 'picture' : 'illustration'
+    if (!poolOfKind(pool, kind).length && poolOfKind(pool, other).length) return kind
+  }
+  return null
+}
+
 /** The pool's pictures of one kind. */
 export const poolOfKind = (pool: DeckPool, kind: PictureKind): string[] => (kind === 'illustration' ? pool.illustrations : pool.pictures)
