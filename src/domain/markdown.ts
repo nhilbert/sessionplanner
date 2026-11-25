@@ -36,3 +36,17 @@ export function oneLine(text: string): string | null {
   const blocks = parseBlocks(text)
   return blocks.length === 1 && blocks[0].type === 'p' && blocks[0].lines.length === 1 ? blocks[0].lines[0].trim() : null
 }
+
+/**
+ * Where a place in the formatted text lies in its source: `piece` is the run of text clicked into, `offset` the
+ * place in it, `before` the formatted text that stands before it. The source holds every run as typed, so the place
+ * is in the run's occurrence of the same count; the end, where it is not found.
+ */
+export function sourceOffset(source: string, before: string, piece: string, offset: number): number {
+  if (!piece) return source.length
+  let earlier = 0
+  for (let i = before.indexOf(piece); i !== -1; i = before.indexOf(piece, i + 1)) earlier++
+  let at = source.indexOf(piece)
+  for (; at !== -1 && earlier > 0; earlier--) at = source.indexOf(piece, at + 1)
+  return at === -1 ? source.length : at + offset
+}

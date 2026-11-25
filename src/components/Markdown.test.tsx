@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { oneLine, parseBlocks } from '@/domain/markdown'
+import { oneLine, parseBlocks, sourceOffset } from '@/domain/markdown'
 import Markdown, { NoteText } from './Markdown'
 
 const html = (text: string) => renderToStaticMarkup(<Markdown text={text} />)
@@ -32,6 +32,17 @@ describe('Markdown', () => {
     expect(long).toContain('<strong>Heute:</strong> mutig fragen')
     expect(long).toContain('<li>eins</li>')
     expect(note('<b>x</b>', '<img src=x onerror=alert(1)>')).not.toContain('<img')
+  })
+
+  it('finds a place of the formatted text in its source', () => {
+    const source = '## Ablauf\n**Erst** begrüßen, dann fragen.\n\n- fragen\n- dann **fragen** und warten'
+    // "Erst" is the first run after the heading
+    expect(sourceOffset(source, 'Ablauf', 'Erst', 2)).toBe(source.indexOf('Erst') + 2)
+    // the same word a third time: its third place in the source
+    expect(sourceOffset(source, 'AblaufErst begrüßen, dann fragen.fragendann ', 'fragen', 0)).toBe(source.lastIndexOf('fragen'))
+    // a run the source does not hold as shown, and an empty one: the end
+    expect(sourceOffset(source, '', 'nirgends', 3)).toBe(source.length)
+    expect(sourceOffset(source, '', '', 0)).toBe(source.length)
   })
 
   it('never lets HTML or script links through', () => {
