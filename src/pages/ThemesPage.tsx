@@ -479,6 +479,13 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
         <section className="card p-5 lg:col-span-2">
           <SectionLabel>{t('themes.pool')}</SectionLabel>
           <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.poolHint')}</p>
+          <label className="mb-4 flex items-start gap-2 text-[13px]">
+            <input type="checkbox" className="mt-0.5" checked={tokens.poolTurn !== false} onChange={(e) => update({ poolTurn: e.target.checked })} />
+            <span>
+              {t('themes.poolTurn')}
+              <span className="block text-[12px] leading-snug text-ink-3">{t('themes.poolTurnHint')}</span>
+            </span>
+          </label>
           <PoolEditor themeId={theme.id} />
         </section>
       </div>

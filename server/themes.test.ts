@@ -393,6 +393,19 @@ describe('photos, illustrations and icons in the pool', () => {
     expect(themes.find((t) => t.id === 'demo')?.family).toBeUndefined()
   })
 
+  it('tells the list of themes which keep their generated slides to pictures chosen by hand', async () => {
+    const { app, repo } = setup()
+    repo.createTheme({ id: 'kept', name: 'Kept', tokens: { ...DEFAULT_TOKENS, poolTurn: false } })
+    repo.createTheme({ id: 'turning', name: 'Turning', tokens: DEFAULT_TOKENS })
+    const themes = (await (await app.request(`${BASE}/api/themes`, { headers: H() })).json()) as ThemeInfo[]
+    expect(themes.find((t) => t.id === 'kept')?.poolTurn).toBe(false)
+    expect(themes.find((t) => t.id === 'turning')?.poolTurn).toBeUndefined()
+    const theme = (await (await post(app, '/api/themes', { name: 'Neu' })).json()) as Theme
+    expect((await post(app, `/api/themes/${theme.id}`, { tokens: { poolTurn: false } }, OWNER, 'PUT')).status).toBe(200)
+    expect(repo.getTheme(theme.id)?.tokens.poolTurn).toBe(false)
+    expect((await post(app, `/api/themes/${theme.id}`, { tokens: { poolTurn: 'no' } }, OWNER, 'PUT')).status).toBe(400)
+  })
+
   it('answers the connector with the pool by kind', () => {
     const { repo, themesDir } = setup()
     const ops = new Ops(repo, { themesDir })

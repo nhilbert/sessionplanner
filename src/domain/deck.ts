@@ -107,6 +107,12 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
     const chosen = state.workshop.pictures?.[key]
     if (chosen) return `<figure><img src="asset:${chosen}" alt=""></figure>`
     if (!options.pictures) return ''
+    // a theme may keep its agenda, break and divider slides to pictures chosen by hand; they still take their turn, so
+    // the title slides after them show what they would anyway
+    if (pool.turn === false && !key.startsWith('title:')) {
+      taken++
+      return ''
+    }
     const turn = seedOf(state.workshop.id) + (options.shift ?? 0) + taken++
     const list = poolOfKind(pool, pool.whole ? 'illustration' : kind)
     if (!list.length) return ''

@@ -1530,6 +1530,8 @@
     "logoFailed": "Das Logo konnte nicht hochgeladen werden (PNG, JPEG, WebP oder SVG).",
     "pool": "Bildpool",
     "poolHint": "Fotos, Illustrationen und Icons. Die erzeugten Titel-, Agenda- und Pausenfolien nehmen reihum ein Bild der Art, die ihr Platz zeigt, je Workshop in fester Folge; der Editor bietet zuerst die Art des Platzes an. Schlagworte, durch Kommas getrennt, machen sie im Editor und für den Assistenten findbar. PNG, JPEG, WebP oder GIF, bis 10 MB.",
+    "poolTurn": "Agenda-, Pausen- und Abschnittsfolien nehmen reihum Bilder aus dem Pool",
+    "poolTurnHint": "Aus: Diese Folien zeigen nur ein Bild, das für sie von Hand gewählt wurde. Für ein Theme, dessen Folien bisher ohne Bilder auskamen: Sie bleiben so, auch wenn der Pool sich füllt.",
     "pictures": "Fotos",
     "icons": "Icons",
     "illustrations": "Illustrationen",

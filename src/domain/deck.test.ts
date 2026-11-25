@@ -227,3 +227,22 @@ describe('photos and illustrations', () => {
     expect(photos).toContain(pictureOf(deckOf(column, labels, on, both, fixed), 'title:d1'))
   })
 })
+
+describe('a theme that keeps its generated slides to pictures chosen by hand', () => {
+  const photos = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)]
+  const on = { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }
+  const two: WorkshopState = { ...state, days: [...state.days, { id: 'd2', workshopId: 'w', position: 2, date: '2026-11-11', startMin: 540, endMin: 1020 }] }
+  const pictureOf = (deck: ReturnType<typeof deckOf>, key: string) => /asset:([0-9a-f]{64})/.exec(deck.find((s) => s.key === key)!.html)?.[1]
+
+  it('shows no pool picture on agenda and break slides, as before the pool had any, and the title slides keep theirs', () => {
+    const turning = deckOf(two, labels, on, { pictures: photos, illustrations: [], whole: false }, DEFAULT_THEME_TITLE)
+    const kept = deckOf(two, labels, on, { pictures: photos, illustrations: [], whole: false, turn: false }, DEFAULT_THEME_TITLE)
+    const empty = deckOf(two, labels, on, { pictures: [], illustrations: [], whole: false }, DEFAULT_THEME_TITLE)
+    for (const s of kept.filter((x) => x.generated && x.generated !== 'title')) expect(s.html, s.key).toBe(empty.find((x) => x.key === s.key)!.html)
+    for (const key of ['title:d1', 'title:d2']) expect(pictureOf(kept, key)).toBe(pictureOf(turning, key))
+    // a picture chosen by hand still stands
+    const chosen = deckOf({ ...two, workshop: { ...two.workshop, pictures: { 'agenda:d1:0': photos[1] } } }, labels, on, { pictures: photos, illustrations: [], whole: false, turn: false }, DEFAULT_THEME_TITLE)
+    expect(pictureOf(chosen, 'agenda:d1:0')).toBe(photos[1])
+  })
+})
+

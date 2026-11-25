@@ -1515,6 +1515,8 @@
     "logoFailed": "The logo could not be uploaded (PNG, JPEG, WebP or SVG).",
     "pool": "Picture pool",
     "poolHint": "Photos, illustrations and icons. The generated title, agenda and break slides take a picture in turn, of the kind their place shows, in a fixed order per workshop; the editor offers the place's kind first. Tags, separated by commas, make them findable in the editor and for the assistant. PNG, JPEG, WebP or GIF, up to 10 MB.",
+    "poolTurn": "Agenda, break and divider slides take pictures from the pool in turn",
+    "poolTurnHint": "Off: these slides show a picture only where one was chosen for them by hand. For a theme whose slides did without pictures so far: they stay that way when the pool fills.",
     "pictures": "Photos",
     "icons": "Icons",
     "illustrations": "Illustrations",

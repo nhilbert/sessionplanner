@@ -295,6 +295,7 @@ const tokensBody = z.strictObject({
   titleVariant: z.enum(TITLE_VARIANTS).optional(),
   titleChoices: z.array(z.enum(TITLE_VARIANTS)).min(1).max(TITLE_VARIANTS.length).nullable().optional(),
   titlePicture: z.string().regex(/^(?:[0-9a-f]{64})?$/, 'an asset hash or nothing').optional(),
+  poolTurn: z.boolean().optional(),
   logo: z.enum(['none', 'title', 'all']).optional(),
   mark: z.enum(['square', 'circle', 'none']).optional(),
   family: z.enum(FAMILY_KEYS).optional(),

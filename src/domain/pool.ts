@@ -78,13 +78,15 @@ export interface DeckPool {
   pictures: string[]
   illustrations: string[]
   whole: boolean
+  /** False: the agenda, break and divider slides take no picture in turn, only one chosen for them by hand (ThemeTokens.poolTurn). */
+  turn?: boolean
 }
 
 export const EMPTY_DECK_POOL: DeckPool = { pictures: [], illustrations: [], whole: false }
 
 const hashesOf = (pool: PoolAsset[], kind: PoolKind): string[] => pool.filter((e) => e.kind === kind).map((e) => e.hash)
 
-export const deckPoolOf = (pool: PoolAsset[], info: ThemeInfo | undefined): DeckPool => ({ pictures: hashesOf(pool, 'picture'), illustrations: hashesOf(pool, 'illustration'), whole: familyShowsWhole(info?.family) })
+export const deckPoolOf = (pool: PoolAsset[], info: ThemeInfo | undefined): DeckPool => ({ pictures: hashesOf(pool, 'picture'), illustrations: hashesOf(pool, 'illustration'), whole: familyShowsWhole(info?.family), ...(info?.poolTurn === false ? { turn: false } : {}) })
 
 /**
  * The kind a place waits for in vain: the first of `wanted` the pool holds none of while it holds the other kind. That

@@ -54,6 +54,12 @@ export interface ThemeTokens {
   titleChoices: TitleVariant[] | null
   /** A picture of the theme's pool (its asset hash) that stands on every title slide without a picture of its own; '' = the pool's pictures in turn. */
   titlePicture: string
+  /**
+   * Whether the generated agenda, break and divider slides take the pool's pictures in turn (the default). Off, they show
+   * a picture only where one was chosen for them by hand: a theme whose decks were made without pictures there keeps them
+   * so when its pool fills (`src/domain/pool.ts`).
+   */
+  poolTurn: boolean
   /** Where the host shows the theme's logo besides the closing slide. */
   logo: LogoPlacement
   /** The mark before an unnumbered point. */
@@ -131,6 +137,8 @@ export interface ThemeInfo {
   paperAccent?: string | null
   /** Whether the slides' ground is dark: the host then asks for the cut-outs made for a dark ground (docs/slides.md, section 5). */
   dark?: boolean
+  /** False where the generated agenda, break and divider slides take no pool pictures in turn (ThemeTokens.poolTurn). */
+  poolTurn?: boolean
   /** The template family of a data theme; the playful one shows every figure whole, so its figures are illustrations (`pool.ts`). */
   family?: FamilyKey
   /** The theme's title slides: the default variant, the variants on offer, its title picture; absent = the column, every variant, the pool in turn. */
@@ -167,6 +175,7 @@ export const DEFAULT_TOKENS: ThemeTokens = {
   titleVariant: 'column',
   titleChoices: null,
   titlePicture: '',
+  poolTurn: true,
   logo: 'none',
   mark: 'square',
   family: 'calm',
@@ -215,6 +224,7 @@ export function withDefaults(tokens: (Partial<ThemeTokens> & { titleScrim?: bool
     titleVariant: t.titleVariant ?? (t.titleScrim === true ? 'background' : t.titleScrim === false && base.titleVariant === 'background' ? 'column' : base.titleVariant),
     titleChoices: t.titleChoices === undefined ? base.titleChoices : t.titleChoices,
     titlePicture: t.titlePicture ?? base.titlePicture,
+    poolTurn: t.poolTurn ?? base.poolTurn ?? true,
     logo: t.logo ?? base.logo,
     mark: t.mark ?? base.mark,
     family: t.family ?? base.family ?? 'calm',
