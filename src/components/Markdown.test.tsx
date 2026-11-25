@@ -60,6 +60,36 @@ describe('Markdown', () => {
     expect(html('Teil**nehmer**innen, (*kursiv*) und „_kursiv_“')).toContain('Teil<strong>nehmer</strong>innen, (<em>kursiv</em>) und „<em>kursiv</em>“')
   })
 
+  it('reads a table: head, rule, rows, and what stands around it', () => {
+    const source = 'Kern\n| Wann | Thema | Ort |\n|---|:-:|--:|\n| Vormittag | **Aufträge** | Raum 1 \\| 2 |\n| Nachmittag | Fragen |\nDanach'
+    const parsed = parseBlocks(source)
+    expect(parsed.map((b) => b.type)).toEqual(['p', 'table', 'p'])
+    expect(parsed[1]).toEqual({ type: 'table', head: ['Wann', 'Thema', 'Ort'], align: [null, 'center', 'right'], rows: [['Vormittag', '**Aufträge**', 'Raum 1 | 2'], ['Nachmittag', 'Fragen', '']] })
+    const out = html(source)
+    expect(out).toContain('<th style="text-align:center"')
+    expect(out).toContain('<strong>Aufträge</strong>')
+    expect(out).not.toContain('|---')
+    // bars without a rule under them, and a rule of another width, are text as before
+    expect(parseBlocks('A | B\nC | D').map((b) => b.type)).toEqual(['p'])
+    expect(parseBlocks('A | B\n---').map((b) => b.type)).toEqual(['p'])
+    expect(parseBlocks('| A |\n|---|\n| eins |')[0]).toEqual({ type: 'table', head: ['A'], align: [null], rows: [['eins']] })
+    expect(plainLine('| Wann | Thema |\n|---|---|')).toBe('Wann · Thema')
+    expect(plainLine('|---|---|\n| eins | zwei |')).toBe('eins · zwei')
+  })
+
+  it('reads a quote, and what it holds as notes again', () => {
+    const parsed = parseBlocks('## Sprechfassung\n> „Schön, dass wir da sind.\n> Zweite Zeile.\n\n**Rückblick**\n> - eins\n> - zwei')
+    expect(parsed.map((b) => b.type)).toEqual(['h', 'quote', 'p', 'quote'])
+    expect(parsed[1]).toEqual({ type: 'quote', blocks: [{ type: 'p', lines: ['„Schön, dass wir da sind.', 'Zweite Zeile.'] }] })
+    expect(parsed[3]).toEqual({ type: 'quote', blocks: [{ type: 'ul', items: ['eins', 'zwei'] }] })
+    const out = html('> **Heute** mutig\n\nDanach')
+    expect(out).toContain('<blockquote')
+    expect(out).toContain('<strong>Heute</strong> mutig')
+    expect(out).not.toContain('&gt;')
+    // a quote is not one plain line: a note sets it below its title
+    expect(oneLine('> zitiert')).toBe(null)
+  })
+
   it('never lets HTML or script links through', () => {
     const out = html('<script>alert(1)</script> <img src=x onerror=alert(1)> [klick](javascript:alert(1)) [data](data:text/html,x)')
     expect(out).not.toContain('<script')

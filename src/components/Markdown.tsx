@@ -1,15 +1,15 @@
 import { Fragment, type ReactNode, type Ref } from 'react'
-import { oneLine, parseBlocks } from '@/domain/markdown'
+import { type Block, oneLine, parseBlocks } from '@/domain/markdown'
 
 /**
- * Basic Markdown for notes: headings (#, ##, ###), lists (-, *, 1.), task lists (- [ ] / - [x]), **bold**,
- * *italic*, `code` and [links](https://…). Built from React elements only – never HTML – so nothing typed can
+ * Basic Markdown for notes: headings (#, ##, ###), lists (-, *, 1.), task lists (- [ ] / - [x]), quotes (>),
+ * tables (| a | b | over |---|---|), **bold**, *italic*, `code` and [links](https://…). Built from React elements only – never HTML – so nothing typed can
  * run as code, and links work only for http(s) and mailto (guests read notes too).
  */
 export default function Markdown({ text, className, ref }: { text: string; className?: string; ref?: Ref<HTMLDivElement> }) {
   return (
     <div ref={ref} className={className}>
-      {blocks(text)}
+      {blocks(parseBlocks(text))}
     </div>
   )
 }
@@ -38,8 +38,17 @@ export function NoteText({ title, text, titleClassName, className }: { title: st
   )
 }
 
-function blocks(text: string): ReactNode {
-  return parseBlocks(text).map((b, i) => {
+// Lines of a table and of a quote in the text's own colour, thinned: they hold on every ground (the dark theme, the
+// amber of a note, paper).
+const LINE = 'border-[color-mix(in_oklab,currentColor_18%,transparent)]'
+const LINE_STRONG = 'border-[color-mix(in_oklab,currentColor_45%,transparent)]'
+// A long word breaks (with a hyphen where the language is known) before the table grows wider than its place: the
+// details' sidebar is narrow, and German words are long. A column keeps the width of a short word, so the long
+// texts of one column do not press the others into single syllables; a table of many columns is moved sideways.
+const CELL = 'min-w-[5em] px-2.5 py-1 align-top first:pl-0 last:pr-0 hyphens-auto [overflow-wrap:anywhere]'
+
+function blocks(parsed: Block[]): ReactNode {
+  return parsed.map((b, i) => {
     if (b.type === 'h') {
       const cls = b.level === 1 ? 'mt-2 text-[15px] font-semibold first:mt-0' : b.level === 2 ? 'mt-2 text-[14px] font-semibold first:mt-0' : 'mt-1.5 font-semibold first:mt-0'
       return (
@@ -48,6 +57,40 @@ function blocks(text: string): ReactNode {
         </div>
       )
     }
+    if (b.type === 'quote')
+      return (
+        <blockquote key={i} className={`my-1.5 border-l-2 pl-3 first:mt-0 last:mb-0 ${LINE_STRONG}`}>
+          {blocks(b.blocks)}
+        </blockquote>
+      )
+    if (b.type === 'table')
+      return (
+        // a table wider than its place is moved sideways in it, the notes around it stay
+        <div key={i} className="md-table my-1.5 overflow-x-auto first:mt-0 last:mb-0">
+          <table className="border-collapse text-left">
+            <thead>
+              <tr>
+                {b.head.map((cell, j) => (
+                  <th key={j} style={{ textAlign: b.align[j] ?? undefined }} className={`${CELL} border-b align-bottom font-semibold ${LINE_STRONG}`}>
+                    {inline(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {b.rows.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, j) => (
+                    <td key={j} style={{ textAlign: b.align[j] ?? undefined }} className={`${CELL} border-b ${LINE}`}>
+                      {inline(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
     if (b.type !== 'p') {
       const List = b.type
       return (

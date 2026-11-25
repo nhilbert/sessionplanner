@@ -919,7 +919,7 @@
     "italic": "Italic",
     "list": "List",
     "heading": "Heading",
-    "syntax": "**bold** · *italic* · - list · 1. numbered · ## heading · - [ ] to-do · [link](https://…)"
+    "syntax": "**bold** · *italic* · - list · 1. numbered · ## heading · - [ ] to-do · [link](https://…) · > quote · | a | b | over |---|---| table"
   },
   "output": {
     "menu": "Output",

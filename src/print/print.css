@@ -86,6 +86,14 @@
 .md-compact ol {
   margin: 2px 0;
 }
+.md-compact blockquote,
+.md-compact .md-table {
+  margin: 4px 0;
+}
+.md-compact th,
+.md-compact td {
+  padding-block: 2px;
+}
 .md-compact code {
   background: #f1f0ec;
 }

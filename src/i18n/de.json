@@ -919,7 +919,7 @@
     "italic": "Kursiv",
     "list": "Liste",
     "heading": "Überschrift",
-    "syntax": "**fett** · *kursiv* · - Liste · 1. nummeriert · ## Überschrift · - [ ] Aufgabe · [Link](https://…)"
+    "syntax": "**fett** · *kursiv* · - Liste · 1. nummeriert · ## Überschrift · - [ ] Aufgabe · [Link](https://…) · > Zitat · | A | B | über |---|---| Tabelle"
   },
   "output": {
     "menu": "Ausgabe",

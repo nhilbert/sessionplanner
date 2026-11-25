@@ -329,7 +329,9 @@
 }
 .md-row p,
 .md-row ul,
-.md-row ol {
+.md-row ol,
+.md-row blockquote,
+.md-row .md-table {
   margin-block: 0;
 }
 /* Shown in full, nothing is counted: its parts stand a little apart, as they read. */
