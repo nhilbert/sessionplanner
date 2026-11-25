@@ -4,7 +4,7 @@ import { Paperclip } from 'lucide-react'
 import type { Category, WorkshopState } from '@/domain/types'
 import { formatDuration, formatTime } from '@/domain/time'
 import { type PrintOptions, type PrintRow, timeRange } from '@/domain/print'
-import Markdown from '@/components/Markdown'
+import Markdown, { NoteText } from '@/components/Markdown'
 import { cx } from '@/components/ui'
 import { barStyle, categoryOf, fileNames, type ItemRow, Late, materialLabel, Slack, Tick } from './common'
 
@@ -71,10 +71,8 @@ export function Cards({ data, rows, options, categories }: { data: WorkshopState
           <Fragment key={item.id}>
             <Slack row={r} className={slackClass} />
             {item.kind === 'note' ? (
-              <aside className="avoid-break shaded my-1.5 border-l-[3px] border-black/50 py-1.5 pl-2.5 pr-3 text-[12px] italic leading-snug">
-                {item.title && <span className="font-medium not-italic">{item.title}</span>}
-                {item.title && item.description && ' – '}
-                {item.description}
+              <aside className="avoid-break shaded my-1.5 border-l-[3px] border-black/50 py-1.5 pl-2.5 pr-3 text-[12px] italic leading-snug [&_em]:not-italic">
+                <NoteText title={item.title} text={item.description} titleClassName="font-medium not-italic" className="md-compact" />
               </aside>
             ) : item.kind === 'marker' ? (
               <div className={cx('avoid-break flex items-center gap-3 py-1 text-[12px] text-black/70', bars)} style={bar}>

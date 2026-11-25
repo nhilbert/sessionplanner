@@ -7,6 +7,7 @@ import type { Item, PaletteKey } from '@/domain/types'
 import type { ItemFields } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime, MAX_DURATION, parseDuration, snap, SNAP, type Slot } from '@/domain/time'
 import { cx } from '@/components/ui'
+import Markdown from '@/components/Markdown'
 import type { TimeMode } from './TimeEditor'
 
 export const MIN_CARD = 40
@@ -254,7 +255,7 @@ export function ItemCard({ item, slot, segmentEnd, ppm, color, showDescription =
             <StickyNote size={13} className="mt-0.5 shrink-0 text-amber" />
             <div className="min-w-0 flex-1">
               <div className="italic">{title('line-clamp-2')}</div>
-              {showDescription && item.description && <div className="line-clamp-3 text-ink-2">{item.description}</div>}
+              {showDescription && item.description.trim() && <Markdown text={item.description} className="md-row line-clamp-3 max-h-[3lh] text-ink-2" />}
             </div>
           </div>
         </div>

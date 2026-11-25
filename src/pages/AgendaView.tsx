@@ -10,7 +10,7 @@ import { durationOf, formatDuration, formatTime, scheduleDay, type DaySchedule }
 import { formatDate } from '@/i18n'
 import { itemColor, useSettings } from '@/store/useSettings'
 import { Button, Chip, cx } from '@/components/ui'
-import Markdown from '@/components/Markdown'
+import Markdown, { NoteText } from '@/components/Markdown'
 import { pageUrl } from '@/domain/addresses'
 
 /** The read-only agenda for guests with view access: times, groups, descriptions, material, files (and notes if shared). */
@@ -91,9 +91,11 @@ function Row({ item, schedule, data, color }: { item: Item; schedule: DaySchedul
   const files = item.attachmentIds.map((id) => data.attachments.find((a) => a.id === id)).filter((a) => !!a)
   if (item.kind === 'note')
     return (
-      <li className="flex gap-2 rounded-md bg-amber-soft/60 px-3 py-1.5 text-[13px] italic">
+      <li className="flex gap-2 rounded-md bg-amber-soft/60 px-3 py-1.5 text-[13px] italic [&_em]:not-italic">
         <StickyNote size={13} className="mt-0.5 shrink-0 text-amber" />
-        {[item.title, item.description].filter(Boolean).join(' – ')}
+        <div className="min-w-0">
+          <NoteText title={item.title} text={item.description} />
+        </div>
       </li>
     )
   if (item.kind === 'marker')

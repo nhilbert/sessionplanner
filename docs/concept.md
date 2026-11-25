@@ -31,7 +31,7 @@ Item **kinds**:
 | Block | ≥ 5 min | a card as tall as it is long |
 | Break | ≥ 5 min | a quieter card |
 | Marker | 0 | a thin line with time and title ("Participants arrive", "Photo", "End") |
-| Note | 0 | a short text in the flow of the agenda (a reminder, pre-work, a cue for the co-facilitator) |
+| Note | 0 | a short text in the flow of the agenda (a reminder, pre-work, a cue for the co-facilitator); its text takes the same basic Markdown as the facilitation notes |
 
 Goal, method and lead make the printed plan look like a German facilitation plan (Zeit · Inhalt · Ziel · Methode · Wer · Material).
 

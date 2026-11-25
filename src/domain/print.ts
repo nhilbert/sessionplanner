@@ -2,6 +2,7 @@ import type { Category, Day, Item, Material, WorkshopState } from './types.ts'
 import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { type DaySchedule, durationOf, formatDuration, formatTime, scheduleDay } from './time.ts'
 import { workshopPacking } from './packing.ts'
+import { oneLine } from './markdown.ts'
 
 /**
  * Print views and their Markdown twin (docs/concept.md, section 6). One set of switches drives both the printed
@@ -206,6 +207,17 @@ const cell = (text: string): string => text.trim().replace(/\|/g, '\\|').replace
 /** Headings inside notes move below the heading they sit under (notes may use #, ## and ###). */
 const demote = (markdown: string, by: number): string => markdown.replace(/^(#{1,6})(\s)/gm, (_m, h: string, s: string) => '#'.repeat(Math.min(6, h.length + by)) + s)
 
+/**
+ * A note item's title and text as lines. The text is Markdown as typed: one plain line follows the title after a
+ * dash, anything longer (several lines, a list, a heading) stands below it.
+ */
+function noteLines(title: string, text: string): string[] {
+  const line = oneLine(text)
+  if (line !== null || !text.trim()) return [[title, line ?? ''].filter(Boolean).join(' – ')]
+  const body = text.replace(/\r\n?/g, '\n').replace(/^\n+|\s+$/g, '').split('\n')
+  return title ? [title, '', ...body] : body
+}
+
 /** "2 × Flipchart", or just the label for a single piece. Shared with the printed page, so paper and file agree. */
 export const materialLabel = (m: Material): string => (m.qty > 1 ? `${m.qty} × ${m.label}` : m.label)
 export const fileNames = (state: WorkshopState, item: Item): string[] => item.attachmentIds.map((a) => state.attachments.find((x) => x.id === a)?.name).filter((n): n is string => !!n)
@@ -249,7 +261,7 @@ function tableLines(rows: PrintRow[], state: WorkshopState, o: PrintOptions, l: 
     head: l.content,
     of: (r) => {
       const { item } = r
-      if (item.kind === 'note') return `*${[item.title, item.description].filter(Boolean).join(' – ')}*`
+      if (item.kind === 'note') return noteLines(item.title.trim() && `*${item.title.trim()}*`, item.description).join('\n')
       const category = o.category ? l.categoryOf(item) : null
       const title = item.kind === 'block' ? `**${item.title}**` : item.title
       return [title + (category ? ` _(${category})_` : ''), o.description && item.kind !== 'marker' ? item.description : ''].filter(Boolean).join('\n')
@@ -287,7 +299,7 @@ function sectionLines(rows: PrintRow[], state: WorkshopState, o: PrintOptions, l
     if (r.gap) out.push(`*${l.gap(formatDuration(r.gap))}*`, '')
     if (r.overlap) out.push(`*${l.overlap(formatDuration(r.overlap))}*`, '')
     if (item.kind === 'note') {
-      out.push(`> ${[item.title ? `**${item.title}**` : '', item.description].filter(Boolean).join(' – ')}`, '')
+      out.push(...noteLines(item.title.trim() && `**${item.title.trim()}**`, demote(item.description, 3)).map((line) => `> ${line}`.trimEnd()), '')
       continue
     }
     if (item.kind === 'marker') {

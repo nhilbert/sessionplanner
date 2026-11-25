@@ -320,6 +320,22 @@
   }
 }
 
+/* Markdown in a row of the agenda (a note's text): the row's size and no space between its parts, so a cut after
+   three lines counts lines. Outside the layers, so it holds against the sizes and margins Markdown sets itself.
+   Links are followed in the details: here a click selects the row. */
+.md-row [role='heading'] {
+  font-size: inherit;
+  margin-top: 0;
+}
+.md-row p,
+.md-row ul,
+.md-row ol {
+  margin-block: 0;
+}
+.md-row a {
+  pointer-events: none;
+}
+
 /* Touch screens have no hover: controls that appear on hover are always visible there. */
 @media (hover: none) {
   .reveal {

@@ -4,7 +4,7 @@ import { Paperclip } from 'lucide-react'
 import type { Category, WorkshopState } from '@/domain/types'
 import { formatDuration } from '@/domain/time'
 import { type PrintOptions, type PrintRow, timeRange } from '@/domain/print'
-import Markdown from '@/components/Markdown'
+import Markdown, { NoteText } from '@/components/Markdown'
 import { cx } from '@/components/ui'
 import { barStyle, categoryOf, fileNames, type ItemRow, Late, materialLabel, Slack } from './common'
 
@@ -119,8 +119,8 @@ export function OverviewTable({ data, rows, options, categories }: { data: Works
                 {slack}
                 <tr>
                   <td className={td} />
-                  <td className={cx(td, 'italic text-black/70')} colSpan={span(1)}>
-                    {[item.title, item.description].filter(Boolean).join(' – ')}
+                  <td className={cx(td, 'italic text-black/70 [&_em]:not-italic')} colSpan={span(1)}>
+                    <NoteText title={item.title} text={item.description} className="md-compact" />
                   </td>
                 </tr>
               </Fragment>

@@ -145,7 +145,12 @@ export default function ItemPanel({
       <TextField wrap value={item.title} onCommit={(title) => set({ title })} placeholder={t('item.title')} aria-label={t('item.title')} autoFocus={!item.title} className={cx('font-bold text-brand-ink', wide ? 'app-title text-[28px]' : 'text-[18px]')} />
     </div>
   )
-  const description = (
+  // A note's text is Markdown like the facilitation notes, with their toolbar and preview.
+  const description = item.kind === 'note' ? (
+    <div className="mt-2">
+      <NotesField tall={wide} value={item.description} onCommit={(description) => set({ description })} label={t('item.noteText')} />
+    </div>
+  ) : (
     <div className="-mx-2">
       <TextField multiline bare value={item.description} onCommit={(description) => set({ description })} placeholder={t('item.descriptionAdd')} aria-label={t('item.description')} className={cx('text-ink-2', wide ? 'text-[15px]' : 'text-[14px]')} />
     </div>

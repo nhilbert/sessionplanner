@@ -156,6 +156,20 @@ describe('workshopMarkdown', () => {
     const piped = { ...state, groups: [{ ...state.groups[0], title: 'Part 1 | Arrival' }] }
     expect(workshopMarkdown(piped, 'agenda', PRINT_DEFAULTS.agenda, labels, date)).toContain('| 09:00–09:45 | **PART 1 \\| ARRIVAL** |')
   })
+  it("keeps a note's text as the Markdown it was typed in: one line after the title, more below it", () => {
+    const withNote = (description: string, title = 'Photo') => ({ ...state, items: state.items.map((i) => (i.id === 'cue' ? { ...i, title, description } : i)) })
+    const plan = (s: typeof state) => workshopMarkdown(s, 'plan', PRINT_DEFAULTS.plan, labels, date)
+    const table = (s: typeof state) => workshopMarkdown(s, 'overview', { ...PRINT_DEFAULTS.overview, notes: true }, labels, date)
+    expect(plan(withNote('Shoot the **charts**'))).toContain('> **Photo** – Shoot the **charts**\n')
+    expect(table(withNote('Shoot the **charts**'))).toContain('| *Photo* – Shoot the **charts** |')
+    // several lines, a list and a heading stand below the title; the heading moves below the step's
+    const long = withNote('# Today\n**Challenge:** all charts\n\n- one\n- two\n')
+    expect(plan(long)).toContain('> **Photo**\n>\n> #### Today\n> **Challenge:** all charts\n>\n> - one\n> - two\n\n')
+    expect(table(long)).toContain('| *Photo*<br># Today<br>**Challenge:** all charts<br>- one<br>- two |')
+    // a text alone, and a title alone
+    expect(plan(withNote('- one\n- two', ''))).toContain('\n> - one\n> - two\n')
+    expect(table(withNote('', 'Photo'))).toContain('| *Photo* |')
+  })
   it('renders the packing list as a task list, and appends it to the plan on request', () => {
     expect(workshopMarkdown(state, 'packing', PRINT_DEFAULTS.packing, labels, date)).toContain('- [ ] Kit\n- [x] 2 × Flip chart\n')
     expect(workshopMarkdown(state, 'plan', { ...PRINT_DEFAULTS.plan, appendPacking: true }, labels, date)).toContain('## Packing list\n\n- [ ] Kit')

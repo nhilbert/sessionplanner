@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react'
+import { oneLine, parseBlocks } from '@/domain/markdown'
 
 /**
  * Basic Markdown for notes: headings (#, ##, ###), lists (-, *, 1.), task lists (- [ ] / - [x]), **bold**,
@@ -9,32 +10,28 @@ export default function Markdown({ text, className }: { text: string; className?
   return <div className={className}>{blocks(text)}</div>
 }
 
-type Block = { type: 'h'; level: number; text: string } | { type: 'ul' | 'ol'; items: string[] } | { type: 'p'; lines: string[] }
-
-export function parseBlocks(text: string): Block[] {
-  const out: Block[] = []
-  let para: string[] = []
-  const flush = () => {
-    if (para.length) out.push({ type: 'p', lines: para })
-    para = []
-  }
-  for (const raw of text.replace(/\r\n?/g, '\n').split('\n')) {
-    const line = raw.trimEnd()
-    let m: RegExpExecArray | null
-    if (!line.trim()) flush()
-    else if ((m = /^(#{1,3})\s+(.*)$/.exec(line))) {
-      flush()
-      out.push({ type: 'h', level: m[1].length, text: m[2] })
-    } else if ((m = /^\s*[-*]\s+(.*)$/.exec(line)) || (m = /^\s*\d+[.)]\s+(.*)$/.exec(line))) {
-      flush()
-      const type = /^\s*\d/.test(line) ? 'ol' : 'ul'
-      const last = out[out.length - 1]
-      if (last && last.type === type) last.items.push(m[1])
-      else out.push({ type, items: [m[1]] })
-    } else para.push(line)
-  }
-  flush()
-  return out
+/**
+ * A note item's title and text where they stand together (the guests' agenda, the printed views). The text is
+ * Markdown like the facilitation notes: one plain line follows the title after a dash, anything longer (several
+ * lines, a list, a heading) stands below it. Where the place sets its words in italics, give it `[&_em]:not-italic`,
+ * so that emphasis still shows.
+ */
+export function NoteText({ title, text, titleClassName, className }: { title: string; text: string; titleClassName?: string; className?: string }) {
+  const line = oneLine(text)
+  if (line !== null || !text.trim())
+    return (
+      <>
+        {title && <span className={titleClassName}>{title}</span>}
+        {title && line !== null && ' – '}
+        {line !== null && inline(line)}
+      </>
+    )
+  return (
+    <>
+      {title && <div className={titleClassName}>{title}</div>}
+      <Markdown text={text} className={className} />
+    </>
+  )
 }
 
 function blocks(text: string): ReactNode {
