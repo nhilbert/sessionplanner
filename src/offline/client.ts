@@ -326,9 +326,9 @@ async function refreshWorkshop(id: string): Promise<void> {
       if (css) await inlineThemeFiles(css, themeUrl(theme), (url) => fetch(url).then(() => null, () => null))
       // The slides' logos come with the stylesheet; the worksheets' one is the printout logo.
       if (info?.printLogo) await fetch(info.printLogo).catch(() => undefined)
-      // The generated slides (title, agenda, breaks) take their pictures from the theme's pool.
+      // The generated slides (title, agenda, breaks) take their pictures from the theme's pool: its photos and its illustrations.
       const pool = (await read<PoolAsset[]>(`/themes/${encodeURIComponent(theme)}/pool`)).value
-      for (const e of pool) if (e.kind === 'picture') hashes.push(e.hash)
+      for (const e of pool) if (e.kind !== 'icon') hashes.push(e.hash)
     } catch {
       // the theme stays as the app last showed it
     }

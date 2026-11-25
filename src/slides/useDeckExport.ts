@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { WorkshopState } from '@/domain/types'
 import { deckOf } from '@/domain/deck'
 import { pageUrl } from '@/domain/addresses'
 import { reportFailure } from '@/api'
 import { useSettings } from '@/store/useSettings'
-import { themeTitleNow, usePool } from '@/store/useThemes'
+import { themeTitleNow, useDeckPool } from '@/store/useThemes'
 import { usePlanner } from '@/store/usePlanner'
 import { downloadBlob, fileSlug } from '@/print/options'
 import { themeOf, useTheme } from './SlideView'
@@ -27,14 +27,13 @@ export function useDeckExport(data: WorkshopState) {
   const settings = useSettings((s) => s.settings)
   const [options] = useDeckOptions()
   const theme = useTheme(themeOf(data.workshop, settings))
-  const pool = usePool(theme)
-  const pictures = useMemo(() => pool.filter((e) => e.kind === 'picture').map((e) => e.hash), [pool])
+  const pool = useDeckPool(theme)
   const [progress, setProgress] = useState<{ kind: DeckFormat; done: number; of: number } | null>(null)
 
   const save = async (kind: DeckFormat) => {
     if (progress) return
     const state = usePlanner.getState().data ?? data
-    const deck = deckOf(state, deckLabels(t), options, pictures, themeTitleNow(theme))
+    const deck = deckOf(state, deckLabels(t), options, pool, themeTitleNow(theme))
     const title = state.workshop.title || t('workshops.untitled')
     const common = { title, theme, scope: { workshopId: state.workshop.id }, chrome: title, lang: i18n.language, part: (p: { n: number; of: number }) => t('slides.part', p) }
     setProgress({ kind, done: 0, of: deck.length })

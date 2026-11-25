@@ -28,7 +28,7 @@ const INSTRUCTIONS = `Session Planner holds workshop agendas: a workshop has day
 - The library holds reusable items and groups shared by all workshops, as copies both ways: library_insert copies an entry with its files into an agenda, and changing or deleting an entry leaves the placed copies alone. Read library_get before library_update.
 - Worksheets: a unit (or a library entry) carries printed sheets, each with pages in the worksheet format (blocks in the slides' HTML subset). Call worksheet_format before writing pages; the app adds logo, footer and date. Nothing flows to a next page: write what fits, split into pages yourself.
 - Printing: print_rule says how many copies of a step's PDF or worksheet the workshop needs (per person uses the workshop's participants, set with workshop_update; per group the step's groups). A worksheet you add is printed once until you say otherwise: set per person or per group where the room needs it.
-- Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show, or the theme's pool (theme_pool: pictures for figures, icons for cards).
+- Slides: a step (or a library entry) carries slides as markup in a small HTML subset, one layout per slide; the app generates the title, agenda and break slides itself (deck_outline). Call slide_format before writing or changing markup, read a slide with slide_get before editing it, and reuse translated slides from the pool (pool_search) where they fit. Pictures cannot be uploaded: use only asset references that pool slides or other slides already show, or the theme's pool (theme_pool: photos for places that crop the picture, illustrations for places that show it whole, icons for cards; never one kind in the place of another).
 - Prefer small, reversible changes and say what you changed. Workshops cannot be deleted through these tools; archive instead.`
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
@@ -385,7 +385,7 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
   )
   tool(
     'theme_pool',
-    "The picture pool of a theme (the default theme without one): pictures for figures and icons for cards, each an asset hash with its tags. Use them as <img src=\"asset:<hash>\"> – a picture in a figure, an icon as img.icon on a card.",
+    "The picture pool of a theme (the default theme without one), by kind, each entry an asset hash with its tags, used as <img src=\"asset:<hash>\">. pictures are photos: for places that crop the picture (a split's column, figure.full, picture cards, the title, section and break slides). illustrations are drawn and shown whole: split.contain, a figure with its caption, cards.plain.contain, a title slide pic-whole or pic-small, worksheets. icons are img.icon on a card. A photo does not go where an illustration belongs, nor the other way round: where the pool has none of the kind, write the slide without a picture.",
     { theme: z.string().optional().describe('Theme id (settings_get lists them); default: the settings\' theme') },
     (a) => ops.themePool(a.theme as string | undefined),
     'read',

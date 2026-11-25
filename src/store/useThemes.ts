@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { TFunction } from 'i18next'
 import { api } from '@/api'
 import { type PoolAsset, type ThemeInfo, titleOfTheme } from '@/domain/theme'
+import { type DeckPool, deckPoolOf, type KindContext, kindContextOf } from '@/domain/pool'
 import type { ThemeTitle } from '@/domain/titleVariants'
 import type { SlideTemplate } from '@/domain/types'
 import { slideLayout } from '@/domain/slides'
@@ -102,8 +103,19 @@ export function usePool(theme: string): PoolAsset[] {
   return pool ?? EMPTY_POOL
 }
 const EMPTY_POOL: PoolAsset[] = []
-/** The pictures of a theme's pool now, outside React (the editor's deck source reads them when it is asked). */
-export const poolPicturesNow = (theme: string): string[] => (useThemes.getState().pools[theme] ?? EMPTY_POOL).filter((e) => e.kind === 'picture').map((e) => e.hash)
+/** A theme's pool as the generated slides take it (its photos, its illustrations, and which of them its figures show), loaded like `usePool`. */
+export function useDeckPool(theme: string): DeckPool {
+  const pool = usePool(theme)
+  const info = useThemes((s) => s.themes.find((x) => x.id === theme))
+  return useMemo(() => deckPoolOf(pool, info), [pool, info])
+}
+/** The same now, outside React (the editor's deck source reads it when it is asked). */
+export const deckPoolNow = (theme: string): DeckPool => deckPoolOf(useThemes.getState().pools[theme] ?? EMPTY_POOL, useThemes.getState().themes.find((x) => x.id === theme))
+/** What decides, besides the slide, which kind of picture a place takes under a theme (`domain/pool.ts`): the picker shows that kind first. */
+export function useKindContext(theme: string | undefined): KindContext {
+  const info = useThemes((s) => s.themes.find((x) => x.id === theme))
+  return useMemo(() => kindContextOf(info), [info])
+}
 /** What a theme says about its title slides (the variant, the variants on offer, its title picture), as the list of themes has it. */
 export const themeTitleNow = (theme: string): ThemeTitle | undefined => titleOfTheme(useThemes.getState().themes.find((x) => x.id === theme))
 export function useThemeTitle(theme: string): ThemeTitle | undefined {

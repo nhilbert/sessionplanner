@@ -5,7 +5,7 @@ import { Image, LayoutTemplate, Shuffle, Upload } from 'lucide-react'
 import { api } from '@/api'
 import { sampleSets, seeded, variant } from '@/domain/sampleSets'
 import { STARTER_GROUPS, startersFor, starterSlide } from '@/domain/starters'
-import { usePool, useThemes } from '@/store/useThemes'
+import { useDeckPool, useThemes } from '@/store/useThemes'
 import { Button, Modal, Segmented } from '@/components/ui'
 import { type AssetScope, SlideView } from './SlideView'
 import { LayoutGrid } from './editor/LayoutPicker'
@@ -32,15 +32,14 @@ export function NewSlidePicker({ open, onClose, onPick, onPool, theme, scope, ow
   useEffect(() => {
     if (open) setSeed(Math.floor(Math.random() * 2 ** 31))
   }, [open])
-  const pool = usePool(theme)
+  const pool = useDeckPool(theme)
   const starters = useMemo(() => {
-    const pictures = pool.filter((a) => a.kind === 'picture').map((a) => a.hash)
-    return startersFor(pictures.length).map((s, i) => {
+    return startersFor(pool).map((s, i) => {
       // the same draw for the same seed and starter, so the page stands still while it is looked at
       const random = seeded(seed + i * 7919)
       const set = variant(sets[subject === 'mix' ? Math.floor(random() * sets.length) : subject % sets.length], random)
-      const turn = pictures.length ? Math.floor(random() * pictures.length) : 0
-      return { ...s, html: starterSlide(s, set, [...pictures.slice(turn), ...pictures.slice(0, turn)]) }
+      // which of the pool's pictures it begins with: its places take the kind they show, photos or illustrations
+      return { ...s, html: starterSlide(s, set, pool, Math.floor(random() * 1000)) }
     })
   }, [pool, sets, subject, seed])
   const [busy, setBusy] = useState(false)

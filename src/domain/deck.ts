@@ -2,6 +2,7 @@ import type { WorkshopState } from './types.ts'
 import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { durationOf, formatTime, scheduleDay } from './time.ts'
 import { esc, slideLayout } from './slides.ts'
+import { type DeckPool, EMPTY_DECK_POOL, type PictureKind, poolOfKind, titlePictureKind } from './pool.ts'
 import { isTitleVariant, resolveTitleVariant, titleVariantClass, type ThemeTitle } from './titleVariants.ts'
 
 /**
@@ -63,13 +64,15 @@ export interface DeckSlideRef {
 }
 
 /**
- * @param pool the pictures of the workshop's theme (asset hashes): the title, agenda and break slides take them in
- * turn, starting at a place the workshop id decides, so the same deck shows the same pictures every time.
+ * @param pool the photos and illustrations of the workshop's theme (asset hashes): the title, agenda and break slides
+ * take them in turn, each from the kind its place shows (`pool.ts`: a photo where the picture is cropped, an
+ * illustration where it stands whole), starting at a place the workshop id decides, so the same deck shows the same
+ * pictures every time.
  * @param title what the workshop's theme says about title slides: the variant of those that chose none, the variants
  * on offer, and a picture of the pool that stands on them instead of the pool's next. Unknown (the list of themes has
  * not come): a title slide carries only the variant chosen for it, and the theme's stylesheet decides the others.
  */
-export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: string[] = [], title?: ThemeTitle): DeckSlideRef[] {
+export function deckOf(state: WorkshopState, labels: DeckLabels, options: DeckOptions = DECK_DEFAULTS, pool: DeckPool = EMPTY_DECK_POOL, title?: ThemeTitle): DeckSlideRef[] {
   const out: DeckSlideRef[] = withParts(build(state, labels, options, pool, title))
   return out
 }
@@ -90,19 +93,24 @@ function withParts(deck: DeckSlideRef[]): DeckSlideRef[] {
   return deck
 }
 
-function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: string[], theme: ThemeTitle | undefined): DeckSlideRef[] {
+function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, pool: DeckPool, theme: ThemeTitle | undefined): DeckSlideRef[] {
   const out: DeckSlideRef[] = []
   let taken = 0
   /**
-   * The picture of a generated slide: chosen by hand for its key, else the pool's next in turn. A slide with a picture
-   * `fixed` by the theme shows that one and still takes its turn, so the slides after it keep their pictures.
+   * The picture of a generated slide: chosen by hand for its key, else the next in turn of the kind its place shows.
+   * The turn is one count over both kinds, and a place whose kind the pool does not hold takes its turn without a
+   * picture (a photo never stands in for an illustration, nor the other way round): so the slides after it keep their
+   * pictures, whatever a title's variant is changed to. A slide with a picture `fixed` by the theme shows that one,
+   * where it is of the place's kind, and takes its turn too.
    */
-  const picture = (key: string, fixed = ''): string => {
+  const picture = (key: string, kind: PictureKind, fixed = ''): string => {
     const chosen = state.workshop.pictures?.[key]
     if (chosen) return `<figure><img src="asset:${chosen}" alt=""></figure>`
-    if (!options.pictures || !pool.length) return ''
-    const next = pool[(seedOf(state.workshop.id) + (options.shift ?? 0) + taken++) % pool.length]
-    return `<figure><img src="asset:${fixed && pool.includes(fixed) ? fixed : next}" alt=""></figure>`
+    if (!options.pictures) return ''
+    const turn = seedOf(state.workshop.id) + (options.shift ?? 0) + taken++
+    const list = poolOfKind(pool, pool.whole ? 'illustration' : kind)
+    if (!list.length) return ''
+    return `<figure><img src="asset:${fixed && list.includes(fixed) ? fixed : list[turn % list.length]}" alt=""></figure>`
   }
   const days = sortedDays(state.days)
   const title = state.workshop.title || labels.untitled
@@ -116,7 +124,7 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
     // markup, as themes ask whether there is one.
     const chosen = state.workshop.variants?.[`title:${day.id}`]
     const variant = theme ? resolveTitleVariant(chosen, theme) : isTitleVariant(chosen) ? chosen : null
-    const figure = picture(`title:${day.id}`, theme?.picture)
+    const figure = picture(`title:${day.id}`, titlePictureKind(variant), theme?.picture)
     out.push({
       key: `title:${day.id}`,
       generated: 'title',
@@ -140,7 +148,7 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
       for (let p = 0; p < pages; p++) {
         const part = rows.slice(p * AGENDA_LINES, (p + 1) * AGENDA_LINES)
         const list = `<ol class="agenda${part.length > 8 ? ' many' : ''}">${part.map((r) => `<li><span class="when">${formatTime(r.when)}</span><span${r.cls}>${esc(r.text)}</span></li>`).join('')}</ol>`
-        const pic = picture(`agenda:${day.id}:${p}`)
+        const pic = picture(`agenda:${day.id}:${p}`, 'picture')
         out.push({
           key: `agenda:${day.id}:${p}`,
           generated: 'agenda',
@@ -157,7 +165,7 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
           key: `group:${group.id}`,
           generated: 'group',
           caption: group.title,
-          html: `<section class="slide section"><div class="text"><h1>${esc(group.title)}</h1></div>${picture(`group:${group.id}`)}</section>`,
+          html: `<section class="slide section"><div class="text"><h1>${esc(group.title)}</h1></div>${picture(`group:${group.id}`, 'picture')}</section>`,
         })
       }
       if (item.kind === 'marker' || item.kind === 'note') continue
@@ -170,7 +178,7 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
           generated: 'break',
           itemId: item.id,
           caption: item.title || labels.breakTitle,
-          html: `<section class="slide break"><div class="text"><h1>${esc(item.title || labels.breakTitle)}</h1><p class="until">${esc(labels.minutes(durationOf(item)))}${slot ? ` · <strong>${esc(labels.until(formatTime(slot.end)))}</strong>` : ''}</p></div>${picture(`break:${item.id}`)}</section>`,
+          html: `<section class="slide break"><div class="text"><h1>${esc(item.title || labels.breakTitle)}</h1><p class="until">${esc(labels.minutes(durationOf(item)))}${slot ? ` · <strong>${esc(labels.until(formatTime(slot.end)))}</strong>` : ''}</p></div>${picture(`break:${item.id}`, 'picture')}</section>`,
         })
       }
     }

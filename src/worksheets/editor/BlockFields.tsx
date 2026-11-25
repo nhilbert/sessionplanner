@@ -333,7 +333,7 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
     case 'picture':
       return (
         <div className="space-y-2">
-          <PictureField path={`${path}.image`} value={b.image.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).image = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} />
+          <PictureField path={`${path}.image`} value={b.image.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).image = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} prefer="illustration" />
           <Text label={t('sheetEditor.caption')} value={b.caption} onChange={(v) => change((x) => void ((x as typeof b).caption = v), `${path}.caption`)} />
         </div>
       )
@@ -346,7 +346,7 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
           onChange={(items) => change((x) => void ((x as typeof b).items = items), `${path}.items`)}
           render={(p, i, put) => (
             <>
-              <PictureField path={`${path}.items.${i}`} value={p.image.replace(/^asset:/, '')} onChange={(hash) => put({ ...p, image: hash ? `asset:${hash}` : '' })} onFocus={() => undefined} scope={scope} known={[]} theme={theme} />
+              <PictureField path={`${path}.items.${i}`} value={p.image.replace(/^asset:/, '')} onChange={(hash) => put({ ...p, image: hash ? `asset:${hash}` : '' })} onFocus={() => undefined} scope={scope} known={[]} theme={theme} prefer="illustration" />
               <Text label={t('sheetEditor.caption')} value={p.caption} onChange={(v) => put({ ...p, caption: v })} />
             </>
           )}
@@ -446,13 +446,13 @@ function Content({ b, change, scope, theme, words, path }: { b: SheetBlock; chan
           <Items items={b.items} field={`${path}.items`} onChange={(items) => change((x) => void ((x as typeof b).items = items), `${path}.items`)} />
           <RoomFields room={b.room} onChange={(room) => change((x) => void ((x as typeof b).room = room))} />
           <div className="text-[11px] text-ink-3">{t('sheetEditor.stamp')}</div>
-          <PictureField path={`${path}.stamp`} value={b.stamp.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).stamp = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} />
+          <PictureField path={`${path}.stamp`} value={b.stamp.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).stamp = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} prefer="illustration" />
         </div>
       )
     case 'figure':
       return (
         <div className="space-y-2">
-          <PictureField path={`${path}.image`} value={b.image.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).image = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} />
+          <PictureField path={`${path}.image`} value={b.image.replace(/^asset:/, '')} onChange={(hash) => change((x) => void ((x as typeof b).image = hash ? `asset:${hash}` : ''))} onFocus={() => undefined} scope={scope} known={[]} theme={theme} prefer="illustration" />
           <Text label={t('sheetEditor.caption')} multiline value={b.caption} onChange={(v) => change((x) => void ((x as typeof b).caption = v), `${path}.caption`)} />
           <div className="text-[11px] text-ink-3">{t('sheetEditor.fieldsAround')}</div>
           <List

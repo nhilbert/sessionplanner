@@ -24,7 +24,8 @@ import { SlideMenu, SlideSort, SortSlide, type Side } from './SlideSort'
  */
 export function DeckPanel({ data, change, onNotice }: { data: WorkshopState; change: (ops: Op[]) => void; onNotice: (text: string) => void }) {
   const { t } = useTranslation()
-  const { deck, theme, options, update, pictures } = useDeck(data)
+  const { deck, theme, options, update, pool } = useDeck(data)
+  const pictures = pool.pictures.length + pool.illustrations.length
   // the slides of the steps that still say a starter's sample words: named before the deck is shown or exported
   const sampled = useMemo(() => deck.flatMap((s, i) => (!s.generated && sampleTextsOf(s.html).length ? [{ key: s.key, n: i + 1 }] : [])), [deck])
   const title = data.workshop.title || t('workshops.untitled')
@@ -62,10 +63,10 @@ export function DeckPanel({ data, change, onNotice }: { data: WorkshopState; cha
         <Option checked={options.agenda} onChange={(agenda) => update({ agenda })}>{t('slides.withAgenda')}</Option>
         <Option checked={options.breaks} onChange={(breaks) => update({ breaks })}>{t('slides.withBreaks')}</Option>
         <Option checked={options.groups} onChange={(groups) => update({ groups })}>{t('slides.withGroups')}</Option>
-        {pictures.length > 0 && (
+        {pictures > 0 && (
           <>
             <Option checked={options.pictures} onChange={(pictures) => update({ pictures })}>{t('slides.withPictures')}</Option>
-            {options.pictures && pictures.length > 1 && (
+            {options.pictures && pictures > 1 && (
               <button type="button" onClick={() => update({ shift: (options.shift ?? 0) + 1 })} className="inline-flex items-center gap-1 text-[13px] text-ink-2 hover:text-ink">
                 <Shuffle size={13} />
                 {t('slides.otherPictures')}

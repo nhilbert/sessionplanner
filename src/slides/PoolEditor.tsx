@@ -1,17 +1,25 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Upload, X } from 'lucide-react'
+import { Upload } from 'lucide-react'
 import { api, assetUrl } from '@/api'
-import type { PoolAsset, PoolKind } from '@/domain/theme'
+import { POOL_KINDS, type PoolAsset, type PoolKind } from '@/domain/theme'
 import { usePool, useThemes } from '@/store/useThemes'
-import { Button, cx, IconButton } from '@/components/ui'
+import { Button, cx } from '@/components/ui'
+import Menu from '@/components/Menu'
 import { uploadProblem } from '@/planner/upload'
 
 /**
- * The picture pool of a theme (docs/slides.md, section 4): its pictures and its icons, each with the words it is
- * found by. Shown on the pictures page and in the theme editor.
+ * The picture pool of a theme (docs/slides.md, section 4): its photos, its illustrations and its icons, each with the
+ * words it is found by. The three are lists of their own because they do different work (`domain/pool.ts`): a place
+ * that crops its picture takes a photo, one that shows it whole an illustration. A picture filed in the wrong list is
+ * moved through its menu. Shown on the pictures page and in the theme editor.
  */
-/** The pool of a theme: its pictures and its icons, each with the words it is found by. */
+const LABELS = {
+  picture: { title: 'themes.pictures', hint: 'themes.picturesHint', upload: 'themes.uploadPictures', move: 'themes.moveToPictures' },
+  illustration: { title: 'themes.illustrations', hint: 'themes.illustrationsHint', upload: 'themes.uploadIllustrations', move: 'themes.moveToIllustrations' },
+  icon: { title: 'themes.icons', hint: 'themes.iconsHint', upload: 'themes.uploadIcons', move: 'themes.moveToIcons' },
+} as const satisfies Record<PoolKind, Record<string, string>>
+
 export function PoolEditor({ themeId, large }: { themeId: string; large?: boolean }) {
   const pool = usePool(themeId)
   const setPool = useThemes((s) => s.setPool)
@@ -19,7 +27,7 @@ export function PoolEditor({ themeId, large }: { themeId: string; large?: boolea
   const replace = (next: PoolAsset[]) => setPool(themeId, next)
   return (
     <div className={cx('grid gap-5', large ? 'gap-8' : 'md:grid-cols-2')}>
-      {(['picture', 'icon'] as PoolKind[]).map((kind) => (
+      {POOL_KINDS.map((kind) => (
         <PoolKindList
           key={kind}
           kind={kind}
@@ -39,6 +47,11 @@ export function PoolEditor({ themeId, large }: { themeId: string; large?: boolea
             const entry = await api.updatePoolAsset(themeId, hash, { tags })
             replace(pool.map((e) => (e.hash === hash ? entry : e)))
           }}
+          onMove={async (hash, to) => {
+            const entry = await api.updatePoolAsset(themeId, hash, { kind: to })
+            replace(pool.map((e) => (e.hash === hash ? entry : e)))
+            void load(true)
+          }}
           onRemove={async (hash) => {
             await api.removePoolAsset(themeId, hash)
             replace(pool.filter((e) => e.hash !== hash))
@@ -50,7 +63,7 @@ export function PoolEditor({ themeId, large }: { themeId: string; large?: boolea
   )
 }
 
-function PoolKindList({ kind, entries, onUpload, onTags, onRemove, large }: { kind: PoolKind; entries: PoolAsset[]; large?: boolean; onUpload: (files: File[]) => Promise<void>; onTags: (hash: string, tags: string[]) => Promise<void>; onRemove: (hash: string) => Promise<void> }) {
+function PoolKindList({ kind, entries, onUpload, onTags, onMove, onRemove, large }: { kind: PoolKind; entries: PoolAsset[]; large?: boolean; onUpload: (files: File[]) => Promise<void>; onTags: (hash: string, tags: string[]) => Promise<void>; onMove: (hash: string, to: PoolKind) => Promise<void>; onRemove: (hash: string) => Promise<void> }) {
   const { t } = useTranslation()
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
@@ -74,6 +87,11 @@ function PoolKindList({ kind, entries, onUpload, onTags, onRemove, large }: { ki
       setBusy(false)
     }
   }
+  /** A change to one entry; what went wrong is said above the list. */
+  const run = (change: () => Promise<void>) => {
+    setError('')
+    void change().catch(() => setError(t('themes.poolFailed')))
+  }
   return (
     <div
       className={cx('rounded-lg border-2 border-dashed p-3 transition-colors', over ? 'border-accent bg-accent/5' : 'border-transparent')}
@@ -91,12 +109,12 @@ function PoolKindList({ kind, entries, onUpload, onTags, onRemove, large }: { ki
       }}
     >
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-[12px] font-medium text-ink-2">{t(kind === 'picture' ? 'themes.pictures' : 'themes.icons')}</span>
+        <span className="text-[12px] font-medium text-ink-2">{t(LABELS[kind].title)}</span>
         <span className="tnum text-[12px] text-ink-3">{entries.length}</span>
         <span className="flex-1" />
         <Button size="sm" onClick={() => input.current?.click()} disabled={busy}>
           <Upload size={13} />
-          {busy ? t('common.uploading') : t(kind === 'picture' ? 'themes.uploadPictures' : 'themes.uploadIcons')}
+          {busy ? t('common.uploading') : t(LABELS[kind].upload)}
         </Button>
         <input
           ref={input}
@@ -111,12 +129,13 @@ function PoolKindList({ kind, entries, onUpload, onTags, onRemove, large }: { ki
           }}
         />
       </div>
+      <p className="mb-2 text-[12px] leading-snug text-ink-3">{t(LABELS[kind].hint)}</p>
       {error && <p className="mb-2 text-[12px] text-rose">{error}</p>}
       {entries.length > 12 && <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('editor.searchPool')} aria-label={t('editor.searchPool')} className="field mb-2 h-8 w-full px-2 text-[13px]" />}
       {sorted.length ? (
         <ul className={cx('grid gap-2', kind === 'icon' ? (large ? 'grid-cols-5 sm:grid-cols-8 lg:grid-cols-10' : 'grid-cols-4 sm:grid-cols-5') : large ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
           {page.map((e) => (
-            <PoolEntry key={e.hash} entry={e} onTags={(tags) => onTags(e.hash, tags)} onRemove={() => onRemove(e.hash)} />
+            <PoolEntry key={e.hash} entry={e} onTags={(tags) => onTags(e.hash, tags)} onMove={(to) => run(() => onMove(e.hash, to))} onRemove={() => run(() => onRemove(e.hash))} />
           ))}
         </ul>
       ) : (
@@ -135,7 +154,7 @@ function PoolKindList({ kind, entries, onUpload, onTags, onRemove, large }: { ki
   )
 }
 
-function PoolEntry({ entry, onTags, onRemove }: { entry: PoolAsset; onTags: (tags: string[]) => Promise<void>; onRemove: () => Promise<void> }) {
+function PoolEntry({ entry, onTags, onMove, onRemove }: { entry: PoolAsset; onTags: (tags: string[]) => Promise<void>; onMove: (to: PoolKind) => void; onRemove: () => void }) {
   const { t } = useTranslation()
   const [text, setText] = useState(entry.tags.join(', '))
   const [base, setBase] = useState(entry.tags.join(', '))
@@ -150,12 +169,18 @@ function PoolEntry({ entry, onTags, onRemove }: { entry: PoolAsset; onTags: (tag
   }
   return (
     <li className="group relative min-w-0">
-      <div className={cx('overflow-hidden rounded-md border border-line bg-surface-2', entry.kind === 'icon' ? 'aspect-square p-2' : 'aspect-[4/3]')}>
-        <img src={assetUrl('library', entry.hash)} alt="" className={cx('h-full w-full', entry.kind === 'icon' ? 'object-contain' : 'object-cover')} loading="lazy" />
+      <div className={cx('overflow-hidden rounded-md border border-line bg-surface-2', entry.kind === 'icon' ? 'aspect-square p-2' : entry.kind === 'illustration' ? 'aspect-[4/3] p-2' : 'aspect-[4/3]')}>
+        <img src={assetUrl('library', entry.hash)} alt="" className={cx('h-full w-full', entry.kind === 'picture' ? 'object-cover' : 'object-contain')} loading="lazy" />
       </div>
-      <IconButton label={t('themes.removeFromPool')} onClick={() => void onRemove()} className="absolute right-1 top-1 bg-paper/90 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
-        <X size={13} />
-      </IconButton>
+      <Menu
+        float
+        label={t('themes.poolActions')}
+        className="!absolute right-1 top-1 rounded-md bg-paper/90 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 has-[[aria-expanded=true]]:opacity-100 pointer-coarse:opacity-100"
+        items={[
+          ...POOL_KINDS.filter((k) => k !== entry.kind).map((k) => ({ label: t(LABELS[k].move), onSelect: () => onMove(k) })),
+          { label: t('themes.removeFromPool'), danger: true, separated: true, onSelect: onRemove },
+        ]}
+      />
       <input value={text} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} placeholder={t('themes.tagsPlaceholder')} aria-label={t('themes.tags')} className="field mt-1 h-7 w-full px-1.5 text-[12px]" spellCheck={false} />
     </li>
   )

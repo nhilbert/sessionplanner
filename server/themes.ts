@@ -57,7 +57,7 @@ export function listThemes(themesDir: string | undefined, dataThemes: (Pick<Them
     ...dataThemes.filter((t) => t.id !== 'default').map((t): ThemeInfo => {
       const dark = !!t.tokens && isDark(t.tokens.colors.bg)
       // on paper: where the logo stands, the footer line, and an accent that reads on white (a dark theme prints light)
-      return { id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, printLogo: dark ? null : themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo', base), dark, paper: t.tokens?.paper, paperAccent: t.tokens ? paperAccent(t.tokens) : undefined, title: t.tokens ? themeTitle(t.tokens) : undefined }
+      return { id: t.id, name: t.name || t.id, kind: 'data', updatedAt: t.updatedAt, printLogo: dark ? null : themeLogoUrl({ id: t.id, logo: t.logo ?? null, logoLight: null }, 'logo', base), dark, paper: t.tokens?.paper, paperAccent: t.tokens ? paperAccent(t.tokens) : undefined, title: t.tokens ? themeTitle(t.tokens) : undefined, family: t.tokens?.family }
     }),
   ]
 }

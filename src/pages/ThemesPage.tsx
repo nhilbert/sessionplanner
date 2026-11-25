@@ -8,6 +8,7 @@ import { SLIDE_LAYOUTS } from '@/domain/slideFormat'
 import { contrastHex } from '@/domain/color'
 import { contrastPairs, DERIVED_COLOR_KEYS, derivedColors, FONT_KEYS, type DerivedColorKey, PAPER_LOGOS, type PaperLogo, type Theme, THEME_COLOR_KEYS, type ThemeColorKey, themeCss, themeFileUrls, type ThemeTokens } from '@/domain/theme'
 import { themeLabel, usePool, useThemes } from '@/store/useThemes'
+import { familyShowsWhole, titlePictureKind } from '@/domain/pool'
 import { familyTitleChoices, themeTitle, titleVariantClass, type TitleVariant } from '@/domain/titleVariants'
 import { VariantTiles, variantLabel } from '@/slides/editor/TitlePanel'
 import { PoolEditor } from '@/slides/PoolEditor'
@@ -230,10 +231,17 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
   const derived = derivedColors(tokens)
   // The title slide: the variants the family shows, the theme's own among them, the ones a workshop may choose.
   const pool = usePool(theme.id)
-  const poolPictures = useMemo(() => pool.filter((e) => e.kind === 'picture').map((e) => e.hash), [pool])
   const titleFamily = familyTitleChoices(tokens.family)
   const title = themeTitle(tokens)
-  const titlePicture = poolPictures.includes(title.picture) ? title.picture : (poolPictures[0] ?? '')
+  // the theme's title picture is one of the kind its own variant shows: a photo for a column, an illustration where the picture stands whole
+  const titleKind = titlePictureKind(title.variant, familyShowsWhole(tokens.family))
+  const poolPictures = useMemo(() => pool.filter((e) => e.kind === titleKind).map((e) => e.hash), [pool, titleKind])
+  // a tile shows its variant with a picture of the kind that variant takes: the theme's title picture where it is one, else the pool's first
+  const titleSamplePicture = (v: TitleVariant): string => {
+    const kind = titlePictureKind(v, familyShowsWhole(tokens.family))
+    const list = pool.filter((e) => e.kind === kind).map((e) => e.hash)
+    return list.includes(title.picture) ? title.picture : (list[0] ?? '')
+  }
   const choicesWith = (variant: TitleVariant, on: boolean): TitleVariant[] | null => {
     const next = titleFamily.filter((v) => (v === variant ? on : title.choices.includes(v)))
     return next.length === titleFamily.length ? null : next
@@ -399,7 +407,7 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
           {css.trim() && <p className="mb-3 text-[12px] leading-snug text-ink-3">{t('themes.titleOwnRules')}</p>}
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div>
-              <VariantTiles columns={3} choices={titleFamily} value={title.variant} html={(v) => titleSample(v, titlePicture)} theme={PREVIEW_THEME} scope="library" onPick={(v) => update({ titleVariant: v, titleChoices: choicesWith(v, true) })} />
+              <VariantTiles columns={3} choices={titleFamily} value={title.variant} html={(v) => titleSample(v, titleSamplePicture(v))} theme={PREVIEW_THEME} scope="library" onPick={(v) => update({ titleVariant: v, titleChoices: choicesWith(v, true) })} />
               {titleFamily.length > 1 && (
                 <Field label={t('themes.titleChoices')} hint={t('themes.titleChoicesHint')} className="mt-3">
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px]">
@@ -421,7 +429,7 @@ function ThemeEditor({ theme, onRemove, onCopy }: { theme: Theme; onRemove: () =
                   </Button>
                   {poolPictures.map((hash) => (
                     <button key={hash} type="button" aria-pressed={hash === title.picture} aria-label={t('themes.titlePicture')} onClick={() => update({ titlePicture: hash })} className={cx('h-11 w-[68px] rounded-lg p-0.5', hash === title.picture ? 'bg-accent' : 'bg-transparent')}>
-                      <img src={assetUrl('library', hash)} alt="" className="h-full w-full rounded-md object-cover" loading="lazy" />
+                      <img src={assetUrl('library', hash)} alt="" className={cx('h-full w-full rounded-md', titleKind === 'illustration' ? 'object-contain' : 'object-cover')} loading="lazy" />
                     </button>
                   ))}
                 </div>

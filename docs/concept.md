@@ -318,6 +318,7 @@ Functions had been placed one by one as they came: printing in the header, prese
 - Nothing a guest writes may run: slides are sanitised on write and on render with an allowlist, SVG included; assets are raster only.
 - Nothing a guest does may fill the server: a guest uploads at most 250 MB a day (files and slide pictures together; a picture the server already has costs nothing) and holds at most 10 live-update streams at once (one per window); the files of a workshop take at most 500 MB, the owner's too. The day's count and the streams are kept in memory, so a restart starts afresh (`QUOTAS` in `server/app.ts`).
 - The app generates what the plan knows: title, agenda and break slides with the computed times; the facts panel of an exercise can come from the item later.
+- A theme's pool keeps photos, illustrations and icons apart (2026-11-25), because they do different work: a photo can be cropped and carry a surface, an illustration stands whole beside the words and brings a text slide to life. The place decides which kind it takes (cropped: a photo; shown whole: an illustration), one kind never stands in for the other, and a place whose kind the pool lacks stays without a picture; by hand everything stays possible. See [slides.md](slides.md), section 4.
 - Glyphs on section slides need a CJK font; Noto Sans JP, sliced, loaded on demand, inlined into the standalone file when used.
 - No slide editor. A source field for small fixes; everything else happens outside, or through the connector later. *(Revised the same day: see "slide editor" above.)*
 

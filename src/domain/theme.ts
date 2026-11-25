@@ -71,9 +71,13 @@ export interface PaperProfile {
   footer: string
 }
 
-/** What a theme's pool holds: pictures (photos for the moment slides) and icons (for cards). */
-export type PoolKind = 'picture' | 'icon'
-export const POOL_KINDS: PoolKind[] = ['picture', 'icon']
+/**
+ * What a theme's pool holds: photos (`picture`, the name the kind had before there were illustrations; cropped to
+ * columns, bands and backgrounds), illustrations (drawn, shown whole beside the words) and icons (for cards). Which
+ * place takes which: `pool.ts`.
+ */
+export type PoolKind = 'picture' | 'illustration' | 'icon'
+export const POOL_KINDS: PoolKind[] = ['picture', 'illustration', 'icon']
 /** One asset of a theme's pool: a stored picture with the words it is found by. */
 export interface PoolAsset {
   hash: string
@@ -127,6 +131,8 @@ export interface ThemeInfo {
   paperAccent?: string | null
   /** Whether the slides' ground is dark: the host then asks for the cut-outs made for a dark ground (docs/slides.md, section 5). */
   dark?: boolean
+  /** The template family of a data theme; the playful one shows every figure whole, so its figures are illustrations (`pool.ts`). */
+  family?: FamilyKey
   /** The theme's title slides: the default variant, the variants on offer, its title picture; absent = the column, every variant, the pool in turn. */
   title?: ThemeTitle
 }

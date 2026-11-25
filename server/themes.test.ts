@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { openDb } from './db.ts'
@@ -7,7 +7,7 @@ import { Repo } from './repo.ts'
 import { Hub } from './hub.ts'
 import { createApp } from './app.ts'
 import { Ops } from './ops.ts'
-import type { Theme, ThemeInfo } from '../src/domain/theme.ts'
+import { DEFAULT_TOKENS, type Theme, type ThemeInfo } from '../src/domain/theme.ts'
 import type { SlideTemplate, WorkshopState } from '../src/domain/types.ts'
 
 const BASE = 'http://127.0.0.1'
@@ -351,5 +351,76 @@ describe('the asset pool of a theme', () => {
     // once no pool holds it and no slide shows it, the sweep removes it
     await post(app, `/api/themes/${theme.id}/pool/${icon.hash}`, undefined, OWNER, 'DELETE')
     expect(await (await app.request(`${BASE}/api/assets/sweep`, { method: 'POST', headers: H() })).json()).toEqual({ removed: 2 })
+  })
+})
+
+describe('photos, illustrations and icons in the pool', () => {
+  const asset = (repo: Repo, letter: string) => {
+    repo.addAsset({ hash: letter.repeat(64), mime: 'image/png', size: 1 })
+    return letter.repeat(64)
+  }
+
+  it('holds illustrations as a kind of their own, and moves an entry to the end of another kind', async () => {
+    const { app, repo } = setup()
+    const theme = (await (await post(app, '/api/themes', { name: 'Pool' })).json()) as Theme
+    const [photo, drawn, second, wrong] = ['a', 'b', 'c', 'd'].map((l) => asset(repo, l))
+    expect((await post(app, `/api/themes/${theme.id}/pool`, { hash: photo, kind: 'picture' })).status).toBe(201)
+    expect((await post(app, `/api/themes/${theme.id}/pool`, { hash: drawn, kind: 'illustration', tags: ['Gespräch'] })).status).toBe(201)
+    expect((await post(app, `/api/themes/${theme.id}/pool`, { hash: second, kind: 'illustration' })).status).toBe(201)
+    // filed as a photo by mistake: moved, it stands after the illustrations already there and keeps its tags
+    expect((await post(app, `/api/themes/${theme.id}/pool`, { hash: wrong, kind: 'picture', tags: ['Team'] })).status).toBe(201)
+    const moved = (await (await post(app, `/api/themes/${theme.id}/pool/${wrong}`, { kind: 'illustration' }, OWNER, 'PUT')).json()) as { kind: string; tags: string[]; position: number }
+    expect(moved.kind).toBe('illustration')
+    expect(moved.tags).toEqual(['team'])
+    const illustrations = repo.listPool(theme.id).filter((e) => e.kind === 'illustration').sort((a, b) => a.position - b.position)
+    expect(illustrations.map((e) => e.hash)).toEqual([drawn, second, wrong])
+    expect(repo.listPool(theme.id).filter((e) => e.kind === 'picture').map((e) => e.hash)).toEqual([photo])
+    // tags alone leave an entry where it stands; a kind the pool does not know is refused; moving is the owner's
+    const before = repo.getPoolAsset(theme.id, drawn)!.position
+    await post(app, `/api/themes/${theme.id}/pool/${drawn}`, { tags: ['zwei'] }, OWNER, 'PUT')
+    expect(repo.getPoolAsset(theme.id, drawn)!.position).toBe(before)
+    expect((await post(app, `/api/themes/${theme.id}/pool/${drawn}`, { kind: 'drawing' }, OWNER, 'PUT')).status).toBe(400)
+    expect((await post(app, `/api/themes/${theme.id}/pool/${drawn}`, { kind: 'icon' }, GUEST, 'PUT')).status).toBe(403)
+  })
+
+  it('tells the list of themes which family a theme is of, so the app knows whose figures are illustrations', async () => {
+    const { app, repo } = setup()
+    repo.createTheme({ id: 'school', name: 'School', tokens: { ...DEFAULT_TOKENS, family: 'playful' } })
+    repo.createTheme({ id: 'calm', name: 'Calm', tokens: DEFAULT_TOKENS })
+    const themes = (await (await app.request(`${BASE}/api/themes`, { headers: H() })).json()) as ThemeInfo[]
+    expect(themes.find((t) => t.id === 'school')?.family).toBe('playful')
+    expect(themes.find((t) => t.id === 'calm')?.family).toBe('calm')
+    expect(themes.find((t) => t.id === 'demo')?.family).toBeUndefined()
+  })
+
+  it('answers the connector with the pool by kind', () => {
+    const { repo, themesDir } = setup()
+    const ops = new Ops(repo, { themesDir })
+    repo.createTheme({ id: 'school', name: 'School', tokens: { ...DEFAULT_TOKENS, family: 'playful' } })
+    repo.addPoolAsset('school', { hash: asset(repo, 'a'), kind: 'illustration', tags: ['lernen'] })
+    repo.addPoolAsset('school', { hash: asset(repo, 'b'), kind: 'picture', tags: [] })
+    expect(ops.themePool('school')).toEqual({ theme: 'school', pictures: [{ asset: 'b'.repeat(64), tags: [] }], illustrations: [{ asset: 'a'.repeat(64), tags: ['lernen'] }], icons: [] })
+  })
+
+  it('migrates the pictures of a playful theme to illustrations and leaves the other themes\' pools alone', () => {
+    // a database as it was before the migration: every migration up to 0019
+    const all = path.join(path.dirname(new URL(import.meta.url).pathname), 'db', 'migrations')
+    const old = mkdtempSync(path.join(tmpdir(), 'sp-migrations-'))
+    for (const f of readdirSync(all).filter((f) => f < '0020')) copyFileSync(path.join(all, f), path.join(old, f))
+    const file = path.join(mkdtempSync(path.join(tmpdir(), 'sp-db-')), 'sessions.db')
+    const oldDb = openDb(file, old)
+    const before = new Repo(oldDb)
+    before.createTheme({ id: 'school', name: 'School', tokens: { ...DEFAULT_TOKENS, family: 'playful' } })
+    before.createTheme({ id: 'calm', name: 'Calm', tokens: DEFAULT_TOKENS })
+    for (const [theme, letter, kind] of [['school', 'a', 'picture'], ['school', 'b', 'picture'], ['school', 'c', 'icon'], ['calm', 'a', 'picture'], ['calm', 'c', 'icon']] as const) {
+      before.addPoolAsset(theme, { hash: asset(before, letter), kind, tags: [letter] })
+    }
+    oldDb.close()
+    const newDb = openDb(file)
+    const after = new Repo(newDb)
+    const kinds = (theme: string) => after.listPool(theme).map((e) => `${e.hash[0]}:${e.kind}:${e.tags.join()}`).sort()
+    expect(kinds('school')).toEqual(['a:illustration:a', 'b:illustration:b', 'c:icon:c'])
+    expect(kinds('calm')).toEqual(['a:picture:a', 'c:icon:c'])
+    newDb.close()
   })
 })

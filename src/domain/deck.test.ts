@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cjkCodePoints, DECK_DEFAULTS, deckOf, type DeckLabels } from './deck.ts'
+import type { DeckPool } from './pool.ts'
 import { DEFAULT_THEME_TITLE } from './titleVariants.ts'
 import type { Item, WorkshopState } from './types.ts'
 
@@ -59,7 +60,7 @@ describe('deckOf', () => {
 })
 
 describe('pictures from the pool', () => {
-  const pool = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)]
+  const pool: DeckPool = { pictures: ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)], illustrations: [], whole: false }
   it('gives the generated title, agenda and break slides a picture each, in turn from a place the workshop decides', () => {
     const deck = deckOf(state, labels, { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }, pool)
     const pics = deck.filter((s) => s.generated).map((s) => /asset:([a-f]+)/.exec(s.html)?.[1]?.[0])
@@ -107,7 +108,7 @@ describe('the section tracker', () => {
 })
 
 describe('pictures chosen by hand', () => {
-  const pool = ['a'.repeat(64), 'b'.repeat(64)]
+  const pool: DeckPool = { pictures: ['a'.repeat(64), 'b'.repeat(64)], illustrations: [], whole: false }
   it('a generated slide shows the picture chosen for its key and leaves the pool\'s turn to the others', () => {
     const chosen = { ...state, workshop: { ...state.workshop, pictures: { 'title:d1': 'c'.repeat(64) } } }
     const deck = deckOf(chosen, labels, { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }, pool)
@@ -122,7 +123,7 @@ describe('pictures chosen by hand', () => {
 })
 
 describe('the variant of a title slide', () => {
-  const pool = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)]
+  const pool: DeckPool = { pictures: ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)], illustrations: [], whole: false }
   const on = { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }
   const two: WorkshopState = { ...state, days: [...state.days, { id: 'd2', workshopId: 'w', position: 2, date: '2026-11-11', startMin: 540, endMin: 1020 }] }
   const pictureOf = (deck: ReturnType<typeof deckOf>, key: string) => /asset:([0-9a-f]{64})/.exec(deck.find((s) => s.key === key)!.html)?.[1]
@@ -172,5 +173,57 @@ describe('the variant of a title slide', () => {
     expect(pictureOf(own, 'title:d2')).toBe('d'.repeat(64))
     // a title picture that left the pool gives way to the pool's turn
     expect(pictureOf(deckOf(two, labels, on, pool, { ...fixed, picture: 'e'.repeat(64) }), 'title:d1')).toBe(pictureOf(plain, 'title:d1'))
+  })
+})
+
+describe('photos and illustrations', () => {
+  const photos = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)]
+  const drawn = ['1'.repeat(64), '2'.repeat(64)]
+  const on = { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }
+  const both: DeckPool = { pictures: photos, illustrations: drawn, whole: false }
+  const pictureOf = (deck: ReturnType<typeof deckOf>, key: string) => /asset:([0-9a-f]{64})/.exec(deck.find((s) => s.key === key)!.html)?.[1]
+  const withVariant = (variant: 'whole' | 'small' | 'band' | 'background') => ({ ...state, workshop: { ...state.workshop, variants: { 'title:d1': variant } } })
+
+  it('gives a place the kind it shows: a photo where the picture is cropped, an illustration where it stands whole', () => {
+    const deck = deckOf(state, labels, on, both, DEFAULT_THEME_TITLE)
+    for (const s of deck.filter((x) => x.generated)) expect(photos, s.key).toContain(pictureOf(deck, s.key))
+    for (const variant of ['whole', 'small'] as const) {
+      const whole = deckOf(withVariant(variant), labels, on, both, DEFAULT_THEME_TITLE)
+      expect(drawn, variant).toContain(pictureOf(whole, 'title:d1'))
+      // the slides after it keep their pictures, whatever the title shows
+      expect(whole.slice(1).map((s) => s.html)).toEqual(deck.slice(1).map((s) => s.html))
+    }
+    for (const variant of ['band', 'background'] as const) expect(photos, variant).toContain(pictureOf(deckOf(withVariant(variant), labels, on, both, DEFAULT_THEME_TITLE), 'title:d1'))
+  })
+
+  it('never lets one kind stand in for the other: a place whose kind the pool lacks stays without a picture', () => {
+    const onlyPhotos: DeckPool = { pictures: photos, illustrations: [], whole: false }
+    const plain = deckOf(state, labels, on, onlyPhotos, DEFAULT_THEME_TITLE)
+    const whole = deckOf(withVariant('whole'), labels, on, onlyPhotos, DEFAULT_THEME_TITLE)
+    expect(whole[0].html).toContain('pic-whole')
+    expect(whole[0].html).not.toContain('<figure>')
+    expect(whole.slice(1).map((s) => s.html)).toEqual(plain.slice(1).map((s) => s.html))
+    const onlyDrawn: DeckPool = { pictures: [], illustrations: drawn, whole: false }
+    const deck = deckOf(withVariant('whole'), labels, on, onlyDrawn, DEFAULT_THEME_TITLE)
+    expect(drawn).toContain(pictureOf(deck, 'title:d1'))
+    expect(deck.slice(1).some((s) => s.html.includes('asset:'))).toBe(false)
+    // a picture chosen by hand stands wherever it was put
+    const chosen = { ...withVariant('whole'), workshop: { ...withVariant('whole').workshop, pictures: { 'title:d1': photos[0] } } }
+    expect(pictureOf(deckOf(chosen, labels, on, onlyDrawn, DEFAULT_THEME_TITLE), 'title:d1')).toBe(photos[0])
+  })
+
+  it('takes illustrations for every generated slide under a theme that shows its figures whole', () => {
+    const deck = deckOf(state, labels, on, { ...both, whole: true }, { variant: 'column', choices: ['none', 'column'], picture: '' })
+    const shown = deck.filter((s) => s.generated).map((s) => pictureOf(deck, s.key))
+    expect(shown).toHaveLength(3)
+    for (const hash of shown) expect(drawn).toContain(hash)
+    expect(deckOf(state, labels, on, { pictures: photos, illustrations: [], whole: true }).some((s) => s.html.includes('asset:'))).toBe(false)
+  })
+
+  it('shows the theme\'s title picture only where it is of the kind the slide\'s variant takes', () => {
+    const fixed = { variant: 'whole' as const, choices: ['column' as const, 'whole' as const], picture: drawn[1] }
+    expect(pictureOf(deckOf(state, labels, on, both, fixed), 'title:d1')).toBe(drawn[1])
+    const column = { ...state, workshop: { ...state.workshop, variants: { 'title:d1': 'column' as const } } }
+    expect(photos).toContain(pictureOf(deckOf(column, labels, on, both, fixed), 'title:d1'))
   })
 })

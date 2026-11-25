@@ -2,16 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { isSampleText, isSampleWord, SAMPLE_SETS, sampleSets } from './sampleSets.ts'
 import { layoutSpec, parseSlide } from './slideDoc.ts'
 import { normalizeSlideHtml } from './slides.ts'
-import { sampleTextsOf, STARTER_GROUPS, STARTERS, startersFor, starterSlide } from './starters.ts'
+import { sampleTextsOf, STARTER_GROUPS, STARTERS, starterDoc, startersFor, starterSlide } from './starters.ts'
+import { cardPictureKind, type DeckPool, EMPTY_DECK_POOL, figureKind } from './pool.ts'
 
-const PICTURES = ['3f2a9c1e5b7d4a6f', '4f2a9c1e5b7d4a6f', '5f2a9c1e5b7d4a6f']
+const PHOTOS = ['3f2a9c1e5b7d4a6f', '4f2a9c1e5b7d4a6f', '5f2a9c1e5b7d4a6f']
+const DRAWN = ['6f2a9c1e5b7d4a6f', '7f2a9c1e5b7d4a6f', '8f2a9c1e5b7d4a6f']
+const POOL: DeckPool = { pictures: PHOTOS, illustrations: DRAWN, whole: false }
 
 describe('starter slides', () => {
   it('builds every starter from every sample subject as a slide the fields can hold', () => {
     for (const lang of ['de', 'en'] as const)
       for (const set of SAMPLE_SETS[lang])
         for (const starter of STARTERS)
-          for (const pictures of [[], PICTURES]) {
+          for (const pictures of [EMPTY_DECK_POOL, POOL, { ...POOL, whole: true }]) {
             const html = normalizeSlideHtml(starterSlide(starter, set, pictures))
             const doc = parseSlide(html)
             const what = `${starter.id} · ${set.name}`
@@ -40,9 +43,37 @@ describe('starter slides', () => {
     for (const s of STARTERS) expect(STARTER_GROUPS).toContain(s.group)
   })
   it('leaves out the starters that need more pictures than the pool has', () => {
-    expect(startersFor(0).some((s) => s.id === 'pictureCards')).toBe(false)
-    expect(startersFor(3).some((s) => s.id === 'pictureCards')).toBe(true)
-    expect(startersFor(0).some((s) => s.id === 'split')).toBe(true)
+    const has = (pool: DeckPool | undefined, id: string) => startersFor(pool).some((s) => s.id === id)
+    expect(has(undefined, 'pictureCards')).toBe(false)
+    expect(has(POOL, 'pictureCards')).toBe(true)
+    expect(has(undefined, 'split')).toBe(true)
+    // picture cards are cropped, so they need photos: illustrations do not stand in
+    expect(has({ ...POOL, pictures: [] }, 'pictureCards')).toBe(false)
+    expect(has({ ...POOL, pictures: PHOTOS.slice(0, 2) }, 'pictureCards')).toBe(false)
+  })
+  it('fills every place with a picture of the kind it shows, different ones on one slide', () => {
+    const set = SAMPLE_SETS.en[0]
+    const of = (id: string, pool = POOL, turn = 0) => starterDoc(STARTERS.find((s) => s.id === id)!, set, pool, turn)
+    expect(PHOTOS).toContain(of('split').figure!.image)
+    expect(PHOTOS).toContain(of('splitLeft').figure!.image)
+    expect(DRAWN).toContain(of('splitWhole').figure!.image)
+    expect(DRAWN).toContain(of('figure').figure!.image)
+    const cards = of('pictureCards', POOL, 2).cards!.map((c) => c.image)
+    expect(new Set(cards).size).toBe(3)
+    for (const hash of cards) expect(PHOTOS).toContain(hash)
+    // the turn moves on through the pool
+    expect(of('split', POOL, 1).figure!.image).not.toBe(of('split').figure!.image)
+    // a pool without the kind leaves the place empty
+    expect(of('splitWhole', { ...POOL, illustrations: [] }).figure!.image).toBe('')
+    expect(of('split', { ...POOL, pictures: [] }).figure!.image).toBe('')
+    // a theme that shows every figure whole: illustrations in all of them
+    for (const id of ['split', 'splitLeft', 'splitWhole', 'figure']) expect(DRAWN, id).toContain(of(id, { ...POOL, whole: true }).figure!.image)
+    // and no starter is filled against the rule it is read by
+    for (const starter of STARTERS) {
+      const doc = starterDoc(starter, set, POOL)
+      if (doc.figure?.image) expect(figureKind(doc) === 'illustration' ? DRAWN : PHOTOS, starter.id).toContain(doc.figure.image)
+      for (const c of doc.cards ?? []) if (c.image) expect(cardPictureKind(doc) === 'illustration' ? DRAWN : PHOTOS, starter.id).toContain(c.image)
+    }
   })
   it('tells sample phrases from an author’s words', () => {
     const set = SAMPLE_SETS.en[0]

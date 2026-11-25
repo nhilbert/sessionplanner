@@ -8,7 +8,7 @@ import { convertLayout, parseSlide, serializeSlide, type SlideDoc } from '@/doma
 import { Button, cx, IconButton, isTyping, Textarea, useIsPhone, useMediaQuery } from '@/components/ui'
 import Menu from '@/components/Menu'
 import { useOverlay } from '@/components/overlay'
-import { useThemes } from '@/store/useThemes'
+import { useKindContext, useThemes } from '@/store/useThemes'
 import { type AssetScope, SlideView } from '../SlideView'
 import { NewSlidePicker } from '../NewSlidePicker'
 import { SlidePicker } from '../SlidePicker'
@@ -828,6 +828,8 @@ function Thumbs({ slides, current, theme, scope, onPick }: { slides: EditorSlide
 function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, picture, title }: { slide: EditorSlide; canEdit: boolean; onDetails?: () => void; onHide?: (kind: HideableKind) => void; onAdopt?: () => void; onTemplate?: () => void; picture?: { value: string; set: (hash: string) => void; scope: AssetScope; known: string[]; theme: string }; title?: { control: TitleControl; theme: string; scope: AssetScope; several: boolean } }) {
   const { t } = useTranslation()
   const kind = slide.generated?.kind
+  // the agenda, break and divider slides show a photo, or an illustration under a theme that shows every figure whole
+  const { whole } = useKindContext(picture?.theme)
   const text = kind ? tr(t, `editor.generated.${kind}`) : slide.pool ? t('editor.poolNote') : t('editor.viewOnly')
   return (
     <div className="space-y-3">
@@ -841,7 +843,7 @@ function ReadOnly({ slide, canEdit, onDetails, onHide, onAdopt, onTemplate, pict
         {kind && picture && canEdit && !(kind === 'title' && title) && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[12px] text-ink-2">{t('editor.generatedPicture')}</span>
-            <PictureField path={`picture.${slide.key}`} value={picture.value} onChange={picture.set} onFocus={() => undefined} scope={picture.scope} known={picture.known} theme={picture.theme} prefer="picture" label={t('editor.pickPicture')} />
+            <PictureField path={`picture.${slide.key}`} value={picture.value} onChange={picture.set} onFocus={() => undefined} scope={picture.scope} known={picture.known} theme={picture.theme} prefer={whole ? 'illustration' : 'picture'} label={t('editor.pickPicture')} />
             {picture.value && (
               <Button size="sm" variant="ghost" onClick={() => picture.set('')}>
                 {t('editor.pictureAuto')}

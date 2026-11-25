@@ -17,8 +17,8 @@ import { copyPrinted, isPrintable, mapRules, ruleLabel, ruleOf, rulesWithNewShee
 import { MAX_SHEET_PAGES, MAX_WORKSHEETS, normalizeSheetHtml, SHEET_BLOCKS, SHEET_FORMAT, sheetBlocks, splitPages, worksheetAssets } from '../src/domain/sheets.ts'
 import { slideText as pageText } from '../src/domain/slides.ts'
 import { DECK_DEFAULTS, deckOf } from '../src/domain/deck.ts'
-import type { ThemeTitle } from '../src/domain/titleVariants.ts'
-import { titleOfTheme } from '../src/domain/theme.ts'
+import { type PoolKind, type ThemeInfo, titleOfTheme } from '../src/domain/theme.ts'
+import { deckPoolOf } from '../src/domain/pool.ts'
 import { MAX_SLIDES, normalizeSlideHtml, slideAssets, slideLayout, slideText, slideTitle } from '../src/domain/slides.ts'
 import { SLIDE_FORMAT, SLIDE_LAYOUTS } from '../src/domain/slideFormat.ts'
 
@@ -1124,18 +1124,22 @@ export class Ops {
     }
   }
 
-  /** The pool of a theme (the settings' default without one): its pictures and icons with their tags, for figures and card icons. */
+  /**
+   * The pool of a theme (the settings' default without one), by kind, each entry with its tags: photos for the places
+   * that crop a picture, illustrations for those that show it whole, icons for cards (src/domain/pool.ts). `pictures`
+   * are the photos, under the name the list had before there were illustrations.
+   */
   themePool(ref?: string) {
     const theme = this.theme(ref) ?? this.repo.getSettings().theme ?? ''
     const id = theme || 'default'
     const pool = this.repo.listPool(id)
-    const entries = (kind: 'picture' | 'icon') => pool.filter((e) => e.kind === kind).map((e) => ({ asset: e.hash, tags: e.tags }))
-    return { theme: id, pictures: entries('picture'), icons: entries('icon') }
+    const entries = (kind: PoolKind) => pool.filter((e) => e.kind === kind).map((e) => ({ asset: e.hash, tags: e.tags }))
+    return { theme: id, pictures: entries('picture'), illustrations: entries('illustration'), icons: entries('icon') }
   }
 
   /** What a theme says about its title slides, as the app reads it from the list of themes (a folder theme offers the column and no picture). */
-  private themeTitle(id: string): ThemeTitle | undefined {
-    return titleOfTheme(listThemes(this.themesDir, this.repo.listThemes()).find((t) => t.id === id))
+  private themeInfo(id: string): ThemeInfo | undefined {
+    return listThemes(this.themesDir, this.repo.listThemes()).find((t) => t.id === id)
   }
 
   /** The deck of a workshop as it would be shown: generated slides and the items' own, in order; agenda and break slides can be left out and the groups' divider slides put in, as in the app. */
@@ -1143,8 +1147,8 @@ export class Ops {
     const s = this.state(ref)
     const labels = { untitled: 'Workshop', day: (n: number) => `Tag ${n}`, agenda: 'Agenda', breakTitle: 'Pause', until: (t: string) => `bis ${t}`, minutes: (n: number) => `${n} Minuten`, date: (d: string) => d }
     const theme = s.workshop.theme || this.repo.getSettings().theme || 'default'
-    const pool = this.repo.listPool(theme).filter((e) => e.kind === 'picture').map((e) => e.hash)
-    const deck = deckOf(s, labels, { ...DECK_DEFAULTS, ...compact(options) }, pool, this.themeTitle(theme))
+    const info = this.themeInfo(theme)
+    const deck = deckOf(s, labels, { ...DECK_DEFAULTS, ...compact(options) }, deckPoolOf(this.repo.listPool(theme), info), titleOfTheme(info))
     return {
       theme,
       slides: deck.length,

@@ -11,7 +11,7 @@ import { useSettings } from '@/store/useSettings'
 import { themeOf, useTheme } from './SlideView'
 import { deckLabels } from './deckLabels'
 import { deckOptionsNow, updateDeckOptions, useDeckOptions } from './deckOptions'
-import { poolPicturesNow, themeTitleNow, usePool, useThemeTitle } from '@/store/useThemes'
+import { deckPoolNow, themeTitleNow, usePool, useThemeTitle } from '@/store/useThemes'
 import { DEFAULT_THEME_TITLE, isTitleVariant } from '@/domain/titleVariants'
 import { SlideEditor } from './editor/SlideEditor'
 import { deckSource, listSource, type SlideTransfer } from './editor/source'
@@ -107,7 +107,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
   }
   const deckNow = () => {
     const state = now()
-    return state ? deckOf(state, deckLabels(t), deckOptionsNow(), poolPicturesNow(theme), themeTitleNow(theme)) : []
+    return state ? deckOf(state, deckLabels(t), deckOptionsNow(), deckPoolNow(theme), themeTitleNow(theme)) : []
   }
   // Present from here: the position in the deck as the presentation shows it; a parked step is not in it.
   const presenting = {
@@ -159,7 +159,7 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
               const state = now()
               if (!state) return ''
               const as = { ...state, workshop: { ...state.workshop, variants: { ...(state.workshop.variants ?? {}), [key]: variant } } }
-              return deckOf(as, deckLabels(t), deckOptionsNow(), poolPicturesNow(theme), themeTitleNow(theme)).find((r) => r.key === key)?.html ?? ''
+              return deckOf(as, deckLabels(t), deckOptionsNow(), deckPoolNow(theme), themeTitleNow(theme)).find((r) => r.key === key)?.html ?? ''
             },
           },
         })

@@ -7,6 +7,7 @@ import { fieldId } from './fields'
 import { uploadProblem } from '@/planner/upload'
 import { usePool } from '@/store/useThemes'
 import type { PoolAsset, PoolKind } from '@/domain/theme'
+import { kindsFirst } from '@/domain/pool'
 
 /** A picture field of the slide: the thumbnail of the asset it shows, and the way to choose or remove one. */
 export function PictureField({ path, value, onChange, onFocus, scope, known, label, theme, prefer = 'picture' }: { path: string; value: string; onChange: (hash: string) => void; onFocus: (path: string) => void; scope: AssetScope; known: string[]; label?: string; theme?: string; prefer?: PoolKind }) {
@@ -59,6 +60,8 @@ export function usePair(scope: AssetScope, hash: string): AssetInfo | null {
   return pair
 }
 
+const POOL_LABELS = { picture: 'editor.poolPictures', illustration: 'editor.poolIllustrations', icon: 'editor.poolIcons' } as const satisfies Record<PoolKind, string>
+
 /** Whether a pool entry answers a search: every word of the query starts one of its tags. */
 export const matchesTags = (entry: PoolAsset, query: string): boolean => {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
@@ -66,8 +69,8 @@ export const matchesTags = (entry: PoolAsset, query: string): boolean => {
 }
 
 /**
- * Pick a picture: from the theme's pool (pictures and icons, found by their tags; the kind the field is for comes
- * first), one used on a slide already, or a new upload (stored once by its content, docs/slides.md).
+ * Pick a picture: from the theme's pool (photos, illustrations and icons, found by their tags; the kind the place takes
+ * comes first, `domain/pool.ts`), one used on a slide already, or a new upload (stored once by its content, docs/slides.md).
  */
 export function PicturePicker({ open, onClose, onPick, scope, known, current, theme, prefer = 'picture' }: { open: boolean; onClose: () => void; onPick: (hash: string) => void; scope: AssetScope; known: string[]; current?: string; theme?: string; prefer?: PoolKind }) {
   const { t } = useTranslation()
@@ -76,7 +79,7 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current, th
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const pool = usePool(theme ?? '')
-  const kinds: PoolKind[] = prefer === 'icon' ? ['icon', 'picture'] : ['picture', 'icon']
+  const kinds = kindsFirst(prefer)
   const pick = (hash: string) => {
     onPick(hash)
     onClose()
@@ -124,12 +127,12 @@ export function PicturePicker({ open, onClose, onPick, scope, known, current, th
             if (!entries.length) return null
             return (
               <div key={kind} className="mb-3">
-                <div className="mb-1.5 text-[12px] font-semibold text-brand-ink">{t(kind === 'icon' ? 'editor.poolIcons' : 'editor.poolPictures')}</div>
+                <div className="mb-1.5 text-[12px] font-semibold text-brand-ink">{t(POOL_LABELS[kind])}</div>
                 <ul className={cx('grid gap-2', kind === 'icon' ? 'grid-cols-5 md:grid-cols-8' : 'grid-cols-3 md:grid-cols-4')}>
                   {entries.map((e) => (
                     <li key={e.hash}>
-                      <button type="button" onClick={() => pick(e.hash)} title={e.tags.join(', ')} className={cx('block w-full overflow-hidden rounded-md border bg-surface-2 ring-offset-2 ring-offset-surface', kind === 'icon' ? 'aspect-square p-1.5' : 'aspect-[4/3]', e.hash === current ? 'border-accent ring-2 ring-accent' : 'border-line hover:border-ink-3')}>
-                        <img src={assetUrl(scope, e.hash)} alt={e.tags.join(', ')} className={cx('h-full w-full', kind === 'icon' ? 'object-contain' : 'object-cover')} loading="lazy" />
+                      <button type="button" onClick={() => pick(e.hash)} title={e.tags.join(', ')} className={cx('block w-full overflow-hidden rounded-md border bg-surface-2 ring-offset-2 ring-offset-surface', kind === 'icon' ? 'aspect-square p-1.5' : kind === 'illustration' ? 'aspect-[4/3] p-1.5' : 'aspect-[4/3]', e.hash === current ? 'border-accent ring-2 ring-accent' : 'border-line hover:border-ink-3')}>
+                        <img src={assetUrl(scope, e.hash)} alt={e.tags.join(', ')} className={cx('h-full w-full', kind === 'picture' ? 'object-cover' : 'object-contain')} loading="lazy" />
                       </button>
                     </li>
                   ))}

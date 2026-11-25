@@ -1,6 +1,7 @@
 import type { DiagramShape } from './diagram.ts'
 import type { SampleSet } from './sampleSets.ts'
-import { isSampleText } from './sampleSets.ts'
+import { isSampleText, SAMPLE_SETS } from './sampleSets.ts'
+import { cardPictureKind, type DeckPool, EMPTY_DECK_POOL, figureKind, poolOfKind } from './pool.ts'
 import { type Card, type SlideDoc, type Step, serializeSlide } from './slideDoc.ts'
 import { slideText } from './slides.ts'
 
@@ -17,8 +18,9 @@ export interface Starter {
   id: string
   group: StarterGroup
   layout: string
-  /** Pictures of the theme's pool it shows (it is left out when the pool has fewer). */
+  /** Pictures of the theme's pool it cannot do without (it is left out when the pool has fewer of the kind its places take). */
   pictures?: number
+  /** `pictures` are marks for the places, first, second, third: which picture stands there is decided by the place (`starterDoc`). */
   build: (s: SampleSet, pictures: string[]) => SlideDoc
 }
 
@@ -67,7 +69,7 @@ export const STARTERS: Starter[] = [
   diagram('hub', 'hub', 5, 'points'),
   { id: 'matrix', group: 'model', layout: 'matrix', build: (s) => ({ layout: 'matrix', options: {}, header: header(s.title), matrix: { axisY: s.axes.y, axisX: s.axes.x, cells: s.cells.map((c, i) => ({ title: c.title, text: c.text, accent: i === 0 })) } }) },
   { id: 'acronym', group: 'model', layout: 'acronym', build: (s) => ({ layout: 'acronym', options: {}, header: header(s.title), letters: s.acronym.map((l) => ({ ...l })) }) },
-  // ---- picture: with a picture of the theme's pool, where it has some
+  // ---- picture: with a picture of the theme's pool, where it has some: a photo where the place crops it, an illustration where it stands whole
   {
     id: 'split',
     group: 'picture',
@@ -80,6 +82,12 @@ export const STARTERS: Starter[] = [
     layout: 'split',
     build: (s, pics) => ({ layout: 'split', options: { figureLeft: true }, header: header(s.section.title), blocks: [{ kind: 'p', text: s.quote }, { kind: 'small', text: s.cite }], figure: { image: pics[1] ?? pics[0] ?? '', alt: '', caption: '' } }),
   },
+  {
+    id: 'splitWhole',
+    group: 'picture',
+    layout: 'split',
+    build: (s, pics) => ({ layout: 'split', options: { contain: true }, header: header(s.title), blocks: [{ kind: 'lead', text: s.lead }, { kind: 'list', points: s.points.slice(3, 6).map((x) => x.title) }], figure: { image: pics[0] ?? '', alt: '', caption: '' } }),
+  },
   { id: 'figure', group: 'picture', layout: 'figure', build: (s, pics) => ({ layout: 'figure', options: {}, header: header(s.title), figure: { image: pics[0] ?? '', alt: '', caption: s.caption } }) },
   {
     id: 'pictureCards',
@@ -90,11 +98,35 @@ export const STARTERS: Starter[] = [
   },
 ]
 
-/** The starters that can be shown with this many pictures in the theme's pool. */
-export const startersFor = (pictures: number): Starter[] => STARTERS.filter((s) => (s.pictures ?? 0) <= pictures)
+/** The marks a starter sets where a picture stands: the first, the second, the third of the slide. */
+const MARKS = ['#0', '#1', '#2']
 
-/** A starter as a slide, filled with a sample subject and, where it shows pictures, the pool's. */
-export const starterSlide = (starter: Starter, set: SampleSet, pictures: string[] = []): string => serializeSlide(starter.build(set, pictures))
+/**
+ * A starter as a slide document, filled with a sample subject and, where it shows pictures, the pool's: every place
+ * takes one of the kind it shows (`pool.ts`), the places of a slide different ones, beginning at `turn`. A place whose
+ * kind the pool does not hold stays empty.
+ */
+export function starterDoc(starter: Starter, set: SampleSet, pool: DeckPool = EMPTY_DECK_POOL, turn = 0): SlideDoc {
+  const doc = starter.build(set, MARKS)
+  const context = { whole: pool.whole, titleVariant: 'column' as const }
+  const from = (mark: string, kind: ReturnType<typeof cardPictureKind>): string => {
+    const n = MARKS.indexOf(mark)
+    const list = kind === 'icon' ? [] : poolOfKind(pool, kind)
+    return n < 0 || !list.length ? '' : list[(turn + n) % list.length]
+  }
+  if (doc.figure) doc.figure = { ...doc.figure, image: from(doc.figure.image, figureKind(doc, context)) }
+  if (doc.cards) doc.cards = doc.cards.map((c) => ({ ...c, image: from(c.image, cardPictureKind(doc)) }))
+  return doc
+}
+
+/** How many different pictures of the pool a starter would show. */
+const picturesShown = (doc: SlideDoc): number => new Set([doc.figure?.image, ...(doc.cards ?? []).map((c) => c.image)].filter(Boolean)).size
+
+/** The starters that can be shown with a theme's pool: all but those that need more pictures than it has of the kind their places take. */
+export const startersFor = (pool: DeckPool = EMPTY_DECK_POOL): Starter[] => STARTERS.filter((s) => !s.pictures || picturesShown(starterDoc(s, SAMPLE_SETS.en[0], pool)) >= s.pictures)
+
+/** The same as markup. */
+export const starterSlide = (starter: Starter, set: SampleSet, pool: DeckPool = EMPTY_DECK_POOL, turn = 0): string => serializeSlide(starterDoc(starter, set, pool, turn))
 
 /**
  * The sample phrases a slide still shows, each once: its elements' texts that are a phrase of the samples word

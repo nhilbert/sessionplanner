@@ -106,7 +106,7 @@ Grouped by what participants do with the sheet. **v1** is what stage 1 builds; t
 | plan | if-then plan, appointment fields | | |
 | page kinds | poster (landscape, large type), cards to cut out, certificate, placemat on A3 for groups, picture with fields | | |
 
-A grid can be `ruled`: no frames, the fields divided by thin rules, for a page of several topics side by side, each a field holding blocks of its own. Built in stage 1, besides the twelve: `write` (writing room on its own, or inside a step, field or row), `picture`, `pictures` (a row with captions) and `pair` (two columns of blocks; `r-2-1`, `r-1-2`, `r-3-2`). A picture can so stand beside or below any block (an illustration from the theme's pool or an upload). The circle shows its segments, not yet words in them.
+A grid can be `ruled`: no frames, the fields divided by thin rules, for a page of several topics side by side, each a field holding blocks of its own. Built in stage 1, besides the twelve: `write` (writing room on its own, or inside a step, field or row), `picture`, `pictures` (a row with captions) and `pair` (two columns of blocks; `r-2-1`, `r-1-2`, `r-3-2`). A picture can so stand beside or below any block (an illustration from the theme's pool or an upload; the picker shows the pool's illustrations first, since paper shows a picture whole, then its photos and icons). The circle shows its segments, not yet words in them.
 
 The markup of each block, with its modifiers, is in `SHEET_BLOCKS` (`src/domain/sheets.ts`), which the check script and later the connector read.
 

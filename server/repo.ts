@@ -1078,7 +1078,13 @@ export class Repo {
   updatePoolAsset(themeId: string, hash: string, patch: { tags?: string[]; position?: number; kind?: PoolKind }): PoolAsset | null {
     const current = this.getPoolAsset(themeId, hash)
     if (!current) return null
-    this.db.prepare('UPDATE theme_assets SET tags = ?, position = ?, kind = ? WHERE theme_id = ? AND hash = ?').run(JSON.stringify(patch.tags ?? current.tags), patch.position ?? current.position, patch.kind ?? current.kind, themeId, hash)
+    // moved to another kind (a photo filed as an illustration): to the end of that kind, unless a place is named
+    let position = patch.position ?? current.position
+    if (patch.kind && patch.kind !== current.kind && patch.position === undefined) {
+      const last = (this.db.prepare('SELECT MAX(position) AS p FROM theme_assets WHERE theme_id = ? AND kind = ?').get(themeId, patch.kind) as Row).p as number | null
+      position = (last ?? 0) + 1
+    }
+    this.db.prepare('UPDATE theme_assets SET tags = ?, position = ?, kind = ? WHERE theme_id = ? AND hash = ?').run(JSON.stringify(patch.tags ?? current.tags), position, patch.kind ?? current.kind, themeId, hash)
     this.touchTheme(themeId)
     return this.getPoolAsset(themeId, hash)
   }

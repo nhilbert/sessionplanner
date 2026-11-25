@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { type AssetScope, useFrameScale, useHostHtml, useTheme, useThemeGround } from '../SlideView'
 import { fieldSelectors, type SlideDoc } from '@/domain/slideDoc'
 import { normalizeSlideHtml } from '@/domain/slides'
+import { cardPictureKind, figureKind } from '@/domain/pool'
+import { useKindContext } from '@/store/useThemes'
 import { isReplaceable } from '../samples'
 import { clearAt, elementAt, removeAt, setImage, setInline, type TreePath } from '@/domain/slideEdit'
 import { boldPatch, formatRuns, nodesToRuns, type Patch, type RangeState, rangeState, runsLength, runsToNodes, sizePatch, trimBreaks } from '@/domain/inlineRuns'
@@ -65,6 +67,8 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
  * stored. On a touch screen and on a phone there is no editing on the slide: a click opens the field instead.
  */
 export function EditPreview({ doc, html, theme, scope, focus, onFocus, onEdit, viewing, onOverflow, className, style, edit, slideKey }: { doc: SlideDoc; html: string; theme: string; scope: AssetScope; focus: string | null; onFocus: (path: string) => void; /** Looking: a double-click on a text asks to edit it. */ onEdit?: (path: string) => void; viewing?: boolean; onOverflow?: (over: boolean) => void; className?: string; style?: React.CSSProperties; edit?: OnSlide; /** The slide shown: another one ends what was selected. */ slideKey?: string }) {
+  // which of the pool's kinds the picker shows first for the picture selected: the one its place takes
+  const kinds = useKindContext(theme)
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -561,7 +565,7 @@ export function EditPreview({ doc, html, theme, scope, focus, onFocus, onEdit, v
             setPicker(false)
             focusFrame()
           }}
-          onPick={setPicture} scope={scope} known={edit.known} current={picture} theme={theme} prefer={selEl?.classList.contains('icon') ? 'icon' : 'picture'} />}
+          onPick={setPicture} scope={scope} known={edit.known} current={picture} theme={theme} prefer={selEl?.closest('ul.cards') ? cardPictureKind(doc) : figureKind(doc, kinds)} />}
     </>
   )
 }

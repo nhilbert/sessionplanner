@@ -5,6 +5,8 @@ import { type Block, emptyBox, emptyCard, emptyCell, emptyLetter, emptyStep, typ
 import { cx, Segmented, Select, SectionLabel } from '@/components/ui'
 import { Area, Entries, Row, Text, Toggle, tr } from './fields'
 import { PictureField } from './PicturePicker'
+import { cardPictureKind, figureKind } from '@/domain/pool'
+import { useKindContext } from '@/store/useThemes'
 
 interface Props {
   doc: SlideDoc
@@ -23,6 +25,7 @@ interface Props {
  * preview follows at once.
  */
 export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props) {
+  const kinds = useKindContext(theme)
   const { t } = useTranslation()
   const spec = layoutSpec(doc.layout)
   const set = (patch: Partial<SlideDoc>) => onChange({ ...doc, ...patch })
@@ -124,7 +127,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
           make={emptyCard}
           render={(c, setC, i) => (
             <>
-              <PictureField path={`cards.${i}.image`} value={c.image} onChange={(image) => setC({ ...c, image })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer="icon" />
+              <PictureField path={`cards.${i}.image`} value={c.image} onChange={(image) => setC({ ...c, image })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer={cardPictureKind(doc)} />
               {c.image && <Text path={`cards.${i}.alt`} value={c.alt} onChange={(v) => setC({ ...c, alt: v })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} className="text-[12px]" />}
               <Text path={`cards.${i}.eyebrow`} value={c.eyebrow} onChange={(v) => setC({ ...c, eyebrow: v })} onFocus={onFocus} placeholder={f('eyebrow')} label={f('eyebrow')} />
               <Area path={`cards.${i}.title`} value={c.title} onChange={(v) => setC({ ...c, title: v })} onFocus={onFocus} placeholder={f('title')} label={f('title')} className="font-medium" />
@@ -318,7 +321,7 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
         <section>
           <SectionLabel>{f('figure')}</SectionLabel>
           <div className="space-y-1.5">
-            <PictureField path="figure.image" value={doc.figure?.image ?? ''} onChange={(image) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), image } })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer="picture" />
+            <PictureField path="figure.image" value={doc.figure?.image ?? ''} onChange={(image) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), image } })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer={figureKind(doc, kinds)} />
             {doc.figure?.image && <Text path="figure.alt" value={doc.figure?.alt ?? ''} onChange={(alt) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), alt } })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} />}
             {doc.layout !== 'title' && doc.layout !== 'break' && <Text path="figure.caption" value={doc.figure?.caption ?? ''} onChange={(caption) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), caption } })} onFocus={onFocus} placeholder={f('caption')} label={f('caption')} />}
           </div>

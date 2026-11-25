@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { TITLE_VARIANTS, type TitleVariant } from '@/domain/titleVariants'
+import { titlePictureKind } from '@/domain/pool'
+import { useKindContext } from '@/store/useThemes'
 import { Button, cx } from '@/components/ui'
 import { type AssetScope, SlideView } from '../SlideView'
 import { PictureField } from './PicturePicker'
@@ -44,6 +46,7 @@ export function TitlePanel({ slideKey, control, picture, theme, scope, canEdit, 
   const chosen = control.chosen(slideKey)
   const value = chosen && title.choices.includes(chosen) ? chosen : title.variant
   const pictures = title.choices.some((v) => v !== 'none')
+  const { whole } = useKindContext(theme)
   return (
     <div className="space-y-4">
       {several && <p className="text-[12px] leading-snug text-ink-2">{t('editor.titlePerDay')}</p>}
@@ -52,7 +55,7 @@ export function TitlePanel({ slideKey, control, picture, theme, scope, canEdit, 
         <div className="space-y-1.5">
           <span className="block text-[13px] font-semibold text-brand-ink">{t('editor.generatedPicture')}</span>
           <div className="flex flex-wrap items-center gap-2">
-            <PictureField path={`picture.${slideKey}`} value={picture.value} onChange={picture.set} onFocus={() => undefined} scope={scope} known={picture.known} theme={theme} prefer="picture" label={t('editor.pickPicture')} />
+            <PictureField path={`picture.${slideKey}`} value={picture.value} onChange={picture.set} onFocus={() => undefined} scope={scope} known={picture.known} theme={theme} prefer={titlePictureKind(value, whole)} label={t('editor.pickPicture')} />
             {picture.value && (
               <Button size="sm" variant="ghost" onClick={() => picture.set('')}>
                 {t('editor.pictureAuto')}
