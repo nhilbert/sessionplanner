@@ -2,7 +2,7 @@ import type { WorkshopState } from './types.ts'
 import { entriesIn, itemsIn, sortedDays } from './order.ts'
 import { durationOf, formatTime, scheduleDay } from './time.ts'
 import { esc, slideLayout } from './slides.ts'
-import { DEFAULT_THEME_TITLE, isTitleVariant, resolveTitleVariant, titleVariantClass, type ThemeTitle } from './titleVariants.ts'
+import { DEFAULT_THEME_TITLE, resolveTitleVariant, titleVariantClass, type ThemeTitle } from './titleVariants.ts'
 
 /**
  * The deck of a workshop (docs/slides.md): the slides of its placed items in agenda order, with the slides the
@@ -110,16 +110,16 @@ function build(state: WorkshopState, labels: DeckLabels, options: DeckOptions, p
     const items = itemsIn(state, day.id)
     const schedule = scheduleDay(day.startMin, day.endMin, items)
     const eyebrow = days.length > 1 ? `${labels.day(n + 1)} · ${labels.date(day.date)}` : labels.date(day.date)
-    // The variant chosen for this day's title slide stands on it as a class where the theme offers it; without one the
-    // theme's stylesheet decides. A title without a picture has none in its markup, as themes ask whether there is one.
-    const chosen = state.workshop.variants?.[`title:${day.id}`]
-    const own = isTitleVariant(chosen) && theme.choices.includes(chosen) ? ` ${titleVariantClass(chosen)}` : ''
+    // The variant of this day's title slide stands on it as a class: the one chosen for it where the theme offers that,
+    // else the theme's, so a theme's own rules can tell the variants apart. A title without a picture has none in its
+    // markup, as themes ask whether there is one.
+    const variant = resolveTitleVariant(state.workshop.variants?.[`title:${day.id}`], theme)
     const figure = picture(`title:${day.id}`, theme.picture)
     out.push({
       key: `title:${day.id}`,
       generated: 'title',
       caption: days.length > 1 ? `${labels.day(n + 1)}` : title,
-      html: `<section class="slide title${own}"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${resolveTitleVariant(chosen, theme) === 'none' ? '' : figure}</section>`,
+      html: `<section class="slide title ${titleVariantClass(variant)}"><div class="text"><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${state.workshop.client ? `<p class="subtitle">${esc(state.workshop.client)}</p>` : ''}${state.workshop.location ? `<p class="meta">${esc(meta([state.workshop.location]))}</p>` : ''}</div>${variant === 'none' ? '' : figure}</section>`,
     })
     if (options.agenda) {
       const rows = entriesIn(state, day.id)

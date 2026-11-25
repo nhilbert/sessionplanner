@@ -126,10 +126,11 @@ describe('the variant of a title slide', () => {
   const two: WorkshopState = { ...state, days: [...state.days, { id: 'd2', workshopId: 'w', position: 2, date: '2026-11-11', startMin: 540, endMin: 1020 }] }
   const pictureOf = (deck: ReturnType<typeof deckOf>, key: string) => /asset:([0-9a-f]{64})/.exec(deck.find((s) => s.key === key)!.html)?.[1]
 
-  it('stands on the slide as a class, per day; a slide without a choice carries none and follows its theme', () => {
+  it('stands on the slide as a class, per day; a slide without a choice carries its theme\'s', () => {
     const chosen = { ...two, workshop: { ...two.workshop, variants: { 'title:d2': 'band' as const } } }
     const deck = deckOf(chosen, labels, on, pool)
-    expect(deck.find((s) => s.key === 'title:d1')!.html).toMatch(/^<section class="slide title"><div class="text">/)
+    expect(deck.find((s) => s.key === 'title:d1')!.html).toMatch(/^<section class="slide title pic-column"><div class="text">/)
+    expect(deckOf(chosen, labels, on, pool, { variant: 'whole', choices: ['column', 'whole', 'band'], picture: '' }).find((s) => s.key === 'title:d1')!.html).toMatch(/^<section class="slide title pic-whole">/)
     expect(deck.find((s) => s.key === 'title:d2')!.html).toMatch(/^<section class="slide title pic-band"><div class="text">/)
     expect(deck.find((s) => s.key === 'title:d2')!.html).toContain('<figure>')
   })
@@ -137,14 +138,14 @@ describe('the variant of a title slide', () => {
   it('without a picture has no figure in its markup, and the slides after it keep their pictures', () => {
     const plain = deckOf(two, labels, on, pool)
     const none = deckOf({ ...two, workshop: { ...two.workshop, variants: { 'title:d1': 'none' as const } } }, labels, on, pool)
-    expect(none[0].html).toBe(plain[0].html.replace('class="slide title"', 'class="slide title pic-none"').replace(/<figure>.*<\/figure>/, ''))
+    expect(none[0].html).toBe(plain[0].html.replace('pic-column', 'pic-none').replace(/<figure>.*<\/figure>/, ''))
     expect(none.slice(1).map((s) => s.html)).toEqual(plain.slice(1).map((s) => s.html))
   })
 
-  it('takes the theme\'s variant where none is chosen, and what the theme does not offer is not written', () => {
+  it('takes the theme\'s variant where none is chosen or the chosen one is not on offer', () => {
     const noPicture = { variant: 'none' as const, choices: ['none' as const], picture: '' }
     const deck = deckOf({ ...state, workshop: { ...state.workshop, variants: { 'title:d1': 'band' as const } } }, labels, on, pool, noPicture)
-    expect(deck[0].html).toMatch(/^<section class="slide title"><div class="text">/)
+    expect(deck[0].html).toMatch(/^<section class="slide title pic-none"><div class="text">/)
     expect(deck[0].html).not.toContain('<figure>')
     const playful = { variant: 'column' as const, choices: ['none' as const, 'column' as const], picture: '' }
     expect(deckOf({ ...state, workshop: { ...state.workshop, variants: { 'title:d1': 'none' as const } } }, labels, on, pool, playful)[0].html).toContain('pic-none')
