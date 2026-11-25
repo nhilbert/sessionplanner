@@ -60,6 +60,9 @@ THEME .slide.statement .big strong, THEME .slide.statement .big .accent, THEME .
 THEME .slide.statement > footer { color: var(--on-field); }
 THEME .slide.statement > footer.chrome span:last-child { background: var(--accent-2); }
 THEME .slide.statement > footer.chrome .part { border-color: rgba(251,243,228,0.4); }
+/* the illustration beside a statement stands on its cream disc */
+THEME .slide.statement > figure.aside { right: 36px; bottom: 44px; width: 340px; height: 320px; }
+THEME .slide.statement > figure.aside img { object-position: center bottom; }
 /* ---- quote ---- */
 THEME .slide.quote cite { color: var(--accent-deep); }
 /* ---- numerals as filled discs: cards, steps, flow, agenda, ordered lists; colours in turn (teal, sun, deep teal) ---- */

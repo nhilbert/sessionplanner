@@ -40,7 +40,7 @@ export const SLIDE_FORMAT = {
   formatting:
     'Formatting by hand overrides the theme for a word or a line and stays when the theme changes: a span with formatting classes and nothing else. Sizes fs-xs fs-s fs-l fs-xl (steps relative to the size the layout gives the text); colours accent c-accent-2 c-accent-3 c-accent-4 c-title c-text muted (places of the theme\'s palette, never literal colours); fw-normal for a word in a heading that should not be bold; strong and em for bold and italic. Example: <h2>Ein <span class="fs-l c-accent-2">lautes</span> Wort</h2>. Use it for the one word that has to stand out; the layout and the theme carry the slide, and text made larger may run over its edge.',
   svg: 'Colours in SVG come from the theme classes, never from literal values: fills f-accent f-accent-deep f-accent-2 f-accent-3 f-accent-4 f-surface f-surface-2 f-title f-bg; strokes s-accent s-line s-fg; text t t-small t-display t-on (on an accent fill). Draw simple shapes, matrices, pyramids, cycles and curves as SVG on a viewBox of about 1152 × 470; never as pictures.',
-  pictures: 'A picture is <img src="asset:<hash>" alt="…">. Only hashes that already exist can be used: the theme\'s pool (theme_pool, by kind and with tags: photos where the layout crops the picture – a split\'s column, figure.full, picture cards, title, section and break slides; illustrations where it is shown whole – split.contain, a figure with its caption, cards.plain.contain, a title pic-whole or pic-small; icons for cards as img.icon; never one kind in the place of another), a pool slide or another slide (slide_get lists a slide\'s assets). Agents cannot upload pictures; write the slide without one or copy a pool slide.',
+  pictures: 'A picture is <img src="asset:<hash>" alt="…">. Only hashes that already exist can be used: the theme\'s pool (theme_pool, by kind and with tags: photos where the layout crops the picture – a split\'s column, figure.full, picture cards, title, section and break slides; illustrations where it is shown whole – split.contain, a figure with its caption, cards.plain.contain, a title pic-whole or pic-small; icons for cards as img.icon; never one kind in the place of another). A list, a statement or a quote may carry one illustration beside its text (figure.aside > img as the slide\'s last element: whole, at the bottom right, the text then takes seven of the twelve columns, so about a third less fits): only an illustration whose tags fit what the slide says, never as decoration and never on every slide; none is better than one that does not fit, a pool slide or another slide (slide_get lists a slide\'s assets). Agents cannot upload pictures; write the slide without one or copy a pool slide.',
   text: 'The deck\'s language and words: German typographic quotes „…“, no emoji, no trailing period on titles, no ALL CAPS, one li per point, at most two list levels, two to five cards or steps per slide. Keep a slide to what its layout holds (every layout says what fits): about six to ten points, five cards, eleven agenda lines; split a slide rather than crowd it.',
   generated: 'The app generates the title slide, the agenda slide per day (with the computed times) and a break slide for every break without slides of its own, and shows them in the deck (deck_outline). Write a title, agenda, break or closing slide yourself only for a special case.',
   choosing: 'Pick the layout by what the slide does: one sentence that carries the slide is statement, parallel points are cards, a sequence is steps, letters with meanings are acronym, labelled boxes with guiding questions are canvas, a 2 × 2 is matrix, two to five entries as a pyramid, a cycle, overlapping circles, a core with rings, pillars or a hub are diagram (the app draws the shape), any other drawing is model, an exercise with task and steps is exercise, text beside a picture is split, one large figure with its evidence is number, two sides against each other are compare, dated points on a line are timeline, everything else that is text is list.',
@@ -92,7 +92,7 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
   {
     layout: 'statement',
     use: 'one sentence that carries the slide, a question for the group',
-    structure: 'div.text > div.eyebrow? + p.big + p.sub?',
+    structure: 'div.text > div.eyebrow? + p.big + p.sub?, then figure.aside > img? (an illustration beside the text)',
     options: 'div.text.long for a statement of more than about twelve words',
     fits: 'a sentence of up to about 14 words at full size; with div.text.long up to about 40 words; a sub of one or two lines',
     example: '<section class="slide statement"><div class="text"><div class="eyebrow">Leitfrage</div><p class="big">Was braucht dieses Team, um gut zu entscheiden?</p><p class="sub">Zwei Minuten still nachdenken, dann zu zweit austauschen</p></div></section>',
@@ -100,14 +100,14 @@ export const SLIDE_LAYOUTS: SlideLayoutDoc[] = [
   {
     layout: 'quote',
     use: 'a quotation with attribution',
-    structure: 'blockquote > p + p.sub?, then cite',
+    structure: 'blockquote > p + p.sub?, then cite, then figure.aside > img? (an illustration beside the text)',
     fits: 'a quotation of up to about 40 words, a sub of one line and the cite',
     example: '<section class="slide quote"><blockquote><p>Wer fragt, führt.</p><p class="sub">Eine Redewendung aus der Moderationspraxis</p></blockquote><cite>Überliefert</cite></section>',
   },
   {
     layout: 'list',
     use: 'bullet points, one or two levels; rules; literature; points with a heading each',
-    structure: 'header, then ul.list or ol.list > li (a nested ul for a second level)',
+    structure: 'header, then ul.list or ol.list > li (a nested ul for a second level), then figure.aside > img? (an illustration beside the text; not with .two)',
     options: '.compact (smaller type, more points), .two (two columns), .rows (a strong heading at the start of each point)',
     fits: 'about ten one-line points, six of two lines; .compact thirteen short points; .rows six headed points; .two two columns of short points',
     example: '<section class="slide list"><header><h2>Regeln für heute</h2><p class="lead">Damit alle zu Wort kommen</p></header><ul class="list"><li>Ausreden lassen</li><li>Ich-Botschaften<ul><li>„Ich habe bemerkt …“ statt „Du immer …“</li></ul></li><li>Handys bleiben in der Tasche</li></ul></section>',

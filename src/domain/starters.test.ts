@@ -47,6 +47,12 @@ describe('starter slides', () => {
     expect(has(undefined, 'pictureCards')).toBe(false)
     expect(has(POOL, 'pictureCards')).toBe(true)
     expect(has(undefined, 'split')).toBe(true)
+    // a text slide with an illustration beside it is offered only where the pool has an illustration
+    for (const id of ['listAside', 'questionAside']) {
+      expect(has(undefined, id), id).toBe(false)
+      expect(has({ ...POOL, illustrations: [] }, id), id).toBe(false)
+      expect(has({ ...POOL, pictures: [] }, id), id).toBe(true)
+    }
     // picture cards are cropped, so they need photos: illustrations do not stand in
     expect(has({ ...POOL, pictures: [] }, 'pictureCards')).toBe(false)
     expect(has({ ...POOL, pictures: PHOTOS.slice(0, 2) }, 'pictureCards')).toBe(false)
@@ -58,6 +64,9 @@ describe('starter slides', () => {
     expect(PHOTOS).toContain(of('splitLeft').figure!.image)
     expect(DRAWN).toContain(of('splitWhole').figure!.image)
     expect(DRAWN).toContain(of('figure').figure!.image)
+    expect(DRAWN).toContain(of('listAside').figure!.image)
+    expect(DRAWN).toContain(of('questionAside').figure!.image)
+    expect(starterSlide(STARTERS.find((s) => s.id === 'listAside')!, set, POOL)).toMatch(/<\/ul><figure class="aside"><img src="asset:[0-9a-f]+" alt=""><\/figure><\/section>$/)
     const cards = of('pictureCards', POOL, 2).cards!.map((c) => c.image)
     expect(new Set(cards).size).toBe(3)
     for (const hash of cards) expect(PHOTOS).toContain(hash)

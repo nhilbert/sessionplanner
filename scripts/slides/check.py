@@ -192,10 +192,18 @@ def fits_checks(layout, sec):
     for h in (n for n in sec.all() if n.tag == 'h1'):
         if len(h.plain()) > h1_limit:
             warn(f'a title of {len(h.plain())} characters wraps to three lines on a {layout} slide; two lines hold about {h1_limit}')
+    # an illustration beside the text (figure.aside): on a list, a statement or a quote, and not beside columns
+    aside = any(x.tag == 'figure' and 'aside' in x.classes for x in sec.all())
+    if aside and layout not in ('list', 'statement', 'quote'):
+        warn('figure.aside: an illustration beside the text stands on a list, a statement or a quote only; use split for this layout')
     if layout == 'list':
         ls = lists('ul', 'list') + lists('ol', 'list')
         n = sum(len(l.items()) for l in ls)
         cls = set().union(*(l.classes for l in ls)) if ls else set()
+        if aside and cls & {'two', 'four'}:
+            warn('an illustration beside a list in columns: the columns need the width; drop the illustration or the columns')
+        elif aside and n > 4:
+            note(f'{n} points beside an illustration: the text has seven of the twelve columns, so points wrap sooner')
         limit = 13 if cls & {'compact', 'two', 'four'} else 6 if 'rows' in cls else 10
         if n > limit:
             warn(f'{n} points: the layout holds about {limit} of this kind, fewer when a point takes two lines; split the slide' + ('' if cls & {'compact', 'two', 'four'} else ', or use .compact for short points'))

@@ -385,7 +385,7 @@ export function createMcpServer(repo: Repo, { product, ...options }: OpsOptions 
   )
   tool(
     'theme_pool',
-    "The picture pool of a theme (the default theme without one), by kind, each entry an asset hash with its tags, used as <img src=\"asset:<hash>\">. pictures are photos: for places that crop the picture (a split's column, figure.full, picture cards, the title, section and break slides). illustrations are drawn and shown whole: split.contain, a figure with its caption, cards.plain.contain, a title slide pic-whole or pic-small, worksheets. icons are img.icon on a card. A photo does not go where an illustration belongs, nor the other way round: where the pool has none of the kind, write the slide without a picture.",
+    "The picture pool of a theme (the default theme without one), by kind, each entry an asset hash with its tags, used as <img src=\"asset:<hash>\">. pictures are photos: for places that crop the picture (a split's column, figure.full, picture cards, the title, section and break slides). illustrations are drawn and shown whole: split.contain, a figure with its caption, cards.plain.contain, a title slide pic-whole or pic-small, beside the text of a list, statement or quote (figure.aside, only where its tags fit what the slide says), worksheets. icons are img.icon on a card. A photo does not go where an illustration belongs, nor the other way round: where the pool has none of the kind, write the slide without a picture.",
     { theme: z.string().optional().describe('Theme id (settings_get lists them); default: the settings\' theme') },
     (a) => ops.themePool(a.theme as string | undefined),
     'read',

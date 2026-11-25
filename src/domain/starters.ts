@@ -88,6 +88,9 @@ export const STARTERS: Starter[] = [
     layout: 'split',
     build: (s, pics) => ({ layout: 'split', options: { contain: true }, header: header(s.title), blocks: [{ kind: 'lead', text: s.lead }, { kind: 'list', points: s.points.slice(3, 6).map((x) => x.title) }], figure: { image: pics[0] ?? '', alt: '', caption: '' } }),
   },
+  // a text slide with an illustration beside it: only where the pool has one, since without it they are the plain starters
+  { id: 'listAside', group: 'picture', layout: 'list', pictures: 1, build: (s, pics) => ({ layout: 'list', options: {}, header: header(s.title), points: s.points.slice(0, 4).map((x) => ({ text: x.title, children: [] })), figure: { image: pics[0] ?? '', alt: '', caption: '' } }) },
+  { id: 'questionAside', group: 'picture', layout: 'statement', pictures: 1, build: (s, pics) => ({ layout: 'statement', options: {}, text: text({ eyebrow: s.kicker, big: s.question, sub: s.questionSub }), figure: { image: pics[0] ?? '', alt: '', caption: '' } }) },
   { id: 'figure', group: 'picture', layout: 'figure', build: (s, pics) => ({ layout: 'figure', options: {}, header: header(s.title), figure: { image: pics[0] ?? '', alt: '', caption: s.caption } }) },
   {
     id: 'pictureCards',

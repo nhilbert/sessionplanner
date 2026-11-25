@@ -38,6 +38,13 @@ describe('which pool a place pulls from', () => {
     expect(figureKind(main(' full'))).toBe('picture')
   })
 
+  it('takes an illustration beside the text of a list, a statement and a quote', () => {
+    const aside = `<figure class="aside">${img}</figure>`
+    expect(figureKind(parseSlide(`<section class="slide list"><header><h2>Title</h2></header><ul class="list"><li>One</li></ul>${aside}</section>`))).toBe('illustration')
+    expect(figureKind(parseSlide(`<section class="slide statement"><div class="text"><p class="big">Why?</p></div>${aside}</section>`))).toBe('illustration')
+    expect(figureKind(parseSlide(`<section class="slide quote"><blockquote><p>So.</p></blockquote><cite>Someone</cite>${aside}</section>`))).toBe('illustration')
+  })
+
   it('takes photos for the bands and columns of section and break slides', () => {
     expect(figureKind(parseSlide(`<section class="slide section"><div class="text"><h1>Title</h1></div><figure>${img}</figure></section>`))).toBe('picture')
     expect(figureKind(parseSlide(`<section class="slide break"><div class="text"><h1>Break</h1></div><figure>${img}</figure></section>`))).toBe('picture')

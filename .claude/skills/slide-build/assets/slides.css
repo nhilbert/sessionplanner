@@ -263,6 +263,13 @@
 .slide .split figure svg { width: 100%; height: 100%; min-height: 0; }
 .slide figcaption { font-size: 13px; line-height: 1.4; color: var(--fg-3); }
 
+/* an illustration beside the text of a list, a statement or a quote (figure.aside, the last thing on the slide): whole,
+   at the bottom right, on the line the content stands on, nothing behind it; the text keeps its size and takes seven
+   of the twelve columns */
+.slide:has(> figure.aside) > header, .slide:has(> figure.aside) > :is(ul.list, ol.list, .text, blockquote) { max-width: 680px; }
+.slide > figure.aside { position: absolute; right: 64px; bottom: 72px; width: 400px; height: 400px; margin: 0; }
+.slide > figure.aside img { width: 100%; height: 100%; object-fit: contain; object-position: right bottom; }
+
 /* figure: one large picture, whole, at the bottom; .full fills the slide */
 .slide figure.main { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; min-height: 0; align-items: end; }
 .slide figure.main img { width: 100%; height: 100%; min-height: 0; object-fit: contain; object-position: center bottom; }

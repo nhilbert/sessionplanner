@@ -2,6 +2,7 @@ import { isTitleVariant, TITLE_VARIANTS, titleVariantClass, titleVariantOf } fro
 import { type El, type Node, classes, el, elements, hasClass, inlineToText, isBlank, isEl, parseTree, serializeNode, serializeNodes, textOf, textToInline, txt } from './slideTree.ts'
 import { DIAGRAM_CORE, type DiagramShape, diagramClass, diagramSvg, isDiagramShape } from './diagram.ts'
 import { normalizeSlideHtml } from './slides.ts'
+import { figureKind } from './pool.ts'
 
 /**
  * The structured view of a slide (docs/slides.md, section 7): what the editor shows as fields, read from the
@@ -158,7 +159,7 @@ export interface SlideDoc {
 
 // ---- the catalogue as a schema ----------------------------------------------------------------------------------
 
-export type Part = 'header' | 'text' | 'points' | 'cards' | 'steps' | 'facts' | 'quote' | 'figure' | 'blocks' | 'rows' | 'matrix' | 'letters' | 'boxes' | 'table' | 'svg' | 'glyph' | 'logo' | 'source' | 'shape'
+export type Part = 'header' | 'text' | 'points' | 'cards' | 'steps' | 'facts' | 'quote' | 'figure' | 'aside' | 'blocks' | 'rows' | 'matrix' | 'letters' | 'boxes' | 'table' | 'svg' | 'glyph' | 'logo' | 'source' | 'shape'
 export type OptionSpec = { key: string; kind: 'flag' } | { key: string; kind: 'choice'; values: number[]; default: number } | { key: string; kind: 'pick'; values: readonly string[] }
 export type LayoutGroup = 'opening' | 'text' | 'structure' | 'visual'
 
@@ -186,9 +187,9 @@ export const LAYOUTS: LayoutSpec[] = [
   { id: 'agenda', group: 'opening', parts: ['header', 'rows'], options: [], max: 11, generated: true },
   { id: 'break', group: 'opening', parts: ['text', 'figure'], textFields: ['title', 'until'], options: [], generated: true },
   { id: 'closing', group: 'opening', parts: ['logo', 'text'], textFields: ['title', 'body'], options: [], generated: true },
-  { id: 'statement', group: 'text', parts: ['text'], textFields: ['eyebrow', 'big', 'sub'], options: [flag('long')] },
-  { id: 'quote', group: 'text', parts: ['quote'], options: [] },
-  { id: 'list', group: 'text', parts: ['header', 'points', 'source'], options: [flag('ordered'), flag('compact'), flag('two'), flag('rows'), flag('four')], max: 8 },
+  { id: 'statement', group: 'text', parts: ['text', 'aside'], textFields: ['eyebrow', 'big', 'sub'], options: [flag('long')] },
+  { id: 'quote', group: 'text', parts: ['quote', 'aside'], options: [] },
+  { id: 'list', group: 'text', parts: ['header', 'points', 'aside', 'source'], options: [flag('ordered'), flag('compact'), flag('two'), flag('rows'), flag('four')], max: 8 },
   { id: 'cards', group: 'structure', parts: ['header', 'cards', 'source'], options: [choice('cols', [2, 3, 4, 5], 3), flag('numbered'), flag('plain'), flag('contain'), flag('picture')], max: 10 },
   { id: 'split', group: 'visual', parts: ['header', 'blocks', 'figure', 'source'], options: [flag('figureLeft'), flag('wideText'), flag('contain')] },
   { id: 'figure', group: 'visual', parts: ['header', 'figure'], options: [flag('full')] },
@@ -606,7 +607,11 @@ export function parseSlide(html: string): SlideDoc {
   const body = bodyNodes.filter(isEl)
   const clean = bodyNodes.every((n) => isEl(n) || isBlank(n))
   const reader = readers[layout]
-  if (clean && reader && reader(body, doc, root) && sameContent(html, serializeSlide(doc))) return doc
+  // An illustration beside the text (figure.aside) is the last thing of a text slide: a picture alone, read as the
+  // slide's figure before the layout reads the rest.
+  const aside = layoutSpec(layout)?.parts.includes('aside') ? body.find((e) => e.tag === 'figure' && hasClass(e, 'aside')) : undefined
+  const asideRead = !aside || (aside === body[body.length - 1] && elements(aside).length === 1 && elements(aside)[0].tag === 'img' && readFigure(aside, doc))
+  if (clean && reader && asideRead && reader(aside ? body.filter((e) => e !== aside) : body, doc, root) && sameContent(html, serializeSlide(doc))) return doc
   // The body as source, the header and footer as fields.
   const partial: SlideDoc = { layout, options: {}, raw: serializeNodes(bodyNodes).trim(), root: rootClass }
   if (doc.header) partial.header = doc.header
@@ -849,6 +854,7 @@ export function serializeSlide(doc: SlideDoc): string {
   if (spec?.parts.includes('header') || (doc.raw !== undefined && doc.header)) parts.push(serializeNodes(writeHeader(doc.header, doc.layout === 'exercise')))
   if (doc.raw !== undefined) parts.push(doc.raw)
   else if (writers[doc.layout]) parts.push(serializeNodes(writers[doc.layout](doc)))
+  if (doc.raw === undefined && spec?.parts.includes('aside') && doc.figure?.image) parts.push(serializeNodes(writeFigure({ ...doc.figure, caption: '' }, 'aside')))
   if (doc.takeaway?.trim() || doc.source?.trim()) {
     const take = doc.takeaway?.trim() ? `<span class="takeaway">${serializeNodes(textToInline(doc.takeaway.trim()))}</span>` : ''
     const src = doc.source?.trim() ? `<span class="source">${serializeNodes(textToInline(doc.source.trim()))}</span>` : ''
@@ -1048,9 +1054,15 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
     if (f.includes('until')) out.text.until = pool.lead
   }
   const figureWanted = spec.parts.includes('figure')
+  // a picture that stood whole (an illustration: beside a text, in a split shown whole, on a figure slide) goes on
+  // standing whole: beside the text of a list, a statement or a quote, and whole in a split. A cropped one (a photo)
+  // has no place beside a text.
+  const whole = !!pool.figure?.image && figureKind(doc) === 'illustration'
   if (figureWanted && (pool.figure?.image || pool.figure?.caption)) out.figure = { ...pool.figure }
   else if (figureWanted) out.figure = emptyFigure()
+  else if (spec.parts.includes('aside') && whole) out.figure = { ...emptyFigure(), image: pool.figure!.image, alt: pool.figure!.alt }
   else if (pool.figure?.image) lost.push('figure')
+  if (layout === 'split' && whole) out.options.contain = true
   if (spec.parts.includes('svg')) out.svg = pool.svg ?? ''
   else if (pool.svg && !(layout === 'split')) lost.push('svg')
   if (spec.parts.includes('source') && pool.source) out.source = pool.source

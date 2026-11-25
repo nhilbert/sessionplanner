@@ -32,8 +32,9 @@ export const titlePictureKind = (variant: TitleVariant | null | undefined, whole
 
 /**
  * The kind of the figure of a slide: a title's by its variant; a split's and a figure slide's by whether the picture is
- * shown whole (`contain`, a caption under a split's picture, a figure that does not fill the slide); the bands and
- * columns of section, agenda and break slides are photos.
+ * shown whole (`contain`, a caption under a split's picture, a figure that does not fill the slide); beside the text of
+ * a list, a statement or a quote stands an illustration; the bands and columns of section, agenda and break slides are
+ * photos.
  */
 export function figureKind(doc: Pick<SlideDoc, 'layout' | 'options' | 'figure'>, context: KindContext = DEFAULT_KIND_CONTEXT): PictureKind {
   if (context.whole) return 'illustration'
@@ -44,6 +45,11 @@ export function figureKind(doc: Pick<SlideDoc, 'layout' | 'options' | 'figure'>,
       return doc.options.contain || doc.figure?.caption.trim() ? 'illustration' : 'picture'
     case 'figure':
       return doc.options.full ? 'picture' : 'illustration'
+    // the illustration beside the text (figure.aside)
+    case 'list':
+    case 'statement':
+    case 'quote':
+      return 'illustration'
     default:
       return 'picture'
   }

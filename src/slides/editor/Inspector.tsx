@@ -28,6 +28,8 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
   const kinds = useKindContext(theme)
   const { t } = useTranslation()
   const spec = layoutSpec(doc.layout)
+  // an illustration beside the text needs the width a list in columns takes
+  const asideFits = !(doc.options.two || doc.options.four)
   const set = (patch: Partial<SlideDoc>) => onChange({ ...doc, ...patch })
   const parts = new Set(spec?.parts ?? [])
   // Kept as typed (spaces, empty lines) while editing; the slide drops empty lines and outer spaces when it is written.
@@ -324,6 +326,17 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
             <PictureField path="figure.image" value={doc.figure?.image ?? ''} onChange={(image) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), image } })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer={figureKind(doc, kinds)} />
             {doc.figure?.image && <Text path="figure.alt" value={doc.figure?.alt ?? ''} onChange={(alt) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), alt } })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} />}
             {doc.layout !== 'title' && doc.layout !== 'break' && <Text path="figure.caption" value={doc.figure?.caption ?? ''} onChange={(caption) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), caption } })} onFocus={onFocus} placeholder={f('caption')} label={f('caption')} />}
+          </div>
+        </section>
+      )}
+
+      {structured && parts.has('aside') && (asideFits || doc.figure?.image) && (
+        <section>
+          <SectionLabel>{f('aside')}</SectionLabel>
+          <div className="space-y-1.5">
+            <PictureField path="figure.image" value={doc.figure?.image ?? ''} onChange={(image) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), image } })} onFocus={onFocus} scope={scope} known={known} theme={theme} prefer={figureKind(doc, kinds)} label={f('asideAdd')} />
+            {doc.figure?.image && <Text path="figure.alt" value={doc.figure?.alt ?? ''} onChange={(alt) => set({ figure: { ...(doc.figure ?? { image: '', alt: '', caption: '' }), alt } })} onFocus={onFocus} placeholder={f('alt')} label={f('alt')} />}
+            <p className="text-[12px] leading-snug text-ink-3">{f(asideFits ? 'asideHint' : 'asideNarrow')}</p>
           </div>
         </section>
       )}

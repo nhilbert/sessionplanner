@@ -199,3 +199,56 @@ describe('slide document', () => {
     expect(paths).toContain('matrix.axisX')
   })
 })
+
+describe('an illustration beside the text', () => {
+  const img = `<img src="asset:${'a'.repeat(64)}" alt="Keimling">`
+  const aside = `<figure class="aside">${img}</figure>`
+  const list = `<section class="slide list"><header><h2>Was die Pflanze braucht</h2></header><ul class="list"><li>Licht</li><li>Wasser</li></ul>${aside}</section>`
+  const statement = `<section class="slide statement"><div class="text"><div class="eyebrow">Frage</div><p class="big">Wer gießt im Urlaub?</p></div>${aside}</section>`
+  const quote = `<section class="slide quote"><blockquote><p>Eine Pflanze verzeiht vieles.</p></blockquote><cite>Hausmeister</cite>${aside}</section>`
+
+  it('is read as the figure of a list, a statement and a quote, and written back as it stood', () => {
+    for (const html of [list, statement, quote]) {
+      const doc = parseSlide(html)
+      expect(doc.raw, html).toBeUndefined()
+      expect(doc.figure).toEqual({ image: 'a'.repeat(64), alt: 'Keimling', caption: '' })
+      expect(serializeSlide(doc)).toBe(html)
+      // taken away, the slide is the plain one again
+      expect(serializeSlide({ ...doc, figure: { image: '', alt: '', caption: '' } })).toBe(html.replace(aside, ''))
+    }
+    expect(parseSlide(list).points?.map((p) => p.text)).toEqual(['Licht', 'Wasser'])
+    expect(parseSlide(quote).quote?.cite).toBe('Hausmeister')
+  })
+
+  it('keeps a slide as source where the figure is not the plain last thing the format names', () => {
+    // before the list, with a caption, or on a layout that has no such place
+    expect(parseSlide(list.replace(aside, '').replace('<ul class="list">', `${aside}<ul class="list">`)).raw).toBeDefined()
+    expect(parseSlide(list.replace(img, `${img}<figcaption>Bild</figcaption>`)).raw).toBeDefined()
+    expect(parseSlide(`<section class="slide steps"><header><h2>Ablauf</h2></header><ol class="flow"><li><h3>Eins</h3><p>Text</p></li></ol>${aside}</section>`).raw).toBeDefined()
+    // nothing is lost either way
+    expect(serializeSlide(parseSlide(list.replace(img, `${img}<figcaption>Bild</figcaption>`)))).toContain('<figcaption>Bild</figcaption>')
+  })
+
+  it('stays with the content when the layout changes, where it stood whole; a cropped photo does not move beside a text', () => {
+    // between the three text layouts
+    expect(convertLayout(parseSlide(list), 'statement').doc.figure?.image).toBe('a'.repeat(64))
+    expect(serializeSlide(convertLayout(parseSlide(statement), 'quote').doc)).toContain(aside)
+    // from a split shown whole and back: whole there too
+    const whole = parseSlide(`<section class="slide split"><header><h2>Titel</h2></header><div class="split contain"><div class="text"><ul class="list"><li>Licht</li></ul></div><figure>${img}</figure></div></section>`)
+    expect(whole.raw).toBeUndefined()
+    const asList = convertLayout(whole, 'list')
+    expect(asList.lost).not.toContain('figure')
+    expect(serializeSlide(asList.doc)).toContain(aside)
+    const back = convertLayout(parseSlide(list), 'split')
+    expect(back.doc.options.contain).toBe(true)
+    expect(back.doc.figure?.image).toBe('a'.repeat(64))
+    // a photo cropped to the split's column is reported as lost, as before
+    const cropped = parseSlide(`<section class="slide split"><header><h2>Titel</h2></header><div class="split"><div class="text"><ul class="list"><li>Licht</li></ul></div><figure>${img}</figure></div></section>`)
+    const lost = convertLayout(cropped, 'list')
+    expect(lost.lost).toContain('figure')
+    expect(lost.doc.figure?.image ?? '').toBe('')
+    // a layout without the place loses it and says so
+    expect(convertLayout(parseSlide(list), 'cards').lost).toContain('figure')
+  })
+})
+
