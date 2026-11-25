@@ -87,8 +87,8 @@ Opened from the agenda, an entry's details stand in the sidebar; from there they
   it holds and, folded, a line of what that is. What is folded is remembered on the device for all entries. A section
   without content is its head alone where the head can add to it (material).
 - **Notes stand formatted, as they read.** A click into them turns them into the field, at the word clicked, and
-  leaving the field shows them formatted again; a link in them is followed and words can be marked without the field
-  opening. Empty notes are the field at once. The same for a workshop's notes and the text of a note in the agenda.
+  leaving the field shows them formatted again; a link in them is followed and words can be marked by dragging
+  without the field opening. Empty notes are the field at once. The same for a workshop's notes and the text of a note in the agenda.
 - **Large, the same parts stand in two columns** in place of the agenda: what is written on the left (title, goal,
   notes, slides), the facts on the right (time, category, material, files, worksheets). The agenda stays beside it as
   a slim list of the days' entries with their starts, and the head leads to the entry before and after. "To the

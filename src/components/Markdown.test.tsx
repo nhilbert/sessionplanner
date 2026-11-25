@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { oneLine, parseBlocks, sourceOffset } from '@/domain/markdown'
+import { oneLine, parseBlocks, plainLine, sourceOffset } from '@/domain/markdown'
 import Markdown, { NoteText } from './Markdown'
 
 const html = (text: string) => renderToStaticMarkup(<Markdown text={text} />)
@@ -43,6 +43,21 @@ describe('Markdown', () => {
     // a run the source does not hold as shown, and an empty one: the end
     expect(sourceOffset(source, '', 'nirgends', 3)).toBe(source.length)
     expect(sourceOffset(source, '', '', 0)).toBe(source.length)
+    // a word that also stands in a link's address, which is not shown: the place is in the text
+    const linked = 'Mehr im [Wiki](https://example.com/wiki/moderation), heute *moderation* üben'
+    expect(sourceOffset(linked, 'Mehr im Wiki, heute ', 'moderation', 3)).toBe(linked.lastIndexOf('moderation') + 3)
+    expect(plainLine('\n## **Ablauf** mit [Link](https://example.com)\nmehr')).toBe('Ablauf mit Link')
+    expect(plainLine('- [ ] `eins`')).toBe('eins')
+    expect(plainLine('*Liebe* Kolleg*innen, __alle__ ins Raum_2_OG')).toBe('Liebe Kolleg*innen, alle ins Raum_2_OG')
+  })
+
+  it('leaves stars and underscores inside words as typed', () => {
+    expect(html('Liebe Kolleg*innen und Leiter*innen, *bitte* pünktlich')).toBe('<div><p class="my-1 first:mt-0 last:mb-0">Liebe Kolleg*innen und Leiter*innen, <em>bitte</em> pünktlich</p></div>')
+    expect(html('Board: https://example.com/app/my_board_link und Raum_2_OG, 2*3*4')).toContain('Board: https://example.com/app/my_board_link und Raum_2_OG, 2*3*4')
+    expect(html('a__b__c und x__init__, _so_ und __fett__')).toContain('a__b__c und x__init__, <em>so</em> und <strong>fett</strong>')
+    // a star that opens nothing stays a star, and what follows is still read
+    expect(html('Ein * allein, *a b * und **fett***')).toContain('Ein * allein, *a b * und <strong>fett</strong>*')
+    expect(html('Teil**nehmer**innen, (*kursiv*) und „_kursiv_“')).toContain('Teil<strong>nehmer</strong>innen, (<em>kursiv</em>) und „<em>kursiv</em>“')
   })
 
   it('never lets HTML or script links through', () => {

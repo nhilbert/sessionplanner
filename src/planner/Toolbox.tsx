@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { Archive, BookMarked, ChevronDown, ChevronUp, FolderOpen, Info, Maximize2, Minimize2, Package, Paperclip, PanelRightClose, PanelRightOpen, Plus, Presentation, Redo2, Undo2, X } from 'lucide-react'
 import type { Attachment, Item, ItemKind, LibraryEntry, WorkshopState } from '@/domain/types'
+import { plainLine } from '@/domain/markdown'
 import type { Op } from '@/domain/ops'
 import { durationOf, formatDuration, formatTime } from '@/domain/time'
 import { libraryText, matchesWords, useLibrary } from '@/store/useLibrary'
@@ -364,7 +365,7 @@ function LibraryRow({ entry, onInsert }: { entry: LibraryEntry; onInsert: () => 
         <span className="block truncate">{entry.title}</span>
         {/* one line of what it is: the description, or a group's items */}
         {(entry.kind === 'group' ? entry.data.items.length > 0 : !!entry.data.description) && (
-          <span className="block truncate text-[12px] text-ink-3">{entry.kind === 'group' ? entry.data.items.map((i) => i.title || t(`kinds.${i.kind}`)).join(' · ') : entry.data.description}</span>
+          <span className="block truncate text-[12px] text-ink-3">{entry.kind === 'group' ? entry.data.items.map((i) => i.title || t(`kinds.${i.kind}`)).join(' · ') : entry.data.kind === 'note' ? plainLine(entry.data.description) : entry.data.description}</span>
         )}
       </span>
       {entry.attachments.length > 0 && (

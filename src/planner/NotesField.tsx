@@ -3,13 +3,14 @@ import { useTranslation } from 'react-i18next'
 import { Bold, Eye, Heading, Italic, List, Maximize2, PenLine } from 'lucide-react'
 import Markdown from '@/components/Markdown'
 import { sourceOffset } from '@/domain/markdown'
+import { afterPress } from './press'
 import { cx, IconButton, Modal } from '@/components/ui'
 
 /**
  * Notes with basic Markdown (components/Markdown.tsx). They stand formatted, as they read: a click into them (or
  * the pencil) turns them into the field with its small toolbar, at the word clicked, and leaving the field shows
- * them formatted again. A link is followed and words can be marked to copy without the field opening; empty notes
- * are the field at once. A large editor has text and preview side by side. Saves like the other fields (after a
+ * them formatted again. A link is followed and words can be marked by dragging to copy them without the field
+ * opening; empty notes are the field at once. A large editor has text and preview side by side. Saves like the other fields (after a
  * pause, on leaving) and is not overwritten by other windows while you type.
  */
 // Not inside a <label>: a click there is passed on to the label's first control, which would be the preview button.
@@ -56,6 +57,9 @@ export default function NotesField({
   }
   const change = (v: string) => {
     dirty.current = true
+    // Empty notes are the field although nobody opened it: what is put into it (also by its toolbar, without the
+    // focus) must not turn it into the formatted view under the hands.
+    if (!large) setPreview(false)
     setLocal(v)
     clearTimeout(timer.current)
     timer.current = setTimeout(() => commit(v), 800)
@@ -78,7 +82,6 @@ export default function NotesField({
       onChange={change}
       onFocus={() => {
         typing.current = true
-        // empty notes are the field although nobody opened it: typing into it must not turn it into the formatted view
         if (!big) setPreview(false)
       }}
       onBlur={leave}
@@ -95,7 +98,10 @@ export default function NotesField({
     <>
       {/* keeps the focus where it is, so the click decides alone: a field that lost it would already stand formatted */}
       <IconButton
+        data-notes-own
         label={formatted ? t('notes.edit') : t('notes.preview')}
+        // nothing to show formatted yet
+        disabled={!local.trim()}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => {
           if (formatted) return edit(local.length)
@@ -106,6 +112,7 @@ export default function NotesField({
         {formatted ? <PenLine size={14} /> : <Eye size={14} />}
       </IconButton>
       <IconButton
+        data-notes-own
         label={t('notes.enlarge')}
         onClick={() => {
           // the large editor takes over: behind it and after it the notes stand formatted
@@ -118,7 +125,7 @@ export default function NotesField({
     </>
   )
   const body = formatted ? (
-    // Not a button: it holds links, and its words can be marked.
+    // Not a button: it holds links, and its words can be marked by dragging.
     <div
       role="group"
       aria-label={label}
@@ -126,7 +133,7 @@ export default function NotesField({
       onClick={(e) => {
         const selection = window.getSelection()
         if ((e.target as HTMLElement).closest('a') || (selection && !selection.isCollapsed)) return
-        edit(caretOf(e.currentTarget, selection, local))
+        edit(caretOf(e.currentTarget, selection, local.replace(/\r\n?/g, '\n')))
       }}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
@@ -142,8 +149,17 @@ export default function NotesField({
   )
 
   return (
-    // Leaving the field (not for another window, where the caret waits, and not for its own buttons) shows the notes formatted again.
-    <div ref={root} onBlur={(e) => void (document.hasFocus() && !root.current?.contains(e.relatedTarget) && setPreview(true))}>
+    // Leaving the field shows the notes formatted again: not for another window, where the caret waits, and not for
+    // its own buttons. The formatted notes are lower than the field, so what lies below moves up: that waits until
+    // the press that left the field is over, or its click would land on nothing.
+    <div
+      ref={root}
+      onBlur={(e) => {
+        const to = e.relatedTarget
+        if (!document.hasFocus() || (to instanceof Element && root.current?.contains(to) && to.closest('[data-notes-own]'))) return
+        afterPress(() => setPreview(true))
+      }}
+    >
       {frame ? (
         frame({ tools, body })
       ) : (
@@ -229,6 +245,8 @@ function Editor({ value, big, tall, label, caret, onChange, onFocus, onBlur }: {
       next = value.slice(0, start) + lines.join('\n') + value.slice(b)
       selA = start
       selB = start + lines.join('\n').length
+      // nothing was marked: the caret stays where it stood in the line, to go on typing
+      if (a === b) selA = selB = Math.max(start, a + next.length - value.length)
     }
     onChange(next)
     requestAnimationFrame(() => {
@@ -238,7 +256,7 @@ function Editor({ value, big, tall, label, caret, onChange, onFocus, onBlur }: {
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface focus-within:border-[color-mix(in_oklab,var(--accent)_60%,var(--line))]">
+    <div data-notes-own className="rounded-lg border border-line bg-surface focus-within:border-[color-mix(in_oklab,var(--accent)_60%,var(--line))]">
       <div className="flex items-center gap-0.5 border-b border-line px-1 py-0.5">
         {(
           [

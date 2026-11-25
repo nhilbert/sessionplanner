@@ -9,6 +9,7 @@ import { newSlides } from '@/domain/slides'
 import { categoryName, colorVar, itemColor, useLibraryEdit, useSettings } from '@/store/useSettings'
 import Swatches from '@/components/Swatches'
 import { formatTime, MAX_DURATION, SNAP } from '@/domain/time'
+import { plainLine } from '@/domain/markdown'
 import { api, reportFailure } from '@/api'
 import type { TFunction } from 'i18next'
 import { formatDate } from '@/i18n'
@@ -16,6 +17,7 @@ import { cx, IconButton, SectionLabel, useLocalState } from '@/components/ui'
 import Menu, { type MenuItem } from '@/components/Menu'
 import { DEFAULT_DURATION, DurationField, QtyField, TextField, TimeField } from './fields'
 import NotesField from './NotesField'
+import { afterPress } from './press'
 import { FileManager } from './FileManager'
 import { WorksheetList } from '@/worksheets/WorksheetList'
 import { useSheetBrand, useStepFacts } from '@/worksheets/SheetView'
@@ -38,30 +40,6 @@ export const kindFields = (item: Item, kind: ItemKind): Partial<ItemFields> => {
 
 /** The lines of a unit that show only once they say something; until then each is a small "+ …" below the others. */
 type Optional = 'goal' | 'method' | 'lead'
-
-// Whether a pointer is pressed right now, known before anything on the page reacts to the press.
-let pressed = false
-if (typeof window !== 'undefined') {
-  window.addEventListener('pointerdown', () => void (pressed = true), true)
-  for (const end of ['pointerup', 'pointercancel']) window.addEventListener(end, () => void (pressed = false), true)
-}
-
-/**
- * Runs what takes a line away once the press that led to it is over. A field is left when the pointer goes down
- * elsewhere; were its line taken away at once, what lies below would move up under the pointer and the click would
- * land on nothing. Left with the keyboard, there is nothing to wait for.
- */
-function afterPress(run: () => void): void {
-  if (!pressed) return run()
-  const done = () => {
-    window.removeEventListener('pointerup', done, true)
-    window.removeEventListener('pointercancel', done, true)
-    // after the click that follows the release
-    setTimeout(run, 0)
-  }
-  window.addEventListener('pointerup', done, true)
-  window.addEventListener('pointercancel', done, true)
-}
 
 /** Something to add, as a quiet pill: an optional line, a fixed start. */
 const CHIP = 'tap inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-line-2 px-2.5 text-[12px] text-ink-2 transition-colors hover:border-ink-3 hover:text-ink pointer-coarse:h-9'
@@ -372,7 +350,7 @@ export default function ItemPanel({
             label={t('item.notes')}
             hint={t('item.notesHint')}
             frame={({ tools, body }) => (
-              <Section state={notes} title={t('item.notes')} hint={t('item.notesHint')} summary={firstLine(item.notes)} action={notes.open ? tools : undefined}>
+              <Section state={notes} title={t('item.notes')} hint={t('item.notesHint')} summary={plainLine(item.notes)} action={notes.open ? tools : undefined}>
                 {body}
               </Section>
             )}
@@ -426,13 +404,6 @@ function Section({ state, title, hint, count, summary, action, empty, keep, chil
 function FactLabel({ children, top }: { children: ReactNode; top?: boolean }) {
   return <div className={cx('text-[13px] text-ink-2', top && 'self-start pt-[7px]')}>{children}</div>
 }
-
-/** The first line of the notes that says something, without its Markdown signs: what a folded section shows. */
-const firstLine = (text: string): string =>
-  text
-    .split('\n')
-    .map((line) => line.replace(/^\s*(#{1,6}\s+|[-*]\s+(\[[ x]\]\s+)?|\d+\.\s+|>\s*)/i, '').replace(/[*_`]/g, '').trim())
-    .find(Boolean) ?? ''
 
 /** The category as a dot and its name; the menu holds the categories and, apart from them, an own colour instead of the category's. */
 function CategoryMenu({ item, onSet }: { item: Item; onSet: (fields: Partial<ItemFields>) => void }) {

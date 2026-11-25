@@ -211,10 +211,10 @@ const demote = (markdown: string, by: number): string => markdown.replace(/^(#{1
  * A note item's title and text as lines. The text is Markdown as typed: one plain line follows the title after a
  * dash, anything longer (several lines, a list, a heading) stands below it.
  */
-function noteLines(title: string, text: string): string[] {
+function noteLines(title: string, text: string, headingsBy = 0): string[] {
   const line = oneLine(text)
   if (line !== null || !text.trim()) return [[title, line ?? ''].filter(Boolean).join(' – ')]
-  const body = text.replace(/\r\n?/g, '\n').replace(/^\n+|\s+$/g, '').split('\n')
+  const body = demote(text.replace(/\r\n?/g, '\n').replace(/^\n+|\s+$/g, ''), headingsBy).split('\n')
   return title ? [title, '', ...body] : body
 }
 
@@ -299,7 +299,7 @@ function sectionLines(rows: PrintRow[], state: WorkshopState, o: PrintOptions, l
     if (r.gap) out.push(`*${l.gap(formatDuration(r.gap))}*`, '')
     if (r.overlap) out.push(`*${l.overlap(formatDuration(r.overlap))}*`, '')
     if (item.kind === 'note') {
-      out.push(...noteLines(item.title.trim() && `**${item.title.trim()}**`, demote(item.description, 3)).map((line) => `> ${line}`.trimEnd()), '')
+      out.push(...noteLines(item.title.trim() && `**${item.title.trim()}**`, item.description, 3).map((line) => `> ${line}`.trimEnd()), '')
       continue
     }
     if (item.kind === 'marker') {

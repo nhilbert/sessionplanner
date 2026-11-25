@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { FileText, Paperclip, Presentation } from 'lucide-react'
 import type { Category, ItemContent, LibraryEntry, Slide, Worksheet } from '@/domain/types'
+import { plainLine } from '@/domain/markdown'
 import { entryItems } from '@/domain/copy'
 import { durationOf } from '@/domain/time'
 import { GROUPS, holdsOf, NO_CATEGORY } from '@/domain/libraryView'
@@ -86,7 +87,8 @@ export const coverOf = (entry: LibraryEntry): Slide | null => entryItems(entry).
 export function summaryOf(entry: LibraryEntry, t: TFunction): string {
   if (entry.kind === 'group') return `${t('library.items', { count: entry.data.items.length })}: ${entry.data.items.map((i) => i.title || t(`kinds.${i.kind}`)).join(' · ')}`
   const i = entry.data
-  return (i.description || i.goal || i.method).trim()
+  // a note's text is Markdown: its first line without the signs
+  return i.kind === 'note' ? plainLine(i.description) : (i.description || i.goal || i.method).trim()
 }
 
 /** What an entry holds, as signs with numbers: slides, worksheets, files. Nothing for an entry that holds none. */

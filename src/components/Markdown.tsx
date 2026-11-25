@@ -82,30 +82,41 @@ function blocks(text: string): ReactNode {
 }
 
 const SAFE_LINK = /^(https?:\/\/|mailto:)/i
-const TOKEN = /(\*\*[^*]+\*\*|__[^_]+__|\*[^*\s][^*]*\*|_[^_\s][^_]*_|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/
+// *italic*, _italic_ and __bold__ begin and end at the edge of a word, so a gender star ("Kolleg*innen und
+// Leiter*innen"), a_name_with_dashes and an address with underscores stay as typed; **bold** may stand inside a word.
+const WORD = '[\\p{L}\\p{N}]'
+const TOKEN = new RegExp(
+  [
+    '\\*\\*[^*]+\\*\\*',
+    `(?<!${WORD}|_)__[^_]+__(?!${WORD}|_)`,
+    `(?<!${WORD}|\\*)\\*[^*\\s](?:[^*]*[^*\\s])?\\*(?!${WORD}|\\*)`,
+    `(?<!${WORD}|_)_[^_\\s](?:[^_]*[^_\\s])?_(?!${WORD}|_)`,
+    '`[^`]+`',
+    '\\[[^\\]]+\\]\\([^)\\s]+\\)',
+  ].join('|'),
+  'u',
+)
 
 export function inline(text: string): ReactNode[] {
-  return text
-    .split(TOKEN)
-    .filter((part) => part !== '')
-    .map((part, i) => {
-      if (/^(\*\*|__).+\1$/.test(part)) return <strong key={i}>{inline(part.slice(2, -2))}</strong>
-      if (/^`.+`$/.test(part))
-        return (
-          <code key={i} className="rounded bg-surface-2 px-1 text-[0.92em]">
-            {part.slice(1, -1)}
-          </code>
-        )
-      const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part)
-      if (link)
-        return SAFE_LINK.test(link[2]) ? (
-          <a key={i} href={link[2]} target="_blank" rel="noreferrer noopener" className="text-accent-strong underline underline-offset-2">
-            {link[1]}
-          </a>
-        ) : (
-          <Fragment key={i}>{link[1]}</Fragment>
-        )
-      if (/^([*_]).+\1$/.test(part)) return <em key={i}>{inline(part.slice(1, -1))}</em>
-      return <Fragment key={i}>{part}</Fragment>
-    })
+  // split by one group: what the pattern found stands at the odd places, the text between at the even ones
+  return text.split(new RegExp(`(${TOKEN.source})`, 'u')).map((part, i) => {
+    if (i % 2 === 0) return part === '' ? null : <Fragment key={i}>{part}</Fragment>
+    if (/^(\*\*|__).+\1$/.test(part)) return <strong key={i}>{inline(part.slice(2, -2))}</strong>
+    if (/^`.+`$/.test(part))
+      return (
+        <code key={i} className="rounded bg-surface-2 px-1 text-[0.92em]">
+          {part.slice(1, -1)}
+        </code>
+      )
+    const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part)
+    if (link)
+      return SAFE_LINK.test(link[2]) ? (
+        <a key={i} href={link[2]} target="_blank" rel="noreferrer noopener" className="text-accent-strong underline underline-offset-2">
+          {link[1]}
+        </a>
+      ) : (
+        <Fragment key={i}>{link[1]}</Fragment>
+      )
+    return <em key={i}>{inline(part.slice(1, -1))}</em>
+  })
 }

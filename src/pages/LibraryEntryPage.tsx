@@ -13,6 +13,7 @@ import { categoryName, itemColor, stripColor, useLibraryEdit, useSettings } from
 import { Button, cx, Empty, Field, IconButton } from '@/components/ui'
 import { shortDate, TagEditor, TagList } from '@/components/collection'
 import Menu from '@/components/Menu'
+import Markdown from '@/components/Markdown'
 import Swatches from '@/components/Swatches'
 import { reportFailure } from '@/api'
 import { DurationField, TextField } from '@/planner/fields'
@@ -357,7 +358,14 @@ function ItemBody({ entry, owner, theme, categories, known, onSave, onTags, onSl
         </div>
       ) : (
         <>
-          {i.description.trim() ? <p className="max-w-[64ch] whitespace-pre-line text-[16px] leading-normal">{i.description}</p> : <p className="text-[14px] text-ink-3">{t('library.noDescription')}</p>}
+          {!i.description.trim() ? (
+            <p className="text-[14px] text-ink-3">{t('library.noDescription')}</p>
+          ) : i.kind === 'note' ? (
+            // a note's text is Markdown, as in the agenda
+            <Markdown text={i.description} className="max-w-[64ch] text-[16px] leading-normal" />
+          ) : (
+            <p className="max-w-[64ch] whitespace-pre-line text-[16px] leading-normal">{i.description}</p>
+          )}
           <FactList item={i} className="mt-4" />
         </>
       )}
@@ -396,7 +404,7 @@ function ItemBody({ entry, owner, theme, categories, known, onSave, onTags, onSl
             {editing === 'notes' ? (
               <TextField multiline value={i.notes} onCommit={(notes) => set({ notes })} aria-label={t('library.notes')} className="mt-1 min-h-[120px]" />
             ) : i.notes.trim() ? (
-              <p className="max-w-[64ch] whitespace-pre-line text-[14.5px] leading-relaxed">{i.notes}</p>
+              <Markdown text={i.notes} className="max-w-[64ch] text-[14.5px] leading-relaxed" />
             ) : (
               // On the tint the hint takes the secondary text colour: the lighter one is too faint there.
               <p className="text-[14px] text-ink-2">{t('library.noNotes')}</p>
@@ -509,12 +517,12 @@ function GroupBody({ entry, owner, theme, categories, known, onTags }: { entry: 
                       </div>
                       <div className="mt-0.5 text-[13px] text-ink-2">{category ? categoryName(category, t) : t(`kinds.${i.kind}`)}</div>
                     </div>
-                    {i.description.trim() && <p className="max-w-[64ch] whitespace-pre-line text-[14.5px]">{i.description}</p>}
+                    {i.description.trim() && (i.kind === 'note' ? <Markdown text={i.description} className="max-w-[64ch] text-[14.5px]" /> : <p className="max-w-[64ch] whitespace-pre-line text-[14.5px]">{i.description}</p>)}
                     <FactList item={i} />
                     {i.notes.trim() && (
                       <div className="rounded-[10px] bg-surface-2 px-3.5 py-2.5">
                         <div className={label}>{t('library.notes')}</div>
-                        <p className="mt-0.5 max-w-[64ch] whitespace-pre-line text-[14px] leading-relaxed">{i.notes}</p>
+                        <Markdown text={i.notes} className="mt-0.5 max-w-[64ch] text-[14px] leading-relaxed" />
                       </div>
                     )}
                     {i.materials.length > 0 && (

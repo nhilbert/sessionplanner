@@ -166,6 +166,9 @@ describe('workshopMarkdown', () => {
     const long = withNote('# Today\n**Challenge:** all charts\n\n- one\n- two\n')
     expect(plan(long)).toContain('> **Photo**\n>\n> #### Today\n> **Challenge:** all charts\n>\n> - one\n> - two\n\n')
     expect(table(long)).toContain('| *Photo*<br># Today<br>**Challenge:** all charts<br>- one<br>- two |')
+    // one heading is not one line: it stands below the title in the plan as on the page
+    expect(plan(withNote('# Today'))).toContain('> **Photo**\n>\n> #### Today\n')
+    expect(table(withNote('# Today'))).toContain('| *Photo*<br># Today |')
     // a text alone, and a title alone
     expect(plan(withNote('- one\n- two', ''))).toContain('\n> - one\n> - two\n')
     expect(table(withNote('', 'Photo'))).toContain('| *Photo* |')
