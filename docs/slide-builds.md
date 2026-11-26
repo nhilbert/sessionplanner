@@ -1,6 +1,6 @@
-# Slide builds – slides that build up step by step (draft 1, 2026-11-26)
+# Slide builds – slides that build up step by step (draft 2, 2026-11-26)
 
-A slide can come on in parts: the title first, then its points, cards or steps one after another, on a click or by itself. The aim is a guided way through the content: the room sees one thing, hears about it, then sees the next. This draft is a proposal. Nothing of it is built, and the choices of section 2 are open until the owner takes them.
+A slide can come on in parts: the title first, then its points, cards or steps one after another, on a click or by itself. The aim is a guided way through the content: the room sees one thing, hears about it, then sees the next. Stage 1 of four is built (section 10, with what it does differently from the proposal); the rest of this draft is a proposal, and its choices are open until the owner takes them.
 
 Words used here: a **build** is a slide that comes on in parts. A **unit** is a part that can come on by itself (a point, a card, a row). A **stage** is what one click brings: one unit, or several together. "Step" stays what it is in the app, a step of the agenda. In German: Aufbau, Stufe ("Aufbau in 4 Stufen"), since Schritt is taken by the agenda and by the exercise.
 
@@ -14,7 +14,7 @@ Words used here: a **build** is a slide that comes on in parts. A **unit** is a 
 
 ## 2. Decisions proposed
 
-Each with its strongest counter-argument, what would show it to be wrong, and what is not known.
+Each with its strongest counter-argument, what would show it to be wrong, and what is not known. Stage 1 was built on 1, 2, 4, 5, 7, 8 and 9 as they stand here, on the owner's go-ahead of 2026-11-26; 3 and 6 wait for stage 3.
 
 | # | Proposed | Strongest counter-argument | Shown wrong if | Not known |
 |---|---|---|---|---|
@@ -57,12 +57,12 @@ What follows from it is this draft's reading, not a finding. Cutting a continuou
 | `title`, `break`, `closing`, `figure`, `model` | not offered: nothing to build | |
 
 - The **takeaway** of a content slide is a last stage of its own: it is the conclusion. The **source** stands from the start.
-- A slide with fewer than two units is not offered the switch.
+- A slide with nothing to build is not offered the switch. One unit is enough: the line under a question is a build.
 - **Adjusting** changes two things per unit and nothing else: "with the one before" (two units come together, which makes a group) and "from the start". The order is the reading order. A unit that comes with one that stands from the start stands from the start too.
 - Switching a build off takes its classes and marks out of the slide; undo brings them back.
 - **Per slide**: on a click or by itself; and, for adjusting, whether earlier stages stay or step back (dimmed, so the newest stands out), and whether sub-points come with their point or one by one.
 
-**In the format** (docs/slides.md, section 2). Classes only; the sanitiser already lets them pass, and no element or attribute is added:
+**In the format** (docs/slides.md, section 2). Classes only; the sanitiser already lets them pass, and no element or attribute is added. Of these, only `build` is in the format since stage 1; the others are proposed names, free to change until their stage writes them into a slide:
 
 ```html
 <section class="slide cards build">                       the layout's default, on a click
@@ -74,17 +74,17 @@ What follows from it is this draft's reading, not a finding. Cutting a continuou
 
 `build-auto` takes `build-quick` (a cascade, 0.7 s a stage) or `build-slow` beside it. The slide document reads `build` and its modifiers as options of the layout and the two marks as a field of the entry, so a slide with a build keeps its fields; changing the layout keeps the build where the new layout has units, and a mark stays with its entry where the entry is carried.
 
-**How it is shown.** A pure function (`src/domain/build.ts`, shared by browser and server) reads a slide's stages from its markup. The host numbers the units when it renders (as it adds the footer line: never stored) and sets the stage shown; `slides.css` holds the rules. A unit that waits is `visibility: hidden`, so it keeps its room and a screen reader does not read ahead. Where no stage is set, everything shows. The hairline that closes a list or the steps of an exercise belongs to its last row and comes with it; left standing, it floats under the gap.
+**How it is shown.** A pure function (`src/domain/build.ts`, shared by browser and server) reads a slide's stages from its markup and numbers the units for the host (`data-b`, as the host adds the footer line: never stored, and the sanitiser would drop it). The numbers are put into the tags as they stand; the markup is not parsed and written anew, so nothing else of it can change. The host sets the stage shown (`src/slides/build.ts`); `slides.css` holds the rules, which count only on an element the host numbered. A unit that waits is `visibility: hidden`, so it keeps its room and a screen reader does not read ahead. Where no stage is set, everything shows. The hairline that closes a list or the steps of an exercise belongs to its last row and comes with it; left standing, it floats under the gap.
 
 **Tried** (2026-11-26) in a prototype outside the repository: the rules above on `slides.css` and the default theme, for list, cards, steps, timeline, statement, compare and exercise, with the presenter's faint rest, the timed pace and the build view of section 5. The rules needed nothing from the layouts but the hairline above. What it shows about decision 8: with the content at the bottom edge, a build stands with a gap between the header and the first row and another below the last row shown, until it is whole. Whether that reads as a slide being built or as a slide with a hole is the owner's to judge by looking.
 
-**Motion** belongs to the theme (tokens `--build-effect`, `--build-ms`): appear, fade, rise (the default) or fly in, at a quick, normal or calm speed; the playful family may bring its own. Units of one stage follow each other 60 ms apart. Going back takes a stage away without motion. With `prefers-reduced-motion` a stage appears without moving.
+**Motion** belongs to the theme (tokens `--build-effect`, `--build-ms`): appear, fade, rise (the default) or fly in, at a quick, normal or calm speed; the playful family may bring its own. Units of one stage follow each other 60 ms apart. Going back takes a stage away without motion. With `prefers-reduced-motion` a stage appears without moving. Since stage 1 the rise is the one motion, fixed in the stylesheet (280 ms, 12 px); the choice and the 60 ms come with stages 3 and 2.
 
 **The timed pace.** After a stage the next waits 1.2 s plus 0.25 s for every word just shown, at least 1.5 s and at most 8 s. The values are a start, to be tried.
 
 ## 5. Editing
 
-Proposal A is recommended. B and C are what was weighed against it.
+Proposal A is recommended. B and C are what was weighed against it. Built with stage 1: the switch and the line under it ("While presenting, the slide comes on in 4 stages, on a click each."); "Adjust" and its view are stage 2.
 
 **A. One switch, and a view of its own for adjusting.** The switch stands with the layout's options, where the flags of a layout are today; a layout without units does not show it.
 
@@ -147,6 +147,7 @@ New slides, starters and blank layouts come without a build. A template keeps th
 ```
 
 - **On a phone** the dots and "Show all" stand in one line above the two large buttons, which stay as they are.
+- Built with stage 1: all of the above. The buttons that page say Back and Next, since they no longer always change the slide. Stages 2 and 3 bring what follows.
 - **Timed**: the window that brought the slide on counts and pages the stages like clicks, so every window sees the same. A click brings the next stage at once, Back stops the run on this slide, and the presenter view shows the wait as a ring with Pause.
 - **"Play builds"** is a switch of the deck, beside "agenda slides" and "break slides", remembered on the device like them. Off, every slide comes whole.
 
@@ -164,10 +165,10 @@ One place per kind of thing; no setting of the app as a whole.
 ## 8. Output, import and the connector
 
 - **Print and PDF**: the slide whole. The PDF can be written with a page per stage for presenting from the file; off unless asked for.
-- **The HTML file** plays the builds: the rules are in the stylesheet it already carries, the script grows by a few lines. Timed builds run there too, which is the case of somebody reading the deck alone. Printed, it is whole.
+- **The HTML file** plays the builds (since stage 1): the rules are in the stylesheet it already carries, the script grew by a few lines. Timed builds run there too, which is the case of somebody reading the deck alone. Printed, it is whole.
 - **PowerPoint**: whole slides at first, named among the export's limits. Later the stages as PowerPoint's own entrance animations: the export knows which shapes come from which element. This needs trying in PowerPoint itself, where the export has not been opened yet.
 - **Import**: a deck that builds by copying its slides is already recognised and reduced to the last copy. That slide could be marked `build`; so could a slide whose file animates its paragraphs.
-- **The connector**: `slide_format` names the classes and when a build is right (the room should meet the points one at a time; never on every slide; never to rescue a slide that is too full). No new tool. The check script warns about a build with fewer than two units.
+- **The connector**: `slide_format` names the class and when a build is right (the room should meet the points one at a time; never on every slide; never to rescue a slide that is too full), since stage 1. No new tool. Still open: the check script warning about a build with nothing to build; it knows the word `build` and nothing more.
 
 ## 9. How other tools do it
 
@@ -182,12 +183,24 @@ The tools with fixed layouts animate by the slide's structure and ask one questi
 
 ## 10. Stages
 
-1. **The core**: the stages of a slide as a function, the rules in the stylesheet, the switch in the editor, presenting on a click in every window, the faint rest and the dots in the presenter view, the HTML file. The layouts of section 4 without diagram and matrix. This alone meets the aim of section 1 except "timed" and "adjustable".
+1. **The core** – done (2026-11-26): the stages of a slide as a function, the rules in the stylesheet, the switch in the editor, presenting on a click in every window, the faint rest and the dots in the presenter view, the HTML file. The layouts of section 4 without diagram and matrix. This alone meets the aim of section 1 except "timed" and "adjustable".
 2. **Adjusting**: the build view, the two marks, sub-points one by one, earlier stages stepping back, the fields on touch screens, the sign under thumbnails, Play while looking.
 3. **Timed, and the theme's motion**: the pace, the ring in the presenter view, effect and speed in the theme editor, "Play builds" for the deck.
 4. **The rest**: diagram and matrix, the generated agenda slide, a page per stage in the PDF, PowerPoint animations, builds from an imported deck.
 
 A stop after stage 1 is a sensible one: a workshop presented with it shows whether 2 and 3 are needed, and which half of each.
+
+**Stage 1 as built**, where it differs from the proposal or settles what the proposal left open:
+
+- One word is written into slides, `build`. The marks and modifiers of section 4 are not read yet, so nothing of them is fixed.
+- The stylesheet's rules hang on the host's numbers alone (`.slide [data-b].b-wait`), not on `.slide.build`: in `slides.css` a class joined to `.slide` names a layout, and a test keeps it so. A side effect that is wanted: a class `b-wait` typed into a slide does nothing.
+- A slide kept wholly as source has no fields and so no switch; the class is typed into its source. A slide whose body alone is source has the switch.
+- The line that closes a list, the steps of an exercise and an agenda comes with its last row.
+- The facts of an exercise stand from the start, and a pyramid is not built at all yet (section 11).
+- A position without a stage reads as the slide as it comes on, so a window from before the builds and one from after page together.
+- Left for stage 2, as planned: the sign under thumbnails and "Play" while looking at a slide.
+
+Checked in the running app, in Chromium: two windows of one presentation step through a list and cards from either window, A, Shift with an arrow, a dot, the way back to a slide whole, the grid, a window that joins later; the switch in the editor, with the room's window following the change; the exported file, on screen and as print. Not checked: a phone as remote, a projector, Safari and Firefox, and the owner's own themes, whose rules may set `opacity` or `transform` on a unit.
 
 ## 11. Open
 
@@ -195,4 +208,5 @@ A stop after stage 1 is a sensible one: a workshop presented with it shows wheth
 - Whether a pyramid builds from its first entry or from its base.
 - `model` slides: a build by the top-level groups of the drawing would need them marked by whoever draws.
 - A build for the generated agenda slide would be kept on the workshop, like a title slide's variant.
-- The German words in the app: "Schrittweise aufbauen" for the switch, "Stufe" for a stage.
+- The German words in the app, as built: "Schrittweise aufbauen" for the switch, "Stufe" for a stage, "Alles zeigen", "Zurück" and "Weiter". The owner may want others.
+- Whether a section slide's points should build: they do, since they are a list; the title stands.
