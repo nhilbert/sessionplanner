@@ -387,6 +387,32 @@ describe('attachments', () => {
     expect((await (await app.request(`${BASE}/api/trash`)).json()) as unknown[]).toEqual([])
   })
 
+  it('tells of a deleted file before a change stored while the file is removed, each with its own revision', async () => {
+    const { app, hub, repo } = setup()
+    const ws = await create(app)
+    const id = ws.workshop.id
+    const a = item('a', id, ws.days[0].id)
+    await app.request(`${BASE}/api/workshops/${id}/ops`, { method: 'POST', headers: H, body: JSON.stringify({ clientId: 'c', ops: [{ op: 'create', entity: 'item', record: a }] }) })
+    const one = await attach(app, `/api/workshops/${id}/attachments`, 'a.txt', 'x', { itemId: 'a' })
+    const two = await attach(app, `/api/workshops/${id}/attachments`, 'b.txt', 'y', { itemId: 'a' })
+    const told: { type: string; revision: number | undefined; links?: unknown }[] = []
+    hub.subscribe(id, (event, revision) => told.push({ type: event.type, revision, links: event.type === 'ops' ? (event.ops[0] as { fields?: { attachmentIds?: string[] } }).fields?.attachmentIds : undefined }))
+    // the file's removal is waited for; meanwhile another change is stored and told
+    const gone = app.request(`${BASE}/api/attachments/${one.id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    // (the record goes within the same turn of the event loop, the file only in a later one)
+    for (let k = 0; k < 1000 && repo.getAttachment(one.id); k++) await Promise.resolve()
+    expect(repo.getAttachment(one.id)).toBeNull()
+    const edit = app.request(`${BASE}/api/workshops/${id}/ops`, { method: 'POST', headers: H, body: JSON.stringify({ clientId: 'c', ops: [{ op: 'set', entity: 'item', id: 'a', fields: { title: 'meanwhile' } }] }) })
+    await Promise.all([gone, edit])
+    // the deletion was stored first, so it is told first, with the revision it was stored at: before the fix it went
+    // out after the edit and carried the edit's revision
+    const deleted = told.findIndex((e) => e.type === 'attachment-deleted')
+    const edited = told.findLastIndex((e) => e.type === 'ops')
+    expect(deleted).toBe(0)
+    expect(edited).toBeGreaterThan(deleted)
+    expect(told[deleted].revision).toBeLessThan(told[edited].revision!)
+  })
+
   it('refuses to restore a workshop while it is being deleted for good', async () => {
     const { app } = setup()
     const { workshop } = await create(app)

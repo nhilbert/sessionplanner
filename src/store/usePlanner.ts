@@ -52,6 +52,8 @@ interface PlannerStore {
   offlineAt: string | null
   /** Only for those who can edit; a new object for every message, so listeners see each one. */
   presenting: PresentNews | null
+  /** Counts the openings of a workshop in this window: what began in one opening must not write into the next. */
+  opened: number
   /** The breaks set live in the presenter view (src/domain/live.ts); only for those who can edit, empty for others. */
   liveTimes: LiveTimes
   /** Sets a break live, or back to the plan (both null); what the server answers shows in every window. A break put in live ("Break now") also gives its place. */
@@ -257,6 +259,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
     live: false,
     offlineAt: null,
     presenting: null,
+    opened: 0,
     liveTimes: {},
     syncError: false,
     past: [],
@@ -272,7 +275,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
       snapshotAt = 0
       heard = 0
       liveAt = null
-      set({ id, data: null, status: 'loading', live: false, offlineAt: null, presenting: null, liveTimes: {}, past: [], future: [], syncError: failedAway })
+      set({ id, data: null, status: 'loading', live: false, offlineAt: null, presenting: null, liveTimes: {}, past: [], future: [], syncError: failedAway, opened: mine })
       failedAway = false
       // Changes from a moment ago may still be on their way: the workshop is read after them, so it shows them.
       void queue.then(() => (mine === opening ? load(id) : undefined))

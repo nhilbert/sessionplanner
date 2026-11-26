@@ -505,9 +505,12 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
       if (!attachmentInUse(id)) return c.json({ error: 'not_found' }, 404)
       const result = repo.deleteAttachment(id)
       if (!result) return c.json({ error: 'not_found' }, 404)
-      await rm(filePath(id), { force: true })
+      // Told at once, before the file is removed: the hub names the workshop's revision as it is when an event goes out,
+      // and while the file system is waited for, another change may be stored and told. This one, told after it, would
+      // carry the later revision with the older links, and open windows would keep those until they load anew.
       hub.publish(result.workshopId, { type: 'attachment-deleted', id })
       if (result.ops.length) hub.publish(result.workshopId, { type: 'ops', clientId: 'server', ops: result.ops })
+      await rm(filePath(id), { force: true })
       return c.json({ ok: true })
     })
   })

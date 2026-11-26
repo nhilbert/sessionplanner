@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { openDb } from './db.ts'
@@ -262,12 +262,27 @@ describe('packing list and library', () => {
     // library → workshop: linked at the new item, listed in the workshop, a file of its own
     const target = ops.workshopCreate({ title: 'Ziel', date: '2026-11-11' }).id!
     ops.libraryInsert(target, entry.id, 1)
+    const filesBefore = readdirSync(filesDir).length
     const state = repo.loadWorkshop(target)!
     expect(state.attachments.map((a) => a.name)).toEqual(['Karten.pdf'])
     expect(state.items[0].attachmentIds).toEqual([state.attachments[0].id])
     expect(state.attachments[0].id).not.toBe(held)
     writeFileSync(path.join(filesDir, held), 'a new version')
     expect(readFileSync(path.join(filesDir, state.attachments[0].id), 'utf8')).toBe('original')
+
+    // an insertion that cannot store its items leaves no copy of the files behind
+    const failing = ops.workshopCreate({ title: 'Scheitert', date: '2026-11-12' }).id!
+    const applyOps = repo.applyOps.bind(repo)
+    repo.applyOps = () => {
+      throw new Error('cannot store')
+    }
+    try {
+      expect(() => ops.libraryInsert(failing, entry.id, 1)).toThrow('cannot store')
+    } finally {
+      repo.applyOps = applyOps
+    }
+    expect(repo.loadWorkshop(failing)!.attachments).toEqual([])
+    expect(readdirSync(filesDir).length).toBe(filesBefore)
 
     // a deleted entry waits in the trash with its files; when the trash lets go of it they go, not the copies
     ops.libraryDelete(entry.id)

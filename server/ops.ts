@@ -1304,8 +1304,9 @@ export class Ops {
     }
     if (entry.kind === 'item') {
       const { position, ops } = this.place(s, dayId, null, 'new', where)
-      const record: Item = { ...this.newItem(s.workshop.id, dayId, null, position, {}), ...copyOf(entry.data, this.copyFiles(entry, s.workshop.id)) }
-      this.apply(s.workshop.id, [...ops, { op: 'create', entity: 'item', record }])
+      const files = this.copyFiles(entry, s.workshop.id)
+      const record: Item = { ...this.newItem(s.workshop.id, dayId, null, position, {}), ...copyOf(entry.data, files) }
+      this.applyOrDrop(s.workshop.id, [...ops, { op: 'create', entity: 'item', record }], files)
       return this.itemsResult(this.repo.loadWorkshop(s.workshop.id)!, [record.id], dayId)
     }
     const groupId = newId()
@@ -1318,8 +1319,22 @@ export class Ops {
       ids.push(record.id)
       ops.push({ op: 'create', entity: 'item', record })
     })
-    this.apply(s.workshop.id, ops)
+    this.applyOrDrop(s.workshop.id, ops, files)
     return this.itemsResult(this.repo.loadWorkshop(s.workshop.id)!, ids, dayId)
+  }
+
+  /** Stores the items a library entry becomes; when that fails, the copies of its files made for them go again, so none is left without a step. */
+  private applyOrDrop(workshopId: string, ops: Op[], files: Record<string, string>) {
+    try {
+      this.apply(workshopId, ops)
+    } catch (err) {
+      for (const id of Object.values(files)) {
+        if (!this.repo.deleteAttachment(id)) continue
+        removeFiles(this.filesDir, [id])
+        this.hub?.publish(workshopId, { type: 'attachment-deleted', id })
+      }
+      throw err
+    }
   }
 
   // ---------- settings ----------

@@ -103,11 +103,21 @@ export default function PlannerPage() {
   // ---- library entries arrive as copies ---------------------------------------------------------
   const insertLibrary = async (entry: LibraryEntry, to: string, index: number) => {
     if (!data) return
+    const opened = usePlanner.getState().opened
     // The workshop gets its own copies of the entry's files first, so that the new items can name them.
     const files: Record<string, string> = {}
     if (entry.attachments.length) {
       try {
-        for (const [from, copy] of Object.entries(await api.copyLibraryFiles(entry.id, data.workshop.id))) {
+        const copies = await api.copyLibraryFiles(entry.id, data.workshop.id)
+        // The copies took a moment. If another workshop is open by now (or this one was opened anew), the entry is not
+        // placed: what follows writes into whatever is open, and would put this workshop's items into that one. The
+        // copies made for nothing go again where that is allowed (deleting files is the owner's).
+        const open = usePlanner.getState()
+        if (open.data?.workshop.id !== data.workshop.id || open.opened !== opened) {
+          for (const copy of Object.values(copies)) void api.deleteAttachment(copy.id).catch(() => undefined)
+          return
+        }
+        for (const [from, copy] of Object.entries(copies)) {
           addAttachment(copy)
           files[from] = copy.id
         }
