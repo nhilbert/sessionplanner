@@ -11,6 +11,7 @@ import { useSettings } from '@/store/useSettings'
 import { themeOf, useTheme } from './SlideView'
 import { deckLabels } from './deckLabels'
 import { deckOptionsNow, updateDeckOptions, useDeckOptions } from './deckOptions'
+import { presentedOptionsNow } from './presentedOptions'
 import { deckPoolNow, themeTitleNow, usePool, useThemeTitle } from '@/store/useThemes'
 import { DEFAULT_THEME_TITLE, isTitleVariant } from '@/domain/titleVariants'
 import { SlideEditor } from './editor/SlideEditor'
@@ -107,7 +108,8 @@ export function PlannerSlideEditor({ owner, onDetails, onPresent, onNotice }: { 
   }
   const deckNow = () => {
     const state = now()
-    return state ? deckOf(state, deckLabels(t), deckOptionsNow(), deckPoolNow(theme), themeTitleNow(theme)) : []
+    // in the presenter view (onPresent) the editor pages the deck the presentation runs with, so its numbers are the room's
+    return state ? deckOf(state, deckLabels(t), (onPresent && presentedOptionsNow(state.workshop.id)) || deckOptionsNow(), deckPoolNow(theme), themeTitleNow(theme)) : []
   }
   // Present from here: the position in the deck as the presentation shows it; a parked step is not in it.
   const presenting = {

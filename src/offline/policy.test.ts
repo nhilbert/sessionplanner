@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, apiTarget, assetHashes, belongsTo, frontFallback, isAppPage, isAppRoute, keepReasons, pickKept, precacheable, touchRecent } from './policy'
+import { addDays, apiTarget, assetHashes, belongsTo, workshopPictures, frontFallback, isAppPage, isAppRoute, keepReasons, pickKept, precacheable, touchRecent } from './policy'
 
 describe('what the offline copy holds', () => {
   it('holds a workshop and its pictures, under the workshop', () => {
@@ -100,5 +100,13 @@ describe('which workshops a device keeps', () => {
   it('finds the pictures a workshop shows', () => {
     const json = JSON.stringify({ items: [{ slides: [{ html: '<img src="asset:0123456789abcdef">' }], worksheets: [{ pages: ['<img src="asset:fedcba9876543210"> <img src="asset:0123456789abcdef">'] }] }] })
     expect(assetHashes(json)).toEqual(['0123456789abcdef', 'fedcba9876543210'])
+  })
+})
+
+describe('the pictures of a workshop', () => {
+  it('are the ones its slides name and the ones chosen by hand for its generated slides', () => {
+    const state = { workshop: { pictures: { 'title:d1': 'a'.repeat(64), 'break:b': 'not a hash' } }, items: [{ slides: [{ html: '<img src="asset:0123456789abcdef">' }] }] }
+    expect(workshopPictures(state).sort()).toEqual(['0123456789abcdef', 'a'.repeat(64)].sort())
+    expect(workshopPictures({ workshop: {} })).toEqual([])
   })
 })

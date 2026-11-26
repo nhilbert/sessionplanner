@@ -1,4 +1,4 @@
-import type { DeckSlideRef } from '@/domain/deck'
+import type { DeckOptions, DeckSlideRef } from '@/domain/deck'
 import type { PresentPosition } from '@/domain/ops'
 import type { PresentNews } from '@/store/usePlanner'
 
@@ -10,6 +10,8 @@ export interface Spot {
   key: string | null
   n: number
   stage: number
+  /** The deck options the presentation runs with, where the window that paged named them. */
+  deck?: DeckOptions
 }
 
 /** The stage of a slide shown whole, whatever its build: no slide has as many. */
@@ -36,6 +38,8 @@ export function createFollower(o: {
   at: () => number
   /** The stage of that slide's build shown now; a window without builds leaves it out. */
   stage?: () => number
+  /** The deck options this window presents with: named with every paging, so all windows hold the same deck. */
+  options?: () => DeckOptions | undefined
   show: (spot: Spot) => void
   send: (position: PresentPosition) => Promise<unknown>
   broadcast: (spot: Spot) => void
@@ -53,7 +57,8 @@ export function createFollower(o: {
     const deck = o.deck()
     if (!deck.length) return
     const at = Math.min(Math.max(i, 0), deck.length - 1)
-    const spot = { key: deck[at].key, n: at + 1, stage: Math.max(0, stage) }
+    const options = o.options?.()
+    const spot: Spot = { key: deck[at].key, n: at + 1, stage: Math.max(0, stage), ...(options ? { deck: options } : {}) }
     o.show(spot)
     if (!o.canLead()) return o.broadcast(spot)
     const tag = `${o.tab}.${++no}`
@@ -62,7 +67,7 @@ export function createFollower(o: {
       if (pending === tag) pending = null
     }, ECHO_MS)
     // the stage always goes along, 0 too: a position without one comes from a window that knows no builds
-    o.send({ key: spot.key, n: spot.n, tag, stage: Math.min(spot.stage, 500) }).then(
+    o.send({ key: deck[at].key, n: spot.n, tag, stage: Math.min(spot.stage, 500), ...(options ? { deck: options } : {}) }).then(
       () => (offline = false),
       () => {
         if (pending === tag) pending = null
@@ -96,7 +101,7 @@ export function createFollower(o: {
       }
       // A window from before the builds (a tab left open over an update) pages slides and names no stage: its slides
       // show whole, as they do in that window; at their first stage they would stay at their header for good.
-      o.show({ key: news.position.key, n: news.position.n, stage: news.position.stage ?? WHOLE })
+      o.show({ key: news.position.key, n: news.position.n, stage: news.position.stage ?? WHOLE, ...(news.position.deck ? { deck: news.position.deck } : {}) })
     },
     local(spot: Spot) {
       pending = null

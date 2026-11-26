@@ -266,6 +266,7 @@ Functions had been placed one by one as they came: printing in the header, prese
 **2026-11-06, a trash for workshops**
 
 - Deleting a workshop puts it into the trash for 30 days (`TRASH_DAYS`); then it is deleted for good, with its files. Until then the owner restores it from the trash, at the end of the list of workshops, or deletes it for good there.
+- A workshop that is being deleted for good cannot be restored at the same moment (2026-11-26): its files go first, which takes a moment, and a restore in between answered "restored" for a workshop that was gone right after. The restore is refused (409) until the deletion has ended.
 - In the trash a workshop is gone for everyone at once: its address, files, live updates and agents answer as for a workshop that does not exist, open windows close, and it is left out of every list (the CRM's link list included). Its days, items and files stay as they were, on disk too.
 - Sharing ends when it goes into the trash: a restored workshop is shared with nobody. Deleting is also how access is taken away, and a restore should not hand it back unasked.
 - The server empties the trash at the start and at every hourly check (with the backup), and before it lists the trash. Backups keep what was in the database on their day, as before.

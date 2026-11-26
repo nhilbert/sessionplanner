@@ -144,3 +144,10 @@ export const touchRecent = (recent: string[], id: string): string[] => [id, ...r
 
 /** The pictures a workshop's slides and worksheets show, by their hashes. */
 export const assetHashes = (json: string): string[] => [...new Set([...json.matchAll(/asset:([0-9a-f]{16,64})/g)].map((m) => m[1]))]
+
+/**
+ * Every picture a workshop shows: the ones its slides and worksheets name (asset:<hash>), and the ones chosen by hand
+ * for its generated slides, which the workshop keeps as bare hashes (`pictures`: slide key → hash) and would otherwise
+ * be missing from the copy.
+ */
+export const workshopPictures = (state: { workshop: { pictures?: Record<string, string> } }): string[] => [...new Set([...assetHashes(JSON.stringify(state)), ...Object.values(state.workshop.pictures ?? {}).filter((h) => /^[0-9a-f]{16,64}$/.test(h))])]

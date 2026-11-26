@@ -229,7 +229,7 @@ export function validateDuplicate(body: unknown): z.infer<typeof duplicateBody> 
 }
 
 // stage: how far the slide's build has come (docs/slide-builds.md); a slide has a handful of stages
-const presentBody = z.strictObject({ key: text(300), n: z.number().int().min(1).max(10_000), tag: text(100), stage: z.number().int().min(0).max(500).optional() })
+const presentBody = z.strictObject({ key: text(300), n: z.number().int().min(1).max(10_000), tag: text(100), stage: z.number().int().min(0).max(500).optional(), deck: z.strictObject({ agenda: z.boolean(), breaks: z.boolean(), groups: z.boolean(), pictures: z.boolean(), shift: z.number().int().min(0).max(1_000_000) }).optional() })
 
 export function validatePresent(body: unknown): z.infer<typeof presentBody> {
   const parsed = presentBody.safeParse(body)

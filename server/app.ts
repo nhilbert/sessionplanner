@@ -127,7 +127,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   const positionOf = (id: string): PresentPosition | null => {
     const p = positions.get(id)
     if (!p || Date.now() - p.at > PRESENT_HOURS * 3_600_000) return null
-    return { key: p.key, n: p.n, tag: p.tag, ...(p.stage !== undefined ? { stage: p.stage } : {}) }
+    return { key: p.key, n: p.n, tag: p.tag, ...(p.stage !== undefined ? { stage: p.stage } : {}), ...(p.deck ? { deck: p.deck } : {}) }
   }
   // The live times of each workshop's presentation (src/domain/live.ts): the breaks set in the presenter view. Kept
   // like the slide shown, for PRESENT_HOURS after the last paging or change, and never stored.
@@ -224,20 +224,31 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
     hub.publish(id, { type: 'members-changed' })
     return c.json({ ok: true })
   })
+  // The workshops being deleted for good right now (their files go first, which takes a moment).
+  const purging = new Set<string>()
   app.get('/api/trash', allow('owner'), (c) => {
     emptyTrash(repo, filesDir)
     return c.json(repo.listTrash())
   })
   app.post('/api/trash/:id/restore', allow('owner'), (c) => {
-    if (!repo.restoreWorkshop(c.req.param('id')!)) return c.json({ error: 'not_found' }, 404)
+    const id = c.req.param('id')!
+    if (purging.has(id)) return c.json({ error: 'being_deleted' }, 409)
+    if (!repo.restoreWorkshop(id)) return c.json({ error: 'not_found' }, 404)
     return c.json({ ok: true })
   })
   app.delete('/api/trash/:id', allow('owner'), async (c) => {
     const id = c.req.param('id')!
     if (!repo.inTrash(id)) return c.json({ error: 'not_found' }, 404)
-    // Files first: when one cannot go, the records still say what is left, and this can be tried again.
-    await Promise.all(repo.attachmentIdsOf(id).map((f) => rm(filePath(f), { force: true })))
-    repo.deleteWorkshop(id)
+    // From here on it is going: a restore that came while its files are removed would answer "restored" for a workshop
+    // that is deleted a moment later, its files gone already. It is refused until this has ended.
+    purging.add(id)
+    try {
+      // Files first: when one cannot go, the records still say what is left, and this can be tried again.
+      await Promise.all(repo.attachmentIdsOf(id).map((f) => rm(filePath(f), { force: true })))
+      repo.deleteWorkshop(id)
+    } finally {
+      purging.delete(id)
+    }
     return c.json({ ok: true })
   })
 

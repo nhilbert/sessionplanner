@@ -160,3 +160,31 @@ describe('a slide that builds', () => {
     expect(w.sent.at(-1)).toMatchObject({ key: 'b:1', n: 4, stage: 2 })
   })
 })
+
+describe('the deck a presentation runs with', () => {
+  const own = { agenda: true, breaks: true, groups: false, pictures: true, shift: 0 }
+  const theirs = { agenda: false, breaks: true, groups: false, pictures: true, shift: 0 }
+
+  it('is named by the window that pages, and taken over by the windows that follow', () => {
+    let shared: typeof own | undefined
+    const sent: PresentPosition[] = []
+    let spot: Spot = { key: null, n: 1, stage: 0 }
+    const f = createFollower({
+      tab: 't', lead: false, canLead: () => true, deck: () => deck, at: () => indexOf(deck, spot), stage: () => spot.stage,
+      options: () => shared ?? own,
+      show: (s) => { spot = s; if (s.deck) shared = s.deck },
+      send: (p) => (sent.push(p), Promise.resolve()), broadcast: () => undefined, later: () => undefined,
+    })
+    // nobody presents yet: this window starts with its own
+    f.news({ position: null, hello: true })
+    expect(sent.at(-1)?.deck).toEqual(own)
+    // another window's presentation, with other options: followed, and paged on with theirs
+    f.news({ position: { key: 'a:1', n: 2, tag: 'x.1', stage: 0, deck: theirs }, hello: false })
+    // (its own claim is still on its way: the echo first)
+    f.news({ position: { key: 'title:d', n: 1, tag: 't.1', stage: 0, deck: own }, hello: false })
+    f.news({ position: { key: 'a:1', n: 2, tag: 'x.2', stage: 0, deck: theirs }, hello: false })
+    expect(shared).toEqual(theirs)
+    f.go(2)
+    expect(sent.at(-1)).toMatchObject({ key: 'a:2', deck: theirs })
+  })
+})

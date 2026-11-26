@@ -5,7 +5,7 @@ import type { Me, Settings, WorkshopState, WorkshopSummary } from '@/domain/type
 import { usePlanner } from '@/store/usePlanner'
 import { useSettings } from '@/store/useSettings'
 import { inlineThemeFiles } from '@/slides/themeFiles'
-import { apiTarget, assetHashes, belongsTo, DATA_CACHE, keepKey, LAST_BASE_KEY, type KeepReason, keepReasons, OFFLINE_HEADER, pickKept, PROBE_PARAM, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent, unreachable } from './policy'
+import { apiTarget, belongsTo, workshopPictures, DATA_CACHE, keepKey, LAST_BASE_KEY, type KeepReason, keepReasons, OFFLINE_HEADER, pickKept, PROBE_PARAM, SHELL_PREFIX, STORED_AT, SWITCH_KEY, touchRecent, unreachable } from './policy'
 import { markOnline, useOffline } from './state'
 
 /**
@@ -316,7 +316,7 @@ async function refreshWorkshop(id: string): Promise<void> {
   }
   const theme = state.workshop.theme || (defaultTheme ?? useSettings.getState().settings.theme) || 'default'
   const scope = { workshopId: id }
-  const hashes = assetHashes(JSON.stringify(state))
+  const hashes = workshopPictures(state)
   let dark = false
   if (theme !== 'default') {
     try {

@@ -77,6 +77,8 @@ export interface PresentPosition {
   n: number
   tag: string
   stage?: number
+  /** The deck options the presentation runs with (src/slides/presentedOptions.ts): every window builds the same deck from them. */
+  deck?: import('./deck.ts').DeckOptions
 }
 
 const pick = <T extends object, K extends keyof T>(record: T, keys: K[]): Pick<T, K> => {

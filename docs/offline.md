@@ -79,3 +79,5 @@ The copy holds workshop content (including facilitation notes) in the browser's 
 and only where someone switched it on. It is deleted by the switch, by signing out, and for a different person
 signing in. A device that is lost or shared while it holds a copy holds that content; the hint beside the switch says
 to switch it on only on one's own device.
+
+Fixed 2026-11-26: a picture chosen by hand for a generated slide (the title slide's, an agenda's, a break's) is kept on the workshop as a bare hash, not as an `asset:` reference in markup, and was missing from the copy: the presentation started offline without it. The copy now takes every picture a workshop shows (`workshopPictures`, `src/offline/policy.ts`).

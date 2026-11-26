@@ -387,6 +387,20 @@ describe('attachments', () => {
     expect((await (await app.request(`${BASE}/api/trash`)).json()) as unknown[]).toEqual([])
   })
 
+  it('refuses to restore a workshop while it is being deleted for good', async () => {
+    const { app } = setup()
+    const { workshop } = await create(app)
+    const id = workshop.id
+    await app.request(`${BASE}/api/workshops/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    // both at once: deleting removes the files first, which takes a moment, and the restore comes in between
+    const gone = app.request(`${BASE}/api/trash/${id}`, { method: 'DELETE', headers: { 'x-sp': '1' } })
+    const back = app.request(`${BASE}/api/trash/${id}/restore`, { method: 'POST', headers: { 'x-sp': '1' } })
+    const [deleted, restored] = [await gone, await back]
+    // never both "done": whichever came first, the answers say what became of the workshop
+    const exists = (await app.request(`${BASE}/api/workshops/${id}`)).status === 200
+    expect([deleted.status, restored.status, exists]).toEqual(exists ? [404, 200, true] : [200, 409, false])
+  })
+
   it('empties the trash of what has waited its days there, files included, and keeps the rest', async () => {
     const { app, repo, filesDir } = setup()
     const old = (await create(app)).workshop.id
@@ -1562,6 +1576,11 @@ describe('guests', () => {
     // a first stage is named too: a position without one is a window that knows no builds
     await present(OWNER, { key: 'a:s1', n: 3, tag: 'w1.35', stage: 0 })
     expect(await read(await stream(BEN), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w1.35","stage":0},"live":{}}')
+    // the deck options the presentation runs with travel with the position, for every window to build the same deck
+    const deck = { agenda: false, breaks: true, groups: false, pictures: true, shift: 0 }
+    await present(OWNER, { key: 'a:s1', n: 3, tag: 'w1.36', stage: 0, deck })
+    expect(await read(await stream(BEN), 'event: hello')).toContain(`"tag":"w1.36","stage":0,"deck":${JSON.stringify(deck)}`)
+    expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't', deck: { agenda: 'no' } })).status).toBe(400)
     await present(OWNER, { key: 'a:s1', n: 3, tag: 'w1.4' })
     expect(await read(await stream(BEN), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w1.4"},"live":{}}')
     expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't', stage: -1 })).status).toBe(400)

@@ -12,6 +12,7 @@ import { usePlanner } from '@/store/usePlanner'
 import { ApiError } from '@/api'
 import { Button, cx, IconButton, Modal, Sheet, useIsPhone } from '@/components/ui'
 import { useDeck } from './useDeck'
+import { usePresentedOptions } from './presentedOptions'
 
 /**
  * Setting the next break live from the presenter view (docs/slides.md, Presenting): a chip in the header names it,
@@ -36,7 +37,8 @@ export function useNow(ms: number): Date {
 export function usePresentedDeck(data: WorkshopState | null) {
   const { t } = useTranslation()
   const live = usePlanner((s) => s.liveTimes)
-  const { deck, theme, options, pictures } = useDeck(data)
+  // the options the presentation runs with, where a window has named them: every window then holds the same deck
+  const { deck, theme, options, pictures } = useDeck(data, usePresentedOptions(data?.workshop.id))
   const presented = useMemo(() => {
     const picture = (id: string) => (options.pictures && pictures.length ? `<figure><img src="asset:${pictures[seedOf(id) % pictures.length]}" alt=""></figure>` : '')
     return withExtraBreaks(deck, live, t('slides.generated.break'), picture)

@@ -5,6 +5,8 @@ import type { DeckSlideRef } from '@/domain/deck'
 import { usePlanner } from '@/store/usePlanner'
 import { createFollower, indexOf, type Spot, WHOLE } from './follower'
 import { presentChannel } from './presentChannel'
+import { deckOptionsNow } from './deckOptions'
+import { presentedOptionsNow, setPresentedOptions } from './presentedOptions'
 
 const TAB = crypto.randomUUID()
 
@@ -30,18 +32,26 @@ export function usePresentSync(id: string, deck: DeckSlideRef[], start: number, 
   const channel = useRef<BroadcastChannel | null>(null)
 
   const follower = useMemo(
-    () =>
-      createFollower({
+    () => {
+      // "Present from here" starts the presentation anew, with this device's deck
+      if (lead) setPresentedOptions(id, undefined)
+      return createFollower({
         tab: TAB,
         lead,
         canLead: () => now.current.canLead,
         deck: () => now.current.deck,
         at: () => now.current.at,
         stage: () => now.current.stage,
-        show: setSpot,
+        // what the presentation runs with; a window that starts one gives it this device's choice
+        options: () => presentedOptionsNow(id) ?? deckOptionsNow(),
+        show: (s) => {
+          if (s.deck) setPresentedOptions(id, s.deck)
+          setSpot(s)
+        },
         send: (position) => api.present(id, position),
         broadcast: (s) => channel.current?.postMessage(s),
-      }),
+      })
+    },
     // One follower per workshop and window; `lead` counts only when the page opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [id],
@@ -51,7 +61,7 @@ export function usePresentSync(id: string, deck: DeckSlideRef[], start: number, 
     const c = presentChannel(id)
     channel.current = c
     c.onmessage = (e: MessageEvent<Spot>) => {
-      if (typeof e.data?.n === 'number') follower.local({ key: typeof e.data.key === 'string' ? e.data.key : null, n: e.data.n, stage: typeof e.data.stage === 'number' ? e.data.stage : WHOLE })
+      if (typeof e.data?.n === 'number') follower.local({ key: typeof e.data.key === 'string' ? e.data.key : null, n: e.data.n, stage: typeof e.data.stage === 'number' ? e.data.stage : WHOLE, ...(e.data.deck ? { deck: e.data.deck } : {}) })
     }
     // Every message, not only the last one a render would see: the order decides who leads.
     const news = usePlanner.getState().presenting
