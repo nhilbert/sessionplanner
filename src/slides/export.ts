@@ -108,7 +108,7 @@ const STAGE_CSS = `html, body { margin: 0; height: 100%; background: #000; overf
  */
 const SCRIPT = `(function(){var s=document.querySelectorAll('.deck > section.slide'),n=Math.min(Math.max(parseInt(location.hash.slice(1)||'1',10)||1,1),s.length)-1,k=0,hint=document.querySelector('.hint');
 function fit(){var z=Math.min(innerWidth/1280,innerHeight/720);document.querySelector('.deck').style.setProperty('--s',z)}
-function units(){return s[n].querySelectorAll('[data-b]')}
+function units(){return s[n]?s[n].querySelectorAll('[data-b]'):[]}
 function count(){var u=units(),m=0;for(var j=0;j<u.length;j++)m=Math.max(m,+u[j].getAttribute('data-b'));return m}
 function paint(arrive){var u=units();for(var j=0;j<u.length;j++){var b=+u[j].getAttribute('data-b');u[j].classList.toggle('b-wait',b>k);u[j].classList.toggle('b-in',!!arrive&&b===k)}}
 function show(i,whole){n=Math.min(Math.max(i,0),s.length-1);for(var j=0;j<s.length;j++)s[j].classList.toggle('current',j===n);k=whole?count():0;paint();history.replaceState(null,'','#'+(n+1));hint.textContent=(n+1)+' / '+s.length}

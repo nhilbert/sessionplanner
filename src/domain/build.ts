@@ -90,7 +90,8 @@ const UNITS: Record<string, (root: Tag) => Tag[][]> = {
   table: (r) => {
     const table = kid(r, 'table')
     const body = kid(table, 'tbody')
-    return body ? each([body], 'tr') : kids(table, 'tr').filter((row) => !row.kids.some((c) => c.tag === 'th')).map((u) => [u])
+    // a head row is one of th alone: a row that begins with its label (th) and goes on with td is of the body
+    return body ? each([body], 'tr') : kids(table, 'tr').filter((row) => !row.kids.every((c) => c.tag === 'th')).map((u) => [u])
   },
   agenda: (r) => each(lists(kid(r, 'div', 'cols') ?? r, 'agenda', 'blocks'), 'li'),
   // the picture stands; the text beside it comes block by block
@@ -112,7 +113,8 @@ function stands(node: Tag, units: Set<Tag>): boolean {
 
 function stagesIn(root: Tag): Tag[][] {
   if (!root.cls.includes(BUILD_CLASS)) return []
-  const layout = root.cls.find((c) => c !== 'slide') ?? ''
+  // the layout is the first class that is neither `slide` nor `build`: "slide build cards" is a cards slide that builds
+  const layout = root.cls.find((c) => c !== 'slide' && c !== BUILD_CLASS) ?? ''
   const stages = UNITS[layout]?.(root).filter((s) => s.length) ?? []
   if (!stages.length) return []
   // the takeaway is the conclusion: a last stage of its own

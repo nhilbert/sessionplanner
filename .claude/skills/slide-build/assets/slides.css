@@ -478,7 +478,13 @@
      draws behind or over a unit would then lie differently on a slide that was built than on one shown whole */
   .slide [data-b].b-in { animation: slide-build-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
   /* the rule that closes a list belongs to its last row and comes with it; left standing, it floats under the gap */
-  .slide ul.list:has(> [data-b].b-wait), .slide ol.list:has(> [data-b].b-wait), .slide ol.steps:has(> [data-b].b-wait), .slide ol.agenda:has(> [data-b].b-wait) { border-bottom-color: transparent !important; }
+  .slide ul.list:has(> [data-b].b-wait), .slide ol.list:has(> [data-b].b-wait), .slide ol.steps:has(> [data-b].b-wait), .slide ol.agenda:has(> [data-b].b-wait), .slide dl.acronym:has(> [data-b].b-wait) { border-bottom-color: transparent !important; }
+  /* a table's rules are its rows': a row that waits would leave its rule standing, and say how many rows follow */
+  .slide tr[data-b].b-wait > * { border-color: transparent !important; }
+  /* a canvas draws its hairlines as the ground between its boxes: a box that waits keeps its place in the grid as
+     an empty box on the slide's ground, and what it holds waits */
+  .slide .canvas > [data-b].b-wait { visibility: visible !important; background: var(--bg) !important; }
+  .slide .canvas > [data-b].b-wait > *, .slide .canvas > [data-b].b-wait::before, .slide .canvas > [data-b].b-wait::after { visibility: hidden !important; }
 }
 @keyframes slide-build-in { from { opacity: 0; transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { .slide [data-b].b-in { animation: none; } }

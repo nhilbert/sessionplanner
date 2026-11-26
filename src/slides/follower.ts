@@ -12,6 +12,9 @@ export interface Spot {
   stage: number
 }
 
+/** The stage of a slide shown whole, whatever its build: no slide has as many. */
+export const WHOLE = Number.MAX_SAFE_INTEGER
+
 /** How long a paging waits for its echo; without one the stream is down and other windows' paging counts again. */
 const ECHO_MS = 5000
 
@@ -58,7 +61,8 @@ export function createFollower(o: {
     later(() => {
       if (pending === tag) pending = null
     }, ECHO_MS)
-    o.send({ key: spot.key, n: spot.n, tag, ...(spot.stage ? { stage: spot.stage } : {}) }).then(
+    // the stage always goes along, 0 too: a position without one comes from a window that knows no builds
+    o.send({ key: spot.key, n: spot.n, tag, stage: Math.min(spot.stage, 500) }).then(
       () => (offline = false),
       () => {
         if (pending === tag) pending = null
@@ -90,7 +94,9 @@ export function createFollower(o: {
         if (news.position.tag !== pending) return
         pending = null
       }
-      o.show({ key: news.position.key, n: news.position.n, stage: news.position.stage ?? 0 })
+      // A window from before the builds (a tab left open over an update) pages slides and names no stage: its slides
+      // show whole, as they do in that window; at their first stage they would stay at their header for good.
+      o.show({ key: news.position.key, n: news.position.n, stage: news.position.stage ?? WHOLE })
     },
     local(spot: Spot) {
       pending = null

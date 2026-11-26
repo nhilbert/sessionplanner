@@ -3,7 +3,7 @@ import { api } from '@/api'
 import { buildStages, stepFrom } from '@/domain/build'
 import type { DeckSlideRef } from '@/domain/deck'
 import { usePlanner } from '@/store/usePlanner'
-import { createFollower, indexOf, type Spot } from './follower'
+import { createFollower, indexOf, type Spot, WHOLE } from './follower'
 import { presentChannel } from './presentChannel'
 
 const TAB = crypto.randomUUID()
@@ -51,7 +51,7 @@ export function usePresentSync(id: string, deck: DeckSlideRef[], start: number, 
     const c = presentChannel(id)
     channel.current = c
     c.onmessage = (e: MessageEvent<Spot>) => {
-      if (typeof e.data?.n === 'number') follower.local({ key: typeof e.data.key === 'string' ? e.data.key : null, n: e.data.n, stage: typeof e.data.stage === 'number' ? e.data.stage : 0 })
+      if (typeof e.data?.n === 'number') follower.local({ key: typeof e.data.key === 'string' ? e.data.key : null, n: e.data.n, stage: typeof e.data.stage === 'number' ? e.data.stage : WHOLE })
     }
     // Every message, not only the last one a render would see: the order decides who leads.
     const news = usePlanner.getState().presenting

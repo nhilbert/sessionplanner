@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DeckSlideRef } from '@/domain/deck'
 import type { PresentPosition } from '@/domain/ops'
-import { createFollower, indexOf, type Spot } from './follower'
+import { createFollower, indexOf, type Spot, WHOLE } from './follower'
 
 const deck: DeckSlideRef[] = ['title:d', 'a:1', 'a:2', 'b:1', 'b:2'].map((key) => ({ key, html: '', caption: '' }))
 
@@ -43,7 +43,7 @@ describe('a presentation window', () => {
     expect(w.sent).toEqual([])
     w.state.deck = deck
     w.f.ready()
-    expect(w.sent).toEqual([{ key: 'a:1', n: 2, tag: 't.1' }])
+    expect(w.sent).toEqual([{ key: 'a:1', n: 2, tag: 't.1', stage: 0 }])
   })
 
   it('leads from its slide when opened to present from there', () => {
@@ -125,8 +125,8 @@ describe('a slide that builds', () => {
     expect(w.sent.at(-1)).toEqual({ key: 'a:1', n: 2, tag: 't.1', stage: 2 })
     w.f.go(2)
     expect(w.stage()).toBe(0)
-    // a position without a stage is the slide as it comes on: what windows from before the builds send
-    expect(w.sent.at(-1)).toEqual({ key: 'a:2', n: 3, tag: 't.2' })
+    // the stage always goes along, so a window that follows can tell this window from one that knows no builds
+    expect(w.sent.at(-1)).toEqual({ key: 'a:2', n: 3, tag: 't.2', stage: 0 })
   })
 
   it('is followed to the stage another window paged to, and joined at the stage the presentation stands at', () => {
@@ -135,8 +135,17 @@ describe('a slide that builds', () => {
     expect([w.at(), w.stage()]).toEqual([1, 3])
     w.f.news({ position: { key: 'a:1', n: 2, tag: 'x.2', stage: 4 }, hello: false })
     expect(w.stage()).toBe(4)
-    w.f.news(pos('a:2', 3, 'x.3'))
+    w.f.news({ position: { key: 'a:2', n: 3, tag: 'x.3', stage: 0 }, hello: false })
     expect([w.at(), w.stage()]).toEqual([2, 0])
+  })
+
+  it('shows a slide whole when a window from before the builds pages to it (a tab left open over an update)', () => {
+    const w = window_()
+    w.f.news({ position: { key: 'a:1', n: 2, tag: 'old.1' }, hello: true })
+    expect(w.at()).toBe(1)
+    expect(w.stage()).toBe(WHOLE)
+    w.f.news(pos('a:2', 3, 'old.2'))
+    expect(w.stage()).toBe(WHOLE)
   })
 
   it('keeps its stage when it tells the server where it stands after paging without it', async () => {

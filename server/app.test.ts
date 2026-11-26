@@ -1559,6 +1559,9 @@ describe('guests', () => {
     await present(OWNER, { key: 'a:s2', n: 4, tag: 'w1.3', stage: 2 })
     expect(await read(staged, '"tag":"w1.3"')).toContain('data: {"type":"present","key":"a:s2","n":4,"tag":"w1.3","stage":2}')
     expect(await read(await stream(BEN), 'event: hello')).toContain('data: {"present":{"key":"a:s2","n":4,"tag":"w1.3","stage":2},"live":{}}')
+    // a first stage is named too: a position without one is a window that knows no builds
+    await present(OWNER, { key: 'a:s1', n: 3, tag: 'w1.35', stage: 0 })
+    expect(await read(await stream(BEN), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w1.35","stage":0},"live":{}}')
     await present(OWNER, { key: 'a:s1', n: 3, tag: 'w1.4' })
     expect(await read(await stream(BEN), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w1.4"},"live":{}}')
     expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't', stage: -1 })).status).toBe(400)

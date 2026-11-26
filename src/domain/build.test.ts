@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildOf, buildStages, stepFrom, withBuildClass } from './build.ts'
 import { SLIDE_LAYOUTS } from './slideFormat.ts'
-import { normalizeSlideHtml, sanitizeSlide } from './slides.ts'
+import { normalizeSlideHtml, sanitizeSlide, slideLayout } from './slides.ts'
 
 const example = (layout: string): string => SLIDE_LAYOUTS.find((l) => l.layout === layout)!.example
 const building = (html: string): string => html.replace(/^<section class="([^"]*)"/, (_, c: string) => `<section class="${withBuildClass(c, true)}"`)
@@ -99,6 +99,17 @@ describe('the stages of a slide', () => {
     const built = buildOf(stored)
     expect(built.stages).toBe(3)
     expect(sanitizeSlide(built.html)).toBe(stored)
+  })
+
+  it('reads a table row that begins with its label as a row of the body', () => {
+    const rows = '<tr><th></th><th>A</th><th>B</th></tr><tr><th>R1</th><td>1</td><td>2</td></tr><tr><th>R2</th><td>3</td><td>4</td></tr>'
+    expect(buildStages(`<section class="slide table build"><header><h2>T</h2></header><table>${rows}</table></section>`)).toBe(2)
+  })
+
+  it('knows the layout wherever the class stands', () => {
+    const cards = example('cards')
+    expect(buildStages(cards.replace('class="slide cards"', 'class="slide build cards"'))).toBe(3)
+    expect(slideLayout(cards.replace('class="slide cards"', 'class="slide build cards"'))).toBe('cards')
   })
 
   it('only counts the class on the slide itself', () => {

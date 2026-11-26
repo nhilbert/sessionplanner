@@ -592,7 +592,8 @@ export function parseSlide(html: string): SlideDoc {
   const root = tree.find((n): n is El => isEl(n) && n.tag === 'section')
   if (!root) return { layout: '', options: {}, raw: html, whole: true }
   const rootClass = classes(root).join(' ')
-  const [layout = ''] = classes(root).filter((c) => c !== 'slide')
+  // `build` is no layout, wherever it stands among the classes (build.ts)
+  const [layout = ''] = classes(root).filter((c) => c !== 'slide' && c !== BUILD_CLASS)
   const whole: SlideDoc = { layout, options: {}, raw: serializeNodes(root.children).trim(), whole: true, root: rootClass }
   const doc: SlideDoc = { layout, options: {} }
   // the slide comes on in stages while it is presented (build.ts): an option of every layout, a class of the root
@@ -885,8 +886,8 @@ export const buildableStages = (doc: SlideDoc): number => buildStages(serializeS
 /** The section's classes with the layout (its second class) replaced. */
 function withLayout(root: string, layout: string): string {
   const list = root.split(/\s+/).filter(Boolean)
-  const at = list.findIndex((c) => c !== 'slide')
-  if (at === -1) return cls('slide', layout)
+  const at = list.findIndex((c) => c !== 'slide' && c !== BUILD_CLASS)
+  if (at === -1) return cls('slide', layout, list.includes(BUILD_CLASS) && BUILD_CLASS)
   list[at] = layout
   return list.join(' ')
 }

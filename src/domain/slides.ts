@@ -145,7 +145,7 @@ export function normalizeSlideHtml(html: string): string {
 export const slideAssets = (html: string): string[] => [...new Set([...html.matchAll(/asset:([0-9a-f]{16,64})/g)].map((m) => m[1]))]
 
 /** The slide's layout (the second class of its root), or "" when it has none. */
-export const slideLayout = (html: string): string => /^<section class="slide ([A-Za-z0-9_-]+)/.exec(html)?.[1] ?? ''
+export const slideLayout = (html: string): string => /^<section class="slide (?:build )?([A-Za-z0-9_-]+)/.exec(html)?.[1] ?? ''
 
 /** The text of a slide for searching and captions: tags removed, whitespace folded. */
 export const slideText = (html: string): string =>

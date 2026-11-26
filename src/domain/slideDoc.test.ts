@@ -295,6 +295,20 @@ describe('a slide that builds (docs/slide-builds.md)', () => {
     expect(serializeSlide(withBuild(withBuild(doc, false), true))).toContain('class="slide list wide build"')
   })
 
+  it('keeps the layout of a slide written with the class before it, also when the build is switched off', () => {
+    const html = SLIDE_LAYOUTS.find((l) => l.layout === 'cards')!.example.replace('class="slide cards"', 'class="slide build cards"')
+    const doc = parseSlide(html)
+    expect(doc.layout).toBe('cards')
+    expect(doc.raw).toBeUndefined()
+    expect(docBuilds(doc)).toBe(true)
+    expect(serializeSlide(withBuild(doc, false))).toMatch(/^<section class="slide cards">/)
+    // kept as source too
+    const raw = parseSlide('<section class="slide build list wide"><header><h2>Titel</h2></header><ul class="list"><li>Eins</li></ul><p>Fremd</p></section>')
+    expect(raw.layout).toBe('list')
+    expect(serializeSlide(withBuild(raw, false))).toContain('class="slide list wide"')
+    expect(convertLayout(doc, 'steps').doc.layout).toBe('steps')
+  })
+
   it('stays through a change of layout where the new layout has something to build', () => {
     const doc = parseSlide(building(SLIDE_LAYOUTS.find((l) => l.layout === 'list')!.example))
     expect(convertLayout(doc, 'cards').doc.options.build).toBe(true)
