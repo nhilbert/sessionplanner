@@ -3,6 +3,7 @@ import { type El, type Node, classes, el, elements, hasClass, inlineToText, isBl
 import { DIAGRAM_CORE, type DiagramShape, diagramClass, diagramSvg, isDiagramShape } from './diagram.ts'
 import { normalizeSlideHtml } from './slides.ts'
 import { figureKind } from './pool.ts'
+import { BUILD_CLASS, buildStages, withBuildClass } from './build.ts'
 
 /**
  * The structured view of a slide (docs/slides.md, section 7): what the editor shows as fields, read from the
@@ -594,6 +595,8 @@ export function parseSlide(html: string): SlideDoc {
   const [layout = ''] = classes(root).filter((c) => c !== 'slide')
   const whole: SlideDoc = { layout, options: {}, raw: serializeNodes(root.children).trim(), whole: true, root: rootClass }
   const doc: SlideDoc = { layout, options: {} }
+  // the slide comes on in stages while it is presented (build.ts): an option of every layout, a class of the root
+  if (hasClass(root, BUILD_CLASS)) doc.options.build = true
   const header = elements(root).find((e) => e.tag === 'header')
   const footer = elements(root).find((e) => e.tag === 'footer' && !hasClass(e, 'chrome'))
   if (header) doc.header = readHeader(header)
@@ -848,7 +851,7 @@ const writers: Record<string, (doc: SlideDoc) => El[]> = {
 /** The document as markup in the slide format: one section.slide with header, body and footer. */
 export function serializeSlide(doc: SlideDoc): string {
   const spec = layoutSpec(doc.layout)
-  const rootClass = doc.raw !== undefined && doc.root ? withLayout(doc.root, doc.layout) : cls('slide', doc.layout, doc.layout === 'figure' && doc.options.full && 'full', doc.layout === 'title' && isTitleVariant(doc.options.variant) && titleVariantClass(doc.options.variant))
+  const rootClass = doc.raw !== undefined && doc.root ? withLayout(doc.root, doc.layout) : cls('slide', doc.layout, doc.layout === 'figure' && doc.options.full && 'full', doc.layout === 'title' && isTitleVariant(doc.options.variant) && titleVariantClass(doc.options.variant), doc.options.build && BUILD_CLASS)
   if (doc.raw !== undefined && doc.whole) return `<section class="${rootClass}">${doc.raw}</section>`
   const parts: string[] = []
   if (spec?.parts.includes('header') || (doc.raw !== undefined && doc.header)) parts.push(serializeNodes(writeHeader(doc.header, doc.layout === 'exercise')))
@@ -862,6 +865,22 @@ export function serializeSlide(doc: SlideDoc): string {
   }
   return `<section class="${rootClass}">${parts.join('')}</section>`
 }
+
+/**
+ * Whether the slide builds (docs/slide-builds.md): an option of the document, or, for a slide kept as source, a class
+ * among the root's as they were.
+ */
+export const docBuilds = (doc: SlideDoc): boolean => (doc.raw !== undefined && doc.root ? doc.root.split(/\s+/).includes(BUILD_CLASS) : !!doc.options.build)
+
+/** The document with its build switched on or off. */
+export function withBuild(doc: SlideDoc, on: boolean): SlideDoc {
+  if (doc.raw !== undefined && doc.root) return { ...doc, root: withBuildClass(doc.root, on) }
+  const options = Object.fromEntries(Object.entries(doc.options).filter(([k]) => k !== 'build'))
+  return { ...doc, options: on ? { ...options, build: true } : options }
+}
+
+/** The stages the slide would come on in if it built: what there is to build, whether the switch is on or not. */
+export const buildableStages = (doc: SlideDoc): number => buildStages(serializeSlide(withBuild(doc, true)))
 
 /** The section's classes with the layout (its second class) replaced. */
 function withLayout(root: string, layout: string): string {
@@ -1148,6 +1167,8 @@ export function convertLayout(doc: SlideDoc, layout: string): { doc: SlideDoc; l
   const pictures = layout === 'cards' ? 0 : items.filter((i) => i.image).length
   if (pictures) lost.push(`images:${pictures}`)
   if (pool.extra.length) lost.push('other')
+  // A build stays where the new layout has something to build.
+  if (doc.options.build && buildableStages(out)) out.options.build = true
   return { doc: out, lost }
 }
 

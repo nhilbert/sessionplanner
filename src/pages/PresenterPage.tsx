@@ -25,7 +25,9 @@ import { pageUrl } from '@/domain/addresses'
  * as remote. The current slide large, the next one small, the step's planned time against the clock, its notes. Every
  * window of the presentation pages together, here and on other devices; a slide edited from here (or anywhere) shows
  * at once, while the audience stays on the slide shown. "All slides" (G) shows the deck at a glance in place of the
- * current and next slide; a click there moves the presentation to that slide.
+ * current and next slide; a click there moves the presentation to that slide. A slide that builds
+ * (docs/slide-builds.md) shows here what is still to come, faintly, and its stages as dots: paging brings the next
+ * stage, a dot goes to its stage, "Show all" (A) shows the slide whole.
  */
 export default function PresenterPage() {
   const { id = '' } = useParams()
@@ -38,7 +40,7 @@ export default function PresenterPage() {
   const now = useNow(5_000)
   const { deck, theme } = usePresentedDeck(data)
   const [start] = useState(() => parseInt(params.get('n') ?? '1', 10) || 1)
-  const { at: n, go } = usePresentSync(id, deck, start, false)
+  const { at: n, stage, stages, go, step, all } = usePresentSync(id, deck, start, false)
   const touchX = useRef<number | null>(null)
   // The keys that page and leave: behind a button, not across the top bar.
   const [keys, setKeys] = useState(false)
@@ -84,10 +86,11 @@ export default function PresenterPage() {
       else if (overview) {
         if (e.key !== 'Escape') return
         showOverview(false)
-      } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(n + 1)
-      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(n - 1)
+      } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') step(1, e.shiftKey && e.key === 'ArrowRight')
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') step(-1, e.shiftKey && e.key === 'ArrowLeft')
       else if (e.key === 'Home') go(0)
       else if (e.key === 'End') go(deck.length - 1)
+      else if (e.key === 'a' || e.key === 'A') all()
       else if (e.key === 'Escape') void navigate(`/w/${id}`)
       else return
       e.preventDefault()
@@ -128,6 +131,10 @@ export default function PresenterPage() {
   const labels = breakLabels(t)
   // Opens the editor on the whole deck at that slide; generated slides show their note there, as everywhere.
   const edit = (key: string) => useSlideEditing.getState().open({ kind: 'deck', key, mode: 'edit' })
+  // Paging goes through the stages of a slide's build before it leaves the slide.
+  const atStart = n === 0 && stage === 0
+  const atEnd = n >= deck.length - 1 && stage >= stages
+  const dots = <StageDots stage={stage} stages={stages} onPick={(k) => go(n, k)} onAll={all} />
   // The clock in the workshop's time zone, like its agenda.
   const { date: todayDate, minutes: minutesNow } = clockIn(now, data.workshop.timezone)
   const today = sortedDays(data.days).find((d) => d.date === todayDate)
@@ -184,24 +191,25 @@ export default function PresenterPage() {
                   if (touchX.current === null) return
                   const dx = e.changedTouches[0].clientX - touchX.current
                   touchX.current = null
-                  if (Math.abs(dx) > 40) go(dx < 0 ? n + 1 : n - 1)
+                  if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1)
                 }}
               >
-                <SlideView html={withLiveBreak(slide, liveTimes, now.getTime(), data.workshop.timezone, labels)} theme={theme} scope={scope} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} className="w-full shadow-[var(--shadow)]" />
+                <SlideView html={withLiveBreak(slide, liveTimes, now.getTime(), data.workshop.timezone, labels)} theme={theme} scope={scope} chrome={{ label: title, n: n + 1, part: slide.part && t('slides.part', slide.part) }} build={{ at: stage, rest: 'faint' }} className="w-full shadow-[var(--shadow)]" />
               </div>
             ) : (
               <p className="text-ink-3">{t('slides.deckEmpty')}</p>
             )}
             <div className="flex items-center gap-2">
-              <IconButton label={t('slides.prev')} onClick={() => go(n - 1)} disabled={n === 0} className="max-md:hidden">
+              <IconButton label={t('slides.back')} onClick={() => step(-1)} disabled={atStart} className="max-md:hidden">
                 <ChevronLeft size={18} />
               </IconButton>
               <span className="tnum text-[13px] text-ink-2">
                 {n + 1} / {deck.length}
               </span>
-              <IconButton label={t('slides.next')} onClick={() => go(n + 1)} disabled={n >= deck.length - 1} className="max-md:hidden">
+              <IconButton label={t('slides.forward')} onClick={() => step(1)} disabled={atEnd} className="max-md:hidden">
                 <ChevronRight size={18} />
               </IconButton>
+              <span className="max-md:hidden">{dots}</span>
               <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{slide?.caption}</span>
               {slide && canEdit && !isExtra(slide.itemId) && (
                 <Button size="sm" onClick={() => edit(slide.key)}>
@@ -247,18 +255,40 @@ export default function PresenterPage() {
           </aside>
         </div>
       )}
-      {/* On a phone the remote's buttons: large, at the thumb. */}
+      {/* On a phone the remote's buttons: large, at the thumb; above them the stages of a slide that builds. */}
       <div className="grid grid-cols-2 gap-3 border-t border-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
-        <Button onClick={() => go(n - 1)} disabled={n === 0} className="h-14! text-base!">
+        {stages > 0 && !overview && <div className="col-span-2 flex justify-center">{dots}</div>}
+        <Button onClick={() => step(-1)} disabled={atStart} className="h-14! text-base!">
           <ChevronLeft size={22} />
-          {t('slides.prev')}
+          {t('slides.back')}
         </Button>
-        <Button variant="primary" onClick={() => go(n + 1)} disabled={n >= deck.length - 1} className="h-14! text-base!">
-          {t('slides.next')}
+        <Button variant="primary" onClick={() => step(1)} disabled={atEnd} className="h-14! text-base!">
+          {t('slides.forward')}
           <ChevronRight size={22} />
         </Button>
       </div>
       {canEdit && <PlannerSlideEditor owner={owner} onPresent={(at) => go(at - 1)} />}
     </div>
+  )
+}
+
+/**
+ * The stages of the slide shown (docs/slide-builds.md): a dot for each, filled as far as the room sees; a dot goes to
+ * its stage, "Show all" to the last. Nothing for a slide without a build.
+ */
+function StageDots({ stage, stages, onPick, onAll }: { stage: number; stages: number; onPick: (stage: number) => void; onAll: () => void }) {
+  const { t } = useTranslation()
+  if (!stages) return null
+  return (
+    <span role="group" aria-label={t('slides.stages')} className="inline-flex items-center gap-1">
+      {Array.from({ length: stages }, (_, k) => (
+        <button key={k} type="button" onClick={() => onPick(k + 1)} aria-label={t('slides.stageOf', { n: k + 1, of: stages })} aria-current={k + 1 === stage ? 'step' : undefined} className="tap grid h-5 w-5 place-items-center rounded-full pointer-coarse:h-7 pointer-coarse:w-7">
+          <span className={cx('h-2.5 w-2.5 rounded-full border-2 border-brand-ink', k < stage && 'bg-brand-ink')} />
+        </button>
+      ))}
+      <Button size="sm" variant="ghost" onClick={onAll} disabled={stage >= stages} title={`${t('slides.showAll')} (A)`}>
+        {t('slides.showAll')}
+      </Button>
+    </span>
   )
 }

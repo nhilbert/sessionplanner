@@ -68,11 +68,15 @@ export type ServerEvent = (
   revision?: number
 }
 
-/** Where a presentation stands: the deck key of the slide, its number as fallback, and the tag of the window that moved it. */
+/**
+ * Where a presentation stands: the deck key of the slide, its number as fallback, the tag of the window that moved it,
+ * and the stage of the slide's build that shows (docs/slide-builds.md; none or 0: the slide as it comes on).
+ */
 export interface PresentPosition {
   key: string
   n: number
   tag: string
+  stage?: number
 }
 
 const pick = <T extends object, K extends keyof T>(record: T, keys: K[]): Pick<T, K> => {

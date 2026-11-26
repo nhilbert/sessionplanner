@@ -1,8 +1,10 @@
 import { type ComponentProps, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { buildOf } from '@/domain/build'
 import { esc, normalizeSlideHtml, renderSlideHtml } from '@/domain/slides'
 import { type AssetGround, type AssetScope, api, assetUrl } from '@/api'
 import { cx } from '@/components/ui'
 import { useThemes } from '@/store/useThemes'
+import { showStage, type Staged } from './build'
 import './slides.css'
 import './themes/default.css'
 import './host.css'
@@ -88,8 +90,10 @@ export interface Chrome {
   part?: string
 }
 
-export function hostHtml(html: string, scope: AssetScope, chrome?: Chrome, ground: AssetGround = 'light'): string {
-  let out = renderSlideHtml(normalizeSlideHtml(html), (hash) => assetUrl(scope, hash, ground))
+export function hostHtml(html: string, scope: AssetScope, chrome?: Chrome, ground: AssetGround = 'light', staged = false): string {
+  const clean = normalizeSlideHtml(html)
+  // where the slide is shown stage by stage, its units are numbered (src/domain/build.ts); elsewhere it stands whole
+  let out = renderSlideHtml(staged ? buildOf(clean).html : clean, (hash) => assetUrl(scope, hash, ground))
   if (chrome) {
     const footer = `<footer class="chrome"><span>${esc(chrome.label)}</span>${chrome.part ? `<span class="part">${esc(chrome.part)}</span>` : ''}<span>${chrome.n}</span></footer>`
     const at = out.lastIndexOf('</section>')
@@ -102,10 +106,30 @@ export function hostHtml(html: string, scope: AssetScope, chrome?: Chrome, groun
  * hostHtml, worked out again only when what it depends on changes: callers pass scope and chrome as fresh objects
  * on every render, and sanitising a whole deck on each keystroke elsewhere on the page is wasted work.
  */
-export function useHostHtml(html: string, scope: AssetScope, chrome?: Chrome, ground: AssetGround = 'light'): string {
+export function useHostHtml(html: string, scope: AssetScope, chrome?: Chrome, ground: AssetGround = 'light', staged = false): string {
   const scopeKey = scope === 'library' ? 'library' : scope.workshopId
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => hostHtml(html, scope, chrome, ground), [html, scopeKey, chrome?.label, chrome?.n, chrome?.part, ground])
+  return useMemo(() => hostHtml(html, scope, chrome, ground, staged), [html, scopeKey, chrome?.label, chrome?.n, chrome?.part, ground, staged])
+}
+
+/**
+ * Keeps a rendered slide at its stage (docs/slide-builds.md). A stage arrives, with the stylesheet's motion, when the
+ * same slide goes one stage on in the room's view; another slide, a jump and the way back are set without motion.
+ * Runs before the browser paints, so a slide that comes on never shows what is still to come.
+ */
+function useStage(root: React.RefObject<HTMLElement | null>, rendered: string, build: Staged | undefined) {
+  const before = useRef<{ rendered: string; at: number } | null>(null)
+  const at = build?.at
+  const rest = build?.rest
+  useLayoutEffect(() => {
+    if (!root.current || at === undefined || rest === undefined) {
+      before.current = null
+      return
+    }
+    const was = before.current
+    showStage(root.current, at, rest, rest === 'hidden' && !!was && was.rendered === rendered && at === was.at + 1)
+    before.current = { rendered, at }
+  }, [root, rendered, at, rest])
 }
 
 /** The ground of a theme's slides, from the list of themes: dark, and the host asks for the cut-outs made for it. */
@@ -131,11 +155,13 @@ export function useFrameScale(ref: React.RefObject<HTMLElement | null>): number 
  * One slide in a 16:9 frame that scales the slide to its width: a thumbnail in a strip, a card in a grid, a
  * large preview. The frame measures itself; nothing in the slide knows about its size.
  */
-export function SlideView({ html, theme, scope, chrome, className, onClick, label, ...rest }: { html: string; theme: string; scope: AssetScope; chrome?: Chrome; className?: string; onClick?: () => void; label?: string } & Omit<ComponentProps<'div'>, 'onClick'>) {
+export function SlideView({ html, theme, scope, chrome, build, className, onClick, label, ...rest }: { html: string; theme: string; scope: AssetScope; chrome?: Chrome; /** Shown at a stage of its build; without it the slide stands whole. */ build?: Staged; className?: string; onClick?: () => void; label?: string } & Omit<ComponentProps<'div'>, 'onClick'>) {
   const ref = useRef<HTMLDivElement>(null)
+  const root = useRef<HTMLDivElement>(null)
   const scale = useFrameScale(ref)
-  const rendered = useHostHtml(html, scope, chrome, useThemeGround(theme))
+  const rendered = useHostHtml(html, scope, chrome, useThemeGround(theme), !!build)
   useTheme(theme)
+  useStage(root, rendered, build)
   const button = !!onClick
   return (
     <div
@@ -149,18 +175,20 @@ export function SlideView({ html, theme, scope, chrome, className, onClick, labe
       aria-label={label}
       {...rest}
     >
-      <div className="slide-root" data-theme={theme} dangerouslySetInnerHTML={{ __html: rendered }} />
+      <div ref={root} className="slide-root" data-theme={theme} dangerouslySetInnerHTML={{ __html: rendered }} />
     </div>
   )
 }
 
 /** A slide at its design size for a stage that scales it (presenting, printing). */
-export function SlideStage({ html, theme, scope, chrome, scale }: { html: string; theme: string; scope: AssetScope; chrome?: Chrome; scale: number }) {
-  const rendered = useHostHtml(html, scope, chrome, useThemeGround(theme))
+export function SlideStage({ html, theme, scope, chrome, scale, build }: { html: string; theme: string; scope: AssetScope; chrome?: Chrome; scale: number; /** Shown at a stage of its build; without it the slide stands whole (printing). */ build?: Staged }) {
+  const root = useRef<HTMLDivElement>(null)
+  const rendered = useHostHtml(html, scope, chrome, useThemeGround(theme), !!build)
   useTheme(theme)
+  useStage(root, rendered, build)
   return (
     <div className="slide-stage" style={{ transform: `scale(${scale})` }}>
-      <div className="slide-root" data-theme={theme} dangerouslySetInnerHTML={{ __html: rendered }} />
+      <div ref={root} className="slide-root" data-theme={theme} dangerouslySetInnerHTML={{ __html: rendered }} />
     </div>
   )
 }

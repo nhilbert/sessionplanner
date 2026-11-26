@@ -124,6 +124,7 @@ On the owner's retired instance there was no public access, so no share links: e
 7. **Slide editor** – done (2026-11-01): slides edited as content fields next to the live slide, the layout chosen from the catalogue and carrying the content along, themes (colours, fonts, logo) made and edited in the app with contrast checks, template slides as named starting points; see [slides.md](slides.md), section 7. Since 2026-11-17 with a mouse on the slide itself, with formatting by hand that follows the theme (section 10).
 8. **Preparing for several workspaces** – in preparation: section 10, 2026-11-05. No change for users.
 9. **Worksheets** – stages 0 to 3a done (2026-11-18): print rules and a print package, the worksheet format, sheets on units with library, print view and connector, sheets in the print package printed job by job, the editor with fields, typing on the page and starter sheets; a theme on paper, more blocks and the page kinds (stage 4); see [worksheets.md](worksheets.md).
+10. **Slide builds** – stage 1 done (2026-11-26): a slide can come on in stages while it is presented, by one switch in the editor, in every window of the presentation and in the HTML file; adjusting, timed builds and the theme's motion are stages 2 and 3; see [slide-builds.md](slide-builds.md).
 
 **Backlog** (no order):
 
@@ -133,7 +134,7 @@ On the owner's retired instance there was no public access, so no share links: e
 - Asking before saving the same item to the library twice.
 - Live mode on laptop or phone (section 4.2 of draft 2): now line, countdown, ahead/behind, re-forecast, planned against actual. Its first slice is done (2026-11-24): breaks set live in the presenter view, the re-forecast there and the countdown on the break slide. Still open: actual times of other steps, a now line, and keeping planned against actual beyond the day (for real durations in the library).
 - Slides: updating placed copies from the library; themes and templates through the connector; moving a slide between items through the connector; selecting several slides to move or remove at once.
-- Slide builds: slides that build up step by step while presenting, on a click or timed; a proposal with its open decisions in [slide-builds.md](slide-builds.md).
+- Slide builds beyond stage 1 ([slide-builds.md](slide-builds.md)): saying what comes together and what stands from the start, timed builds, the motion as a choice of the theme, diagram and matrix slides, PowerPoint animations.
 - Breakout groups in parallel; real durations from past workshops in the library; a balance view of the categories; link to the CRM project.
 - Logos named by their ground instead of by place: "on a light ground" and "on a dark ground" for each theme, chosen by the app by the brightness of what they stand on (slide background, field, white paper), so a dark partner theme can bring its colour logo for the printouts. Existing logos would move by the brightness of their theme's background. Wait for the first dark partner theme.
 - Print: a "cut if short on time" / plan B field per step and a per-step timing of the notes, as facilitator guides recommend; a Markdown export through MCP for agents.
@@ -151,6 +152,17 @@ On the owner's retired instance there was no public access, so no share links: e
 - The trash removes files before their records, so a file that cannot go is tried again. A workshop in the trash stays as it went in. The exports of all data and media hold it too, apart and marked.
 - An exported deck takes only the theme's own pictures and fonts, so a `url()` in a theme cannot reach another address with the rights of whoever exports. A build can leave a theme's own CSS to the real owner (`ownerOnly`, with the check on its server), as those rules apply to the whole page.
 - A release passes `npm run check` of the second instance: its tests and the core's under its lockfile, on the pinned commit.
+
+**2026-11-26, slides that build up: stage 1** ([slide-builds.md](slide-builds.md))
+
+- A slide can come on in stages while it is presented: its header first, then its points, cards or steps on a click each. Asked for as a guided way through the content; the copy of a slide per step, which was the only way until now, has to be kept in step by hand.
+- A build is one switch of the slide, written into its markup as the class `build` beside the layout. The layout decides what a stage is; nothing is marked on single elements and nothing is animated object by object. This is the one word a stored slide carries, and renaming it later would mean touching every slide that has it: the vocabulary for more (what comes together, timed) is left open until those stages are built.
+- Off unless switched on, and never a setting of a deck: the evidence for revealing content in parts is mixed (slide-builds.md, section 3), so it is a choice per slide.
+- Nothing moves its place: what has not come yet keeps its room. With the content at the bottom edge, a slide half built stands with a gap; whether that reads well is to be judged in use.
+- The motion is small and the same everywhere (a fade with a short rise), not the fly-in that was asked for first; it becomes a choice of the theme with stage 3.
+- Whole everywhere else: thumbnails, the editor, print, PDF and PowerPoint. Only the presentation, the presenter view and the HTML file know stages.
+- The stage is part of where a presentation stands, beside the slide, kept by the server like it: every window shows the same stage, whoever pages.
+- Counter-argument considered: holding back the lines of a list has also done worse than showing them at once in a study of recorded lectures. Accepted because it is optional, and the format tells an assistant to use it sparingly.
 
 **2026-11-24, breaks set live: the first slice of live mode**
 

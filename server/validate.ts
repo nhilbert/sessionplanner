@@ -228,7 +228,8 @@ export function validateDuplicate(body: unknown): z.infer<typeof duplicateBody> 
   return parsed.data
 }
 
-const presentBody = z.strictObject({ key: text(300), n: z.number().int().min(1).max(10_000), tag: text(100) })
+// stage: how far the slide's build has come (docs/slide-builds.md); a slide has a handful of stages
+const presentBody = z.strictObject({ key: text(300), n: z.number().int().min(1).max(10_000), tag: text(100), stage: z.number().int().min(0).max(500).optional() })
 
 export function validatePresent(body: unknown): z.infer<typeof presentBody> {
   const parsed = presentBody.safeParse(body)

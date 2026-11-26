@@ -235,7 +235,7 @@ export const usePlanner = create<PlannerStore>((set, get) => {
         return
       }
       if (event.type === 'present') {
-        if (get().id === id) set({ presenting: { position: { key: event.key, n: event.n, tag: event.tag }, hello: false } })
+        if (get().id === id) set({ presenting: { position: { key: event.key, n: event.n, tag: event.tag, stage: event.stage }, hello: false } })
         return
       }
       if (event.type === 'live') {

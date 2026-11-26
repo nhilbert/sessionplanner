@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { SLIDE_LAYOUTS } from './slideFormat.ts'
 import { normalizeSlideHtml, slideText } from './slides.ts'
-import { blankDoc, convertLayout, fieldSelectors, LAYOUT_IDS, LAYOUTS, parseSlide, sameContent, serializeSlide } from './slideDoc.ts'
+import { blankDoc, buildableStages, convertLayout, docBuilds, fieldSelectors, LAYOUT_IDS, LAYOUTS, parseSlide, sameContent, serializeSlide, withBuild } from './slideDoc.ts'
+import { buildStages } from './build.ts'
 import { deckOf } from './deck.ts'
 import type { WorkshopState } from './types.ts'
 import { inlineToText, parseTree, serializeNodes, textToInline } from './slideTree.ts'
@@ -252,3 +253,55 @@ describe('an illustration beside the text', () => {
   })
 })
 
+describe('a slide that builds (docs/slide-builds.md)', () => {
+  const building = (html: string) => html.replace(/^<section class="([^"]*)"/, '<section class="$1 build"')
+
+  it('keeps its fields: every layout of the catalogue reads the class as an option and writes it back', () => {
+    for (const l of SLIDE_LAYOUTS) {
+      const html = normalizeSlideHtml(building(l.example))
+      const doc = parseSlide(html)
+      expect(doc.raw, l.layout).toBeUndefined()
+      expect(doc.options.build, l.layout).toBe(true)
+      expect(docBuilds(doc), l.layout).toBe(true)
+      expect(sameContent(serializeSlide(doc), html), l.layout).toBe(true)
+      expect(serializeSlide(doc), l.layout).toMatch(/^<section class="slide [^"]*\bbuild\b/)
+    }
+  })
+
+  it('is switched on and off without touching anything else', () => {
+    const html = SLIDE_LAYOUTS.find((l) => l.layout === 'cards')!.example
+    const doc = parseSlide(html)
+    expect(docBuilds(doc)).toBe(false)
+    const on = withBuild(doc, true)
+    expect(serializeSlide(on)).toBe(serializeSlide(doc).replace('class="slide cards"', 'class="slide cards build"'))
+    expect(buildStages(serializeSlide(on))).toBe(3)
+    expect(serializeSlide(withBuild(on, false))).toBe(serializeSlide(doc))
+    // the title slide keeps its variant beside it
+    const title = withBuild(parseSlide('<section class="slide title pic-band"><div class="text"><h1>Titel</h1></div></section>'), true)
+    expect(serializeSlide(title)).toContain('class="slide title pic-band build"')
+  })
+
+  it('says what there is to build, whether the switch is on or not', () => {
+    const stages = Object.fromEntries(SLIDE_LAYOUTS.map((l) => [l.layout, buildableStages(parseSlide(l.example))]))
+    expect(stages).toMatchObject({ list: 3, cards: 3, exercise: 3, statement: 1, quote: 1, title: 0, figure: 0, matrix: 0, diagram: 0 })
+  })
+
+  it('works on a slide kept as source too: the class stands among the root’s own', () => {
+    const html = '<section class="slide list wide build"><header><h2>Titel</h2></header><ul class="list"><li>Eins</li><li>Zwei</li></ul><p>Ein Absatz, den das Layout nicht kennt</p></section>'
+    const doc = parseSlide(html)
+    expect(doc.raw).toBeDefined()
+    expect(docBuilds(doc)).toBe(true)
+    expect(serializeSlide(withBuild(doc, false))).toContain('class="slide list wide"')
+    expect(serializeSlide(withBuild(withBuild(doc, false), true))).toContain('class="slide list wide build"')
+  })
+
+  it('stays through a change of layout where the new layout has something to build', () => {
+    const doc = parseSlide(building(SLIDE_LAYOUTS.find((l) => l.layout === 'list')!.example))
+    expect(convertLayout(doc, 'cards').doc.options.build).toBe(true)
+    expect(convertLayout(doc, 'steps').doc.options.build).toBe(true)
+    expect(convertLayout(doc, 'figure').doc.options.build).toBeUndefined()
+    expect(convertLayout(doc, 'matrix').doc.options.build).toBeUndefined()
+    // and a slide without a build gets none
+    expect(convertLayout(parseSlide(SLIDE_LAYOUTS.find((l) => l.layout === 'list')!.example), 'cards').doc.options.build).toBeUndefined()
+  })
+})

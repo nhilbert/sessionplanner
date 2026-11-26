@@ -99,11 +99,22 @@ const STAGE_CSS = `html, body { margin: 0; height: 100%; background: #000; overf
 .hint { position: fixed; right: 12px; bottom: 10px; font: 12px/1 system-ui, sans-serif; color: #888; opacity: 0.8; }
 @media print { html, body { overflow: visible; height: auto; background: #fff; } .deck { width: auto; height: auto; } .deck > section.slide { position: relative; left: 0; top: 0; transform: none; display: flex; page-break-after: always; } .hint { display: none; } @page { size: 338.667mm 190.5mm; margin: 0; } }`
 
-const SCRIPT = `(function(){var s=document.querySelectorAll('.deck > section.slide'),n=Math.min(Math.max(parseInt(location.hash.slice(1)||'1',10)||1,1),s.length)-1,hint=document.querySelector('.hint');
-function fit(){var k=Math.min(innerWidth/1280,innerHeight/720);document.querySelector('.deck').style.setProperty('--s',k)}
-function show(i){n=Math.min(Math.max(i,0),s.length-1);for(var j=0;j<s.length;j++)s[j].classList.toggle('current',j===n);history.replaceState(null,'','#'+(n+1));hint.textContent=(n+1)+' / '+s.length}
-addEventListener('resize',fit);addEventListener('keydown',function(e){if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'||e.key==='Enter')show(n+1);else if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='Backspace')show(n-1);else if(e.key==='Home')show(0);else if(e.key==='End')show(s.length-1);else if(e.key==='f'&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen();else return;e.preventDefault()});
-addEventListener('click',function(e){show(e.clientX<innerWidth/3?n-1:n+1)});var x0=null;addEventListener('touchstart',function(e){x0=e.touches[0].clientX});addEventListener('touchend',function(e){if(x0===null)return;var d=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(d)>40)show(d<0?n+1:n-1)});
+/**
+ * Paging in the file, as in the app's presentation. A slide that builds (docs/slide-builds.md) carries the host's
+ * numbers on its units (data-b, src/domain/build.ts): `k` is the stage shown, a step forward brings the next stage and
+ * then the next slide, a step back takes the last stage away and then goes to the slide before, whole. Shift with an
+ * arrow pages whole slides, A shows all of the slide at once. The stylesheet hides what waits (b-wait) and moves what
+ * arrives (b-in); on paper everything shows.
+ */
+const SCRIPT = `(function(){var s=document.querySelectorAll('.deck > section.slide'),n=Math.min(Math.max(parseInt(location.hash.slice(1)||'1',10)||1,1),s.length)-1,k=0,hint=document.querySelector('.hint');
+function fit(){var z=Math.min(innerWidth/1280,innerHeight/720);document.querySelector('.deck').style.setProperty('--s',z)}
+function units(){return s[n].querySelectorAll('[data-b]')}
+function count(){var u=units(),m=0;for(var j=0;j<u.length;j++)m=Math.max(m,+u[j].getAttribute('data-b'));return m}
+function paint(arrive){var u=units();for(var j=0;j<u.length;j++){var b=+u[j].getAttribute('data-b');u[j].classList.toggle('b-wait',b>k);u[j].classList.toggle('b-in',!!arrive&&b===k)}}
+function show(i,whole){n=Math.min(Math.max(i,0),s.length-1);for(var j=0;j<s.length;j++)s[j].classList.toggle('current',j===n);k=whole?count():0;paint();history.replaceState(null,'','#'+(n+1));hint.textContent=(n+1)+' / '+s.length}
+function step(d,whole){if(d>0){if(!whole&&k<count()){k++;paint(true)}else if(n<s.length-1)show(n+1)}else if(!whole&&k>0){k--;paint()}else if(n>0)show(n-1,true)}
+addEventListener('resize',fit);addEventListener('keydown',function(e){if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'||e.key==='Enter')step(1,e.shiftKey&&e.key==='ArrowRight');else if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='Backspace')step(-1,e.shiftKey&&e.key==='ArrowLeft');else if(e.key==='Home')show(0);else if(e.key==='End')show(s.length-1);else if((e.key==='a'||e.key==='A')&&!e.ctrlKey&&!e.metaKey&&!e.altKey){k=count();paint()}else if(e.key==='f'&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen();else return;e.preventDefault()});
+addEventListener('click',function(e){step(e.clientX<innerWidth/3?-1:1)});var x0=null;addEventListener('touchstart',function(e){x0=e.touches[0].clientX});addEventListener('touchend',function(e){if(x0===null)return;var d=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(d)>40)step(d<0?1:-1)});
 fit();show(n)})();`
 
 /** A document language tag from the app's language: "de" → "de-DE". */
@@ -121,14 +132,15 @@ export interface ExportOptions {
 /**
  * The deck as self-contained pieces: every slide's markup with the footer line and its pictures as data, and one
  * stylesheet with the theme, its fonts and logos and the glyph slices the deck needs. The HTML file and the PDF are
- * made from these, so both show the slides as the app does without the server.
+ * made from these, so both show the slides as the app does without the server. `staged` numbers the units of the
+ * slides that build (src/domain/build.ts), for a file that plays them; without it every slide stands whole.
  */
-export async function standaloneDeck(deck: DeckSlideRef[], options: ExportOptions): Promise<{ css: string; sections: string[]; theme: string }> {
+export async function standaloneDeck(deck: DeckSlideRef[], options: ExportOptions, staged = false): Promise<{ css: string; sections: string[]; theme: string }> {
   const assets = new Map<string, string>()
   const sections: string[] = []
   const ground = themeGround(options.theme)
   for (const [i, slide] of deck.entries()) {
-    let html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1, part: slide.part && options.part ? options.part(slide.part) : undefined }, ground)
+    let html = hostHtml(slide.html, options.scope, { label: options.chrome, n: i + 1, part: slide.part && options.part ? options.part(slide.part) : undefined }, ground, staged)
     for (const m of [...slide.html.matchAll(/asset:([0-9a-f]{16,64})/g)]) {
       const hash = m[1]
       if (!assets.has(hash)) assets.set(hash, (await toDataUrl(assetUrl(options.scope, hash, ground))) ?? '')
@@ -149,7 +161,7 @@ export async function standaloneDeck(deck: DeckSlideRef[], options: ExportOption
  * deck needs, pictures as data, a few lines of script to page through. Opens from a USB stick, prints to 16:9 pages.
  */
 export async function exportDeckHtml(deck: DeckSlideRef[], options: ExportOptions): Promise<Blob> {
-  const { css, sections, theme } = await standaloneDeck(deck, options)
+  const { css, sections, theme } = await standaloneDeck(deck, options, true)
   const doc = `<!doctype html>
 <html lang="${esc(options.lang)}" data-theme="${esc(theme)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(options.title)}</title>
 <style>${css}\n${STAGE_CSS}</style></head>

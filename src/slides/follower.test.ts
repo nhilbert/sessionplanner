@@ -6,7 +6,7 @@ import { createFollower, indexOf, type Spot } from './follower'
 const deck: DeckSlideRef[] = ['title:d', 'a:1', 'a:2', 'b:1', 'b:2'].map((key) => ({ key, html: '', caption: '' }))
 
 function window_(o: { lead?: boolean; canLead?: boolean; deck?: DeckSlideRef[]; start?: number } = {}) {
-  let spot: Spot = { key: null, n: o.start ?? 1 }
+  let spot: Spot = { key: null, n: o.start ?? 1, stage: 0 }
   const state = { deck: o.deck ?? deck }
   const sent: PresentPosition[] = []
   const broadcast: Spot[] = []
@@ -18,12 +18,13 @@ function window_(o: { lead?: boolean; canLead?: boolean; deck?: DeckSlideRef[]; 
     canLead: () => o.canLead ?? true,
     deck: () => state.deck,
     at: () => indexOf(state.deck, spot),
+    stage: () => spot.stage,
     show: (s) => (spot = s),
     send: (p) => (sent.push(p), fail.on ? Promise.reject(new Error('offline')) : Promise.resolve()),
     broadcast: (s) => broadcast.push(s),
     later: (fn) => timers.push(fn),
   })
-  return { f, sent, broadcast, fail, timers, state, at: () => indexOf(state.deck, spot) }
+  return { f, sent, broadcast, fail, timers, state, at: () => indexOf(state.deck, spot), stage: () => spot.stage }
 }
 const pos = (key: string, n: number, tag = 'other.1') => ({ position: { key, n, tag }, hello: false })
 const flush = () => new Promise((r) => setTimeout(r, 0))
@@ -92,7 +93,7 @@ describe('a presentation window', () => {
     w.fail.on = true
     w.f.go(3)
     await flush()
-    expect(w.broadcast).toEqual([{ key: 'b:1', n: 4 }])
+    expect(w.broadcast).toEqual([{ key: 'b:1', n: 4, stage: 0 }])
     w.fail.on = false
     w.f.news({ position: { key: 'title:d', n: 1, tag: 'x.1' }, hello: true })
     expect(w.at()).toBe(3)
@@ -101,14 +102,52 @@ describe('a presentation window', () => {
 
   it('follows a window of this browser that pages without the server', () => {
     const w = window_()
-    w.f.local({ key: 'a:2', n: 3 })
+    w.f.local({ key: 'a:2', n: 3, stage: 2 })
     expect(w.at()).toBe(2)
+    expect(w.stage()).toBe(2)
   })
 
   it('as a view guest pages only the windows of this browser', () => {
     const w = window_({ canLead: false })
     w.f.go(2)
     expect(w.sent).toEqual([])
-    expect(w.broadcast).toEqual([{ key: 'a:2', n: 3 }])
+    expect(w.broadcast).toEqual([{ key: 'a:2', n: 3, stage: 0 }])
+  })
+})
+
+describe('a slide that builds', () => {
+  it('is paged to a stage, and a slide comes on at its first', () => {
+    const w = window_()
+    w.f.news({ position: null, hello: false })
+    w.f.go(1, 2)
+    expect(w.at()).toBe(1)
+    expect(w.stage()).toBe(2)
+    expect(w.sent.at(-1)).toEqual({ key: 'a:1', n: 2, tag: 't.1', stage: 2 })
+    w.f.go(2)
+    expect(w.stage()).toBe(0)
+    // a position without a stage is the slide as it comes on: what windows from before the builds send
+    expect(w.sent.at(-1)).toEqual({ key: 'a:2', n: 3, tag: 't.2' })
+  })
+
+  it('is followed to the stage another window paged to, and joined at the stage the presentation stands at', () => {
+    const w = window_()
+    w.f.news({ position: { key: 'a:1', n: 2, tag: 'x.1', stage: 3 }, hello: true })
+    expect([w.at(), w.stage()]).toEqual([1, 3])
+    w.f.news({ position: { key: 'a:1', n: 2, tag: 'x.2', stage: 4 }, hello: false })
+    expect(w.stage()).toBe(4)
+    w.f.news(pos('a:2', 3, 'x.3'))
+    expect([w.at(), w.stage()]).toEqual([2, 0])
+  })
+
+  it('keeps its stage when it tells the server where it stands after paging without it', async () => {
+    const w = window_()
+    w.f.news({ position: { key: 'title:d', n: 1, tag: 'x.1' }, hello: true })
+    w.fail.on = true
+    w.f.go(3, 2)
+    await flush()
+    expect(w.broadcast).toEqual([{ key: 'b:1', n: 4, stage: 2 }])
+    w.fail.on = false
+    w.f.news({ position: { key: 'title:d', n: 1, tag: 'x.1' }, hello: true })
+    expect(w.sent.at(-1)).toMatchObject({ key: 'b:1', n: 4, stage: 2 })
   })
 })

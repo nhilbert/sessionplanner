@@ -158,7 +158,9 @@ def sanitiser_diff(frag, clean):
 
 # ---- the classes the stylesheet knows -----------------------------------------------------------------------------
 def css_classes(*paths):
-    known = {'todo', 'chrome', 'cols-3'}  # todo is the author's mark, chrome the host's footer, cols-3 the default column count
+    # todo is the author's mark, chrome the host's footer, cols-3 the default column count; build is read by the host,
+    # which shows the slide stage by stage (docs/slide-builds.md), and has no rule of its own in the stylesheet
+    known = {'todo', 'chrome', 'cols-3', 'build'}
     for p in paths:
         if not p or not os.path.exists(p):
             continue

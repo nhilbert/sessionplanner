@@ -461,6 +461,26 @@
 .slide > footer > .takeaway { position: absolute; left: 0; bottom: 44px; max-width: 900px; font: 700 20px/1.35 var(--font-display), 'Noto Sans JP'; letter-spacing: -0.01em; color: var(--kicker, var(--accent-deep, var(--accent))); }
 .slide:has(> footer > .takeaway) { padding-bottom: 152px; }
 
+/* ---------- builds (docs/slide-builds.md) ----------
+   A slide with the class build comes on in stages while it is presented. The host numbers its units (data-b, never
+   stored: src/domain/build.ts) and marks what is still to come. b-wait keeps its room, so nothing moves its place
+   when a stage arrives; b-ghost is the same in the presenter view, faint; b-in is the stage that has just come.
+   Without these marks, and on paper, the slide stands whole. The marks count only on an element the host numbered,
+   so a class of that name written into a slide does nothing. The motion is small by decision: a fade with a short
+   rise. */
+.slide [data-b].b-wait { visibility: hidden; }
+.slide [data-b].b-ghost { opacity: 0.24; }
+.slide [data-b].b-in { animation: slide-build-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes slide-build-in { from { opacity: 0; transform: translateY(12px); } }
+/* the rule that closes a list belongs to its last row and comes with it; left standing, it floats under the gap */
+.slide ul.list:has(> [data-b].b-wait), .slide ol.list:has(> [data-b].b-wait), .slide ol.steps:has(> [data-b].b-wait), .slide ol.agenda:has(> [data-b].b-wait) { border-bottom-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .slide [data-b].b-in { animation: none; } }
+@media print {
+  .slide [data-b].b-wait { visibility: visible; }
+  .slide [data-b].b-ghost { opacity: 1; }
+  .slide [data-b].b-in { animation: none; }
+}
+
 /* ---------- formatting laid over the theme (docs/slides.md, section 2) ----------
    What an author sets by hand on a word or a line: sizes as steps relative to the size the theme gives the text,
    colours as places of the theme's palette, "not bold" for a word in a heading. A slide keeps them when its theme

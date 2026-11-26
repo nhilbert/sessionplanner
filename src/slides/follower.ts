@@ -2,10 +2,14 @@ import type { DeckSlideRef } from '@/domain/deck'
 import type { PresentPosition } from '@/domain/ops'
 import type { PresentNews } from '@/store/usePlanner'
 
-/** Where a window stands: the deck key of the slide, its number when the key is gone (the slide was deleted meanwhile). */
+/**
+ * Where a window stands: the deck key of the slide, its number when the key is gone (the slide was deleted meanwhile),
+ * and the stage of the slide's build that shows (docs/slide-builds.md; 0: the slide as it comes on).
+ */
 export interface Spot {
   key: string | null
   n: number
+  stage: number
 }
 
 /** How long a paging waits for its echo; without one the stream is down and other windows' paging counts again. */
@@ -27,6 +31,8 @@ export function createFollower(o: {
   deck: () => DeckSlideRef[]
   /** The index shown now. */
   at: () => number
+  /** The stage of that slide's build shown now; a window without builds leaves it out. */
+  stage?: () => number
   show: (spot: Spot) => void
   send: (position: PresentPosition) => Promise<unknown>
   broadcast: (spot: Spot) => void
@@ -39,11 +45,12 @@ export function createFollower(o: {
   let offline = false
   const later = o.later ?? ((fn, ms) => void setTimeout(fn, ms))
 
-  function go(i: number) {
+  /** Shows slide `i` at a stage of its build, here and in every window that follows; a slide comes on at its first. */
+  function go(i: number, stage = 0) {
     const deck = o.deck()
     if (!deck.length) return
     const at = Math.min(Math.max(i, 0), deck.length - 1)
-    const spot = { key: deck[at].key, n: at + 1 }
+    const spot = { key: deck[at].key, n: at + 1, stage: Math.max(0, stage) }
     o.show(spot)
     if (!o.canLead()) return o.broadcast(spot)
     const tag = `${o.tab}.${++no}`
@@ -51,7 +58,7 @@ export function createFollower(o: {
     later(() => {
       if (pending === tag) pending = null
     }, ECHO_MS)
-    o.send({ key: spot.key, n: spot.n, tag }).then(
+    o.send({ key: spot.key, n: spot.n, tag, ...(spot.stage ? { stage: spot.stage } : {}) }).then(
       () => (offline = false),
       () => {
         if (pending === tag) pending = null
@@ -63,7 +70,7 @@ export function createFollower(o: {
 
   /** Claims the position for this window once the deck is there. */
   function lead() {
-    if (o.deck().length) go(o.at())
+    if (o.deck().length) go(o.at(), o.stage?.() ?? 0)
     else claim = true
   }
 
@@ -83,7 +90,7 @@ export function createFollower(o: {
         if (news.position.tag !== pending) return
         pending = null
       }
-      o.show({ key: news.position.key, n: news.position.n })
+      o.show({ key: news.position.key, n: news.position.n, stage: news.position.stage ?? 0 })
     },
     local(spot: Spot) {
       pending = null
@@ -92,13 +99,13 @@ export function createFollower(o: {
     ready() {
       if (!claim || !o.deck().length) return
       claim = false
-      go(o.at())
+      go(o.at(), o.stage?.() ?? 0)
     },
   }
 }
 
 /** The index a spot points at in the deck: by key, by number when the slide is gone. */
-export function indexOf(deck: DeckSlideRef[], spot: Spot): number {
+export function indexOf(deck: DeckSlideRef[], spot: Pick<Spot, 'key' | 'n'>): number {
   if (!deck.length) return 0
   const k = spot.key ? deck.findIndex((r) => r.key === spot.key) : -1
   return k !== -1 ? k : Math.min(Math.max(spot.n - 1, 0), deck.length - 1)

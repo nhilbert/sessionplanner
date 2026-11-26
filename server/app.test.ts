@@ -1553,6 +1553,17 @@ describe('guests', () => {
     expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't' }, 'nope')).status).toBe(404)
     expect((await present(OWNER, { key: 'a:s1', n: 0, tag: 't' })).status).toBe(400)
     expect((await present(OWNER, { key: 'a:s1', n: 2 })).status).toBe(400)
+    // the stage of a slide's build (docs/slide-builds.md) is part of where a presentation stands: passed on, kept for
+    // whoever joins, and gone with the next slide, which comes on at its first stage
+    const staged = await stream(OWNER)
+    await present(OWNER, { key: 'a:s2', n: 4, tag: 'w1.3', stage: 2 })
+    expect(await read(staged, '"tag":"w1.3"')).toContain('data: {"type":"present","key":"a:s2","n":4,"tag":"w1.3","stage":2}')
+    expect(await read(await stream(BEN), 'event: hello')).toContain('data: {"present":{"key":"a:s2","n":4,"tag":"w1.3","stage":2},"live":{}}')
+    await present(OWNER, { key: 'a:s1', n: 3, tag: 'w1.4' })
+    expect(await read(await stream(BEN), 'event: hello')).toContain('data: {"present":{"key":"a:s1","n":3,"tag":"w1.4"},"live":{}}')
+    expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't', stage: -1 })).status).toBe(400)
+    expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't', stage: 1.5 })).status).toBe(400)
+    expect((await present(OWNER, { key: 'a:s1', n: 3, tag: 't', stage: '2' })).status).toBe(400)
 
     // the next day nobody joins yesterday's slide
     const now = Date.now()

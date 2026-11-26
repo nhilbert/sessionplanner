@@ -1,7 +1,8 @@
+import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AssetScope } from '@/api'
 import { DIAGRAM_CORE, DIAGRAM_SHAPES, type DiagramShape, diagramSvg } from '@/domain/diagram'
-import { type Block, emptyBox, emptyCard, emptyCell, emptyLetter, emptyStep, type LayoutSpec, layoutSpec, type SlideDoc, type TableCell, type Tone } from '@/domain/slideDoc'
+import { type Block, buildableStages, docBuilds, emptyBox, emptyCard, emptyCell, emptyLetter, emptyStep, type LayoutSpec, layoutSpec, type SlideDoc, type TableCell, type Tone, withBuild } from '@/domain/slideDoc'
 import { cx, Segmented, Select, SectionLabel } from '@/components/ui'
 import { Area, Entries, Row, Text, Toggle, tr } from './fields'
 import { PictureField } from './PicturePicker'
@@ -38,6 +39,15 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
   const markup = <span className="font-normal normal-case tracking-normal text-ink-3">{t('slides.markup')}</span>
 
   const structured = doc.raw === undefined
+  // A build (docs/slide-builds.md): one switch, offered where the layout has something to come on in stages, and
+  // where it is on, so it can always be taken back.
+  const builds = docBuilds(doc)
+  const stages = useMemo(() => (doc.whole ? 0 : buildableStages(doc)), [doc])
+  const build = !doc.whole && (stages > 0 || builds) && (
+    <Toggle checked={builds} onChange={(on) => onChange(withBuild(doc, on))}>
+      {t('editor.build')}
+    </Toggle>
+  )
   if (doc.whole)
     return (
       <section>
@@ -48,7 +58,11 @@ export function Inspector({ doc, onChange, onFocus, scope, known, theme }: Props
     )
   return (
     <div className="space-y-5">
-      {structured && spec && spec.options.length > 0 && <Options spec={spec} doc={doc} onChange={(options) => set({ options })} />}
+      {((structured && spec && spec.options.length > 0) || build) && (
+        <Options spec={structured ? spec : undefined} doc={doc} onChange={(options) => set({ options })} note={builds ? (stages ? t('editor.buildStages', { count: stages }) : t('editor.buildNone')) : undefined}>
+          {build}
+        </Options>
+      )}
 
       {structured && parts.has('shape') && (
         <section>
@@ -392,14 +406,15 @@ function ShapePicker({ value, count, onChange }: { value: DiagramShape; count: n
 }
 
 /** The layout's options as switches and a column count. */
-function Options({ spec, doc, onChange }: { spec: LayoutSpec; doc: SlideDoc; onChange: (options: SlideDoc['options']) => void }) {
+/** The layout's options as switches and choices; after them what holds for every layout (`children`: the build), and a line on it. */
+function Options({ spec, doc, onChange, children, note }: { spec: LayoutSpec | undefined; doc: SlideDoc; onChange: (options: SlideDoc['options']) => void; children?: ReactNode; note?: string }) {
   const { t } = useTranslation()
-  const label = (key: string) => tr(t, `editor.o.${spec.id === 'steps' && key === 'plain' ? 'plainSteps' : key}`)
+  const label = (key: string) => tr(t, `editor.o.${spec?.id === 'steps' && key === 'plain' ? 'plainSteps' : key}`)
   return (
     <section>
       <SectionLabel>{t('editor.options')}</SectionLabel>
       <div className="flex flex-wrap items-center gap-1.5">
-        {spec.options.map((o) =>
+        {(spec?.options ?? []).map((o) =>
           o.kind === 'flag' ? (
             <Toggle key={o.key} checked={!!doc.options[o.key]} onChange={(v) => onChange(v ? { ...doc.options, [o.key]: true } : Object.fromEntries(Object.entries(doc.options).filter(([k]) => k !== o.key)))}>
               {label(o.key)}
@@ -423,7 +438,9 @@ function Options({ spec, doc, onChange }: { spec: LayoutSpec; doc: SlideDoc; onC
             </span>
           ),
         )}
+        {children}
       </div>
+      {note && <p className="mt-1.5 text-[12px] leading-snug text-ink-3">{note}</p>}
     </section>
   )
 }

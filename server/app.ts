@@ -127,7 +127,7 @@ export function createApp({ repo, hub, filesDir, themesDir, staticDir, publicUrl
   const positionOf = (id: string): PresentPosition | null => {
     const p = positions.get(id)
     if (!p || Date.now() - p.at > PRESENT_HOURS * 3_600_000) return null
-    return { key: p.key, n: p.n, tag: p.tag }
+    return { key: p.key, n: p.n, tag: p.tag, ...(p.stage ? { stage: p.stage } : {}) }
   }
   // The live times of each workshop's presentation (src/domain/live.ts): the breaks set in the presenter view. Kept
   // like the slide shown, for PRESENT_HOURS after the last paging or change, and never stored.
