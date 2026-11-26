@@ -196,11 +196,17 @@ A stop after stage 1 is a sensible one: a workshop presented with it shows wheth
 - The stylesheet's rules hang on the host's numbers alone (`.slide [data-b].b-wait`), not on `.slide.build`: in `slides.css` a class joined to `.slide` names a layout, and a test keeps it so. A side effect that is wanted: a class `b-wait` typed into a slide does nothing.
 - A slide kept wholly as source has no fields and so no switch; the class is typed into its source. A slide whose body alone is source has the switch.
 - The line that closes a list, the steps of an exercise and an agenda comes with its last row.
+- The host's marks hold against a theme (2026-11-26, after the walk through the owner's themes): hidden and faint are `!important` and count on a screen only (`@media not print`). The playful family dims the line under a statement itself (`opacity: 0.85`, `src/domain/families.ts`), with more weight than the stylesheet's rule: in the presenter view that line looked shown while the room had not seen it. A theme laid over an older stylesheet weighs its rules with an id and would have kept a list's closing line. A test keeps the three rules so (`server/skill.test.ts`).
+- The motion of a stage ends when it has run (`backwards`, not `both`). Left on the element it kept the unit a layer of its own for as long as the slide stood, so a slide that was built was no longer the same as one shown whole.
 - The facts of an exercise stand from the start, and a pyramid is not built at all yet (section 11).
 - A position without a stage reads as the slide as it comes on, so a window from before the builds and one from after page together.
 - Left for stage 2, as planned: the sign under thumbnails and "Play" while looking at a slide.
 
-Checked in the running app, in Chromium: two windows of one presentation step through a list and cards from either window, A, Shift with an arrow, a dot, the way back to a slide whole, the grid, a window that joins later; the switch in the editor, with the room's window following the change; the exported file, on screen and as print. Not checked: a phone as remote, a projector, Safari and Firefox, and the owner's own themes, whose rules may set `opacity` or `transform` on a unit.
+Checked in the running app, in Chromium: two windows of one presentation step through a list and cards from either window, A, Shift with an arrow, a dot, the way back to a slide whole, the grid, a window that joins later; the switch in the editor, with the room's window following the change; the exported file, on screen and as print.
+
+Checked against the owner's themes (2026-11-26), in the built app with its content security policy, on a copy of the local demo: a deck of 52 slides, the 26 that can build switched on (split, cards, exercise, statement, list, quote), walked stage by stage in the room's and the presenter's window under seven themes (the profile theme light and dark, the playful school theme, both client themes with rules of their own, the theme laid over the old stylesheet, a folder theme). At each of the 187 steps: what waits is hidden with everything inside it, what has come shows, the presenter's rest is faint, the room follows the presenter, the dots agree, and no element stands elsewhere than at the stage before. It found the two points above; after them every theme passes, and nothing is refused by the policy. On paper (print media) a slide in the middle of its build shows whole.
+
+Not checked: a phone as remote, a projector, Safari and Firefox, and the themes of any installation but the local demo.
 
 ## 11. Open
 

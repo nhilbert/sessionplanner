@@ -465,21 +465,23 @@
    A slide with the class build comes on in stages while it is presented. The host numbers its units (data-b, never
    stored: src/domain/build.ts) and marks what is still to come. b-wait keeps its room, so nothing moves its place
    when a stage arrives; b-ghost is the same in the presenter view, faint; b-in is the stage that has just come.
-   Without these marks, and on paper, the slide stands whole. The marks count only on an element the host numbered,
-   so a class of that name written into a slide does nothing. The motion is small by decision: a fade with a short
-   rise. */
-.slide [data-b].b-wait { visibility: hidden; }
-.slide [data-b].b-ghost { opacity: 0.24; }
-.slide [data-b].b-in { animation: slide-build-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-@keyframes slide-build-in { from { opacity: 0; transform: translateY(12px); } }
-/* the rule that closes a list belongs to its last row and comes with it; left standing, it floats under the gap */
-.slide ul.list:has(> [data-b].b-wait), .slide ol.list:has(> [data-b].b-wait), .slide ol.steps:has(> [data-b].b-wait), .slide ol.agenda:has(> [data-b].b-wait) { border-bottom-color: transparent; }
-@media (prefers-reduced-motion: reduce) { .slide [data-b].b-in { animation: none; } }
-@media print {
-  .slide [data-b].b-wait { visibility: visible; }
-  .slide [data-b].b-ghost { opacity: 1; }
-  .slide [data-b].b-in { animation: none; }
+   Without these marks the slide stands whole. The marks count only on an element the host numbered, so a class of
+   that name written into a slide does nothing. The motion is small by decision: a fade with a short rise.
+
+   The marks are the host's word on what the room sees now, so they hold against whatever a theme sets on the same
+   element (!important): the playful family dims the line under a statement, which would leave it looking shown in
+   the presenter view, and a theme's own rules may weigh more than any rule here. On paper they do not count at all. */
+@media not print {
+  .slide [data-b].b-wait { visibility: hidden !important; }
+  .slide [data-b].b-ghost { opacity: 0.24 !important; }
+  /* over once it has run: a motion that stayed on the element would keep it a layer of its own, and what a theme
+     draws behind or over a unit would then lie differently on a slide that was built than on one shown whole */
+  .slide [data-b].b-in { animation: slide-build-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+  /* the rule that closes a list belongs to its last row and comes with it; left standing, it floats under the gap */
+  .slide ul.list:has(> [data-b].b-wait), .slide ol.list:has(> [data-b].b-wait), .slide ol.steps:has(> [data-b].b-wait), .slide ol.agenda:has(> [data-b].b-wait) { border-bottom-color: transparent !important; }
 }
+@keyframes slide-build-in { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { .slide [data-b].b-in { animation: none; } }
 
 /* ---------- formatting laid over the theme (docs/slides.md, section 2) ----------
    What an author sets by hand on a word or a line: sizes as steps relative to the size the theme gives the text,

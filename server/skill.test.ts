@@ -23,6 +23,34 @@ describe('the stylesheet and the catalogue', () => {
   })
 })
 
+describe('the stylesheet and builds (docs/slide-builds.md)', () => {
+  const rules = css.slice(css.indexOf('builds (docs/slide-builds.md)'), css.indexOf('formatting laid over the theme'))
+
+  it('lets the host’s marks hold against a theme’s own rules', () => {
+    // A theme may set the same property on a unit with more weight than any rule of the stylesheet: the playful family
+    // dims the line under a statement (opacity), a theme laid over an older stylesheet weighs its rules with an id.
+    // Without !important such a unit looked shown in the presenter view while the room had not seen it yet.
+    expect(rules).toMatch(/\.b-wait \{ visibility: hidden !important; \}/)
+    expect(rules).toMatch(/\.b-ghost \{ opacity: 0\.\d+ !important; \}/)
+    expect(rules).toMatch(/:has\(> \[data-b\]\.b-wait\) \{ border-bottom-color: transparent !important; \}/)
+  })
+
+  it('counts them on a screen only, so paper shows every slide whole whatever marks it carries', () => {
+    const marks = [...rules.matchAll(/\.b-(wait|ghost|in)\b/g)]
+    expect(marks.length).toBeGreaterThan(3)
+    const screen = /@media not print \{\n([\s\S]*?)\n\}\n/.exec(rules)
+    expect(screen).not.toBeNull()
+    // every rule that hides or dims stands inside it
+    expect(rules.replace(screen![0], '')).not.toMatch(/visibility|opacity: 0\.\d+ !important/)
+    expect(rules).not.toMatch(/@media print/)
+  })
+
+  it('ends the motion of a stage once it has run', () => {
+    // "both" or "forwards" keeps the animation on the element for good, and with it a layer of its own
+    expect(rules).toMatch(/\.b-in \{ animation: slide-build-in \d+ms [^;]* backwards; \}/)
+  })
+})
+
 describe('the slide-build skill', () => {
   it('carries the current stylesheet and default theme', () => {
     expect(read(`${skill}/assets/slides.css`)).toBe(css)
