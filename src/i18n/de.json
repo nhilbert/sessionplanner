@@ -1200,7 +1200,7 @@
     "layout": "Layout",
     "changeLayout": "Layout wechseln",
     "options": "Darstellung",
-    "build": "Schrittweise aufbauen",
+    "build": "Animation",
     "buildStages_one": "Beim Präsentieren baut sich die Folie in {{count}} Stufe auf, per Klick.",
     "buildStages_other": "Beim Präsentieren baut sich die Folie in {{count}} Stufen auf, je Klick eine.",
     "buildNone": "Auf dieser Folie gibt es nichts, das sich schrittweise aufbauen könnte.",

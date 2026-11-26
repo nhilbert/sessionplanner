@@ -2,7 +2,7 @@
 
 A slide can come on in parts: the title first, then its points, cards or steps one after another, on a click or by itself. The aim is a guided way through the content: the room sees one thing, hears about it, then sees the next. Stage 1 of four is built (section 10, with what it does differently from the proposal); the rest of this draft is a proposal, and its choices are open until the owner takes them.
 
-Words used here: a **build** is a slide that comes on in parts. A **unit** is a part that can come on by itself (a point, a card, a row). A **stage** is what one click brings: one unit, or several together. "Step" stays what it is in the app, a step of the agenda. In German: Aufbau, Stufe ("Aufbau in 4 Stufen"), since Schritt is taken by the agenda and by the exercise.
+Words used here: a **build** is a slide that comes on in parts. A **unit** is a part that can come on by itself (a point, a card, a row). A **stage** is what one click brings: one unit, or several together. "Step" stays what it is in the app, a step of the agenda. In the app the switch that turns a build on is called "Animation", the word people know from PowerPoint (section 11); a stage is a Stufe in German, since Schritt is taken by the agenda and by the exercise.
 
 ## 1. What is asked for
 
@@ -90,13 +90,13 @@ Proposal A is recommended. B and C are what was weighed against it. Built with s
 
 ```
 Appearance
-[ Numbered ]  [ Plain ]  Columns (2)(3)(4)    [ Build up ]
+[ Numbered ]  [ Plain ]  Columns (2)(3)(4)    [ Animation ]
 ```
 
 Switched on, one line says what it does, and that is all most slides need:
 
 ```
-[ Numbered ]  [ Plain ]  Columns (2)(3)(4)    [■ Build up ]
+[ Numbered ]  [ Plain ]  Columns (2)(3)(4)    [■ Animation ]
 4 stages · on a click                              Adjust ›
 ```
 
@@ -214,5 +214,5 @@ Not checked: a phone as remote, a projector, Safari and Firefox, and the themes 
 - Whether a pyramid builds from its first entry or from its base.
 - `model` slides: a build by the top-level groups of the drawing would need them marked by whoever draws.
 - A build for the generated agenda slide would be kept on the workshop, like a title slide's variant.
-- The German words in the app, as built: "Schrittweise aufbauen" for the switch, "Stufe" for a stage, "Alles zeigen", "Zurück" and "Weiter". The owner may want others.
+- The switch is called "Animation", in German and in English (the owner's choice, 2026-11-26: the word people know from PowerPoint; it was "Schrittweise aufbauen" and "Build up" for a few hours). The format's class stays `build`. The other German words, as built: "Stufe" for a stage, "Alles zeigen", "Zurück" and "Weiter"; the owner may want others.
 - Whether a section slide's points should build: they do, since they are a list; the title stands.

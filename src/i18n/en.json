@@ -1185,7 +1185,7 @@
     "layout": "Layout",
     "changeLayout": "Change layout",
     "options": "Appearance",
-    "build": "Build up",
+    "build": "Animation",
     "buildStages_one": "While presenting, the slide comes on in {{count}} stage, on a click.",
     "buildStages_other": "While presenting, the slide comes on in {{count}} stages, on a click each.",
     "buildNone": "This slide has nothing that could come on in stages.",
